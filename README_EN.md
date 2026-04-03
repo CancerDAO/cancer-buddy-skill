@@ -252,7 +252,6 @@ cancer-buddy-skill/
 ## Important Notes
 
 - **Buddy is not a doctor.** All outputs are information organization and reference only. They do not constitute medical advice. Always confirm with your medical team before making decisions.
-- **Data privacy**: The skill logic runs locally, but any medical records you input are sent to the Claude API (Anthropic) for processing. Do not input information you are unwilling to send to a cloud service. See Anthropic's data policy at [anthropic.com/privacy](https://www.anthropic.com/privacy).
 - **Information timeliness**: Drug approvals and clinical trial recruitment statuses change. Always verify.
 - **Garbage in, garbage out**: The more complete the information you provide, the more accurate the analysis.
 
