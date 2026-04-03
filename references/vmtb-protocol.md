@@ -170,3 +170,76 @@ Output Chinese (Simplified) HTML. No Markdown, no preface. Sections:
 13. **Footer**: disclaimer (信息仅供参考, 请与主治医生确认)
 
 Use CSS classes: `.badge-success` (A), `.badge-warning` (B), `.badge-danger` (D), `.badge-info` (standard), `.badge-secondary` (off-label). Include `@media print` rules for clean printing.
+
+---
+
+## Active Treatment Overlap Assessment
+
+When a patient is mid-treatment on Line N and the clinical situation requires considering adding a new agent or transitioning to a new regimen, the following framework must be applied.
+
+### Washout Period Requirements
+
+Before introducing a new systemic agent, assess whether a washout period is needed from the current therapy:
+
+| Drug Class | Minimum Washout Period | Rationale |
+|------------|----------------------|-----------|
+| **Checkpoint inhibitors** (anti-PD-1/PD-L1/CTLA-4) | 4-6 weeks | Long half-life (15-25 days); persistent immune activation; risk of overlapping irAEs |
+| **Tyrosine kinase inhibitors (TKIs)** | 5 half-lives of the specific TKI (typically 3-7 days for most TKIs) | Rapid clearance but variable; check specific drug PK |
+| **Cytotoxic chemotherapy** | Per protocol (typically 21-28 days from last dose, or until ANC >1.5 and PLT >100) | Bone marrow recovery required |
+| **Anti-VEGF/VEGFR agents** (bevacizumab, ramucirumab) | 4-6 weeks | Wound healing risk; bleeding risk with overlapping agents |
+| **ADCs (antibody-drug conjugates)** | 3-4 weeks (varies by payload) | Payload-dependent myelosuppression and organ toxicity |
+| **Hormonal agents** | Generally no washout needed | Low systemic toxicity overlap |
+| **Radiation therapy** | 2-4 weeks (standard fractionation); 1-2 weeks (SBRT/SRS) | Tissue recovery; abscopal effect consideration |
+
+### Decision Framework: STOP Current Line vs. ADD to It
+
+**STOP current line and switch** when:
+- Clear radiographic progression (RECIST PD) on current regimen
+- Unacceptable toxicity (Grade 3-4 persistent or recurrent despite dose modification)
+- New actionable molecular target identified that requires a different drug class
+- Patient preference / quality of life deterioration
+
+**ADD a new agent to current line** when:
+- Mixed response (some lesions progressing, others stable/responding)
+- Oligoprogression amenable to local therapy + continuation of systemic line
+- Synergistic combination supported by evidence (e.g., adding anti-VEGF to checkpoint inhibitor)
+- Maintenance intensification strategy with evidence basis
+
+**Neither — hold and reassess** when:
+- Pseudoprogression suspected (especially early in immunotherapy, within first 12 weeks)
+- Ambiguous imaging (confirm with short-interval repeat scan at 4-6 weeks)
+- Intercurrent illness confounding assessment
+
+### Drug Combination Safety Matrix
+
+Before combining agents, cross-check for overlapping toxicity profiles:
+
+| Combination | Primary Overlapping Risk | Monitoring Required | Risk Mitigation |
+|-------------|------------------------|--------------------|-----------------| 
+| **Dual checkpoint** (anti-PD-1 + anti-CTLA-4) | Colitis (Grade 3-4: 10-15%), hepatitis, endocrinopathies | Weekly LFTs x 4 cycles, thyroid q2w, stool frequency log | Early steroid initiation at Grade 2 colitis; educate patient on diarrhea reporting |
+| **Checkpoint + anti-VEGF** (e.g., atezo + beva) | GI bleeding/perforation (2-5%), proteinuria, hypertension | BP monitoring q1w initially; urine protein q2w; GI symptom tracking | Avoid in patients with GI tract primary at risk of perforation; hold anti-VEGF peri-procedurally |
+| **Checkpoint + TKI** (e.g., pembro + lenvatinib) | Hepatotoxicity (Grade 3-4 ALT elevation: 5-10%), hypertension, hand-foot syndrome | LFTs weekly x 8 weeks then q2w; BP daily at home; dermatology assessment | Start TKI at reduced dose if borderline LFTs; defined TKI dose reduction steps |
+| **Checkpoint + chemotherapy** | Myelosuppression, immune-mediated pneumonitis (especially with taxanes) | CBC with differential before each cycle; chest imaging if new dyspnea | G-CSF support as needed; low threshold for CT chest with new respiratory symptoms |
+| **Checkpoint + radiation** | Radiation recall, pneumonitis (if thoracic field), enhanced immune toxicity | Monitor irradiated field for unexpected inflammation; pulmonary function | Consider sequential rather than concurrent if large radiation fields |
+| **TKI + chemotherapy** | Cumulative myelosuppression, GI toxicity (mucositis, diarrhea) | CBC twice weekly during initial cycles; electrolytes; hydration status | Stagger administration if possible; aggressive anti-diarrheal prophylaxis |
+| **Dual anti-VEGF pathway** (anti-VEGF + VEGFR-TKI) | Severe hypertension, hemorrhage, thrombotic microangiopathy | Generally NOT recommended — avoid this combination | If clinically necessary, requires intensive BP and renal monitoring |
+
+### Common Immunotherapy Overlap Risks — Detailed
+
+1. **Dual checkpoint blockade (anti-PD-1 + anti-CTLA-4) → Colitis**
+   - Incidence of Grade 3-4 colitis: 10-15% (vs. 1-2% with monotherapy)
+   - Onset: typically weeks 5-10 of combination
+   - Management: hold both agents at Grade 2; IV methylprednisolone 1-2 mg/kg at Grade 3; infliximab if steroid-refractory
+   - Rechallenge: consider anti-PD-1 monotherapy only after full resolution
+
+2. **Checkpoint + anti-VEGF → Bleeding risk**
+   - Mechanism: anti-VEGF impairs vascular integrity; immune activation may exacerbate mucosal inflammation
+   - High-risk populations: GI primary tumors, tumors invading major vessels, patients on anticoagulation
+   - Pre-treatment: confirm no cavitating lung lesions, no recent hemoptysis, no untreated varices
+   - Monitoring: serial hemoglobin, stool occult blood if symptomatic
+
+3. **Checkpoint + TKI → Hepatotoxicity**
+   - Mechanism: dual immune and direct hepatocyte injury
+   - Incidence of Grade 3-4 transaminase elevation: 5-10% (combination) vs. 1-3% (either alone)
+   - Differentiation: immune hepatitis (typically with elevated total bilirubin, poor response to TKI hold alone) vs. TKI hepatotoxicity (typically improves rapidly with TKI hold)
+   - Management: hold TKI first; if no improvement in 5-7 days, hold checkpoint and start steroids; liver biopsy if diagnostic uncertainty

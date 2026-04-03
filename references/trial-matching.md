@@ -161,3 +161,118 @@ Directions searched but yielded no viable trials. Brief reason per direction. Im
 3. **Provide researcher contact info** — always include PI/site contact so patient can reach trial team directly
 4. **Disclaimer** — every report must include: "本报告为信息整理, 不构成医疗建议. 入组需经研究者评估确认."
 5. **No guarantee language** — never state patient "will qualify" or "should enroll"; use "based on available information, this trial appears potentially matchable"
+
+---
+
+## Rule R6: Investigator Discretion Opportunities
+
+Not all eligibility criteria carry equal weight. Understanding which are absolute walls versus potentially negotiable helps patients and navigators identify trials worth pursuing even when a borderline criterion exists.
+
+### Hard Walls (Non-Negotiable)
+
+These criteria are almost never waived because they represent fundamental scientific or safety requirements:
+
+| Criterion Type | Why It Is a Hard Wall | Example |
+|---------------|----------------------|---------|
+| **Molecular mismatch** | Trial drug targets a specific alteration the patient lacks; no biological rationale for enrollment | Trial requires EGFR L858R; patient has KRAS G12C |
+| **Organ failure beyond safety threshold** | Enrolling would expose patient to unacceptable risk of drug-related death | CrCl <15 mL/min for a renally cleared drug; Child-Pugh C for hepatotoxic agent |
+| **Active uncontrolled CNS metastases** (when excluded) | Risk of neurological emergency during trial; confounds endpoint assessment | Symptomatic brain mets requiring escalating steroids |
+| **Concurrent second active malignancy** | Confounds efficacy assessment and attribution of adverse events | Active hematologic malignancy alongside solid tumor trial |
+| **Pregnancy / inability to use contraception** (when excluded) | Teratogenicity risk | Phase I agent with unknown reproductive toxicity |
+| **Prior organ transplant** (for immunotherapy trials) | Risk of graft rejection with immune activation | Solid organ transplant recipient for anti-PD-1 trial |
+
+### Potentially Negotiable (Investigator Discretion Zone)
+
+These criteria may have flexibility depending on the PI, the sponsor, and the specific clinical context:
+
+| Criterion Type | Why It May Be Flexible | How to Approach |
+|---------------|----------------------|-----------------|
+| **Prior treatment lines** (e.g., "no more than 2 prior lines") | If patient has stable disease, good PS, and exhausted standard options, PI may allow enrollment | Emphasize disease stability, PS, and lack of alternatives in exception request |
+| **Borderline lab values** | Values slightly outside range (e.g., ANC 1.4 vs required 1.5) may be accepted if trending in right direction | Provide serial lab trends showing recovery trajectory; offer to recheck before C1D1 |
+| **Washout period flexibility** | If prior drug has short half-life and patient has fully recovered from toxicity, strict calendar washout may be negotiable | Document complete toxicity resolution; provide PK rationale for adequate clearance |
+| **ECOG performance status** (borderline) | ECOG 2 when trial requires 0-1, but patient is ECOG 2 primarily due to reversible cause (e.g., pain, depression) | Explain the reversible component; offer PI assessment visit to confirm functional status |
+| **Prior use of same-class drug** | Some trials exclude prior same-class but may allow if prior exposure was brief, response was seen, or mechanism is sufficiently different | Detail prior exposure duration, best response, and mechanistic differentiation of trial drug |
+| **Age limits** | Upper age limits (e.g., <75) are sometimes flexible for fit patients | Provide comprehensive geriatric assessment or functional age evidence |
+| **Time since last treatment** | "Must be >4 weeks since last chemo" when patient is at 3 weeks but fully recovered | Document full hematologic and organ function recovery with labs |
+
+### Key Principles for Assessing Negotiability
+
+1. **Safety-driven criteria** are harder to waive than **statistical/scientific design criteria**
+2. **Sponsor-mandated criteria** are harder to waive than **PI-discretion criteria** — check if protocol specifies "per investigator judgment"
+3. **Early-phase trials** (Phase I/II) tend to have more flexibility than **registration trials** (Phase III pivotal)
+4. **Single-center investigator-initiated trials** have more flexibility than **multi-center pharma-sponsored trials**
+5. When in doubt, **always ask** — the worst outcome is a "no," and many PIs appreciate well-reasoned exception requests
+
+---
+
+## Exception Request Template
+
+Use this outline when contacting a Principal Investigator (PI) or study coordinator to request an eligibility waiver for a borderline criterion. The request should be concise, clinically grounded, and respectful of the PI's time.
+
+```
+═══════════════════════════════════════════════
+  临床试验入组例外申请 | TRIAL ELIGIBILITY EXCEPTION REQUEST
+═══════════════════════════════════════════════
+
+【试验信息 | TRIAL INFORMATION】
+  试验编号 Trial ID:       NCT___ / ChiCTR___
+  试验名称 Trial Title:    ___
+  研究中心 Site:            ___
+  主要研究者 PI:            Dr. ___
+
+【患者摘要 | PATIENT SUMMARY】
+  年龄/性别:               ___岁 / 男|女
+  诊断:                    ___ (组织学确认)
+  分期:                    ___
+  ECOG:                    ___
+  关键分子特征:             ___
+  既往治疗线数:             ___ lines
+  当前疾病状态:             ___
+
+【不满足的入组标准 | CRITERION NOT MET】
+  标准编号及原文:           [Exact text from protocol, e.g., "Inclusion #5: No more than 2 prior lines of systemic therapy"]
+  患者实际情况:             [Patient's actual status, e.g., "Patient has received 3 prior lines"]
+  偏差程度:                [How far out of range, e.g., "1 additional line beyond limit"]
+
+【临床论证 | CLINICAL RATIONALE FOR EXCEPTION】
+  1. 为什么该标准在本例中可能不影响安全性或疗效评估:
+     ___
+     [e.g., "Third line was brief (2 cycles) maintenance therapy discontinued for non-progression reasons; 
+      patient's current organ function and PS are comparable to a 2-line patient"]
+
+  2. 支持例外的临床数据或先例:
+     ___
+     [e.g., "Published expansion cohort of similar trial (NCT___) included 3L+ patients with similar response rates"]
+
+  3. 患者获益-风险评估:
+     ___
+     [e.g., "Patient has exhausted standard options; no approved therapy available for this molecular profile; 
+      risk-benefit favors enrollment"]
+
+【补充信息 | SUPPORTING INFORMATION】
+  - 近期实验室检查 (附件/摘要): ___
+  - 近期影像评估 (日期/结果):   ___
+  - 关键病历时间线 (附件):       ___
+
+【请求 | REQUEST】
+  恳请研究者评估该患者是否可通过例外审批入组本试验。
+  We respectfully request the investigator's assessment of whether this patient
+  may be considered for enrollment via protocol exception/waiver.
+
+【联系方式 | CONTACT】
+  申请医师/导航员:          ___
+  联系方式:                ___
+  患者知情同意:             患者已知晓本申请并同意 / Patient is aware and consents
+
+═══════════════════════════════════════════════
+```
+
+### Tips for Effective Exception Requests
+
+1. **Be specific**: Quote the exact protocol criterion text — do not paraphrase
+2. **Quantify the deviation**: "ANC is 1.4 vs. required 1.5" is better than "ANC is slightly low"
+3. **Provide context**: Explain why the deviation is clinically insignificant for THIS patient
+4. **Attach supporting data**: Recent labs, imaging, treatment timeline — reduce the PI's effort to review
+5. **Acknowledge the ask**: Express that you understand this is a non-standard request and respect the PI's judgment
+6. **Follow up appropriately**: Allow 3-5 business days; one follow-up is reasonable; do not pressure
+7. **Prepare for "no"**: Have a backup plan ready — the patient should not lose time waiting on a single exception request

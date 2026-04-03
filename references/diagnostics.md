@@ -141,3 +141,64 @@
 - Full immune profiling
 - Organoid banking for future drug testing
 - **Outcome:** Sid-level diagnostic depth. Maximizes treatment options, enables vaccine/cell therapy candidacy, provides complete molecular portrait for clinical trial matching.
+
+---
+
+## Tissue-Limited Scenario
+
+When biopsy yields limited tissue (<100mg or <20% tumor content), not all tests can be run. Follow this prioritization:
+
+```
+Limited Tissue Available
+  │
+  ├── 1st Priority (use tissue for these):
+  │     ├── Gene panel (300+ genes, includes TMB/MSI) — FFPE sufficient
+  │     ├── Standard IHC panel — FFPE sufficient
+  │     └── PD-L1 (relevant clone) — FFPE sufficient
+  │
+  ├── 2nd Priority (no tissue needed):
+  │     └── ctDNA / liquid biopsy (blood-based) — captures mutations, TMB, some fusions
+  │         Note: ctDNA sensitivity is lower for early-stage/low-burden disease
+  │
+  └── 3rd Priority (defer until more tissue available):
+        ├── WES — defer until surgical specimen or repeat biopsy
+        ├── Single-cell sequencing — requires fresh tissue, cannot run on limited FFPE
+        ├── RNA-seq — strongly prefers fresh-frozen, defer if tissue is limited FFPE
+        └── Organoid establishment — requires viable fresh tissue
+```
+
+**Key rule:** Never exhaust all tissue on low-priority tests. Always reserve FFPE blocks for potential future testing. Communicate with pathology lab BEFORE ordering to confirm tissue adequacy.
+
+---
+
+## Test x Sample Type Matrix
+
+| Test | FFPE | Fresh-Frozen | Blood (ctDNA) | Fresh Tissue (viable cells) | Notes |
+|---|---|---|---|---|---|
+| **Gene Panel (NGS)** | OK | OK | OK (liquid biopsy) | OK | FFPE is standard; blood-based has lower sensitivity |
+| **IHC** | OK | Not ideal | N/A | N/A | FFPE is the gold standard for IHC |
+| **PD-L1** | OK | Not ideal | N/A | N/A | Must use correct antibody clone for intended drug |
+| **WES** | OK (lower quality) | Preferred | Possible (shallow) | OK | FFPE causes artifacts; fresh-frozen gives cleaner data |
+| **WGS** | Possible (degraded) | Preferred | N/A | OK | Fresh-frozen strongly preferred for structural variant detection |
+| **RNA-seq** | Poor (degraded RNA) | Strongly preferred | N/A | OK | FFPE RNA is highly fragmented; results unreliable |
+| **Single-cell seq** | N/A | N/A | N/A | Required | Must process within hours of collection; cannot use fixed tissue |
+| **Organoid culture** | N/A | N/A | N/A | Required | Needs viable tumor cells; success rate varies by cancer type |
+| **TCR sequencing** | OK | OK | OK (from PBMCs) | OK | Blood-based TCR captures circulating T-cells, not tumor-infiltrating |
+| **ctDNA/MRD** | N/A | N/A | Primary method | N/A | Blood draw; no tissue needed; requires baseline tumor profile for personalized MRD |
+
+---
+
+## When to Re-Test
+
+Triggers for ordering repeat genomic/molecular testing:
+
+| Trigger | What to Re-Test | Rationale |
+|---|---|---|
+| **Disease progression** (confirmed by imaging) | ctDNA panel at minimum; tissue re-biopsy if feasible | Tumor may have acquired resistance mutations; see pathway-exploration.md Dimension 0.5 |
+| **Starting a new treatment line** | Repeat panel + ctDNA; consider re-biopsy for IHC | New treatment decisions should be based on current molecular profile, not historical |
+| **Unexpected treatment failure** (rapid progression or no response to expected-effective therapy) | ctDNA immediately; consider tissue biopsy to rule out histologic transformation | May indicate misdiagnosis, histologic transformation (e.g., NSCLC → SCLC), or uncommon resistance mechanism |
+| **>12 months since last genomic test** | ctDNA at minimum; consider updated panel if new targets have emerged | Tumor evolution is continuous; actionable targets may have appeared or disappeared |
+| **New metastatic site** | Biopsy new site if accessible + panel | Metastases can have different molecular profiles from the primary tumor |
+| **Pre-clinical trial screening** | Per trial protocol requirements | Many trials require recent (within 3–6 months) molecular results; older results may not qualify |
+
+**Rule of thumb:** When in doubt, at least draw blood for ctDNA — it is minimally invasive and provides a current snapshot of the tumor's molecular state.
