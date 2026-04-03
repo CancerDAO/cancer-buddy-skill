@@ -83,7 +83,7 @@ Phase 8  教育搭子     生成患者教育手册
 
 ## 安装
 
-### Claude Code
+### 第一步：安装 Skill
 
 ```bash
 # 安装到当前项目
@@ -94,12 +94,42 @@ git clone https://github.com/CancerDAO/cancer-buddy-skill .claude/skills/cancer-
 git clone https://github.com/CancerDAO/cancer-buddy-skill ~/.claude/skills/cancer-buddy
 ```
 
-### 依赖
+装完就能用。输入 `/cancer-buddy` 即可启动。
 
-无额外依赖。搭子基于 Claude Code 原生能力运行。
+### 第二步（推荐）：安装中国临床试验搜索
 
-可选增强：
-- `chictr-mcp-server` — 增加中国临床试验注册中心搜索能力（[安装指南](https://github.com/PancrePal-xiaoyibao/chictr-mcp-server)）
+如果你是中国患者，**强烈建议**安装 `chictr-mcp-server`，否则搭子搜不到中国临床试验注册中心（ChiCTR）的试验：
+
+```bash
+# 在项目根目录的 .mcp.json 或全局 ~/.claude.json 中添加：
+{
+  "mcpServers": {
+    "chictr": {
+      "command": "npx",
+      "args": ["-y", "chictr-mcp-server"]
+    }
+  }
+}
+```
+
+需要 Node.js 18+。详见 [chictr-mcp-server](https://github.com/PancrePal-xiaoyibao/chictr-mcp-server)。
+
+### 各功能依赖一览
+
+| 功能 | 开箱即用？ | 需要什么 |
+|------|:---------:|---------|
+| 病情解读（Phase 1） | ✅ 是 | 无 |
+| 诊断规划（Phase 2） | ✅ 是 | 无 |
+| 报告解读（Phase 3） | ✅ 是 | 无 |
+| 临床试验匹配 — 国际（Phase 4） | ✅ 是 | 无（自动查 ClinicalTrials.gov） |
+| 临床试验匹配 — 中国（Phase 4） | ❌ 需配置 | chictr-mcp-server |
+| 准入导航（Phase 5） | ✅ 是 | 无 |
+| 治疗管理（Phase 6） | ✅ 是 | 无 |
+| 数据金库（Phase 7） | ✅ 是 | 无 |
+| 患者教育（Phase 8） | ✅ 是 | 无 |
+| 病历 PDF/图片识别（Phase 0） | ✅ 是 | 无（Claude 原生支持） |
+
+> 更详细的安装说明见 [INSTALL.md](INSTALL.md)
 
 ---
 
