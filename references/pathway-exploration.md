@@ -1,6 +1,6 @@
 # Treatment Pathway Exploration Protocol
 
-Phase 4 of Beacon. Exhaustively explore ALL treatment options using Sid's 8-dimension strategy.
+Phase 4. Exhaustively explore ALL treatment options using 8-dimension strategy.
 
 ## 8-Dimension Search Strategy
 
