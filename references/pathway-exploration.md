@@ -105,6 +105,37 @@ When domestic options are exhausted or specific treatments are only available ab
 
 For each: refer to [access-pathways.md](access-pathways.md) for logistics.
 
+### Dimension 0.5: Re-Baseline at Progression
+
+> **Prior genomics become unreliable after progression — tumor may have evolved.**
+
+Before escalating treatment at progression, mandatory re-testing is required. Decision tree:
+
+```
+Progression on targeted therapy
+  └── Liquid biopsy (ctDNA) first
+        ├── New actionable mutation found → Pivot treatment to match new target
+        └── No new mutation found
+              └── Tissue re-biopsy if feasible
+                    ├── New findings → Adjust treatment
+                    └── Tissue unavailable → Proceed with empiric next line
+```
+
+#### Resistance Mechanism Matrix
+
+When progression occurs on a targeted therapy, check for these known resistance mechanisms:
+
+| Prior Therapy Target | Resistance Mechanisms to Check |
+|---|---|
+| **EGFR TKI (1st/2nd gen)** | T790M (most common), MET amplification, HER2 amplification, small-cell transformation, PIK3CA mutation |
+| **EGFR TKI (3rd gen, e.g., osimertinib)** | C797S mutation, MET amplification, HER2 amplification, RAS-MAPK activation, histologic transformation |
+| **KRAS G12C inhibitor** | RAS-ON state reactivation, SHP2 pathway activation, MAPK reactivation, acquired KRAS mutations, RTK amplification |
+| **ALK TKI** | ALK resistance mutations (G1202R, L1196M, I1171T/N/S, F1174L, others — varies by generation), MET amplification, EGFR activation, TP53 co-mutation |
+
+**Rule:** At every progression event, re-run at minimum ctDNA panel. If switching treatment line, strongly recommend full re-baseline (panel + ctDNA + relevant IHC). Do not assume the original molecular profile still holds.
+
+---
+
 ## Synthesis: Treatment Pathway Map
 
 After searching all 8 dimensions, synthesize into a pathway map:

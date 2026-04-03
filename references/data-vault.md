@@ -207,3 +207,122 @@ Generate missing data reminders: "Profile is 72% complete. Missing: PD-L1 status
 | Data browsers | Custom-built visualization tools | AI-generated summaries + standard JSON viewers |
 | Audience | Researchers, public, pharma | Patient, their doctors, authorized researchers |
 | Portability | Platform-dependent | JSON export, platform-independent |
+
+---
+
+## Access Audit Log
+
+Every data access event must be logged for compliance and patient transparency.
+
+### Schema: audit-log entry
+
+```json
+{
+  "log_id": "audit-20240601-001",
+  "recipient_id": "dr-zhang-ruijin",
+  "recipient_type": "doctor",
+  "data_scope": ["diagnostics/genomics/wes-report.json", "profile.json"],
+  "access_time": "2024-06-01T14:30:00+08:00",
+  "access_type": "view",
+  "purpose": "Second opinion consultation for treatment line 3",
+  "ip_address": "10.0.x.x",
+  "session_duration_seconds": 1200,
+  "data_exported": false
+}
+```
+
+**Fields:**
+| Field | Required | Description |
+|---|---|---|
+| `log_id` | Yes | Unique identifier for each access event |
+| `recipient_id` | Yes | Who accessed the data (doctor ID, researcher ID, system ID) |
+| `recipient_type` | Yes | `doctor`, `researcher`, `system`, `patient`, `caregiver` |
+| `data_scope` | Yes | Array of paths/categories accessed |
+| `access_time` | Yes | ISO 8601 timestamp with timezone |
+| `access_type` | Yes | `view`, `download`, `export`, `api_query` |
+| `purpose` | Yes | Free-text reason for access (required by PIPL) |
+| `ip_address` | No | Network origin of access |
+| `session_duration_seconds` | No | How long the data was accessed |
+| `data_exported` | Yes | Whether data was downloaded/exported outside the system |
+
+**Retention:** Audit logs must be retained for minimum 3 years per PIPL requirements.
+
+---
+
+## Revocation Process
+
+When a patient revokes data sharing authorization:
+
+### Genetic / Genomic Data (highest sensitivity)
+- **Timeline:** Immediate revocation — access must be terminated within minutes, not hours
+- **Scope:** All genomic data (WES, WGS, RNA-seq, panel results, ctDNA, single-cell, germline)
+- **Actions:**
+  1. Disable recipient's access tokens immediately
+  2. Send deletion confirmation request to recipient
+  3. Confirm to patient that access has been revoked (with timestamp)
+  4. Log revocation event in audit log
+  5. If data was exported, send formal deletion request to recipient with 48h compliance deadline
+
+### Other Medical Data (non-genetic)
+- **Timeline:** 24-hour notice period — recipient is notified that access will be revoked in 24 hours
+- **Scope:** Treatment records, imaging, lab results, clinical notes
+- **Actions:**
+  1. Notify recipient of pending revocation (24h countdown)
+  2. Revoke access after 24h (or immediately if patient requests urgent revocation)
+  3. Confirm to patient that access has been revoked (with timestamp)
+  4. Log revocation event in audit log
+
+### Confirmation to Patient
+Every revocation must generate a confirmation record sent to the patient containing:
+- Recipient whose access was revoked
+- Data scope that was revoked
+- Timestamp of revocation
+- Whether any data export occurred during the sharing period (from audit log)
+- Next steps if data was previously exported
+
+---
+
+## Data Breach Protocol
+
+Per PIPL (《个人信息保护法》) requirements:
+
+### 72-Hour Notification Rule
+
+Upon discovery of a data breach involving patient data:
+
+**Hour 0–4: Containment**
+1. Identify and isolate the breach vector
+2. Revoke compromised access credentials
+3. Preserve forensic evidence (logs, access records)
+4. Assess scope: which patients, what data types, what volume
+
+**Hour 4–24: Assessment**
+1. Determine whether genetic/genomic data was involved (triggers heightened protocol under 《人类遗传资源管理条例》)
+2. Classify severity: low (metadata only), medium (medical records), high (genomic + identifiable data)
+3. Prepare notification content
+
+**Hour 24–72: Notification**
+1. Notify affected patients with:
+   - What data was compromised
+   - When the breach occurred and was discovered
+   - What remediation steps have been taken
+   - What the patient should do (e.g., monitor for misuse, update passwords)
+   - Contact information for questions
+2. Report to relevant authorities:
+   - 网信办 (Cyberspace Administration) for personal data breaches
+   - 科技部 (Ministry of Science and Technology) if genetic resource data was involved
+   - Public security if criminal activity suspected
+
+**Post-Breach Remediation:**
+- Conduct root cause analysis
+- Implement technical fixes to prevent recurrence
+- Update security protocols
+- Provide affected patients with ongoing monitoring if genetic data was exposed
+- Document entire incident for compliance records (retain indefinitely)
+
+### Patient Rights During Breach
+- Right to know exactly what data was compromised
+- Right to request immediate deletion of remaining data
+- Right to revoke all sharing authorizations
+- Right to receive updates on investigation progress
+- Right to seek compensation for damages per PIPL Article 69

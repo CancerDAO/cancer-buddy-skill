@@ -145,3 +145,68 @@ Prepare these for ANY expanded access / cross-border pathway:
   - Cost responsibility
   - Data collection/sharing terms (if part of IIT/trial)
   - Right to withdraw at any time
+
+---
+
+## Escalation When Sponsor Is Unresponsive
+
+When contacting a sponsor's Medical Affairs department for expanded access and receiving no response:
+
+1. **Week 1:** Follow up with a polite reminder email referencing original request date and patient urgency
+2. **Week 2:** Escalate to the company's China General Manager (中国区总经理) — find via LinkedIn, company website, or industry contacts
+3. **Week 3:** Contact the CRO (Contract Research Organization) running the company's China trials directly — they often have separate medical affairs contacts
+4. **Parallel track:** Initiate an IIT (Investigator-Initiated Trial) pathway simultaneously — do not wait for sponsor response to begin IIT preparation
+5. **Patient advocacy route:** Contact patient advocacy organizations (see below) who may have established relationships with the sponsor or can apply collective pressure
+6. **Last resort:** If the drug is available in another market (US, EU, Japan), consider cross-border access pathway while waiting for domestic expanded access
+
+**Key principle:** Never wait on a single pathway. Start parallel tracks from Day 1.
+
+---
+
+## Provincial/City Pilot Programs
+
+Beyond Boao, several provinces/cities have parallel import or special access programs:
+
+| Region | Program | Key Features |
+|---|---|---|
+| **上海** (Shanghai) | 上海自贸区临港新片区 + 浦东新区 特殊药品进口 | Pilot zone for unapproved drug import; select hospitals (瑞金, 中山, 华山) can apply; faster than national route |
+| **北京** (Beijing) | 北京天竺综合保税区 医药进口试点 | Focused on high-value biologics and cell therapies; requires designated hospital partnership |
+| **广东** (Guangdong) | 粤港澳大湾区 药品医疗器械互通 | Leverages HK/Macau approved drugs for use in designated Greater Bay Area hospitals; fastest path for drugs already approved in HK |
+
+**Notes:**
+- These programs change frequently — verify current status before advising patients
+- Each program has its own designated hospital list; patients typically must receive treatment at those specific hospitals
+- Application materials are similar to the Boao pathway but submitted to local authorities
+
+---
+
+## Patient Advocacy Resources
+
+Key Chinese cancer patient organizations that can assist with access, funding, and support:
+
+| Organization | What They Help With |
+|---|---|
+| **中国癌症基金会** (China Cancer Foundation) | Patient assistance programs (PAP), financial aid applications, drug donation programs |
+| **中国抗癌协会** (China Anti-Cancer Association, CACA) | Expert referrals, MDT consultation coordination, clinical trial information, patient education |
+| **各癌种病友会** (Disease-specific patient communities) | Peer support, real-world treatment experience sharing, drug access intelligence, group negotiation with pharma. Examples: 肺腾助手 (lung cancer), 与癌共舞 (pan-cancer forum), 淋巴瘤之家 (lymphoma) |
+| **中华慈善总会** | Administers many pharma PAP programs (e.g., Glivec, Tagrisso patient assistance) |
+| **中国初级卫生保健基金会** | Drug assistance programs, especially for targeted therapies and immunotherapies |
+| **罕见病联盟** (China Alliance for Rare Diseases) | Relevant for rare cancer types; policy advocacy, cross-border drug access support |
+
+**How to engage:** Most organizations accept applications via WeChat official accounts or their websites. Patient communities (病友会) are typically accessed via WeChat groups — ask the treating hospital's patient education department for introductions.
+
+---
+
+## Timeline Comparison
+
+Side-by-side comparison of all 5 access pathways:
+
+| Pathway | Realistic Turnaround | Estimated Cost (Drug + Process) | Success Rate Estimate | Key Bottleneck |
+|---|---|---|---|---|
+| **1. 临床急需药品临时进口** (Boao/pilot zone) | 3–8 weeks | Drug cost at international price + travel/hospital fees (¥50,000–500,000+) | ~60–70% if drug is on pre-approved list; lower otherwise | Pre-approved list scope; must travel to designated hospital |
+| **2. 拓展性临床试验** (Expanded access) | 4–12 weeks | Usually free (sponsor provides drug); hospital fees apply | ~30–50% (depends on sponsor willingness) | Sponsor responsiveness; limited to drugs in active China development |
+| **3. IIT** (Investigator-initiated trial) | 3–6 weeks (ethics review) | Patient bears drug cost unless PI has funding (¥10,000–200,000+) | ~70–80% if willing PI found | Finding willing PI; drug procurement |
+| **4. 跨境医疗** (Cross-border) | 2–8 weeks (visa + appointment) | $$$: Travel + international treatment pricing (¥100,000–1,000,000+) | ~80–90% for treatment access (if affordable) | Cost; visa; language; follow-up continuity |
+| **5. 超说明书用药** (Off-label) | 1–4 weeks (hospital committee) | Self-pay at domestic drug price (¥5,000–100,000+) | ~50–60% (hospital committee may reject) | Hospital committee approval; physician willingness to take liability |
+
+**Recommendation:** Pursue multiple pathways in parallel. Start IIT + off-label (fastest) while simultaneously applying for expanded access and Boao import (higher drug access certainty).

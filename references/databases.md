@@ -161,3 +161,80 @@ If MCP tools are unavailable, use these fallbacks without stopping the workflow:
 | Any guideline database | WebSearch `{guideline org} {cancer type} {year} treatment algorithm` |
 
 **Rule**: Always attempt MCP tool first. If it errors or returns empty, immediately fall back. Never let tool unavailability block the patient's navigation.
+
+---
+
+## Chinese Medical Terminology Mapping
+
+Bilingual mapping of key oncology terms for report generation, patient communication, and Chinese database querying.
+
+| English Term | Abbreviation | 中文术语 |
+|-------------|-------------|---------|
+| Microsatellite instability-high | MSI-H | 微卫星高度不稳定 |
+| Mismatch repair deficient | dMMR | 错配修复缺陷 |
+| Mismatch repair proficient | pMMR | 错配修复完整 |
+| Microsatellite stable | MSS | 微卫星稳定 |
+| Epidermal growth factor receptor | EGFR | 表皮生长因子受体 |
+| Programmed death-ligand 1 | PD-L1 | 程序性死亡配体1 |
+| Programmed death-1 | PD-1 | 程序性死亡受体1 |
+| Tumor mutational burden-high | TMB-H | 高肿瘤突变负荷 |
+| Human epidermal growth factor receptor 2 | HER2 | 人表皮生长因子受体2 |
+| Anaplastic lymphoma kinase | ALK | 间变性淋巴瘤激酶 |
+| Fibroblast growth factor receptor | FGFR | 成纤维细胞生长因子受体 |
+| Vascular endothelial growth factor | VEGF | 血管内皮生长因子 |
+| Next-generation sequencing | NGS | 二代测序 |
+| Circulating tumor DNA | ctDNA | 循环肿瘤DNA |
+| Complete response | CR | 完全缓解 |
+| Partial response | PR | 部分缓解 |
+| Stable disease | SD | 疾病稳定 |
+| Progressive disease | PD | 疾病进展 |
+| Overall survival | OS | 总生存期 |
+| Progression-free survival | PFS | 无进展生存期 |
+| Objective response rate | ORR | 客观缓解率 |
+| Disease control rate | DCR | 疾病控制率 |
+| Immune-related adverse event | irAE | 免疫相关不良反应 |
+| Antibody-drug conjugate | ADC | 抗体药物偶联物 |
+| Chimeric antigen receptor T-cell | CAR-T | 嵌合抗原受体T细胞 |
+| Tumor-infiltrating lymphocytes | TIL | 肿瘤浸润淋巴细胞 |
+| Non-small cell lung cancer | NSCLC | 非小细胞肺癌 |
+| Small cell lung cancer | SCLC | 小细胞肺癌 |
+| Hepatocellular carcinoma | HCC | 肝细胞癌 |
+| Cholangiocarcinoma | CCA | 胆管癌 |
+
+---
+
+## ChiCTR Query Syntax
+
+The Chinese Clinical Trial Registry (ChiCTR) supports Chinese and English keyword search. Effective queries combine disease terms, molecular targets, and trial status filters.
+
+### Search Examples
+
+**Example 1: Cancer type + molecular target (Chinese)**
+```
+Query: 非小细胞肺癌 EGFR 20外显子插入 招募中
+Purpose: Find recruiting NSCLC trials targeting EGFR exon 20 insertions
+Tips: Use "20外显子插入" or "20ins" — ChiCTR entries may use either form
+```
+
+**Example 2: Pan-cancer biomarker-driven trial (Chinese + English)**
+```
+Query: MSI-H 实体瘤 免疫治疗 II期 OR III期
+Purpose: Find phase II/III immunotherapy trials for MSI-H solid tumors
+Tips: Combine English abbreviation (MSI-H) with Chinese disease/treatment terms for best coverage
+```
+
+**Example 3: Specific drug class + cancer type (Chinese)**
+```
+Query: 胆管癌 FGFR抑制剂 临床试验
+Alternate: 胆管癌 成纤维细胞生长因子受体 靶向治疗
+Purpose: Find FGFR inhibitor trials in cholangiocarcinoma
+Tips: Search both the abbreviation (FGFR) and full Chinese term (成纤维细胞生长因子受体) separately — indexing varies by trial
+```
+
+**Example 4: Cell therapy / novel modality (Chinese)**
+```
+Query: CAR-T 实体瘤 Claudin18.2 I期 OR II期
+Alternate: 嵌合抗原受体T细胞 胃癌 Claudin
+Purpose: Find CAR-T trials targeting Claudin18.2 in solid tumors
+Tips: Include both "CAR-T" and "嵌合抗原受体T细胞"; also search the target protein name in English as it is often not translated
+```
