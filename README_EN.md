@@ -108,17 +108,16 @@ Optional enhancement:
 In Claude Code, type:
 
 ```
-cancer buddy
+/cancer-buddy
 ```
 
-Or any of these:
+Or just say what you need:
 
 ```
 help me analyze my condition
 I've run out of standard treatments
 find me clinical trials
 interpret this genetic report
-抗癌搭子
 ```
 
 Buddy auto-detects your situation and routes you to the right navigation phase.

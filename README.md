@@ -108,13 +108,12 @@ git clone https://github.com/CancerDAO/cancer-buddy-skill ~/.claude/skills/cance
 在 Claude Code 中输入：
 
 ```
-抗癌搭子
+/cancer-buddy
 ```
 
-或者：
+或者直接说：
 
 ```
-抗癌搭子
 帮我分析一下病情
 标准治疗用尽了怎么办
 帮我找临床试验
