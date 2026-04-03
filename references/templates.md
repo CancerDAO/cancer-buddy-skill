@@ -1,6 +1,6 @@
-# Beacon Output Templates
+# Output Templates
 
-Use these templates across all Beacon phases. Fill every field from extracted data. Mark unknown fields explicitly.
+Use these templates across all phases. Fill every field from extracted data. Mark unknown fields explicitly.
 
 ---
 

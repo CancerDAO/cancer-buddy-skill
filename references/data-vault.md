@@ -24,7 +24,7 @@ patient-vault/
 ```json
 {
   "version": "1.0",
-  "patient_id": "beacon-xxxx",
+  "patient_id": "patient-xxxx",
   "demographics": {
     "age_at_diagnosis": 45,
     "sex": "M/F",
@@ -79,7 +79,7 @@ patient-vault/
 ```json
 {
   "version": "1.0",
-  "patient_id": "beacon-xxxx",
+  "patient_id": "patient-xxxx",
   "events": [
     {
       "date": "2024-01-10",
@@ -194,9 +194,9 @@ Generate missing data reminders: "Profile is 72% complete. Missing: PD-L1 status
 - Receive copy of all data in portable format (JSON export)
 - Be informed of any data breach within 72 hours
 
-## Comparison: osteosarc.com vs Beacon Data Vault
+## Comparison: osteosarc.com vs Cancer-Buddy Data Vault
 
-| Dimension | Sid / osteosarc.com | Beacon Data Vault |
+| Dimension | Sid / osteosarc.com | Cancer-Buddy Data Vault |
 |---|---|---|
 | Storage | 25TB Google Cloud | Structured local storage (patient-controlled) |
 | Format | Custom data browsers, ad-hoc formats | Standardized JSON schemas |
@@ -204,6 +204,6 @@ Generate missing data reminders: "Profile is 72% complete. Missing: PD-L1 status
 | Access control | Open web | Granular per-recipient, per-scope, with expiry |
 | Cost | Significant cloud + engineering costs | Local-first, minimal infrastructure cost |
 | Genomic compliance | US-based (no restriction) | China PIPL + genetic resource regulations compliant |
-| Data browsers | Custom-built visualization tools | Beacon-generated summaries + standard JSON viewers |
+| Data browsers | Custom-built visualization tools | AI-generated summaries + standard JSON viewers |
 | Audience | Researchers, public, pharma | Patient, their doctors, authorized researchers |
 | Portability | Platform-dependent | JSON export, platform-independent |
