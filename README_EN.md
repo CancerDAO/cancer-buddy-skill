@@ -83,7 +83,7 @@ His three core strategies are encoded into every phase of Cancer Buddy:
 
 ## Install
 
-### Claude Code
+### Step 1: Install the Skill
 
 ```bash
 # Install to current project
@@ -94,12 +94,42 @@ git clone https://github.com/CancerDAO/cancer-buddy-skill .claude/skills/cancer-
 git clone https://github.com/CancerDAO/cancer-buddy-skill ~/.claude/skills/cancer-buddy
 ```
 
-### Dependencies
+That's it. Type `/cancer-buddy` to start.
 
-None. Cancer Buddy runs on Claude Code's native capabilities.
+### Step 2 (Recommended): Enable China Clinical Trial Search
 
-Optional enhancement:
-- `chictr-mcp-server` — Adds China Clinical Trial Registry (ChiCTR) search ([install guide](https://github.com/PancrePal-xiaoyibao/chictr-mcp-server))
+If you're a patient in China, **strongly recommended** — without this, Buddy cannot search the China Clinical Trial Registry (ChiCTR):
+
+```bash
+# Add to .mcp.json in your project root or ~/.claude.json globally:
+{
+  "mcpServers": {
+    "chictr": {
+      "command": "npx",
+      "args": ["-y", "chictr-mcp-server"]
+    }
+  }
+}
+```
+
+Requires Node.js 18+. See [chictr-mcp-server](https://github.com/PancrePal-xiaoyibao/chictr-mcp-server).
+
+### Feature Dependency Overview
+
+| Feature | Works Out of Box? | What's Needed |
+|---------|:-----------------:|---------------|
+| Diagnosis interpretation (Phase 1) | ✅ Yes | Nothing |
+| Diagnostics planning (Phase 2) | ✅ Yes | Nothing |
+| Report interpretation (Phase 3) | ✅ Yes | Nothing |
+| Clinical trial matching — Global (Phase 4) | ✅ Yes | Nothing (auto-queries ClinicalTrials.gov) |
+| Clinical trial matching — China (Phase 4) | ❌ Setup needed | chictr-mcp-server |
+| Access navigation (Phase 5) | ✅ Yes | Nothing |
+| Treatment management (Phase 6) | ✅ Yes | Nothing |
+| Data vault (Phase 7) | ✅ Yes | Nothing |
+| Patient education (Phase 8) | ✅ Yes | Nothing |
+| Medical record OCR (Phase 0) | ✅ Yes | Nothing (Claude handles natively) |
+
+> For detailed setup instructions, see [INSTALL.md](INSTALL.md)
 
 ---
 
