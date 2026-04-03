@@ -88,10 +88,10 @@ Phase 8  教育搭子     生成患者教育手册
 ```bash
 # 安装到当前项目
 mkdir -p .claude/skills
-git clone https://github.com/CancerDAO/cancer-buddy-skill .claude/skills/beacon
+git clone https://github.com/CancerDAO/cancer-buddy-skill .claude/skills/cancer-buddy
 
 # 或安装到全局（所有项目都能用）
-git clone https://github.com/CancerDAO/cancer-buddy-skill ~/.claude/skills/beacon
+git clone https://github.com/CancerDAO/cancer-buddy-skill ~/.claude/skills/cancer-buddy
 ```
 
 ### 依赖
@@ -108,10 +108,10 @@ git clone https://github.com/CancerDAO/cancer-buddy-skill ~/.claude/skills/beaco
 在 Claude Code 中输入：
 
 ```
-/beacon
+抗癌搭子
 ```
 
-或者直接说中文：
+或者：
 
 ```
 抗癌搭子
@@ -249,10 +249,10 @@ It covers: report interpretation, clinical trial matching (ClinicalTrials.gov + 
 Inspired by Sid Sijbrandij's ["Founder Mode on Cancer"](https://centuryofbio.com/p/sid) approach.
 
 ```bash
-git clone https://github.com/CancerDAO/cancer-buddy-skill ~/.claude/skills/beacon
+git clone https://github.com/CancerDAO/cancer-buddy-skill ~/.claude/skills/cancer-buddy
 ```
 
-Then type `/beacon` or say `抗癌搭子` in Claude Code.
+Then say `抗癌搭子` or `cancer buddy` in Claude Code.
 
 ---
 
