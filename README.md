@@ -24,7 +24,7 @@
 它帮你 **理解病情、穷尽所有治疗路径、管理整个抗癌过程**<br>
 从临床试验匹配到扩展准入，从检查规划到跨境医疗，一个 Skill 全搞定
 
-[功能](#功能) · [安装](#安装) · [使用](#使用) · [效果示例](#效果示例) · [English](#english)
+[功能](#功能) · [安装](#安装) · [使用](#使用) · [效果示例](#效果示例) · [**English**](README_EN.md)
 
 </div>
 
@@ -235,24 +235,6 @@ cancer-buddy-skill/
 - Bug 修复和体验改善
 
 请提 [Issue](https://github.com/CancerDAO/cancer-buddy-skill/issues) 或 PR。
-
----
-
-<a id="english"></a>
-
-## English
-
-**Cancer Buddy (抗癌搭子)** is a Claude Code Skill that gives every cancer patient access to the same level of information navigation that previously required millions of dollars and a full-time expert team.
-
-It covers: report interpretation, clinical trial matching (ClinicalTrials.gov + ChiCTR), treatment pathway exploration, expanded access navigation, parallel treatment management, and patient data vault — all in one Skill.
-
-Inspired by Sid Sijbrandij's ["Founder Mode on Cancer"](https://centuryofbio.com/p/sid) approach.
-
-```bash
-git clone https://github.com/CancerDAO/cancer-buddy-skill ~/.claude/skills/cancer-buddy
-```
-
-Then say `抗癌搭子` or `cancer buddy` in Claude Code.
 
 ---
 
