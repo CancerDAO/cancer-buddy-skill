@@ -1,6 +1,6 @@
 ---
 name: cancer-buddy
-description: "抗癌搭子 (cancer-buddy) — CancerDAO's unified AI cancer navigator. Patient-facing companion across the entire cancer journey. Routes to specialized sub-skills: organize records, explore diagnostics and treatment pathways, lightweight MTB, patient-view clinical trial matching, expanded-access navigation, multi-line treatment management, N=1 data vault, patient education. Use when a patient or family member says they have cancer, received a diagnosis, has reports to understand, wants treatment options, needs clinical trial matching, or wants to build a personal health archive. Triggers on: 抗癌搭子, 搭子, 患者导航, 帮我分析病情, 刚确诊, 标准治疗用尽, 帮我找临床试验, 基因报告解读, 分子肿瘤委员会, MTB, 扩展准入, 同情用药, 病历整理, 治疗方案, 博鳌, 多线治疗, 数据保险箱, 宣教手册."
+description: "抗癌搭子 (cancer-buddy) — CancerDAO's unified AI cancer navigator. Patient-facing companion across the entire cancer journey. Routes to specialized sub-skills: organize records, explore diagnostics and treatment pathways, lightweight MTB, patient-view clinical trial matching, expanded-access navigation, multi-line treatment management, N=1 data vault, patient education. Use when a patient or family member says they have cancer, received a diagnosis, has reports to understand, wants treatment options, needs clinical trial matching, or wants to build a personal health archive. Triggers on: 抗癌搭子, 搭子, 患者导航, 帮我分析病情, 刚确诊, 标准治疗用尽, 帮我找临床试验, 基因报告解读, 分子肿瘤委员会, 临床试验匹配, MTB, 扩展准入, 同情用药, 病历整理, 治疗方案, 博鳌, 多线治疗, 数据保险箱, 宣教手册."
 ---
 
 # 抗癌搭子 — 你的 AI 抗癌伙伴
