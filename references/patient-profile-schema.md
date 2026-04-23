@@ -55,6 +55,15 @@ Shape written by `cb-organizer` (shared with `vmtb-organizer`):
   "patient_location_hint": "上海",
   "data_sources": [
     {"path": "03_病理报告/pathology-20240115.pdf", "confidence": "high"}
+  ],
+  "caregivers": [
+    {
+      "relation": "spouse|parent|child|sibling|friend",
+      "name": "张 *",
+      "is_primary": true,
+      "contact_preference": "wechat|phone|email|none",
+      "lives_with_patient": true
+    }
   ]
 }
 ```
@@ -62,6 +71,8 @@ Shape written by `cb-organizer` (shared with `vmtb-organizer`):
 Fields are left `null` when truly unknown — the organizer never fabricates.
 
 **Required at minimum** for downstream skills to function: `patient_code`, `primary_cancer`, `histology`, `stage`. If these are missing, downstream skills must prompt the user to re-run organize.
+
+- caregivers[] (optional): populated by cancer-buddy-caregiver at role-caregiver first interaction, used by downstream sub-skills to know who the operator is.
 
 ## readiness.json
 
@@ -100,6 +111,21 @@ Only `cancer-buddy-organize` (via the `cb-organizer` subagent) and `cancerdao-vm
 ## Defensive reads
 
 All consumers must tolerate missing optional fields — surface a prompt, do not crash. Missing required fields trigger the re-organize suggestion above.
+
+## role.json — per-session role state
+
+Written and read by the meta-skill only. Schema:
+
+```json
+{
+  "schema_version": "1",
+  "active_role": "patient|caregiver|family",
+  "set_at": "2026-04-23T10:00:00Z",
+  "history": [{"role": "patient", "set_at": "2026-04-20T09:00:00Z"}]
+}
+```
+
+Every sub-skill reads `patients/<patient_code>/role.json` at entry. If missing → route back to meta-skill for role resolution.
 
 ## Version pin
 
