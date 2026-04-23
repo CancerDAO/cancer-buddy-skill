@@ -6,7 +6,7 @@
 
 抗癌搭子是一个 Claude Code 插件，包含 1 个元技能 + 8 个专业子技能，覆盖癌症就医全旅程：病历整理、诊断与治疗路径探索、轻量版分子肿瘤委员会 (MTB)、患者视角的临床试验匹配、扩展准入导航、多线治疗管理、N=1 数据金库、患者教育手册。
 
-和临床医生朝向的 [vmtb-skill](https://github.com/zwbao/vmtb-skill) 配套：抗癌搭子给患者看，vmtb-skill 给医生看。两个插件共享同一个 `patients/<id>/` 病例目录，所以在搭子里整理过的病历可以直接被 vmtb-skill 的完整 MTB 委员会读取。
+和临床医生朝向的 [vmtb-skill](https://github.com/zwbao/vmtb-skill) 配套：抗癌搭子给患者看，vmtb-skill 给医生看。两个插件共享同一个 `patients/<patient_code>/` 病例目录，所以在搭子里整理过的病历可以直接被 vmtb-skill 的完整 MTB 委员会读取。
 
 ## 快速开始
 
@@ -48,9 +48,9 @@ Tested against vmtb-skill >= 4.0.0-beta.6.
 
 ## 数据在哪里
 
-所有病历和报告都写在本地 `patients/<patient_id>/` 目录。`patient_id` 格式：`<姓名首字母拼音>_<诊断年月>`，如 `WZM_202312`。
+所有病历和报告都写在本地 `patients/<patient_code>/` 目录。`patient_code` 由 `cb-organizer` 在首次整理时自动生成（基于输入路径与修改时间的哈希），形如 `PT-17CE02BC33`，与 vmtb-skill 共享同一套命名。完整 schema 见 [references/patient-profile-schema.md](references/patient-profile-schema.md)。
 
-默认根目录是当前工作目录。想改用别的位置：
+默认根目录依次回退：`$CANCER_BUDDY_PATIENTS_DIR` → `$VMTB_PATIENT_DATA_ROOT` → `$HOME/CancerDAO/patients`。想改用别的位置：
 ```
 export CANCER_BUDDY_PATIENTS_DIR=/path/to/your/patients
 ```
