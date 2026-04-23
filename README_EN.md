@@ -91,13 +91,15 @@ When clear signals of a mental-health crisis show up, surface real-world help fi
 
 ```bash
 # Global install (usable from any project, recommended)
-npx skills add CancerDAO/cancer-buddy-skill -g
+npx skills add CancerDAO/cancer-buddy-skill -g --all
 
 # Or install to the current project
-npx skills add CancerDAO/cancer-buddy-skill
+npx skills add CancerDAO/cancer-buddy-skill --all
 ```
 
-Restart Claude Code, then say `cancer-buddy` or `抗癌搭子` to get going.
+`--all` installs all 9 sub-skills at once, no interactive picking. Restart Claude Code, then say `cancer-buddy` or `抗癌搭子` to get going.
+
+> If you only want a subset, drop `--all` and the CLI will enter interactive mode.
 
 ---
 

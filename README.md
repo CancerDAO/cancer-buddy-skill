@@ -91,13 +91,15 @@ second-opinion  跨院 / 跨境第二意见 packet 打包
 
 ```bash
 # 全局安装（所有项目都能用，推荐）
-npx skills add CancerDAO/cancer-buddy-skill -g
+npx skills add CancerDAO/cancer-buddy-skill -g --all
 
 # 或安装到当前项目
-npx skills add CancerDAO/cancer-buddy-skill
+npx skills add CancerDAO/cancer-buddy-skill --all
 ```
 
-装完重启 Claude Code，对它说 `抗癌搭子` 或 `帮我分析病情` 就能用。
+`--all` 会把 9 个子技能一次性全部装好，不用手动勾选。装完重启 Claude Code，对它说 `抗癌搭子` 或 `帮我分析病情` 就能用。
+
+> 如果你只想装其中几个子技能，把 `--all` 去掉即可，CLI 会进入交互选择。
 
 ---
 
