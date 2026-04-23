@@ -1,6 +1,6 @@
 ---
 name: cancer-buddy-education
-description: "Generate a patient-friendly education handbook (Markdown with Mermaid diagrams) from the MTB report and patient profile. Includes quick reference card, my-health-summary in plain language, drug sheets with side-effect management, daily living guide, follow-up schedule, cost/insurance navigation, FAQ. v1 basic version; v2 absorbs content from vmtb-skill's vmtb-patient-education. Triggers on 宣教手册, 给我爸妈看的版本, patient handbook, 患者教育."
+description: "Generate a patient-friendly education handbook (Markdown with Mermaid diagrams) from the MTB report and patient profile. Includes quick reference card, my-health-summary in plain language, drug sheets with side-effect management, daily living guide, follow-up schedule, cost/insurance navigation, FAQ. Absorbs mechanism diagrams, cancer-type modules, and phase-organized FAQ from vmtb-patient-education. Triggers on 宣教手册, 给我爸妈看的版本, patient handbook, 患者教育."
 ---
 
 # cancer-buddy-education
@@ -32,6 +32,9 @@ See [references/handbook-template.md](references/handbook-template.md) for the f
 1. Read MTB report (full preferred, lite fallback).
 2. Extract: treatment plan, drug list, monitoring schedule, comorbidity interactions.
 3. Select relevant handbook chapters based on patient's condition (skip chemotherapy chapter if immunotherapy only, include diabetes chapter if comorbid T2DM, etc.).
+   - **Mechanism diagrams**: pull relevant diagrams from `references/mechanism-diagrams.md` based on patient's `current_therapy` type (chemo / targeted / immuno / radio).
+   - **Cancer-type module**: include the patient's primary cancer section from `references/cancer-type-modules.md`.
+   - **FAQ**: pull phase-relevant questions from `references/expanded-faq.md` based on current therapy phase (newly-diagnosed / active-treatment / survivorship).
 4. Render in Markdown with:
    - Cover page (name, patient_code, date, physician contact)
    - Quick reference card (emergency phone, ER criteria — fever > 38.5°C, new bleeding, etc.)
@@ -65,5 +68,8 @@ Apply `safety-guardrails.md` rules:
 ## References
 
 - [handbook-template.md](references/handbook-template.md) — full template
+- [mechanism-diagrams.md](references/mechanism-diagrams.md) — disease mechanism Mermaid diagrams (absorbed from vmtb-patient-education)
+- [cancer-type-modules.md](references/cancer-type-modules.md) — per-cancer-type patient modules
+- [expanded-faq.md](references/expanded-faq.md) — FAQ organized by treatment phase
 - [../../references/terminology.md](../../references/terminology.md)
 - [../../references/safety-guardrails.md](../../references/safety-guardrails.md)
