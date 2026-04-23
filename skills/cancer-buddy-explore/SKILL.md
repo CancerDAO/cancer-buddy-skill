@@ -26,18 +26,18 @@ Written under `patients/<pid>/reports/explore/`:
 ## Workflow
 
 ### Preflight
-1. Check `patients/<pid>/readiness.json` exists. If not, prompt user to run `cancer-buddy-organize` first.
-2. Check grade ≥ C. If lower, prompt user to supply missing records.
 
-### Diagnostic plan (see [references/diagnostics.md](references/diagnostics.md))
+Apply [../../references/preflight.md](../../references/preflight.md) (readiness-gate: file must exist, grade ≥ C).
 
-Generate 4 tiers, each with:
-- Tier 1 (Essential, ¥3K–10K): minimum workup to confirm diagnosis and stage.
-- Tier 2 (Recommended, ¥10K–30K): add molecular profiling and key biomarkers.
-- Tier 3 (Comprehensive, ¥30K–100K): add germline, ctDNA, MRD.
-- Tier 4 (Frontier, ¥100K+): WGS, single-cell, organoid drug sensitivity.
+### Diagnostic plan
 
-Every tier lists Chinese institutions, turnaround time, sample-preservation rules (fresh-frozen vs FFPE).
+Generate 4 tiers per [references/diagnostics.md](references/diagnostics.md):
+- Tier 1 Essential (¥3K–10K): confirm diagnosis + stage
+- Tier 2 Recommended (¥10K–30K): + molecular profiling
+- Tier 3 Comprehensive (¥30K–100K): + germline/ctDNA/MRD
+- Tier 4 Frontier (¥100K+): WGS/single-cell/organoid
+
+Every tier lists Chinese institutions, turnaround, sample-preservation rules.
 
 ### Pathway options (see [references/pathway-exploration.md](references/pathway-exploration.md))
 

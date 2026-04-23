@@ -14,8 +14,7 @@ Match the patient's molecular + clinical profile against open trials in Clinical
 
 ## Preflight
 
-- Require `patients/<pid>/readiness.json` grade ≥ C.
-- Require at least one molecular driver in `profile.json` (without a target, trial matching is weak).
+Apply [../../references/preflight.md](../../references/preflight.md) (readiness-gate: file must exist, grade ≥ C). Additionally require at least one molecular driver in `profile.json` — without a target, trial matching is weak.
 
 ## Workflow (TrialGPT protocol)
 
@@ -42,6 +41,13 @@ Written under `patients/<pid>/reports/trials/`:
 - "Contact this center" action items: center name, phone (if public), registration URL.
 - Warn: "匹配 ≠ 入组。最终以研究中心预筛为准。"
 - Budget impact: flag whether the trial sponsor covers drug, imaging, hotel, travel (look up from trial protocol).
+
+## Safety
+
+Apply `safety-guardrails.md` rules:
+- Evidence grading — annotate every matched trial with the phase (I/II/III) and whether the underlying mechanism has A/B/C/D evidence.
+- Eligibility vs labs — when eligibility hinges on organ-function thresholds (ECOG, ANC, bilirubin, creatinine), cross-check against the latest labs in `profile.json`; flag ⚠️ if labs are stale or missing.
+- 匹配 ≠ 入组 — every report footer repeats the `匹配 ≠ 入组。最终以研究中心预筛为准。` warning.
 
 ## Handoff
 

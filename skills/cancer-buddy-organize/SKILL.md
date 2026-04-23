@@ -57,6 +57,12 @@ If the generated `patient_code` (e.g. `PT-17CE02BC33`) already exists under `pat
 
 `patients/` root defaults to the current working directory. Override with `CANCER_BUDDY_PATIENTS_DIR` env var.
 
+## Safety
+
+Organize does not make medical recommendations. Still:
+- Never fabricate fields — when a value is truly unreadable in the source, write `null` and surface it as a gap. `[OCR_UNCERTAIN]` is preferred over guessed content.
+- Downstream sub-skills (`explore`, `mtb-lite`, `trial-match`, `manage`, `education`) apply the full `safety-guardrails.md` rule set when they read what organize produced; wrong data here poisons every downstream report.
+
 ## Next-step guidance
 
 After successful organize, route the patient to the most relevant next sub-skill based on their initial question:

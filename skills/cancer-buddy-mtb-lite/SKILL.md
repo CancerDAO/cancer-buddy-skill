@@ -16,22 +16,22 @@ One-pass molecular tumor board report. Faster than vmtb-skill's full committee, 
 
 ### 1. Readiness gate
 
-- If `patients/<pid>/readiness.json` missing → prompt to run `cancer-buddy-organize`.
-- If grade < C → prompt for missing records.
+Apply [../../references/preflight.md](../../references/preflight.md) (readiness-gate: file must exist, grade ≥ C).
 
 ### 2. vmtb-skill detection (handoff)
 
 Run:
 ```bash
 plugin_root="${CLAUDE_PLUGIN_DIR:-}"
+shopt -s nullglob 2>/dev/null || setopt NULL_GLOB
+candidates=(
+  "$plugin_root"/cancerdao-vmtb/SKILL.md
+  "$HOME"/.claude/plugins/*/cancerdao-vmtb/SKILL.md
+  ./.claude/plugins/*/cancerdao-vmtb/SKILL.md
+)
 found=""
-for glob in \
-    "$plugin_root/cancerdao-vmtb/SKILL.md" \
-    "$HOME/.claude/plugins/"*"/cancerdao-vmtb/SKILL.md" \
-    "./.claude/plugins/"*"/cancerdao-vmtb/SKILL.md" ; do
-  for f in $glob; do
-    [[ -f "$f" ]] && { found="$f"; break 2; }
-  done
+for f in "${candidates[@]}"; do
+  [[ -f "$f" ]] && { found="$f"; break; }
 done
 echo "${found:-not_found}"
 ```

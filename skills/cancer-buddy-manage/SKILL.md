@@ -14,8 +14,7 @@ Manage treatment-in-flight. Multiple lines active at once (trial + standard + su
 
 ## Preflight
 
-- `patients/<pid>/readiness.json` grade ≥ C.
-- `profile.json.treatment_history` must have at least one entry.
+Apply [../../references/preflight.md](../../references/preflight.md) (readiness-gate: file must exist, grade ≥ C). Additionally `profile.json.treatment_history` must have at least one entry.
 
 ## Outputs
 
@@ -38,15 +37,12 @@ Written under `patients/<pid>/reports/manage/`:
 - Line fails (PD or toxicity stop) → hand off to `cancer-buddy-explore` for re-exploration.
 - Trial line needs access navigation → hand off to `cancer-buddy-access`.
 
-## v1 scope note
-
-This v1 basic version does NOT include:
-- Personalized side-effect management protocols (coming in v2)
-- Nutrition support (planned `cancer-buddy-nutrition` sub-skill, v2)
-
 ## Safety
 
-Drug-interaction warnings are critical. Never omit a major (D/X) interaction even if it complicates the narrative.
+Apply all `safety-guardrails.md` rules:
+- Drug-interaction warnings — never omit a major (D/X) interaction even if it complicates the narrative.
+- Organ-function re-check — every active drug change (start / stop / dose adjust) triggers a fresh liver/kidney/marrow check before the new regimen is surfaced as viable.
+- Anomaly alerts — trend-based labs (rising LDH, falling HGB > 2 g/dL in 2 weeks, neutrophil drop across cycles) must be surfaced as 🚨 with the standing rule: `必须与主诊医生确认。`
 
 ## References
 

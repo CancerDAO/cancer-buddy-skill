@@ -49,9 +49,12 @@ See [references/handbook-template.md](references/handbook-template.md) for the f
 - Every medical term bilingual + plain explanation (see `terminology.md`).
 - Section-end: "你家里有人能帮你执行这一段吗？不行的话，搭子可以帮你安排提醒。"
 
-## v1 scope note
+## Safety
 
-v1 basic version = current Phase 8 content migrated. v2 will absorb richer content from vmtb-skill's `vmtb-patient-education` (advanced mechanism diagrams, expanded FAQ, condition-specific modules).
+Apply `safety-guardrails.md` rules:
+- **Mandatory footer** on every handbook, quick-reference card, and drug sheet: `本手册为信息参考，任何治疗调整必须与主诊医生确认。`
+- **No medical recommendations** — explain what drugs / tests / side-effects are, never instruct the patient to change dose, stop a drug, or skip a visit without clinician sign-off.
+- **ER criteria are absolute** — fever > 38.5°C, new bleeding, severe dyspnea, altered mental status → `立即就医，不要等门诊`.
 
 ## References
 
