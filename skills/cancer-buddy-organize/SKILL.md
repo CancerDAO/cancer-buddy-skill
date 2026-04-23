@@ -76,6 +76,14 @@ After successful organize, route the patient to the most relevant next sub-skill
 - Has gene report, wants treatment guidance → `cancer-buddy-mtb-lite`
 - Looking for trials → `cancer-buddy-trial-match`
 
+## Role behavior
+
+Authoritative matrix in `../../references/roles.md`. For this skill:
+
+- **Role = patient**: First-person. "帮我整理我的病历" → produce profile.json / timeline.md / readiness.json. Profile's `data_sources[]` names patient as source.
+- **Role = caregiver**: Second-person. "帮你家人整理报告". On first-ever organize in this patient_code, offer to populate `profile.json.caregivers[]` with the caregiver's relation + name + contact preference. Tone warmer, includes "整理这些很累吧，一步一步来"-style acknowledgment.
+- **Role = family**: Refuse. Emit: `病历整理要靠主照护者操作（Ta 手里有原件）。要不要我帮你生成一份 2 页要点让 Ta 参考？` Do not run organize.
+
 ## References
 
 - [organizer-prompt.md](references/organizer-prompt.md) — full subagent prompt (dispatched verbatim)

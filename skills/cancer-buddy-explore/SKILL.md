@@ -67,6 +67,12 @@ Every suggestion carries:
 
 No ranking, no "推荐" — only "匹配理由" per option.
 
+## Role behavior
+
+- **Role = patient**: first-person exploration. 4-tier diagnostic menu + 8-dim pathway options framed as "你可以考虑".
+- **Role = caregiver**: family-joint framing. "你陪 X 讨论这些选项时，以下四个问题常被忽略…" plus caregiver-specific concern: "Ta 的精力状态够不够做 Tier 3？"
+- **Role = family**: summary only. 2-3 bullets per dimension, not the full menu. End with: `具体选哪一条路径，主照护者和主诊医生会讨论，你的角色是支持。`
+
 ## References
 
 - [diagnostics.md](references/diagnostics.md) — 4-tier menu details, institutions, costs

@@ -83,6 +83,12 @@ If case is late-stage OR rare (< 5% incidence) OR multi-line-failed AND vmtb-ski
 https://github.com/zwbao/vmtb-skill
 ```
 
+## Role behavior
+
+- **Role = patient**: full report. Evidence-graded A/B/C/D recommendations in first-person ("你可以考虑和医生讨论").
+- **Role = caregiver**: full report, second-person. Include a "帮 Ta 听完医生解释后回来对照的要点" section at the end for post-consultation review.
+- **Role = family**: executive summary only (top 3 treatment options with 1-line each, no dosing, no evidence deep-dive). Redirect detailed discussion to caregiver.
+
 ## References
 
 - [vmtb-protocol.md](references/vmtb-protocol.md) — full MTB protocol (evidence grading, safety, databases)

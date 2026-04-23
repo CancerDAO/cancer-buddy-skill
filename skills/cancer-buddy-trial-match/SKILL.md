@@ -54,6 +54,12 @@ Apply `safety-guardrails.md` rules:
 - Trial IDs from this output feed `cancer-buddy-access` when the patient decides to pursue one.
 - If patient wants the trial in the context of a full treatment plan, route back to `cancer-buddy-explore` or `cancer-buddy-mtb-lite`.
 
+## Role behavior
+
+- **Role = patient**: full TrialGPT protocol output (criterion-level ✅/❌/⚠️/❓ per trial, contact info).
+- **Role = caregiver**: same full output. Add "你做 pre-screening 电话沟通时的 10 分钟话术" template — caregivers often place the initial study coordinator call.
+- **Role = family**: summary only (list top 5 trial names, centers, status). Direct detailed criterion analysis to caregiver.
+
 ## References
 
 - [trial-matching.md](references/trial-matching.md) — full TrialGPT dual-source protocol
