@@ -64,7 +64,15 @@ Shape written by `cb-organizer` (shared with `vmtb-organizer`):
       "contact_preference": "wechat|phone|email|none",
       "lives_with_patient": true
     }
-  ]
+  ],
+  "disclosure_state": "full|partial|suppressed|null",
+  "disclosure_history": [
+    {"state": "suppressed", "set_at": "2024-03-10T09:00:00Z", "set_by_role": "caregiver"},
+    {"state": "partial",    "set_at": "2024-05-20T11:00:00Z", "set_by_role": "caregiver"},
+    {"state": "full",       "set_at": "2025-01-15T14:30:00Z", "set_by_role": "patient"}
+  ],
+  "acp_status": "none|discussed|documented|legally_filed|null",
+  "surveillance_schedule_anchor": "2025-08-30"
 }
 ```
 
@@ -73,6 +81,10 @@ Fields are left `null` when truly unknown — the organizer never fabricates.
 **Required at minimum** for downstream skills to function: `patient_code`, `primary_cancer`, `histology`, `stage`. If these are missing, downstream skills must prompt the user to re-run organize.
 
 - caregivers[] (optional): populated by cancer-buddy-caregiver at role-caregiver first interaction, used by downstream sub-skills to know who the operator is.
+- `disclosure_state` (optional, default null interpreted as "full"): diagnosis known to patient. When "suppressed", downstream skills in patient role apply softened/refuse behavior per `disclosure-behavior.md`.
+- `disclosure_history` (optional): append-only log of state transitions with who set each.
+- `acp_status` (optional): advance care planning progress. Written by `cancer-buddy-comfort`.
+- `surveillance_schedule_anchor` (optional): ISO date. Starts the survivorship clock. Written by organize when treatment transitions to maintenance/post-treatment, or explicitly by patient/caregiver.
 
 ## readiness.json
 
@@ -126,6 +138,48 @@ Written and read by the meta-skill only. Schema:
 ```
 
 Every sub-skill reads `patients/<patient_code>/role.json` at entry. If missing → route back to meta-skill for role resolution.
+
+## comfort symptom-log YAML schema
+
+Standardized format for `patients/<patient_code>/reports/comfort/symptom-log/<YYYY-MM-DD>.md`. Written as a YAML code block inside the .md file.
+
+```yaml
+date: 2026-04-23
+ecog: 3
+pain:
+  worst_last_24h: 6  # 0-10 NRS
+  current: 3
+  character: "dull, lower back, radiating left leg"
+  relieved_by: "oxycodone 10mg q4h"
+  breakthrough_doses: 2
+dyspnea:
+  at_rest: "none|mild|moderate|severe"
+  on_exertion: "none|mild|moderate|severe"
+  o2_use: true
+nausea:
+  episodes: 1
+  vomiting: false
+  trigger: "after breakfast"
+delirium:
+  present: false
+  type: null        # hyperactive | hypoactive | mixed
+  onset: null
+secretions:
+  terminal_rattle: false
+affect:
+  state: "withdrawn, tearful"
+  notable: "said 'I want to go home' twice"
+meds_today:
+  - oxycodone 10mg q4h prn
+  - ondansetron 8mg BID
+  - lorazepam 0.5mg prn
+family_observations: |
+  Patient refused breakfast. Daughter stayed 6 hours.
+  Grandchild video-called, patient smiled briefly.
+logged_by: caregiver  # patient | caregiver | family
+```
+
+Single-writer assumption: one log entry per calendar date; concurrent writes by multiple family members are not supported (last write wins).
 
 ## Version pin
 
