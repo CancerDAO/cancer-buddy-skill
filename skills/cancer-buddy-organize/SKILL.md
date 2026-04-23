@@ -30,11 +30,24 @@ Written under `patients/<patient_code>/`:
 
 ## Workflow
 
-1. **Resolve input** — if zip, unpack to temp dir; if folder, walk; if file list, read in place.
-2. **Delegate to subagent** — invoke `cb-organizer` subagent with input path. The subagent does OCR, classification, schema extraction.
-3. **Verify outputs** — check that `profile.json` validates against schema and that required fields (`patient_code`, `primary_cancer`, `histology`, `stage`) are present.
-4. **Grade readiness** — verify `readiness.json` was written; if grade is F or D, present the information-gap checklist 🔴🟡🟢 to the patient.
+1. **Resolve input** — if zip, unpack to temp dir; if folder, walk; if file list, read in place. Confirm the path with the user before proceeding.
+2. **Dispatch `cb-organizer` subagent.**
+
+   Invoke via the `Agent` tool:
+   - `subagent_type: cb-organizer`
+   - prompt body includes:
+     - `plugin_root: <this plugin's root path>`
+     - `input_path: <user-supplied path, resolved>`
+     - `patient_code: <optional — auto-generated from hash if missing>`
+     - `patient_data_root: <optional — defaults to $CANCER_BUDDY_PATIENTS_DIR, falling back to $VMTB_PATIENT_DATA_ROOT, then $HOME/CancerDAO/patients>`
+
+   The subagent unpacks the input, uses Claude vision for OCR on images, classifies files into the 11-bucket taxonomy, and writes the canonical `<patient_dir>/` (INDEX.md + timeline.md + readiness.json + case_text.md + profile.json + OCR sidecars). It returns JSON containing `patient_dir`, `files_classified`, `readiness_grade`, `readiness_score`, `blocking_gaps`.
+
+3. **Verify outputs** — read the returned JSON; confirm `profile.json` exists and required fields (`patient_code`, `primary_cancer`, `histology`, `stage`) are present. If any are missing, surface to the user as a blocker.
+4. **Grade readiness** — from the returned JSON take `readiness_grade` + `readiness_score`; if grade is F or D, present the information-gap checklist 🔴🟡🟢 to the patient.
 5. **Output summary** — display the Patient Profile Card ([references/profile-card.md](references/profile-card.md)) to the patient using the `terminology.md` format rules.
+
+If the subagent registry is not yet set up (`~/.claude/agents/cb-organizer.md` missing), surface the one-time install step (`bash scripts/install.sh` from this plugin, then restart Claude Code) before proceeding.
 
 ## patient_code collision
 
