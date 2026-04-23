@@ -1,68 +1,287 @@
-# cancer-buddy
+<div align="center">
 
-Your AI cancer companion. Not a doctor. Not treatment advice. A buddy who walks with you.
+# cancer-buddy.skill
+
+> *"Cancer shouldn't be a battle fought alone."*
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Claude Code](https://img.shields.io/badge/Claude%20Code-Skill-blueviolet)](https://claude.ai/code)
+[![CancerDAO](https://img.shields.io/badge/CancerDAO-Open%20Source-orange)](https://github.com/CancerDAO)
+
+<br>
+
+Just diagnosed, a pile of reports and no idea how to sort them? Caring for a family member with cancer, about to burn out? Lying awake at 3am, running through the worst-case scenarios? Not sure whether — or how — to tell your family?<br>
+These questions don't have standard answers, but you shouldn't have to face them alone.<br>
+
+**You need a buddy. One that doesn't judge, doesn't decide for you, but is always there.**
+
+<br>
+
+Hand over your medical records, your feelings, your family situation.<br>
+Your buddy will **walk this road with you, step by step**.<br>
+Organizing records, helping the caregiver catch a breath, mental-health screening, figuring out how to start a disclosure conversation,<br>
+drafting a handbook your parents can actually read, packing a referral case for another hospital. One Skill holds all of it.
+
+[Features](#features) · [Install](#install) · [Usage](#usage) · [Examples](#examples) · [**中文**](README.md)
+
+</div>
 
 ---
 
-Cancer is more than one person can carry. Sorting medical records, negotiating family conversations, the 3am anxiety, the "should I even tell them" question — cancer-buddy helps with those. Not by deciding for you, but by being with you while you figure it out.
+## What cancer-buddy can help you with
 
-Serious clinical decisions — which regimen, whether to switch lines, expanded-access routes, end-of-life planning — those stay between you and your oncologist. cancer-buddy doesn't replace those conversations. It helps you prepare for them.
+What cancer brings isn't just the treatment — it's the pile of information, the feelings, and the family pressure all at once. Most of these don't have standard answers, but they can be organized and held better.
 
-## What it can help with
+**cancer-buddy pulls all of this into one executable support system:**
 
-- **Pile of records in chaos** → organize into a usable archive
-- **Caregiver burning out** → practical tools + self-care
-- **3am anxiety, depression, thoughts of ending it** → validated screeners + hotlines surfaced immediately if at risk
-- **"Should we tell them?"** — a very Chinese question → layered disclosure negotiation
-- **Want a personal health vault** → structured storage with sharing levels
-- **Need a handbook your parents can actually read** → simplified patient education
-- **Eating / dietary questions** → general guidance (drug interactions? ask your pharmacist)
-- **Seeking a second opinion** → English packet for Dr.-to-Dr. review
+| What you're facing | How cancer-buddy helps |
+|-------------------|------------------------|
+| A pile of records you don't know how to sort | Auto OCR, classification, filing — a usable structured archive |
+| Caring for someone, about to break | Caregiver division-of-labor templates, Zarit self-assessment, breathing-room toolkit |
+| 3am insomnia, anxiety, thoughts of ending it | PHQ-9 / GAD-7 / C-SSRS Lite screeners, crisis hotlines surfaced right away |
+| Should we tell Mom / Dad / the kids? | Layered, context-aware disclosure — not a binary yes/no |
+| Want my own health archive | N=1 structure + sharing levels (🔒 private → 🌐 public), you own it |
+| Need a handbook my parents can actually read | Patient education booklet with Mermaid diagrams, daily-living guide, follow-up schedule |
+| What can I eat during chemo? Is ginseng okay? | Menus by cancer type + treatment phase, with drug-food interaction checks |
+| Want to try another hospital or go abroad | One-page English case summary, Dr.-to-Dr. cover letter, shipping guide |
 
-## Quick start
+---
 
-```bash
-npx skills add CancerDAO/cancer-buddy-skill -g
+## Features
+
+### 8 companion modules
+
+```
+organize        Turn PDFs / images / docx records into a structured archive
+caregiver       Caregiver support: division of labor, self-care, burnout screening
+mind            Mental-health screening + crisis response (depression / anxiety / suicide risk)
+disclosure      Whether to tell, how to tell, when to tell
+vault           Your own N=1 health archive with sharing levels
+education       Patient education handbook for family (with diagrams)
+nutrition       Companion nutrition by cancer type + treatment phase
+second-opinion  Cross-hospital / cross-border second-opinion packet
 ```
 
-Restart Claude Code. Say "抗癌搭子" or "cancer-buddy". The buddy asks your role first — patient, primary caregiver, or other family — then routes accordingly.
+You don't have to use them in order. The system will first understand your role (patient / caregiver / family member), then guide the next step based on context.
 
-Zero-config. No tesseract, pdftotext, or Python needed — OCR, vision, and reasoning all run on Claude's native model capabilities.
+### Design philosophy
 
-Full install details in [INSTALL.md](INSTALL.md).
+cancer-buddy is a system of *companionship + structure*, not a *decision replacement*.
 
-## What cancer-buddy **does NOT do**
+In cancer, the most critical decisions — treatment regimen, whether to switch lines, communicating prognosis — must happen between you and your treating physician.
 
-These are serious clinical judgments, not something an AI companion should do:
+What cancer-buddy does:
 
-- Molecular tumor board (MTB) treatment recommendations
-- Criterion-level clinical trial matching
-- Expanded access / compassionate use clinical pathways
-- Palliative care dosing decisions
-- Missed-dose clinical decisions (warfarin double, MTX handling, TKI restart)
-- CTCAE grade-based side-effect triage
-- Therapy-specific late-effects surveillance
-- Progression / line-switching decision trees
+- Organize information (records, timeline, indicator trends)
+- Help you prepare questions (so every clinic visit goes further)
+- Offer support under emotional pressure
 
-For any of these, go to your treating oncologist. Or use the internal `cancer-buddy-pro-skill` (private) which carries the full clinical companion.
+What cancer-buddy won't do:
+
+- Provide treatment plans or specific medication advice
+- Replace a physician's clinical judgment
+
+But there's one thing cancer-buddy will always do:
+
+When clear signals of a mental-health crisis show up, surface real-world help first.
+
+---
+
+## Install
+
+```bash
+# Global install (usable from any project, recommended)
+npx skills add CancerDAO/cancer-buddy-skill -g
+
+# Or install to the current project
+npx skills add CancerDAO/cancer-buddy-skill
+```
+
+Restart Claude Code, then say `cancer-buddy` or `抗癌搭子` to get going.
+
+---
+
+## Usage
+
+You can just say what's on your mind, in plain language:
+
+```
+Help me organize my records
+I'm caring for a family member and it's too much
+Should we tell the family about the diagnosis
+Help me prepare materials for a referral
+```
+
+The system routes you into the right module based on context.
+
+### What you can bring
+
+| Input | Format |
+|-------|--------|
+| Pathology / genomic / imaging / blood reports | PDF / image / plain text — any of them work |
+| What's happening right now | Just tell the buddy in your own words |
+| Emotional state | No need to compose it — say it however it comes |
+| Family situation | Who's caring, who doesn't know, who won't allow disclosure |
+
+---
+
+## Examples
+
+### Scenario 1: A pile of fresh reports
+
+```
+User         ❯ My mom was just diagnosed. The doctor handed me a stack
+               of stuff and I have no idea what any of it is.
+               [drops in a folder]
+
+cancer-buddy ❯ Let me sort this for you. 23 files total, grouped like this:
+
+               📋 Pathology (3)  — primary biopsy / IHC / genomics
+               🔬 Imaging (8)    — chest-abdomen CT / PET-CT / brain MRI
+               🩸 Blood (9)      — admission labs + tumor marker trend
+               💊 Treatment (2)  — first chemo record + discharge summary
+               📝 Other (1)      — a handwritten medical order
+
+               Filed under patients/PT-17CE02BC33/.
+               I've written you a timeline.md and profile.json —
+               you can print them before the next visit.
+
+               What do you want to understand first?
+```
+
+### Scenario 2: Caregiver at the edge
+
+```
+User         ❯ My dad has stage-III lung cancer. I'm caring for him alone.
+               Haven't slept properly in a month.
+               Cried in the hospital hallway for half an hour yesterday.
+
+cancer-buddy ❯ You've been carrying this for a long time. Let's do a quick
+               self-check first:
+
+               [Zarit Caregiver Burden Scale — 5 questions, 2 minutes]
+
+               ...
+
+               You're scoring high on "emotional exhaustion" and
+               "financial stress." This isn't you being weak — this is a
+               normal response.
+
+               Three things you can do this week:
+               1. Share the load — I'll draft a family-chat message
+                  listing tasks (your dad's cousins' generation —
+                  people who'd help but haven't been asked)
+               2. Backup — find even a 4-hour window where someone
+                  else covers, and go outside
+               3. Professional support — at this level, book a
+                  psychiatry or medical-social-work visit.
+                  Not for your dad — for you.
+
+               If thoughts of "disappearing" or "ending it" show up,
+               call 400-161-9995 immediately (24-hour line).
+```
+
+### Scenario 3: Should we tell him?
+
+```
+User         ❯ My mom has stage-IV breast cancer. My dad has hypertension
+               and a history of depression. The whole family is hiding it
+               from him. My sister says absolutely don't tell him.
+               But I don't think this is sustainable.
+
+cancer-buddy ❯ This is one of the hardest things in Chinese families.
+               I won't decide for you — but I'll help you think it through.
+
+               A few things to clarify first:
+               • Does your mom know? Does she want him to know?
+               • Is your dad's depression currently being treated regularly?
+               • Is the concealment total or partial? How are you explaining
+                 the chemo hair loss?
+
+               A common trap: framing this as "tell vs. don't tell."
+               What usually works better is **layered disclosure**:
+
+               Layer 1: Let him know "she's sick, she's being treated"
+               Layer 2: Once he's emotionally stable, discuss what it is
+               Layer 3: When he needs to participate in decisions,
+                        discuss stage and prognosis
+
+               Want me to draft the Layer-1 conversation script?
+               (Given his depression history, I'll include a paragraph
+               suggesting coordination with his psychiatrist.)
+```
+
+---
+
+## Project structure
+
+```
+cancer-buddy-skill/
+├── README.md                          # 中文版
+├── README_EN.md                       # you are here
+├── INSTALL.md                         # detailed install guide
+└── skills/
+    ├── cancer-buddy/                  # meta entry (routes to the 8 below)
+    ├── cancer-buddy-organize/         # record organization
+    ├── cancer-buddy-caregiver/        # caregiver support
+    ├── cancer-buddy-mind/             # mental-health screening + crisis
+    ├── cancer-buddy-disclosure/       # disclosure conversations
+    ├── cancer-buddy-vault/            # N=1 health archive
+    ├── cancer-buddy-education/        # patient handbook generator
+    ├── cancer-buddy-nutrition/        # nutrition companion
+    └── cancer-buddy-second-opinion/   # second-opinion packet
+```
+
+---
 
 ## Data
 
-Everything lives locally under `patients/<patient_code>/`. `patient_code` is auto-generated by organize on first run (e.g. `PT-17CE02BC33`). Shared with vmtb-skill.
+Everything is stored locally by default:
 
-Root directory resolves: `$CANCER_BUDDY_PATIENTS_DIR` → `$VMTB_PATIENT_DATA_ROOT` → `$HOME/CancerDAO/patients`.
+```
+$HOME/CancerDAO/patients/
+```
 
-Data stays local; Claude API calls send context to Anthropic per their privacy policy. Use the `vault` sub-skill for stricter sharing controls.
+- Identified by an anonymous `patient_code`
+- Contains no personal identity information
+- Custom paths supported
 
-## Safety
+All generated content (timeline, profile, etc.) is in readable, exportable, open formats — nothing proprietary.
 
-cancer-buddy is a companion, not a diagnostic or treatment tool. Medical decisions must be confirmed with your treating physician. If you or someone you're caring for has thoughts of suicide, cancer-buddy will immediately surface crisis hotlines. National 24-hour line: **400-161-9995**.
+---
 
-## License
+## Notes
 
-MIT. See [LICENSE](LICENSE).
+- This tool does not provide medical diagnosis or treatment advice
+- All medical decisions should be confirmed with a qualified physician
+- In a mental-health crisis, seek real-world help first
 
-## Related
+---
 
-- **[vmtb-skill](https://github.com/zwbao/vmtb-skill)** — clinician-facing molecular tumor board plugin
-- **cancer-buddy-pro-skill** (private) — the full clinical companion including MTB / trial matching / diagnostic pathways / expanded access / palliative / adherence / survivorship surveillance
+## Contributing
+
+Contributions welcome, especially:
+
+- Disclosure scripts and caregiver division-of-labor templates for Chinese family contexts
+- Mental-health screener localization (PHQ-9 / GAD-7 done; C-SSRS still in progress)
+- Updates to local cancer centers, social-work resources, and hotline information
+- Cancer-type templates for patient education handbooks
+- Bug fixes and UX improvements
+
+Please open an [Issue](https://github.com/CancerDAO/cancer-buddy-skill/issues) or a PR.
+
+---
+
+## About us
+
+[CancerDAO](https://github.com/CancerDAO) — building AI + open-source support systems for patients and families.
+
+---
+
+<div align="center">
+
+MIT License © [CancerDAO](https://github.com/CancerDAO)
+
+**You don't have to face this alone.**
+
+</div>
