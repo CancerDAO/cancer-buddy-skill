@@ -2,7 +2,15 @@
 
 Shared entry-gate check for every sub-skill that reads an existing patient directory (`explore`, `mtb-lite`, `trial-match`, `manage`). See `patient-profile-schema.md` §readiness.json for the full schema.
 
-## Two rules
+## Step 0 — Role
+
+Check `patients/<patient_code>/role.json` exists. If missing → stop and route back to meta-skill for role selection. If present, read `active_role` (patient / caregiver / family) and branch the sub-skill's behavior per its `## Role behavior` section (authoritative matrix in `roles.md`).
+
+If the sub-skill refuses the current role, emit the refuse + redirect template from `roles.md` and exit without running the main workflow.
+
+Only after role is resolved do the readiness rules below apply.
+
+## Step 1 and 2 — Readiness
 
 1. **File missing** — if `patients/<pid>/readiness.json` does not exist, stop and prompt:
    > `先让抗癌搭子整理病历再继续：请触发 cancer-buddy-organize。`
