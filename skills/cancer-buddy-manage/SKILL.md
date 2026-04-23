@@ -44,6 +44,19 @@ Apply all `safety-guardrails.md` rules:
 - Organ-function re-check — every active drug change (start / stop / dose adjust) triggers a fresh liver/kidney/marrow check before the new regimen is surfaced as viable.
 - Anomaly alerts — trend-based labs (rising LDH, falling HGB > 2 g/dL in 2 weeks, neutrophil drop across cycles) must be surfaced as 🚨 with the standing rule: `必须与主诊医生确认。`
 
+## Side-effect triage module
+
+Mid-treatment users report symptoms constantly. Route any symptom report through the CTCAE triage in [references/side-effects-triage.md](references/side-effects-triage.md).
+
+Core rules:
+- Classify symptom severity by CTCAE grade (1-4).
+- Grade 1 → self-care reference ([chemo-common-se.md](references/chemo-common-se.md) or [irae-specific.md](references/irae-specific.md) depending on current therapy).
+- Grade 2 → 这周内联系医生 + 可能剂量调整.
+- Grade ≥ 3 → **红字：立即联系肿瘤科医生或急诊**（not overridable）.
+- **粒缺性发热（ANC 低 + 发热 ≥ 38.3°C）**: 永远是 oncologic emergency → 急诊.
+- **irAE Grade ≥ 2**（免疫治疗期）: 必须联系肿瘤科讨论暂停 + 类固醇介入，不能等下次复诊.
+- Log every triage event under `patients/<patient_code>/reports/manage/side-effects/<date>.md`.
+
 ## Role behavior
 
 - **Role = patient**: 1st-person symptom + mood dashboard. "你今天感觉怎么样，有什么新症状？"
@@ -56,3 +69,6 @@ Apply all `safety-guardrails.md` rules:
 - [../../references/patient-profile-schema.md](../../references/patient-profile-schema.md)
 - [../../references/safety-guardrails.md](../../references/safety-guardrails.md)
 - [../../references/terminology.md](../../references/terminology.md)
+- [side-effects-triage.md](references/side-effects-triage.md) — CTCAE grading + actions
+- [chemo-common-se.md](references/chemo-common-se.md) — common chemotherapy side effects self-management
+- [irae-specific.md](references/irae-specific.md) — immune-related adverse events triage
