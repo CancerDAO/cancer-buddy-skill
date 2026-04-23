@@ -34,6 +34,14 @@ triggers=(
   "跨境会诊"
   "吃什么"
   "忌口"
+  "忘记吃药"
+  "漏服"
+  "治疗结束"
+  "治愈"
+  "随访"
+  "长期副作用"
+  "晚发效应"
+  "要不要告诉"
 )
 
 # Scan the description field in the meta-skill frontmatter.
