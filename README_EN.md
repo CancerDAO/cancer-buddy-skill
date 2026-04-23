@@ -10,12 +10,26 @@ Pairs with the clinician-facing [vmtb-skill](https://github.com/zwbao/vmtb-skill
 
 ## Quick start
 
-1. Install the plugin:
-   ```
-   cd ~/.claude/plugins && git clone https://github.com/CancerDAO/cancer-buddy-skill
-   ```
-2. Restart Claude Code.
-3. Say "cancer-buddy" or "help me understand my diagnosis" — the meta-skill routes to the right sub-skill.
+Cancer-buddy follows the [vercel-labs/skills](https://github.com/vercel-labs/skills) paradigm — each sub-skill is an independently installable directory.
+
+```bash
+# Global
+npx skills add CancerDAO/cancer-buddy-skill -g
+
+# Project-scoped
+npx skills add CancerDAO/cancer-buddy-skill
+
+# Install specific sub-skills only
+npx skills add CancerDAO/cancer-buddy-skill --skill cancer-buddy cancer-buddy-mtb-lite
+```
+
+Restart Claude Code. Say "抗癌搭子" or "cancer-buddy" — the meta-skill routes to the right sub-skill.
+
+**Want the automated OCR in `cancer-buddy-organize`?** It depends on the `cb-organizer` subagent, which the `skills` CLI does not install (only `skills/` gets copied, not `agents/`). Install as a Claude plugin instead:
+```bash
+cd ~/.claude/plugins && git clone https://github.com/CancerDAO/cancer-buddy-skill
+```
+See [INSTALL.md](INSTALL.md) for full details.
 
 ## Sub-skills
 

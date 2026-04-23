@@ -3,41 +3,75 @@
 ## Requirements
 
 - Claude Code (latest). Get it from https://claude.ai/code.
-- Python 3.9+ (for OCR tools used by the `cb-organizer` subagent).
-- `pdftotext` (part of poppler-utils) for PDF extraction:
-  - macOS: `brew install poppler`
-  - Debian/Ubuntu: `sudo apt install poppler-utils`
-- `pytesseract` for image OCR: `pip install pytesseract`
-- Tesseract OCR engine:
-  - macOS: `brew install tesseract tesseract-lang`
-  - Debian/Ubuntu: `sudo apt install tesseract-ocr tesseract-ocr-chi-sim`
+- Python 3.9+ and OCR tools (only needed by the `cb-organizer` subagent — see "Full subagent support" below):
+  - `pdftotext` (part of poppler-utils):
+    - macOS: `brew install poppler`
+    - Debian/Ubuntu: `sudo apt install poppler-utils`
+  - `pytesseract`: `pip install pytesseract`
+  - Tesseract OCR engine:
+    - macOS: `brew install tesseract tesseract-lang`
+    - Debian/Ubuntu: `sudo apt install tesseract-ocr tesseract-ocr-chi-sim`
 
-## Install the plugin
+## Install via `skills` CLI (recommended)
 
-### Global (recommended)
+Cancer-buddy follows the [vercel-labs/skills](https://github.com/vercel-labs/skills) paradigm — each sub-skill is an independently installable directory under `skills/`. Use the `skills` CLI:
 
+```bash
+# Global (all projects)
+npx skills add CancerDAO/cancer-buddy-skill -g
+
+# Project-scoped
+npx skills add CancerDAO/cancer-buddy-skill
+
+# Install only specific sub-skills
+npx skills add CancerDAO/cancer-buddy-skill --skill cancer-buddy cancer-buddy-organize cancer-buddy-mtb-lite
 ```
-cd ~/.claude/plugins
-git clone https://github.com/CancerDAO/cancer-buddy-skill
+
+The CLI auto-detects Claude Code and installs to `~/.claude/skills/` (global) or `.claude/skills/` (project). Restart Claude Code after install.
+
+**Update:**
+```bash
+npx skills update cancer-buddy
 ```
 
-### Project-scoped
-
-```
-cd <your-project>/.claude/plugins
-git clone https://github.com/CancerDAO/cancer-buddy-skill
+**Uninstall:**
+```bash
+npx skills remove cancer-buddy
 ```
 
-Restart Claude Code after install.
+## Full subagent support (required for `cancer-buddy-organize`)
+
+The `cancer-buddy-organize` sub-skill delegates OCR and structured extraction to the `cb-organizer` subagent at `agents/cb-organizer.md`. The vercel-labs `skills` CLI only installs `skills/`, so it does **not** copy `agents/`. If you want full organize capability, install as a Claude Code plugin instead:
+
+```bash
+# Global
+cd ~/.claude/plugins && git clone https://github.com/CancerDAO/cancer-buddy-skill
+
+# Project-scoped
+cd <your-project>/.claude/plugins && git clone https://github.com/CancerDAO/cancer-buddy-skill
+```
+
+This also installs the OCR subagent and the plugin manifest. Restart Claude Code.
+
+**Which install path should I use?**
+
+| Need | Install path |
+|---|---|
+| Only the 8 non-organize sub-skills (explore / mtb-lite / trial-match / access / manage / vault / education / meta-skill) | `npx skills add` |
+| Full organize sub-skill with automated OCR of PDF/image records | `git clone` into `.claude/plugins/` |
+| Both cancer-buddy and vmtb-skill together for full MTB committee | `git clone` both plugins |
+
+You can start with `npx skills add` and upgrade to plugin install later if you want automated record organization — the two install paths do not conflict.
 
 ## Optional: install vmtb-skill for full MTB
 
-```
-cd ~/.claude/plugins
-git clone https://github.com/zwbao/vmtb-skill
+For the 15–20 minute deep committee MTB (pathologist + geneticist + recruiter + oncologist + chair + 5-dimension verifier), install vmtb-skill as a second plugin:
+
+```bash
+cd ~/.claude/plugins && git clone https://github.com/zwbao/vmtb-skill
 ```
 
-After install, when you run MTB through cancer-buddy, you'll be asked whether to use the lite (2-5 min, built into cancer-buddy) or full (15-20 min, via vmtb-skill) version.
+When you trigger MTB through cancer-buddy, it detects vmtb-skill and asks whether to run the built-in lite version (2–5 min) or hand off to the full committee.
 
 ## Verify
 
@@ -46,21 +80,23 @@ In Claude Code, type:
 抗癌搭子
 ```
 
-The meta-skill should respond. If nothing happens, check:
-1. `ls ~/.claude/plugins/cancer-buddy-skill/skills/cancer-buddy/SKILL.md` — does the file exist?
-2. Claude Code version — older versions may not pick up plugins automatically.
-3. Run `bash ~/.claude/plugins/cancer-buddy-skill/scripts/validate-plugin.sh` — any errors?
+The meta-skill should respond. If nothing happens:
 
-## Update
+1. Check the SKILL.md was installed:
+   - `skills` CLI install: `ls ~/.claude/skills/cancer-buddy/SKILL.md`
+   - Plugin install: `ls ~/.claude/plugins/cancer-buddy-skill/skills/cancer-buddy/SKILL.md`
+2. Claude Code version — older versions may not auto-discover skills.
+3. For plugin install, run the validator:
+   ```
+   bash ~/.claude/plugins/cancer-buddy-skill/scripts/validate-plugin.sh
+   ```
 
-```
-cd ~/.claude/plugins/cancer-buddy-skill && git pull
-```
+## Data location
 
-## Uninstall
+`patients/<patient_code>/` is where all records and reports live. `patient_code` is auto-generated by the organizer on first run (e.g. `PT-17CE02BC33`). Root directory is resolved in this order:
 
-```
-rm -rf ~/.claude/plugins/cancer-buddy-skill
-```
+1. `$CANCER_BUDDY_PATIENTS_DIR` (if set)
+2. `$VMTB_PATIENT_DATA_ROOT` (shared with vmtb-skill)
+3. `$HOME/CancerDAO/patients` (default)
 
-Your `patients/` directory is not touched — back it up or move it first if you want to preserve it.
+Your `patients/` directory is untouched by uninstall — back it up or move it first if you care about it.

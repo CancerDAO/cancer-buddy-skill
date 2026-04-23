@@ -10,18 +10,26 @@
 
 ## 快速开始
 
-1. 安装 Claude Code 插件：
-   ```
-   # 全局安装（推荐）
-   cd ~/.claude/plugins && git clone https://github.com/CancerDAO/cancer-buddy-skill
+抗癌搭子采用 [vercel-labs/skills](https://github.com/vercel-labs/skills) 范式，每个子技能是独立可安装的目录。
 
-   # 或项目级安装
-   cd <your-project>/.claude/plugins && git clone https://github.com/CancerDAO/cancer-buddy-skill
-   ```
+```bash
+# 全局安装（推荐）
+npx skills add CancerDAO/cancer-buddy-skill -g
 
-2. 重启 Claude Code。
+# 项目级安装
+npx skills add CancerDAO/cancer-buddy-skill
 
-3. 和 Claude 说 "抗癌搭子" 或 "帮我分析病情"，搭子会接管并路由到合适的子技能。
+# 只装指定子技能
+npx skills add CancerDAO/cancer-buddy-skill --skill cancer-buddy cancer-buddy-mtb-lite
+```
+
+重启 Claude Code。和 Claude 说"抗癌搭子"或"帮我分析病情"，搭子会路由到合适的子技能。
+
+**想要 `cancer-buddy-organize` 的自动 OCR 能力？** 它依赖 `cb-organizer` subagent，`skills` CLI 不装 `agents/`。这种情况改用 Claude plugin 方式装：
+```bash
+cd ~/.claude/plugins && git clone https://github.com/CancerDAO/cancer-buddy-skill
+```
+完整安装细节见 [INSTALL.md](INSTALL.md)。
 
 ## 子技能一览
 
