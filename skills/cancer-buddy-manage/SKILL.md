@@ -44,6 +44,12 @@ Apply all `safety-guardrails.md` rules:
 - Organ-function re-check — every active drug change (start / stop / dose adjust) triggers a fresh liver/kidney/marrow check before the new regimen is surfaced as viable.
 - Anomaly alerts — trend-based labs (rising LDH, falling HGB > 2 g/dL in 2 weeks, neutrophil drop across cycles) must be surfaced as 🚨 with the standing rule: `必须与主诊医生确认。`
 
+## Role behavior
+
+- **Role = patient**: 1st-person symptom + mood dashboard. "你今天感觉怎么样，有什么新症状？"
+- **Role = caregiver**: 2nd-person. "你陪 X 时观察到哪些变化？" Dashboard separates "你记录到的 X 的症状" vs "你自己今天如何？"（一行自我关怀触发）.
+- **Role = family**: refuse. Emit: `日常治疗管理由主照护者记录最准确。你能帮上的是：帮 Ta 记着按时提醒 X 吃某些药，或者周末接替 Ta 一次陪诊。`
+
 ## References
 
 - [dashboard-template.md](references/dashboard-template.md)

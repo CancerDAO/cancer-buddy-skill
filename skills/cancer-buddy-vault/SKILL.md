@@ -52,6 +52,12 @@ See [references/data-vault.md](references/data-vault.md) for the schema and prot
 - Access log is append-only; do not let any other sub-skill modify it.
 - Default export format: encrypted zip (password shared out-of-band).
 
+## Role behavior
+
+- **Role = patient**: owner view. Can set any sharing level, export, delete.
+- **Role = caregiver**: authorized view. Read+write OK; sharing-level changes require `patients/<patient_code>/role.json.history` confirming patient previously set role=caregiver. Export allowed.
+- **Role = family**: 📊 anonymized view only. Name / birthday / MRN stripped, diagnosis-intervals relative to diagnosis date, no free-text notes. Cannot change sharing settings.
+
 ## References
 
 - [data-vault.md](references/data-vault.md) — schema, anonymization protocol, sharing flow
