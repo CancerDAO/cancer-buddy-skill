@@ -60,6 +60,7 @@ Core rules:
 ## Role behavior
 
 - **Role = patient**: 1st-person symptom + mood dashboard. "你今天感觉怎么样，有什么新症状？"
+  - *Disclosure*: disclosure_state=suppressed → soften output; avoid cancer-specific framing; track symptoms abstractly.
 - **Role = caregiver**: 2nd-person. "你陪 X 时观察到哪些变化？" Dashboard separates "你记录到的 X 的症状" vs "你自己今天如何？"（一行自我关怀触发）.
 - **Role = family**: refuse. Emit: `日常治疗管理由主照护者记录最准确。你能帮上的是：帮 Ta 记着按时提醒 X 吃某些药，或者周末接替 Ta 一次陪诊。`
 

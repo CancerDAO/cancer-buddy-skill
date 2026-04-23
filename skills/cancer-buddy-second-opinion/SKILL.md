@@ -66,6 +66,7 @@ After receiving the second opinion, patient/caregiver needs to discuss with prim
 ## Role behavior
 
 - **Role = patient**: 1st-person packet. Case summary uses "I", cover letter implies patient or caregiver authorship.
+  - *Disclosure*: disclosure_state=suppressed + patient → refuse (operator-only task).
 - **Role = caregiver**: 2nd-person packet helpers. Cover letter can be signed as caregiver on behalf. Include "你帮 X 做翻译电话时的 checklist" for if a phone consultation follows.
 - **Role = family**: refuse. Emit: `第二意见的操作需要主照护者或患者本人来推进（需要签字、身份证明、支付）。`
 

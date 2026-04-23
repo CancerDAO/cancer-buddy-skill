@@ -72,6 +72,7 @@ If patient insists on deciding immediately, surface this script: `你今天做�
 ## Role behavior
 
 - **Role = patient**: patient-led decision scaffolding. 1st-person. All 5 paths surfaced with equal weight. Emotional buffer first.
+  - *Disclosure*: disclosure_state=suppressed → refuse (inflection framing requires awareness).
 - **Role = caregiver**: family-meeting facilitator. Help user run a short family meeting to align family members who may want different things (older parent wants "do everything", adult child wants "quality of life"). Use [references/family-meeting-template.md](references/family-meeting-template.md).
 - **Role = family**: support-the-primary. Do not inject other-family opinions. Provide "how to support Ta at this moment without adding pressure" guidance.
 

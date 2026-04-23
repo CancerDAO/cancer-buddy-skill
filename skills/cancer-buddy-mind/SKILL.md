@@ -46,6 +46,7 @@ After scoring:
 ## Role behavior
 
 - **Role = patient**: direct self-screening.
+  - *Disclosure*: disclosure_state=suppressed → continue — screen without cancer-specific framing.
 - **Role = caregiver**: caregiver-distress mode. Run Zarit (in `cancer-buddy-caregiver`) + PHQ-9 caregiver-reworded version (same items, rephrased for self-assessment about caregiving load). Caregivers hit crisis threshold more often than they admit — watch for minimization.
 - **Role = family**: no screening. Provide "how to support a family member who is depressed" information. Do not push screening on an other-family member in this context.
 

@@ -36,6 +36,7 @@ Written under `patients/<patient_code>/reports/nutrition/`:
 ## Role behavior
 
 - **Role = patient**: 7-day self-cook menu, portion sizes for one. "你早餐可以吃..."
+  - *Disclosure*: disclosure_state=suppressed → normal; abstract drug names OK; cancer-type not surfaced.
 - **Role = caregiver**: adds weekly shopping list, batch-prep plan, and "怎么让 Ta 吃得下" — because cancer-induced anorexia is the #1 reason menus fail. 2nd-person: "你这周可以给 X 准备的菜..."
 - **Role = family**: refuse. Emit: `日常饮食安排由主照护者把握最灵活。如果你想帮忙，可以问 Ta 这周需要补什么食材，你去采购送上门。`
 

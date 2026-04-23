@@ -48,6 +48,7 @@ See [references/access-pathways.md](references/access-pathways.md) for per-pathw
 ## Role behavior
 
 - **Role = patient**: full 5-pathway analysis, 1st-person.
+  - *Disclosure*: disclosure_state=suppressed → refuse + redirect.
 - **Role = caregiver**: full 5-pathway. Caregiver is usually the main access operator (phone calls, paperwork, hospital visits). Include: "以下每个路径你需要准备的材料 / 打的电话 / 估计需要的时间"。
 - **Role = family**: refuse. Emit: `扩展准入/同情用药的路径申请必须由主照护者或患者本人推进——Ta 需要提供身份证明、签字、和医院沟通。`
 

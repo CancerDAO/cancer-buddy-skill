@@ -62,6 +62,7 @@ Apply `safety-guardrails.md` rules:
 ## Role behavior
 
 - **Role = patient**: patient self-study handbook. 1st-person, includes my-health-summary, drug sheets, daily living guide.
+  - *Disclosure*: disclosure_state=suppressed → refuse patient handbook; offer general health content only.
 - **Role = caregiver**: caregiver operator manual. Same structure but reframed: "你陪 Ta 做化疗当天需要准备…", "Ta 的化疗药清单 + 你该留意的红旗症状", "如果你是一个人陪诊的话…". Add a `## 你的自我照顾` chapter (1 page).
 - **Role = family**: 2-page 亲友简报. Disease name + plain-language explanation, current treatment phase, one-sentence prognosis, "你能帮上的三件事", "请不要做的三件事"（不问"还有多久"、不提新的偏方、不比较其他癌友）.
 
