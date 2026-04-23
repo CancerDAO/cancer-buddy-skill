@@ -25,11 +25,7 @@ npx skills add CancerDAO/cancer-buddy-skill --skill cancer-buddy cancer-buddy-mt
 
 重启 Claude Code。和 Claude 说"抗癌搭子"或"帮我分析病情"，搭子会路由到合适的子技能。
 
-**想要 `cancer-buddy-organize` 的自动 OCR 能力？** 它依赖 `cb-organizer` subagent，`skills` CLI 不装 `agents/`。这种情况改用 Claude plugin 方式装：
-```bash
-cd ~/.claude/plugins && git clone https://github.com/CancerDAO/cancer-buddy-skill
-```
-完整安装细节见 [INSTALL.md](INSTALL.md)。
+零配置——OCR / 视觉 / 推理都走 Claude 原生能力，不需要装 pdftotext / tesseract / Python。完整安装细节见 [INSTALL.md](INSTALL.md)。
 
 ## 子技能一览
 

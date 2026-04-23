@@ -25,11 +25,7 @@ npx skills add CancerDAO/cancer-buddy-skill --skill cancer-buddy cancer-buddy-mt
 
 Restart Claude Code. Say "抗癌搭子" or "cancer-buddy" — the meta-skill routes to the right sub-skill.
 
-**Want the automated OCR in `cancer-buddy-organize`?** It depends on the `cb-organizer` subagent, which the `skills` CLI does not install (only `skills/` gets copied, not `agents/`). Install as a Claude plugin instead:
-```bash
-cd ~/.claude/plugins && git clone https://github.com/CancerDAO/cancer-buddy-skill
-```
-See [INSTALL.md](INSTALL.md) for full details.
+Zero-config — OCR, vision, and reasoning all run on Claude's native model capabilities. No pdftotext / tesseract / Python required. Full details in [INSTALL.md](INSTALL.md).
 
 ## Sub-skills
 

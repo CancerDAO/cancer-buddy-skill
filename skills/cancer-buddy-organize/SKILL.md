@@ -1,6 +1,6 @@
 ---
 name: cancer-buddy-organize
-description: "Organize patient medical records from PDF/images/docx into a canonical patients/<id>/ directory with profile.json, timeline.md, readiness.json, OCR sidecars, and 01_当前状态…11_诊断证明 buckets. Use when the user hands over a folder of medical records, or says 病历整理, 我有一堆报告, 帮我整理报告. Delegates the OCR + structure extraction to the cb-organizer subagent."
+description: "Organize patient medical records from PDF/images/docx into a canonical patients/<patient_code>/ directory with profile.json, timeline.md, readiness.json, OCR sidecars, and 01_当前状态…11_诊断证明 buckets. Use when the user hands over a folder of medical records, or says 病历整理, 我有一堆报告, 帮我整理报告. Dispatches a fresh general-purpose subagent with the organizer prompt to do OCR, classification, and schema extraction in isolated context."
 ---
 
 # cancer-buddy-organize
@@ -15,64 +15,71 @@ Turn raw medical records into structured data every other sub-skill can use.
 
 ## Inputs
 
-- Path to a folder OR list of file paths OR a zip archive.
+- Path to a folder OR a single PDF/DOCX OR a zip/rar/7z/tar.gz archive.
 
 ## Outputs
 
 Written under `patients/<patient_code>/`:
-- `INDEX.md` (first line: `# patient_code: <pid>`)
-- `profile.json` (conforms to `references/patient-profile-schema.md`)
+
+- `INDEX.md` (first line: `# patient_code: <code>`)
+- `profile.json` (conforms to `../../references/patient-profile-schema.md`)
 - `timeline.md` (human-readable treatment timeline)
 - `readiness.json` (MTB readiness score)
 - `case_text.md` (consolidated narrative)
 - `01_当前状态/`…`11_诊断证明/` (raw file buckets)
-- `ocr/` (OCR sidecars)
+- `ocr/` (OCR sidecars with SOURCE/CONFIDENCE headers)
 
 ## Workflow
 
-1. **Resolve input** — if zip, unpack to temp dir; if folder, walk; if file list, read in place. Confirm the path with the user before proceeding.
-2. **Dispatch `cb-organizer` subagent.**
+1. **Resolve input** — confirm the user-supplied path with them. For archives, the subagent will unpack to `/tmp/`. For single PDF/DOCX, it treats as a 1-file source.
 
-   Invoke via the `Agent` tool:
-   - `subagent_type: cb-organizer`
-   - prompt body includes:
-     - `plugin_root: <this plugin's root path>`
-     - `input_path: <user-supplied path, resolved>`
-     - `patient_code: <optional — auto-generated from hash if missing>`
-     - `patient_data_root: <optional — defaults to $CANCER_BUDDY_PATIENTS_DIR, falling back to $VMTB_PATIENT_DATA_ROOT, then $HOME/CancerDAO/patients>`
+2. **Dispatch the organizer subagent.**
 
-   The subagent unpacks the input, uses Claude vision for OCR on images, classifies files into the 11-bucket taxonomy, and writes the canonical `<patient_dir>/` (INDEX.md + timeline.md + readiness.json + case_text.md + profile.json + OCR sidecars). It returns JSON containing `patient_dir`, `files_classified`, `readiness_grade`, `readiness_score`, `blocking_gaps`.
+   Heavy LLM work (vision-based OCR on potentially dozens of images, multi-file classification, schema extraction) runs in an isolated subagent context. Invoke via the `Agent` tool:
 
-3. **Verify outputs** — read the returned JSON; confirm `profile.json` exists and required fields (`patient_code`, `primary_cancer`, `histology`, `stage`) are present. If any are missing, surface to the user as a blocker.
-4. **Grade readiness** — from the returned JSON take `readiness_grade` + `readiness_score`; if grade is F or D, present the information-gap checklist 🔴🟡🟢 to the patient.
-5. **Output summary** — display the Patient Profile Card ([references/profile-card.md](references/profile-card.md)) to the patient using the `terminology.md` format rules.
+   - `subagent_type: general-purpose`
+   - `description: "Organize patient records"`
+   - `prompt`: the full content of [`references/organizer-prompt.md`](references/organizer-prompt.md), with the following substitutions appended as a `## Call parameters` section at the end:
+     - `input_path: <user-supplied path, absolute>`
+     - `patient_code: <optional — auto-generate `PT-<hex>` from hash(basename + mtime) if missing>`
+     - `patient_data_root: <first defined among $CANCER_BUDDY_PATIENTS_DIR, $VMTB_PATIENT_DATA_ROOT, $HOME/CancerDAO/patients>`
 
-If the subagent registry is not yet set up (`~/.claude/agents/cb-organizer.md` missing), surface the one-time install step (`bash scripts/install.sh` from this plugin, then restart Claude Code) before proceeding.
+   The subagent uses Claude's native vision for image OCR (no external OCR tools required — zero-config). It returns pure JSON: `{role, patient_dir, files_classified, ocr_sidecars_generated, readiness_grade, readiness_score, blocking_gaps, warnings}`.
+
+3. **Verify outputs** — parse the returned JSON; confirm `profile.json` exists and required fields (`patient_code`, `primary_cancer`, `histology`, `stage`) are populated. If any are missing or null, surface to the user as a blocker before routing to any other sub-skill.
+
+4. **Grade readiness** — from the returned JSON take `readiness_grade` + `readiness_score`. If grade is F or D, present the information-gap checklist 🔴🟡🟢 (derived from `blocking_gaps`) to the patient.
+
+5. **Output summary** — display the Patient Profile Card ([references/profile-card.md](references/profile-card.md)) to the patient using the `terminology.md` format rules (中英 + 通俗解释).
 
 ## patient_code collision
 
-If the generated `patient_code` (e.g. `PT-17CE02BC33`) already exists under `patients/`, subagent should append `_2`, `_3`, etc., and announce the assigned id in the summary.
+If the generated `patient_code` (e.g. `PT-17CE02BC33`) already exists under the patients root, the subagent appends `_2`, `_3`, etc., and announces the assigned code in the summary.
 
 ## Configurable root
 
-`patients/` root defaults to the current working directory. Override with `CANCER_BUDDY_PATIENTS_DIR` env var.
+The `patients/` root resolves in order: `$CANCER_BUDDY_PATIENTS_DIR` → `$VMTB_PATIENT_DATA_ROOT` → `$HOME/CancerDAO/patients`. Override by exporting one of those. Shared with vmtb-skill.
 
 ## Safety
 
 Organize does not make medical recommendations. Still:
-- Never fabricate fields — when a value is truly unreadable in the source, write `null` and surface it as a gap. `[OCR_UNCERTAIN]` is preferred over guessed content.
-- Downstream sub-skills (`explore`, `mtb-lite`, `trial-match`, `manage`, `education`) apply the full `safety-guardrails.md` rule set when they read what organize produced; wrong data here poisons every downstream report.
+
+- Never fabricate fields — when a value is truly unreadable in the source, the subagent writes `null` (JSON) or `[OCR_UNCERTAIN]` (text) and surfaces it as a gap.
+- Downstream sub-skills apply the full `safety-guardrails.md` rule set when they read what organize produced; wrong data here poisons every downstream report.
+- `10_原始文件/` is the audit trail — always a byte-identical mirror of every source file.
 
 ## Next-step guidance
 
 After successful organize, route the patient to the most relevant next sub-skill based on their initial question:
+
 - Newly diagnosed, wants to understand → `cancer-buddy-explore` (maximal diagnostics tier)
 - Has gene report, wants treatment guidance → `cancer-buddy-mtb-lite`
 - Looking for trials → `cancer-buddy-trial-match`
 
 ## References
 
+- [organizer-prompt.md](references/organizer-prompt.md) — full subagent prompt (dispatched verbatim)
 - [profile-card.md](references/profile-card.md) — Patient Profile Card display template
-- [../../references/patient-profile-schema.md](../../references/patient-profile-schema.md) — schema contract
-- [../../references/terminology.md](../../references/terminology.md) — 中英 + 通俗解释
+- [../../references/patient-profile-schema.md](../../references/patient-profile-schema.md) — schema contract shared with vmtb-skill
+- [../../references/terminology.md](../../references/terminology.md) — 中英 + 通俗解释 format
 - [../../references/safety-guardrails.md](../../references/safety-guardrails.md)
