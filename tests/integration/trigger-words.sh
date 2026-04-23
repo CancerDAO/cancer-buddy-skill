@@ -22,6 +22,18 @@ triggers=(
   "同情用药"
   "病历整理"
   "治疗方案"
+  "家属"
+  "陪护"
+  "burnout"
+  "睡不着"
+  "焦虑"
+  "抑郁"
+  "肿瘤长大了"
+  "换线"
+  "第二意见"
+  "跨境会诊"
+  "吃什么"
+  "忌口"
 )
 
 # Scan the description field in the meta-skill frontmatter.
