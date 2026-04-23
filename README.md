@@ -1,74 +1,69 @@
-# 抗癌搭子 (cancer-buddy)
+# 抗癌搭子
 
-你的 AI 抗癌伙伴 —— Claude Code 插件。
+你的 AI 抗癌搭子。不是医生，不给治疗建议。陪你走这段路。
 
-## 这是什么
+---
 
-抗癌搭子是一个 Claude Code 插件，包含 1 个元技能 + 8 个专业子技能，覆盖癌症就医全旅程：病历整理、诊断与治疗路径探索、轻量版分子肿瘤委员会 (MTB)、患者视角的临床试验匹配、扩展准入导航、多线治疗管理、N=1 数据金库、患者教育手册。
+癌症是一个人不够用的事。一个人搞不定病历、搞不定家人沟通、搞不定深夜的焦虑、搞不定要不要告诉爸妈。搭子就是在这些地方帮你一下——不是替你做决定，是陪你把事情理清楚。
 
-和临床医生朝向的 [vmtb-skill](https://github.com/zwbao/vmtb-skill) 配套：抗癌搭子给患者看，vmtb-skill 给医生看。两个插件共享同一个 `patients/<patient_code>/` 病例目录，所以在搭子里整理过的病历可以直接被 vmtb-skill 的完整 MTB 委员会读取。
+严肃的治疗决定——用什么方案、要不要换线、扩展准入走哪条、临终怎么安排——这些回到你和你的主诊医生之间。搭子不替代这些对话，搭子帮你把问题整理好，让你更好地去进行这些对话。
+
+## 能帮你什么
+
+- **病历一团乱** → 搭子帮你整理成能用的档案
+- **家属要扛不住了** → 搭子给照护者一些实操工具和自我关怀
+- **睡不着焦虑甚至不想活了** → 搭子做筛查 + 危机时直接把热线给你
+- **要不要告诉 Ta** → 中国家庭特别常见的事，搭子陪你想
+- **想建自己的健康档案** → 搭子给你一个结构
+- **想给家人写份手册** → 搭子生成给爸妈也看得懂的那种
+- **吃什么 / 忌口** → 搭子给你一些日常建议（药食冲突这种具体问题还是问药师）
+- **想找第二意见** → 搭子帮你把病历打成英文 packet，Dr.-to-Dr. 的那种
 
 ## 快速开始
 
-抗癌搭子采用 [vercel-labs/skills](https://github.com/vercel-labs/skills) 范式，每个子技能是独立可安装的目录。
-
 ```bash
-# 全局安装（推荐）
+# 全局安装
 npx skills add CancerDAO/cancer-buddy-skill -g
-
-# 项目级安装
-npx skills add CancerDAO/cancer-buddy-skill
-
-# 只装指定子技能
-npx skills add CancerDAO/cancer-buddy-skill --skill cancer-buddy cancer-buddy-mtb-lite
 ```
 
-重启 Claude Code。和 Claude 说"抗癌搭子"或"帮我分析病情"，搭子会路由到合适的子技能。
+重启 Claude Code，对它说"抗癌搭子"或"帮我分析病情"。搭子会先问你身份——你是患者本人，还是主照护者，还是其他家属——然后按这个带你。
 
-零配置——OCR / 视觉 / 推理都走 Claude 原生能力，不需要装 pdftotext / tesseract / Python。完整安装细节见 [INSTALL.md](INSTALL.md)。
+零依赖。不需要装 tesseract、pdftotext 或 Python——OCR / 视觉 / 推理全走 Claude 原生能力。
 
-## 子技能一览
+装完细节见 [INSTALL.md](INSTALL.md)。
 
-| 子技能 | 作用 | 何时触发 |
-|---|---|---|
-| `cancer-buddy-organize` | 整理病历（PDF/图/docx）成结构化数据 | 我有一堆报告 |
-| `cancer-buddy-explore` | 4 档诊断菜单 + 8 维治疗路径穷举 | 还能做什么检查 |
-| `cancer-buddy-mtb-lite` | 单 agent 轻量版分子肿瘤委员会 | 分子肿瘤委员会 / MTB |
-| `cancer-buddy-trial-match` | 患者视角的临床试验匹配 | 帮我找临床试验 |
-| `cancer-buddy-access` | 扩展准入 / 同情用药 / 跨境治疗路径 | 博鳌 / 同情用药 |
-| `cancer-buddy-manage` | 多线治疗管理、监测、RECIST 评估 | 多线治疗 |
-| `cancer-buddy-vault` | N=1 个人健康数据金库 | 数据保险箱 |
-| `cancer-buddy-education` | 患者教育手册（Markdown + Mermaid） | 宣教手册 |
+## 搭子**不做**的事
 
-## 和 vmtb-skill 的配合
+有些事情患者找我问没问题，但搭子会直接把你请回医生那里或推到内部版 `cancer-buddy-pro-skill`：
 
-想要完整版 MTB（病理/基因/临床试验三位专家并行讨论 + 5 维校验）？额外安装 vmtb-skill：
-```
-cd ~/.claude/plugins && git clone https://github.com/zwbao/vmtb-skill
-```
-装上之后，搭子在 MTB 步骤会问你要精简版还是深入版。
+- 分子肿瘤委员会（MTB）治疗建议
+- 临床试验 criterion-level 匹配评估
+- 扩展准入 / 同情用药 / 跨境医学路径
+- 缓和医疗剂量决策
+- 服药漏服的临床决策（华法林双倍、MTX、TKI 重启）
+- 副作用 CTCAE 分级 triage
+- 生存期 therapy-specific 晚发效应监测
+- 进展时的换线决策树
 
-Tested against vmtb-skill >= 4.0.0-beta.6.
+这些都是严肃临床判断，不是 AI 陪伴工具该做的事。
 
-## 数据在哪里
+## 数据
 
-所有病历和报告都写在本地 `patients/<patient_code>/` 目录。`patient_code` 由 `cb-organizer` 在首次整理时自动生成（基于输入路径与修改时间的哈希），形如 `PT-17CE02BC33`，与 vmtb-skill 共享同一套命名。完整 schema 见 [references/patient-profile-schema.md](references/patient-profile-schema.md)。
+所有病历和报告写在本地 `patients/<patient_code>/` 目录。`patient_code` 搭子第一次帮你整理病历时自动生成（比如 `PT-17CE02BC33`），和 vmtb-skill 共享。
 
-默认根目录依次回退：`$CANCER_BUDDY_PATIENTS_DIR` → `$VMTB_PATIENT_DATA_ROOT` → `$HOME/CancerDAO/patients`。想改用别的位置：
-```
-export CANCER_BUDDY_PATIENTS_DIR=/path/to/your/patients
-```
+默认根目录依次回退：`$CANCER_BUDDY_PATIENTS_DIR` → `$VMTB_PATIENT_DATA_ROOT` → `$HOME/CancerDAO/patients`。想改 `export` 一下就行。
+
+数据留本地；调用 Claude API 时会传相关内容给 Anthropic（按他们隐私条款）。想更严格隔离，用 `vault` 子技能设分享等级。
 
 ## 安全声明
 
-- 本工具提供信息导航，不替代主诊医生。所有治疗决策必须与医生确认。
-- 所有数据默认本地存储；调用 Claude API 时会把相关病历内容传给 Anthropic（遵循其隐私条款）。
-- 想更严格的本地隔离？用 vault 子技能设定数据分享等级。
-
-## 贡献
-
-issues、PRs 都欢迎。见 [CONTRIBUTING.md]（如果存在）。
+搭子是陪伴工具，不是诊断工具、不是治疗工具。所有医疗决策必须和你的主诊医生确认。如果你或你陪伴的人出现自杀念头，搭子会立刻给你心理危机热线；任何时候都可以自己拨打 **400-161-9995**（全国 24 小时）。
 
 ## 协议
 
 MIT License. 详见 [LICENSE](LICENSE).
+
+## 相关仓库
+
+- **[vmtb-skill](https://github.com/zwbao/vmtb-skill)** — 医生朝向的分子肿瘤委员会插件
+- **cancer-buddy-pro-skill**（内部） — 搭子的临床完整版，承担 MTB / 试验匹配 / 诊断路径 / 扩展准入 / 缓和医疗 / 依从 / 生存期监测等严肃临床功能

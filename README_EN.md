@@ -1,73 +1,68 @@
 # cancer-buddy
 
-Your AI cancer companion — a Claude Code plugin.
+Your AI cancer companion. Not a doctor. Not treatment advice. A buddy who walks with you.
 
-## What it is
+---
 
-cancer-buddy is a Claude Code plugin with 1 meta-skill + 8 focused sub-skills covering the full cancer journey: medical record organization, diagnostic and treatment pathway exploration, lightweight MTB, patient-view clinical trial matching, expanded access navigation, multi-line treatment management, N=1 data vault, patient education.
+Cancer is more than one person can carry. Sorting medical records, negotiating family conversations, the 3am anxiety, the "should I even tell them" question — cancer-buddy helps with those. Not by deciding for you, but by being with you while you figure it out.
 
-Pairs with the clinician-facing [vmtb-skill](https://github.com/zwbao/vmtb-skill). Both plugins read and write the same `patients/<patient_code>/` directory, so records organized in cancer-buddy can be read directly by vmtb-skill's full MTB committee.
+Serious clinical decisions — which regimen, whether to switch lines, expanded-access routes, end-of-life planning — those stay between you and your oncologist. cancer-buddy doesn't replace those conversations. It helps you prepare for them.
+
+## What it can help with
+
+- **Pile of records in chaos** → organize into a usable archive
+- **Caregiver burning out** → practical tools + self-care
+- **3am anxiety, depression, thoughts of ending it** → validated screeners + hotlines surfaced immediately if at risk
+- **"Should we tell them?"** — a very Chinese question → layered disclosure negotiation
+- **Want a personal health vault** → structured storage with sharing levels
+- **Need a handbook your parents can actually read** → simplified patient education
+- **Eating / dietary questions** → general guidance (drug interactions? ask your pharmacist)
+- **Seeking a second opinion** → English packet for Dr.-to-Dr. review
 
 ## Quick start
 
-Cancer-buddy follows the [vercel-labs/skills](https://github.com/vercel-labs/skills) paradigm — each sub-skill is an independently installable directory.
-
 ```bash
-# Global
 npx skills add CancerDAO/cancer-buddy-skill -g
-
-# Project-scoped
-npx skills add CancerDAO/cancer-buddy-skill
-
-# Install specific sub-skills only
-npx skills add CancerDAO/cancer-buddy-skill --skill cancer-buddy cancer-buddy-mtb-lite
 ```
 
-Restart Claude Code. Say "抗癌搭子" or "cancer-buddy" — the meta-skill routes to the right sub-skill.
+Restart Claude Code. Say "抗癌搭子" or "cancer-buddy". The buddy asks your role first — patient, primary caregiver, or other family — then routes accordingly.
 
-Zero-config — OCR, vision, and reasoning all run on Claude's native model capabilities. No pdftotext / tesseract / Python required. Full details in [INSTALL.md](INSTALL.md).
+Zero-config. No tesseract, pdftotext, or Python needed — OCR, vision, and reasoning all run on Claude's native model capabilities.
 
-## Sub-skills
+Full install details in [INSTALL.md](INSTALL.md).
 
-| Sub-skill | Purpose | Trigger |
-|---|---|---|
-| `cancer-buddy-organize` | Organize records (PDF/images/docx) into structured data | "I have a pile of reports" |
-| `cancer-buddy-explore` | 4-tier diagnostic menu + 8-dimension pathway options | "what else can I do" |
-| `cancer-buddy-mtb-lite` | Single-agent lightweight molecular tumor board | "MTB" / "molecular tumor board" |
-| `cancer-buddy-trial-match` | Patient-view clinical trial matching | "find me a trial" |
-| `cancer-buddy-access` | Expanded access / compassionate use / cross-border pathways | "compassionate use" |
-| `cancer-buddy-manage` | Multi-line treatment management, monitoring, RECIST | "multi-line treatment" |
-| `cancer-buddy-vault` | N=1 personal health data vault | "my health archive" |
-| `cancer-buddy-education` | Patient education handbook (Markdown + Mermaid) | "patient handbook" |
+## What cancer-buddy **does NOT do**
 
-## Full MTB via vmtb-skill
+These are serious clinical judgments, not something an AI companion should do:
 
-Want the full MTB (pathologist + geneticist + recruiter + oncologist + chair + verifier)? Install vmtb-skill alongside:
-```
-cd ~/.claude/plugins && git clone https://github.com/zwbao/vmtb-skill
-```
+- Molecular tumor board (MTB) treatment recommendations
+- Criterion-level clinical trial matching
+- Expanded access / compassionate use clinical pathways
+- Palliative care dosing decisions
+- Missed-dose clinical decisions (warfarin double, MTX handling, TKI restart)
+- CTCAE grade-based side-effect triage
+- Therapy-specific late-effects surveillance
+- Progression / line-switching decision trees
 
-cancer-buddy detects vmtb-skill at MTB time and asks the patient to choose lite (2-5 min) vs full (15-20 min).
+For any of these, go to your treating oncologist. Or use the internal `cancer-buddy-pro-skill` (private) which carries the full clinical companion.
 
-Tested against vmtb-skill >= 4.0.0-beta.6.
+## Data
 
-## Data location
+Everything lives locally under `patients/<patient_code>/`. `patient_code` is auto-generated by organize on first run (e.g. `PT-17CE02BC33`). Shared with vmtb-skill.
 
-All records and reports live locally under `patients/<patient_code>/`.
+Root directory resolves: `$CANCER_BUDDY_PATIENTS_DIR` → `$VMTB_PATIENT_DATA_ROOT` → `$HOME/CancerDAO/patients`.
 
-`patient_code` is auto-generated by `cb-organizer` on first run (hash of input path + mtime), e.g. `PT-17CE02BC33`. The same scheme is shared with vmtb-skill. Full schema: [references/patient-profile-schema.md](references/patient-profile-schema.md).
-
-Root directory falls back in order: `$CANCER_BUDDY_PATIENTS_DIR` → `$VMTB_PATIENT_DATA_ROOT` → `$HOME/CancerDAO/patients`. Override:
-```
-export CANCER_BUDDY_PATIENTS_DIR=/path/to/your/patients
-```
+Data stays local; Claude API calls send context to Anthropic per their privacy policy. Use the `vault` sub-skill for stricter sharing controls.
 
 ## Safety
 
-- This is an information tool, not a substitute for your clinician. Every treatment decision must be confirmed by the treating physician.
-- Data is stored locally by default; Claude API calls send relevant context to Anthropic (per their privacy policy).
-- Use the vault sub-skill to set sharing levels for stricter local isolation.
+cancer-buddy is a companion, not a diagnostic or treatment tool. Medical decisions must be confirmed with your treating physician. If you or someone you're caring for has thoughts of suicide, cancer-buddy will immediately surface crisis hotlines. National 24-hour line: **400-161-9995**.
 
 ## License
 
 MIT. See [LICENSE](LICENSE).
+
+## Related
+
+- **[vmtb-skill](https://github.com/zwbao/vmtb-skill)** — clinician-facing molecular tumor board plugin
+- **cancer-buddy-pro-skill** (private) — the full clinical companion including MTB / trial matching / diagnostic pathways / expanded access / palliative / adherence / survivorship surveillance

@@ -57,22 +57,19 @@ Clinicians use vmtb-skill, not cancer-buddy. Patients-to-peer connection is out 
 
 Authoritative — each sub-skill's `## Role behavior` section must match this. Update this table and the sub-skill together if behavior changes.
 
+Companion-scope skills only. Clinical skills (explore / mtb-lite / trial-match / access / manage / adherence / survivorship / comfort / inflection) moved to `cancer-buddy-pro-skill` (private).
+
 | Skill | patient | caregiver | family |
 |---|---|---|---|
 | cancer-buddy (meta) | route | route | route |
 | cancer-buddy-organize | 1st-person | 2nd-person "帮你家人整理" | refuse + redirect to caregiver |
-| cancer-buddy-explore | 1st-person | family-joint exploration | summary only |
-| cancer-buddy-mtb-lite | full | full | summary only |
-| cancer-buddy-trial-match | full | full | summary only |
-| cancer-buddy-access | full | full (often main operator) | refuse + redirect |
-| cancer-buddy-manage | 1st-person symptom + mood | 2nd-person "你陪 X 做什么" | refuse + redirect |
 | cancer-buddy-vault | owner view | authorized view, edits OK | 📊 anonymized view only |
 | cancer-buddy-education | 患者自学手册 | 家属操作手册 | 亲友简报版 (2-page) |
 | cancer-buddy-caregiver | refuse + offer "给家人看的要点" | main | concise version |
 | cancer-buddy-mind | PHQ-9 self-screen | Zarit Burden + PHQ-9 caregiver version | "如何支持抑郁家人" |
-| cancer-buddy-inflection | patient-led decision scaffold | family-meeting facilitator | support-the-primary |
 | cancer-buddy-nutrition | self-cook menus | shopping list + week-prep plan | refuse + redirect |
 | cancer-buddy-second-opinion | 1st-person packet | operator-view packet | refuse + redirect |
+| cancer-buddy-disclosure | inverted (telling family) | main | other-kin support |
 
 ## Refuse patterns
 
