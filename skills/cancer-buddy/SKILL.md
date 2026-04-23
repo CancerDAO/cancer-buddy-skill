@@ -47,7 +47,7 @@ Based on the answer, route to the right sub-skill via the table above.
 
 ## Shared conventions
 
-- Patient records live under `patients/<patient_id>/` (see `references/patient-profile-schema.md`).
+- Patient records live under `patients/<patient_code>/` (see `references/patient-profile-schema.md`).
 - Every patient-facing term follows the format in `references/terminology.md`.
 - Safety rules in `references/safety-guardrails.md` apply to every sub-skill output.
 - Never reference Sid / GitLab / founder-mode in patient-facing text.

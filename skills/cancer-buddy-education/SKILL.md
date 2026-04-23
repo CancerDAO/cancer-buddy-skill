@@ -33,7 +33,7 @@ See [references/handbook-template.md](references/handbook-template.md) for the f
 2. Extract: treatment plan, drug list, monitoring schedule, comorbidity interactions.
 3. Select relevant handbook chapters based on patient's condition (skip chemotherapy chapter if immunotherapy only, include diabetes chapter if comorbid T2DM, etc.).
 4. Render in Markdown with:
-   - Cover page (name, patient_id, date, physician contact)
+   - Cover page (name, patient_code, date, physician contact)
    - Quick reference card (emergency phone, ER criteria — fever > 38.5°C, new bleeding, etc.)
    - My Health Summary (1 page, plain language)
    - Per-drug sheets (what it does, how to take, side-effect watchlist)

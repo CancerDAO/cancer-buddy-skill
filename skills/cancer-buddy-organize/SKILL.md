@@ -19,8 +19,8 @@ Turn raw medical records into structured data every other sub-skill can use.
 
 ## Outputs
 
-Written under `patients/<patient_id>/`:
-- `INDEX.md` (first line: `# patient_id: <pid>`)
+Written under `patients/<patient_code>/`:
+- `INDEX.md` (first line: `# patient_code: <pid>`)
 - `profile.json` (conforms to `references/patient-profile-schema.md`)
 - `timeline.md` (human-readable treatment timeline)
 - `readiness.json` (MTB readiness score)
@@ -32,13 +32,13 @@ Written under `patients/<patient_id>/`:
 
 1. **Resolve input** — if zip, unpack to temp dir; if folder, walk; if file list, read in place.
 2. **Delegate to subagent** — invoke `cb-organizer` subagent with input path. The subagent does OCR, classification, schema extraction.
-3. **Verify outputs** — check that `profile.json` validates against schema and that required fields (`patient_id`, `diagnosis.primary_site`, `diagnosis.histology`, `diagnosis.stage`) are present.
+3. **Verify outputs** — check that `profile.json` validates against schema and that required fields (`patient_code`, `primary_cancer`, `histology`, `stage`) are present.
 4. **Grade readiness** — verify `readiness.json` was written; if grade is F or D, present the information-gap checklist 🔴🟡🟢 to the patient.
 5. **Output summary** — display the Patient Profile Card ([references/profile-card.md](references/profile-card.md)) to the patient using the `terminology.md` format rules.
 
-## patient_id collision
+## patient_code collision
 
-If the generated `patient_id` (e.g. `WZM_202312`) already exists under `patients/`, subagent should append `_2`, `_3`, etc., and announce the assigned id in the summary.
+If the generated `patient_code` (e.g. `PT-17CE02BC33`) already exists under `patients/`, subagent should append `_2`, `_3`, etc., and announce the assigned id in the summary.
 
 ## Configurable root
 

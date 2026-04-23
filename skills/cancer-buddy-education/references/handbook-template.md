@@ -15,4 +15,4 @@ Generate patient-friendly educational materials from clinical data.
    - Cost/insurance navigation
    - FAQ
 4. Include Mermaid diagrams for disease mechanisms and treatment decision trees
-5. Output: `{patient_id}_{date}_患者教育手册.md`
+5. Output: `{patient_code}_{date}_患者教育手册.md`
