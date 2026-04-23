@@ -1,0 +1,23 @@
+{
+  "name": "cancer-buddy",
+  "description": "抗癌搭子 — CancerDAO's patient-facing AI cancer navigator. Meta-skill plus 8 sub-skills covering the full cancer journey: medical record organization, diagnostic and treatment pathway exploration, lightweight molecular tumor board, patient-view clinical trial matching, expanded access navigation, multi-line treatment management, N=1 data vault, and patient education. Pairs with the clinician-facing vmtb-skill plugin for full molecular tumor board reports.",
+  "version": "1.0.0-beta.1",
+  "author": {
+    "name": "CancerDAO",
+    "email": "zwbao1996@gmail.com",
+    "url": "https://github.com/CancerDAO/cancer-buddy-skill"
+  },
+  "homepage": "https://github.com/CancerDAO/cancer-buddy-skill",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/CancerDAO/cancer-buddy-skill.git"
+  },
+  "license": "MIT",
+  "keywords": [
+    "oncology",
+    "patient-navigation",
+    "cancer-care",
+    "precision-medicine",
+    "cancerdao"
+  ]
+}
