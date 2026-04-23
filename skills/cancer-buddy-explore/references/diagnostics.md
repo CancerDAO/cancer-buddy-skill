@@ -72,7 +72,7 @@
 
 ### Multi-Timepoint Single-Cell (¥100,000–300,000, months)
 - **What it tells you:** How tumor and immune landscape evolve over treatment — clone dynamics, immune adaptation, resistance mechanisms in real-time.
-- **How it changes decisions:** Sid did this at 3 timepoints — revealed T-cell infiltration going from 19% to 89%. Guides treatment sequencing and combination timing.
+- **How it changes decisions:** Serial single-cell profiling at 3+ timepoints (pre/mid/post-treatment) can reveal dramatic immune shifts — in one well-documented case, T-cell infiltration went from 19% to 89%. Guides treatment sequencing and combination timing.
 - **Where:** Same as single-cell above, but requires serial fresh biopsies (pre-treatment, mid-treatment, post-treatment).
 
 ### Comprehensive MRD Monitoring (¥50,000–100,000/year, serial draws)
@@ -89,7 +89,7 @@
 
 ## Critical Sample Preservation Protocol
 
-> **This was Sid Sijbrandij's key learning — get this right at the FIRST biopsy/surgery. You cannot go back.**
+> **Critical: get this right at the FIRST biopsy/surgery. You cannot go back.**
 
 ### Rules:
 1. **Request fresh-frozen tissue, NOT just FFPE**
@@ -140,7 +140,7 @@
 - TCR sequencing
 - Full immune profiling
 - Organoid banking for future drug testing
-- **Outcome:** Sid-level diagnostic depth. Maximizes treatment options, enables vaccine/cell therapy candidacy, provides complete molecular portrait for clinical trial matching.
+- **Outcome:** Maximal diagnostic depth. Maximizes treatment options, enables vaccine/cell therapy candidacy, provides complete molecular portrait for clinical trial matching.
 
 ---
 

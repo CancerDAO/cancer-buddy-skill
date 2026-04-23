@@ -52,7 +52,7 @@ Follow TrialGPT protocol in [trial-matching.md](trial-matching.md):
 
 ### Dimension 5: Frontier Therapies
 
-Search for cutting-edge options Sid-style:
+Search for cutting-edge options exhaustively:
 
 | Category | What to Search | Databases |
 |----------|---------------|-----------|
@@ -156,7 +156,7 @@ After searching all 8 dimensions, synthesize into a pathway map:
 └── ...
 ```
 
-**Parallel pursuit rule**: Identify which paths can be pursued simultaneously. Sid's core insight — don't wait for one to fail before trying the next.
+**Parallel pursuit rule**: Identify which paths can be pursued simultaneously. A core principle of this skill — don't wait for one path to fail before trying the next.
 
 ## Output Checklist
 

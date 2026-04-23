@@ -1,7 +1,5 @@
 # Data Vault — N=1 Patient Data Schema & Sharing Protocol
 
-Reference: osteosarc.com (Sid Sijbrandij's public cancer data site)
-
 ## Directory Structure
 
 ```
@@ -158,7 +156,7 @@ patient-vault/
 | Private | 🔒 | Only patient + designated caregiver | Default. All data starts here. |
 | Authorized | 🔑 | Specific doctors/researchers by invitation | Second opinions, clinical trial screening, MDT consultation |
 | Anonymized-for-AI | 📊 | De-identified data for federated learning | AI model improvement, population-level insights, no re-identification possible |
-| Public | 🌐 | Fully open (like osteosarc.com) | Patient advocacy, advancing research, radical transparency |
+| Public | 🌐 | Fully open (like a public patient data portal) | Patient advocacy, advancing research, radical transparency |
 
 ## Data Quality Scoring
 
@@ -193,22 +191,6 @@ Generate missing data reminders: "Profile is 72% complete. Missing: PD-L1 status
 - Request complete data deletion (except legally required medical records)
 - Receive copy of all data in portable format (JSON export)
 - Be informed of any data breach within 72 hours
-
-## Comparison: osteosarc.com vs Cancer-Buddy Data Vault
-
-| Dimension | Sid / osteosarc.com | Cancer-Buddy Data Vault |
-|---|---|---|
-| Storage | 25TB Google Cloud | Structured local storage (patient-controlled) |
-| Format | Custom data browsers, ad-hoc formats | Standardized JSON schemas |
-| Sharing default | Public by default (radical transparency) | Private by default (patient chooses) |
-| Access control | Open web | Granular per-recipient, per-scope, with expiry |
-| Cost | Significant cloud + engineering costs | Local-first, minimal infrastructure cost |
-| Genomic compliance | US-based (no restriction) | China PIPL + genetic resource regulations compliant |
-| Data browsers | Custom-built visualization tools | AI-generated summaries + standard JSON viewers |
-| Audience | Researchers, public, pharma | Patient, their doctors, authorized researchers |
-| Portability | Platform-dependent | JSON export, platform-independent |
-
----
 
 ## Access Audit Log
 

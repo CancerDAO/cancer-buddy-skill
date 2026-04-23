@@ -5,7 +5,7 @@ description: "Build the patient's N=1 data vault — structured directory, shari
 
 # cancer-buddy-vault
 
-The patient's own version of osteosarc.com — every report, every visit note, every image, organized, searchable, owned by the patient.
+The patient's own public-style cancer data vault — every report, every visit note, every image, organized, searchable, owned by the patient.
 
 ## When to use
 

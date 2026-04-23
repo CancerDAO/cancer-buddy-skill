@@ -78,13 +78,13 @@
 |---|---|---|---|---|
 | **US** | Cutting-edge trials, FDA expanded access, top oncology centers (MSKCC, MD Anderson) | $$$ | Medium (translators available) | High (B1/B2, may need invitation letter) |
 | **Japan** | Proton/heavy ion therapy, quality care, cultural proximity | $$ | Medium (Chinese-speaking staff common) | Low |
-| **Germany** | Lu-177 radiotherapy, precision oncology (Heidelberg), Sid's destination for Lu-177 FAP | $$$ | High | Medium (Schengen) |
+| **Germany** | Lu-177 radiotherapy, precision oncology (Heidelberg, Bad Berka — home of Lu-177 PSMA/FAPI therapies) | $$$ | High | Medium (Schengen) |
 | **South Korea** | Proton therapy, Samsung Medical, cost-effective | $$ | Low (large Chinese community) | Low |
 | **Singapore** | English-speaking, bridge to global trials, Johns Hopkins/Duke partnerships | $$ | Low | Low |
 | **Thailand** | Affordable, Bumrungrad International, medical tourism infrastructure | $ | Low | Low (visa-free) |
 | **HK/Macau** | Access to drugs approved in HK but not mainland, no visa for 港澳通行证 holders | $$ | None | Very Low |
 
-**Reference case:** Sid Sijbrandij flew to Germany for Lu-177 FAPI radiotherapy — demonstrates that some cutting-edge treatments are geographically locked.
+**Example:** Lu-177 FAPI radiotherapy is only offered at a handful of European centers (Bad Berka, Germany and a few others) — some cutting-edge treatments are geographically locked.
 
 **Practical steps:** Medical visa application → appointment booking (direct or via medical tourism agency) → medical records translation → treatment → follow-up plan for return to China.
 

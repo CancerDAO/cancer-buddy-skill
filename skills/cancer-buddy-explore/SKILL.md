@@ -70,7 +70,7 @@ No ranking, no "推荐" — only "匹配理由" per option.
 ## References
 
 - [diagnostics.md](references/diagnostics.md) — 4-tier menu details, institutions, costs
-- [pathway-exploration.md](references/pathway-exploration.md) — 8-dimension strategy (adapted from Sid's framework)
+- [pathway-exploration.md](references/pathway-exploration.md) — 8-dimension strategy
 - [databases.md](references/databases.md) — 17-category database index for evidence search
 - [diagnostic-plan-template.md](references/diagnostic-plan-template.md)
 - [../../references/safety-guardrails.md](../../references/safety-guardrails.md)
