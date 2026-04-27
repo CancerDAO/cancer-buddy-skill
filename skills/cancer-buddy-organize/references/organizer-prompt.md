@@ -161,10 +161,75 @@ Leave fields null when truly unknown — never fabricate.
     "comorbidities_ecog": {"score": 0.5, "evidence": [], "gaps": []}
   },
   "blocking_gaps": [{"domain": "molecular", "reason": "缺 ALK/ROS1"}],
-  "warnings": []
+  "warnings": [],
+  "review_flags": []
 }
 ```
 Grade mapping (from the shared schema): A ≥ 0.90, B ≥ 0.75, C ≥ 0.60, D ≥ 0.40, F < 0.40. `schema_version` MUST be `"1"` — shared with vmtb-skill's organizer output.
+
+### Step 4.6 — review_flags audit (REQUIRED, may be empty)
+
+`blocking_gaps` covers what is **missing**. `review_flags` covers what is **extracted but suspicious**. These are different failure modes and you MUST run both. Skipping this step is a contract violation even when nothing is found — in that case write `"review_flags": []`.
+
+For every field you wrote into `profile.json` (especially `stage`, `histology`, `molecular_drivers_known`, `treatment_history[].name/regimen/line/cycles`, `ecog`, key lab values), run the five checks below. When a check trips, append an entry to `readiness.json.review_flags[]`.
+
+| # | category | check | trip example |
+|---|---|---|---|
+| 1 | `format_violation` | Field violates a known standard. **AJCC TNM prefix MUST ∈ {c, p, yp, r, a}**; RECIST codes MUST ∈ {CR, PR, SD, PD, NE}; drug name should match a known generic/brand. | `stage: "rpT4aN2aM1"` ("rp" not in AJCC 8th); `response: "MR"` (RECIST has no MR) |
+| 2 | `cross_doc_contradiction` | Same conceptual field has conflicting values in 2+ source docs. | "化疗第6周期" in 出院记录_07-05 vs "新方案第1周期" in 入院记录_07-02 (same time point) |
+| 3 | `clinical_logic_anomaly` | Source uses a term in a semantically wrong context. | "辅助化疗 ... PR" (adjuvant has no measurable disease so RECIST inapplicable); "新辅助" but timeline shows upfront resection; ECOG 0 + KPS 50 |
+| 4 | `unverified_critical_field` | A field critical to downstream eligibility (driver mutation, stage, line of therapy, MSI, PD-L1) is sourced ONLY from a progress-note narrative — no primary lab/path/imaging report present. | KRAS G12C / TMB 7.7 / MSS appearing only in 入院记录, no NGS report PDF/image |
+| 5 | `value_trend_anomaly` | Numeric trend is non-physiologic and source provides no explanation. | TSH 6.49 → 6.16 → 0.80 µIU/mL within 8 weeks, no thyroid intervention; CEA dropping > 50× in one cycle |
+
+For each trip, append:
+```json
+{
+  "id": "RF-001",
+  "severity": "red",
+  "category": "format_violation",
+  "field_path": "stage",
+  "current_value": "rpT4aN2aM1 IV期",
+  "issue": "AJCC 8th 前缀只有 c/p/yp/r/a, 'rp' 不在其中",
+  "source_evidence": ["10_原始文件/出院诊断证明_2024-07-05.jpg"],
+  "suggested_value": "pT4aN2aM1 IV期",
+  "suggested_action": "改写为 p 前缀; 在 data_sources 注明医院原写法",
+  "rationale_for_suggestion": "首诊→手术≤30天 + 术后才启动'辅助'化疗 → 切除标本应 treatment-naive",
+  "user_confirmed": false
+}
+```
+
+**Severity calibration:**
+- 🔴 `red` — changes a downstream recommendation (eligibility / line counting / dosing). Examples: stage-prefix wrong (recurrence vs primary), unverified driver mutation (trial-match basis), line-numbering ambiguity (which line is "current").
+- 🟡 `yellow` — should be reviewed, won't break downstream. Examples: cycle-numbering double-counting, term misuse without consequence, value-trend curiosity.
+- 🟢 `green` — informational hint. Examples: M1a/b/c subletter unspecified, ECOG inferred from KPS, optional precision missing.
+
+**4.6b — `review_flags.md` (companion artifact, REQUIRED if review_flags non-empty)**
+
+Auto-generate a human-readable rendering of the JSON array under `<patient_dir>/review_flags.md`. Format:
+
+```markdown
+# 🔍 待人工确认 — <patient_code>
+
+> 已成功提取并写入 profile.json 的字段, 但其值或写法可疑 / 不规范 / 互相矛盾。
+> Source of truth: readiness.json.review_flags[]. 本文件由 organize 自动重新生成。
+
+## 🔴 高优先级 (影响下游推荐)
+
+### RF-001: <一句话标题>
+- **现写**: `field_path: current_value`
+- **可疑点**: <issue>
+- **源证据**: <source_evidence list>
+- **建议**: <suggested_value> + <suggested_action>
+- **理由**: <rationale_for_suggestion>
+- **确认**: ⬜ 接受建议 / ⬜ 保留原写 / ⬜ 自定义值: ___ / ⬜ 暂缓
+
+## 🟡 中优先级 (建议核对)
+...
+## 🟢 低优先级 (提示)
+...
+```
+
+If `review_flags` is empty, do NOT write `review_flags.md` — its absence signals "all extracted values pass the five checks".
 
 ### Step 5 — Return JSON
 
@@ -178,7 +243,11 @@ Final message MUST be pure JSON, no prose:
   "readiness_grade": "B",
   "readiness_score": 72,
   "blocking_gaps": ["..."],
-  "warnings": []
+  "warnings": [],
+  "review_flags_total": 9,
+  "review_flags_red": 3,
+  "review_flags_yellow": 3,
+  "review_flags_green": 3
 }
 ```
 
@@ -188,5 +257,6 @@ Final message MUST be pure JSON, no prose:
 - NEVER overwrite files in `<patient_dir>/` that already have a lower `mtime` than the source (idempotent re-runs).
 - `10_原始文件/` is a byte-identical mirror of every source file — audit trail. Always populate it.
 - SOURCE / CONFIDENCE tags are MANDATORY on every OCR sidecar. Downstream sub-skills enforce `[需医嘱核对]` rules based on these tags.
+- **review_flags audit is MANDATORY** — even if you find nothing, write `"review_flags": []`. An organizer that returns no `review_flags_total` field is non-compliant.
 - Budget: ≤ 50 Read (files can be many), ≤ 20 Bash, ≤ 10 Grep, ≤ 100 Write (files + sidecars + artifacts), ~60 turns total. If input has > 50 files, process in batches and checkpoint `INDEX.md` progressively.
-- Output pure JSON only at the end — all narrative goes in the case_text.md / timeline.md artifacts.
+- Output pure JSON only at the end — all narrative goes in the case_text.md / timeline.md / review_flags.md artifacts.

@@ -24,7 +24,8 @@ Written under `patients/<patient_code>/`:
 - `INDEX.md` (first line: `# patient_code: <code>`)
 - `profile.json` (conforms to `../../references/patient-profile-schema.md`)
 - `timeline.md` (human-readable treatment timeline)
-- `readiness.json` (MTB readiness score)
+- `readiness.json` — coverage grade + `review_flags[]` (MTB readiness + suspicious-value audit)
+- `review_flags.md` — auto-generated human-readable rendering of `readiness.json.review_flags[]` (only written when array non-empty)
 - `case_text.md` (consolidated narrative)
 - `01_当前状态/`…`11_诊断证明/` (raw file buckets)
 - `ocr/` (OCR sidecars with SOURCE/CONFIDENCE headers)
@@ -44,13 +45,21 @@ Written under `patients/<patient_code>/`:
      - `patient_code: <optional — auto-generate `PT-<hex>` from hash(basename + mtime) if missing>`
      - `patient_data_root: <first defined among $CANCER_BUDDY_PATIENTS_DIR, $VMTB_PATIENT_DATA_ROOT, $HOME/CancerDAO/patients>`
 
-   The subagent uses Claude's native vision for image OCR (no external OCR tools required — zero-config). It returns pure JSON: `{role, patient_dir, files_classified, ocr_sidecars_generated, readiness_grade, readiness_score, blocking_gaps, warnings}`.
+   The subagent uses Claude's native vision for image OCR (no external OCR tools required — zero-config). It returns pure JSON: `{role, patient_dir, files_classified, ocr_sidecars_generated, readiness_grade, readiness_score, blocking_gaps, warnings, review_flags_total, review_flags_red, review_flags_yellow, review_flags_green}`.
+
+   If `review_flags_total` field is missing from the returned JSON, the organizer is non-compliant — re-dispatch with explicit reminder to run Step 4.6.
 
 3. **Verify outputs** — parse the returned JSON; confirm `profile.json` exists and required fields (`patient_code`, `primary_cancer`, `histology`, `stage`) are populated. If any are missing or null, surface to the user as a blocker before routing to any other sub-skill.
 
 4. **Grade readiness** — from the returned JSON take `readiness_grade` + `readiness_score`. If grade is F or D, present the information-gap checklist 🔴🟡🟢 (derived from `blocking_gaps`) to the patient.
 
-5. **Output summary** — display the Patient Profile Card ([references/profile-card.md](references/profile-card.md)) to the patient using the `terminology.md` format rules (中英 + 通俗解释).
+5. **Surface review_flags (MANDATORY)** — if `review_flags_total > 0`, read `review_flags.md` and display its content to the user immediately after the Patient Profile Card. This is a hard gate, not optional polish:
+   - **If any 🔴 red flag present**: tell the user "进入下游 skill 之前请先逐条确认或 override 这些 🔴 项 — 它们会直接影响 trial-match / mtb-lite / vmtb 的推荐"
+   - **If only 🟡/🟢 flags**: present them as "建议核对", do not block downstream routing
+   - **If `review_flags_total: 0`**: still tell the user "所有提取字段已通过 5 项可疑值检查 (格式/跨文档矛盾/临床逻辑/原始证据/数值趋势), 无待确认项"
+   - The user's resolution per flag (`accept_suggestion` / `keep_original` / `custom_value` / `defer`) is logged back into `readiness.json.review_flags[i].user_confirmed = true` plus a `resolution` sub-object.
+
+6. **Output summary** — display the Patient Profile Card ([references/profile-card.md](references/profile-card.md)) to the patient using the `terminology.md` format rules (中英 + 通俗解释). The card's "🔍 待人工确认" section pulls from `readiness.json.review_flags[]`.
 
 ## patient_code collision
 

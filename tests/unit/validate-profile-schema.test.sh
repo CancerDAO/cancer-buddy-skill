@@ -93,6 +93,94 @@ cat > "$tmpdir/c10/profile.json" <<'JSON'
 JSON
 run_case "treatment_history out of order" fail "$tmpdir/c10"
 
+# case 11: valid readiness with empty review_flags
+mkdir -p "$tmpdir/c11"
+cat > "$tmpdir/c11/profile.json" <<'JSON'
+{"schema_version":"1.0.0","patient_code":"PT-X","diagnosis":{"primary_site":"lung","histology":"adeno","stage":"IV"}}
+JSON
+cat > "$tmpdir/c11/readiness.json" <<'JSON'
+{"schema_version":"1","grade":"B","review_flags":[]}
+JSON
+run_case "empty review_flags" pass "$tmpdir/c11"
+
+# case 12: valid readiness with one well-formed review_flag
+mkdir -p "$tmpdir/c12"
+cat > "$tmpdir/c12/profile.json" <<'JSON'
+{"schema_version":"1.0.0","patient_code":"PT-X","diagnosis":{"primary_site":"lung","histology":"adeno","stage":"IV"}}
+JSON
+cat > "$tmpdir/c12/readiness.json" <<'JSON'
+{"schema_version":"1","grade":"B","review_flags":[
+  {"id":"RF-001","severity":"red","category":"format_violation","field_path":"stage",
+   "current_value":"rpT4aN2aM1","issue":"non-AJCC prefix","source_evidence":["10_原始文件/x.jpg"],
+   "suggested_action":"rewrite to p","user_confirmed":false}
+]}
+JSON
+run_case "well-formed review_flag" pass "$tmpdir/c12"
+
+# case 13: invalid review_flag severity
+mkdir -p "$tmpdir/c13"
+cat > "$tmpdir/c13/profile.json" <<'JSON'
+{"schema_version":"1.0.0","patient_code":"PT-X","diagnosis":{"primary_site":"lung","histology":"adeno","stage":"IV"}}
+JSON
+cat > "$tmpdir/c13/readiness.json" <<'JSON'
+{"schema_version":"1","grade":"B","review_flags":[
+  {"id":"RF-001","severity":"critical","category":"format_violation","field_path":"stage",
+   "current_value":"rpT4aN2aM1","issue":"non-AJCC prefix","source_evidence":["x"],
+   "suggested_action":"rewrite","user_confirmed":false}
+]}
+JSON
+run_case "invalid review_flag severity" fail "$tmpdir/c13"
+
+# case 14: invalid review_flag category
+mkdir -p "$tmpdir/c14"
+cat > "$tmpdir/c14/profile.json" <<'JSON'
+{"schema_version":"1.0.0","patient_code":"PT-X","diagnosis":{"primary_site":"lung","histology":"adeno","stage":"IV"}}
+JSON
+cat > "$tmpdir/c14/readiness.json" <<'JSON'
+{"schema_version":"1","grade":"B","review_flags":[
+  {"id":"RF-001","severity":"red","category":"typo","field_path":"stage",
+   "current_value":"x","issue":"x","source_evidence":["x"],
+   "suggested_action":"x","user_confirmed":false}
+]}
+JSON
+run_case "invalid review_flag category" fail "$tmpdir/c14"
+
+# case 15: review_flag missing required key
+mkdir -p "$tmpdir/c15"
+cat > "$tmpdir/c15/profile.json" <<'JSON'
+{"schema_version":"1.0.0","patient_code":"PT-X","diagnosis":{"primary_site":"lung","histology":"adeno","stage":"IV"}}
+JSON
+cat > "$tmpdir/c15/readiness.json" <<'JSON'
+{"schema_version":"1","grade":"B","review_flags":[
+  {"id":"RF-001","severity":"red","category":"format_violation"}
+]}
+JSON
+run_case "review_flag missing keys" fail "$tmpdir/c15"
+
+# case 16: review_flags must be array, not object
+mkdir -p "$tmpdir/c16"
+cat > "$tmpdir/c16/profile.json" <<'JSON'
+{"schema_version":"1.0.0","patient_code":"PT-X","diagnosis":{"primary_site":"lung","histology":"adeno","stage":"IV"}}
+JSON
+cat > "$tmpdir/c16/readiness.json" <<'JSON'
+{"schema_version":"1","grade":"B","review_flags":{"foo":"bar"}}
+JSON
+run_case "review_flags wrong type" fail "$tmpdir/c16"
+
+# case 17: review_flag user_confirmed must be bool
+mkdir -p "$tmpdir/c17"
+cat > "$tmpdir/c17/profile.json" <<'JSON'
+{"schema_version":"1.0.0","patient_code":"PT-X","diagnosis":{"primary_site":"lung","histology":"adeno","stage":"IV"}}
+JSON
+cat > "$tmpdir/c17/readiness.json" <<'JSON'
+{"schema_version":"1","grade":"B","review_flags":[
+  {"id":"RF-001","severity":"red","category":"format_violation","field_path":"stage",
+   "current_value":"x","issue":"x","source_evidence":["x"],
+   "suggested_action":"x","user_confirmed":"no"}
+]}
+JSON
+run_case "user_confirmed wrong type" fail "$tmpdir/c17"
+
 if (( fail > 0 )); then
   echo "$fail/$((pass+fail)) test cases failed"
   exit 1

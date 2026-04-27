@@ -104,17 +104,60 @@ Fields are left `null` when truly unknown — the organizer never fabricates.
     "comorbidities_ecog": {"score": 0.5, "evidence": [], "gaps": []}
   },
   "blocking_gaps": [{"domain": "molecular", "reason": "缺 ALK/ROS1"}],
-  "warnings": []
+  "warnings": [],
+  "review_flags": [
+    {
+      "id": "RF-001",
+      "severity": "red",
+      "category": "format_violation",
+      "field_path": "stage",
+      "current_value": "rpT4aN2aM1 IV期",
+      "issue": "AJCC 8th 标准前缀只有 c/p/yp/r/a, 'rp' 不在其中",
+      "source_evidence": ["10_原始文件/出院诊断证明_2024-07-05.jpg"],
+      "suggested_value": "pT4aN2aM1 IV期",
+      "suggested_action": "改写为 pT4aN2aM1; 在 data_sources 注明源文件统一写作 rpT4aN2aM1 (推断为医院习惯)",
+      "user_confirmed": false,
+      "rationale_for_suggestion": "首诊→手术间隔≤30天,病程明确写'辅助化疗'(非新辅助),故术中标本应为treatment-naive → p前缀"
+    }
+  ]
 }
 ```
 
 - `schema_version` is the string `"1"` (not semver). Downstream consumers (chair / mtb-lite / explore / trial-match) use this for forward-compat.
 - Grade mapping: A ≥ 0.90, B ≥ 0.75, C ≥ 0.60, D ≥ 0.40, F < 0.40.
 
+### review_flags[] (required, may be empty array)
+
+Items where the organizer **successfully extracted a value but the value or its writing is suspicious**. Distinct from `blocking_gaps` (which is about coverage) — `review_flags` is about **trustworthiness of what was extracted**.
+
+Detection categories (organizer must check all five before returning):
+
+| category | trigger |
+|---|---|
+| `format_violation` | Field violates a known standard (TNM prefix not in AJCC c/p/yp/r/a; mixed unit/case in same record; non-canonical drug name). |
+| `cross_doc_contradiction` | Same conceptual field has conflicting values across docs (cycle 6 vs cycle 1 of new regimen; weight 65kg vs 70kg same week). |
+| `clinical_logic_anomaly` | Term used in semantically wrong context (adjuvant chemo + RECIST PR; "新辅助" in upfront-resection patient; ECOG 0 + KPS 50). |
+| `unverified_critical_field` | Field is critical for downstream (molecular driver / stage / line of therapy) but only sourced from progress narrative, no primary report. |
+| `value_trend_anomaly` | Lab/biomarker shows non-physiologic jump or unit-suspect change (TSH 6.49 → 0.80 in 8 weeks unexplained; CEA dropping 100× in one cycle). |
+
+Each entry MUST contain: `id` (`RF-NNN`), `severity` ∈ {red, yellow, green}, `category` (from table), `field_path` (dot path into profile.json), `current_value`, `issue` (≤80 chars Chinese summary), `source_evidence[]` (paths to OCR sidecars or 10_原始文件 entries that support `current_value`), `suggested_action`, `user_confirmed: false` on first write.
+
+May contain: `suggested_value` (concrete proposal), `rationale_for_suggestion`.
+
+**Severity rules:**
+- 🔴 `red` — affects downstream eligibility / dosing / line counting (wrong stage prefix, unverified molecular driver, line-count ambiguity)
+- 🟡 `yellow` — should be reviewed but won't break downstream (cycle numbering, term-misuse, value-trend without explanation)
+- 🟢 `green` — informational hint (substage precision optional, supporting data desirable)
+
+**Empty-array semantics:** organizer found no suspicious extracted values. Empty ≠ skipped — organizer must always run the five checks and surface intermediate findings even when none reach severity threshold.
+
+**Companion artifact `review_flags.md`** — auto-generated human-readable rendering of the array, written to `patients/<patient_code>/review_flags.md` for direct user reading. Source of truth is the JSON; the .md is regenerated on every organize.
+
 Every sub-skill reads `readiness.json` at entry:
 - If file missing → prompt user to run `cancer-buddy-organize`.
 - If grade < C → prompt for additional records or trigger organize deep-dive.
-- If grade ≥ C → proceed.
+- If `review_flags[]` contains any unconfirmed `red` items → display them to the user and require confirm/override before producing recommendations. The user's resolution (`accept_suggestion` | `keep_original` | `custom_value` | `defer`) is logged back into `review_flags[i].user_confirmed = true` plus a `resolution` sub-object.
+- If grade ≥ C and no unresolved red flags → proceed.
 
 ## Field-change discipline
 

@@ -88,6 +88,37 @@ if os.path.exists(rpath):
             r = json.load(f)
         if "grade" in r and r["grade"] not in ("A", "B", "C", "D", "F"):
             fail(f"invalid readiness.grade: {r['grade']}")
+        if "review_flags" in r:
+            rf = r["review_flags"]
+            if not isinstance(rf, list):
+                fail(f"review_flags must be array, got {type(rf).__name__}")
+            else:
+                allowed_severity = ("red", "yellow", "green")
+                allowed_category = (
+                    "format_violation",
+                    "cross_doc_contradiction",
+                    "clinical_logic_anomaly",
+                    "unverified_critical_field",
+                    "value_trend_anomaly",
+                )
+                required_keys = ("id", "severity", "category", "field_path",
+                                 "current_value", "issue", "source_evidence",
+                                 "suggested_action", "user_confirmed")
+                for i, item in enumerate(rf):
+                    if not isinstance(item, dict):
+                        fail(f"review_flags[{i}] must be object")
+                        continue
+                    for k in required_keys:
+                        if k not in item:
+                            fail(f"review_flags[{i}] missing {k}")
+                    if "severity" in item and item["severity"] not in allowed_severity:
+                        fail(f"review_flags[{i}] severity {item['severity']} not in {allowed_severity}")
+                    if "category" in item and item["category"] not in allowed_category:
+                        fail(f"review_flags[{i}] category {item['category']} not in {allowed_category}")
+                    if "source_evidence" in item and not isinstance(item["source_evidence"], list):
+                        fail(f"review_flags[{i}] source_evidence must be array")
+                    if "user_confirmed" in item and not isinstance(item["user_confirmed"], bool):
+                        fail(f"review_flags[{i}] user_confirmed must be boolean")
     except Exception as e:
         fail(f"readiness.json unparseable: {e}")
 
