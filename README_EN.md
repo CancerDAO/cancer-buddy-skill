@@ -44,12 +44,13 @@ What cancer brings isn't just the treatment — it's the pile of information, th
 | Need a handbook my parents can actually read | Patient education booklet with Mermaid diagrams, daily-living guide, follow-up schedule |
 | What can I eat during chemo? Is ginseng okay? | Menus by cancer type + treatment phase, with drug-food interaction checks |
 | Want to try another hospital or go abroad | One-page English case summary, Dr.-to-Dr. cover letter, shipping guide |
+| Need to find a hospital that runs MTB, a sub-specialty oncologist, or a recruiting trial | Multi-subagent parallel web research over one-source data, ranked shortlist with appointment paths |
 
 ---
 
 ## Features
 
-### 8 companion modules
+### 9 companion modules
 
 ```
 organize        Turn PDFs / images / docx records into a structured archive
@@ -60,6 +61,7 @@ vault           Your own N=1 health archive with sharing levels
 education       Patient education handbook for family (with diagrams)
 nutrition       Companion nutrition by cancer type + treatment phase
 second-opinion  Cross-hospital / cross-border second-opinion packet
+find-care       Find MTB/MDT-capable hospitals, sub-specialty oncologists, and recruiting trials (parallel multi-subagent web research)
 ```
 
 You don't have to use them in order. The system will first understand your role (patient / caregiver / family member), then guide the next step based on context.
@@ -97,7 +99,7 @@ npx skills add CancerDAO/cancer-buddy-skill -g --all
 npx skills add CancerDAO/cancer-buddy-skill --all
 ```
 
-`--all` installs all 9 sub-skills at once, no interactive picking. Restart Claude Code, then say `cancer-buddy` or `抗癌搭子` to get going.
+`--all` installs all 10 sub-skills (the meta entry + 9 companions + 1 web-access dependency) at once, no interactive picking. Restart Claude Code, then say `cancer-buddy` or `抗癌搭子` to get going.
 
 > If you only want a subset, drop `--all` and the CLI will enter interactive mode.
 
@@ -223,7 +225,7 @@ cancer-buddy-skill/
 ├── README_EN.md                       # you are here
 ├── INSTALL.md                         # detailed install guide
 └── skills/
-    ├── cancer-buddy/                  # meta entry (routes to the 8 below)
+    ├── cancer-buddy/                  # meta entry (routes to the 9 below)
     ├── cancer-buddy-organize/         # record organization
     ├── cancer-buddy-caregiver/        # caregiver support
     ├── cancer-buddy-mind/             # mental-health screening + crisis
@@ -231,7 +233,9 @@ cancer-buddy-skill/
     ├── cancer-buddy-vault/            # N=1 health archive
     ├── cancer-buddy-education/        # patient handbook generator
     ├── cancer-buddy-nutrition/        # nutrition companion
-    └── cancer-buddy-second-opinion/   # second-opinion packet
+    ├── cancer-buddy-second-opinion/   # second-opinion packet
+    ├── cancer-buddy-find-care/        # find hospitals / doctors / trial sites
+    └── web-access/                    # bundled web automation backbone (powers find-care's parallel subagents)
 ```
 
 ---
@@ -277,6 +281,16 @@ Please open an [Issue](https://github.com/CancerDAO/cancer-buddy-skill/issues) o
 ## About us
 
 [CancerDAO](https://github.com/CancerDAO) — building AI + open-source support systems for patients and families.
+
+---
+
+## Acknowledgements
+
+The "parallel multi-subagent web research" capability in `cancer-buddy-find-care` is built on top of the open-source skill **[web-access](https://github.com/eze-is/web-access)** (MIT License) by [一泽Eze](https://github.com/eze-is).
+
+We bundle `web-access` as a vendored dependency under `skills/web-access/`, preserving the original SKILL.md, scripts, and references (CDP Proxy, parallel subagent dispatch strategy, site-pattern knowledge). **All copyright and IP for that module belong to the original author** — we redistribute it under MIT and call into it from `find-care`.
+
+If your own project needs real-browser automation, logged-in web operations, or multi-agent parallel scraping inside Claude Code, we strongly recommend installing the upstream [eze-is/web-access](https://github.com/eze-is/web-access) directly.
 
 ---
 
