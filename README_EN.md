@@ -225,7 +225,7 @@ cancer-buddy-skill/
 ├── README_EN.md                       # you are here
 ├── INSTALL.md                         # detailed install guide
 └── skills/
-    ├── cancer-buddy/                  # meta entry (routes to the 9 below)
+    ├── cancer-buddy/                  # meta entry (routes to the 9 companions below)
     ├── cancer-buddy-organize/         # record organization
     ├── cancer-buddy-caregiver/        # caregiver support
     ├── cancer-buddy-mind/             # mental-health screening + crisis

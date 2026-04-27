@@ -214,7 +214,7 @@ cancer-buddy-skill/
 ├── README.md                          # 你正在看的这个
 ├── INSTALL.md                         # 详细安装说明
 └── skills/
-    ├── cancer-buddy/                  # 总入口（路由到下面 9 个）
+    ├── cancer-buddy/                  # 总入口（路由到下面 9 个 companion）
     ├── cancer-buddy-organize/         # 病历整理
     ├── cancer-buddy-caregiver/        # 照护者支援
     ├── cancer-buddy-mind/             # 心理筛查 + 危机响应
