@@ -44,12 +44,13 @@
 | 想给爸妈写份他们看得懂的手册 | 生成带 Mermaid 示意图、日常生活指南、复诊时间表的宣教册 |
 | 化疗期间吃什么、能不能吃人参 | 按癌种 + 治疗阶段给菜单，顺手查药食冲突 |
 | 想去别家医院或国外看看 | 一页英文 case summary、Dr.-to-Dr. cover letter、邮寄指南 |
+| 想找做 MTB 的医院、对口的专科医生、在招的试验 | 多 subagent 并行联网调研一手源，按匹配度排序的短名单 + 挂号路径 |
 
 ---
 
 ## 功能
 
-### 8 个陪伴模块
+### 9 个陪伴模块
 
 ```
 organize        把 PDF / 图片 / docx 病历整理成结构化档案
@@ -60,6 +61,7 @@ vault           你自己的 N=1 健康档案和分享等级
 education       给家人看的宣教手册（含可视化图）
 nutrition       按癌种 + 治疗阶段的饮食陪伴
 second-opinion  跨院 / 跨境第二意见 packet 打包
+find-care       找做 MTB / MDT 的医院、专科医生、临床试验中心（多 subagent 并行联网）
 ```
 
 你不需要按顺序使用。系统会先理解你的身份（患者 / 照护者 / 家属），再根据情境引导下一步。
@@ -97,7 +99,7 @@ npx skills add CancerDAO/cancer-buddy-skill -g --all
 npx skills add CancerDAO/cancer-buddy-skill --all
 ```
 
-`--all` 会把 9 个子技能一次性全部装好，不用手动勾选。装完重启 Claude Code，对它说 `抗癌搭子` 或 `帮我分析病情` 就能用。
+`--all` 会把 10 个子技能（搭子主入口 + 9 个陪伴模块 + 1 个联网底层 web-access）一次性全部装好，不用手动勾选。装完重启 Claude Code，对它说 `抗癌搭子` 或 `帮我分析病情` 就能用。
 
 > 如果你只想装其中几个子技能，把 `--all` 去掉即可，CLI 会进入交互选择。
 
@@ -212,7 +214,7 @@ cancer-buddy-skill/
 ├── README.md                          # 你正在看的这个
 ├── INSTALL.md                         # 详细安装说明
 └── skills/
-    ├── cancer-buddy/                  # 总入口（路由到下面 8 个）
+    ├── cancer-buddy/                  # 总入口（路由到下面 9 个）
     ├── cancer-buddy-organize/         # 病历整理
     ├── cancer-buddy-caregiver/        # 照护者支援
     ├── cancer-buddy-mind/             # 心理筛查 + 危机响应
@@ -220,7 +222,9 @@ cancer-buddy-skill/
     ├── cancer-buddy-vault/            # N=1 健康档案
     ├── cancer-buddy-education/        # 宣教手册生成
     ├── cancer-buddy-nutrition/        # 饮食陪伴
-    └── cancer-buddy-second-opinion/   # 第二意见 packet
+    ├── cancer-buddy-second-opinion/   # 第二意见 packet
+    ├── cancer-buddy-find-care/        # 找医院 / 医生 / 临床试验中心
+    └── web-access/                    # 联网底层（多 subagent 并行调研，依赖此模块）
 ```
 
 ---
@@ -266,6 +270,16 @@ $HOME/CancerDAO/patients/
 ## 关于我们
 
 [CancerDAO](https://github.com/CancerDAO) ：用 AI + 开源，构建面向患者与家属的支持系统。
+
+---
+
+## 致谢 (Acknowledgements)
+
+`cancer-buddy-find-care` 模块的"多 subagent 并行联网"能力，是基于 [一泽Eze](https://github.com/eze-is) 开发的开源 skill **[web-access](https://github.com/eze-is/web-access)**（MIT License）实现的。
+
+我们将 `web-access` 作为底层依赖打包进了 `skills/web-access/`，保留了原作者的 SKILL.md、scripts 和 references（含 CDP Proxy 实现、并行子 agent 调度策略、站点经验等）。**该模块的所有版权与原始知识产权归原作者所有**，我们仅按 MIT 协议进行重新分发，并在 `find-care` 子技能中调用其能力。
+
+如果你的项目也需要 Claude Code 内的真实浏览器自动化、登录态网页操作、多 agent 并行抓取，强烈推荐直接使用 [eze-is/web-access](https://github.com/eze-is/web-access) 原版。
 
 ---
 

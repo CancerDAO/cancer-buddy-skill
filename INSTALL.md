@@ -18,8 +18,19 @@ npx skills add CancerDAO/cancer-buddy-skill -g
 npx skills add CancerDAO/cancer-buddy-skill
 
 # Install only specific sub-skills
-npx skills add CancerDAO/cancer-buddy-skill --skill cancer-buddy cancer-buddy-organize cancer-buddy-mtb-lite
+npx skills add CancerDAO/cancer-buddy-skill --skill cancer-buddy cancer-buddy-organize cancer-buddy-find-care
 ```
+
+> **Note**: `cancer-buddy-find-care` requires the bundled `web-access` skill (also under `skills/`) to perform the parallel multi-subagent web research that powers hospital/doctor/trial discovery. Both are auto-installed when you use `--all` or `add CancerDAO/cancer-buddy-skill` without `--skill`. If you cherry-pick `cancer-buddy-find-care`, also include `web-access`.
+
+### Web-access prerequisites
+
+`cancer-buddy-find-care` (via `web-access`) uses the user's local Chrome with remote debugging for sites that block static scraping (好大夫在线, 微信公众号, ChiCTR, etc.). One-time setup:
+
+1. **Node.js 22+** (for native WebSocket; lower versions need the `ws` module)
+2. In Chrome's address bar, open `chrome://inspect/#remote-debugging` and check **"Allow remote debugging for this browser instance"** (may need to restart Chrome)
+
+Without this, `find-care` falls back to pure WebSearch/WebFetch — works for some queries, less reliable for ranking-heavy ones.
 
 The CLI auto-detects Claude Code and installs to `~/.claude/skills/` (global) or `.claude/skills/` (project). Restart Claude Code after install.
 
@@ -33,15 +44,18 @@ npx skills update cancer-buddy
 npx skills remove cancer-buddy
 ```
 
-## Optional: install vmtb-skill for full MTB
+## Optional: install vmtb-skill for full MTB analysis
 
-For the 15–20 minute deep committee MTB (pathologist + geneticist + recruiter + oncologist + chair + 5-dimension verifier), install vmtb-skill. vmtb-skill uses 17 dedicated subagents, so it ships as a Claude Code plugin (agents registered at plugin level):
+`cancer-buddy-find-care` helps you **find hospitals/doctors that do MTB** — but it doesn't run the MTB analysis itself. For the actual deep committee analysis (pathologist + geneticist + recruiter + oncologist + chair + 5-dimension verifier, 15–20 minutes), install `vmtb-skill`. It uses 17 dedicated subagents, so it ships as a Claude Code plugin:
 
 ```bash
 cd ~/.claude/plugins && git clone https://github.com/zwbao/vmtb-skill
 ```
 
-When you trigger MTB through cancer-buddy, it detects vmtb-skill and asks whether to run the built-in lite version (2–5 min) or hand off to the full committee.
+In short:
+- **Where can my MTB happen?** → `cancer-buddy-find-care` (this repo)
+- **Run a virtual MTB on my case?** → `vmtb-skill` (separate repo, optional)
+- **Real clinical MTB decisions?** → your treating oncologist + the venue you found above
 
 ## Verify
 
