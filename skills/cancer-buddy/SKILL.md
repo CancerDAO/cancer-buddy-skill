@@ -43,7 +43,7 @@ description: "抗癌搭子 (cancer-buddy) — 患者和家属的 AI 抗癌伙伴
 
 这些**不在搭子的能力范围**——请找主诊医生，或者内部版 `cancer-buddy-pro-skill` 的专业工具：
 
-- **MTB / 分子肿瘤委员会的临床判断**（治疗方案建议、证据分级）— *注意：找哪家医院/医生能做 MTB，可以走 find-care*
+- **MTB / 分子肿瘤委员会的临床判断**（治疗方案建议、证据分级）— *用户问到 MTB 时，先扫一下 available-skills 列表：装了 `cancerdao-vmtb` / `vmtb-skill`（公开完整版）或 `cancer-buddy-mtb-lite`（内部版）就接力过去；都没装，告诉用户公开搭子做不了，要么装其中一个，要么走 `find-care` 找医院做。*
 - **临床试验匹配的 criterion-level 评估**（细节符合度）— *注意：找哪里在招试验，可以走 find-care*
 - **诊断路径决策**（还要做哪些检查、8 维治疗路径穷举）
 - **扩展准入 / 博鳌 / 同情用药 / 跨境治疗的医学路径**

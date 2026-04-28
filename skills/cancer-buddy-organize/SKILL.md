@@ -79,11 +79,25 @@ Organize does not make medical recommendations. Still:
 
 ## Next-step guidance
 
-After successful organize, route the patient to the most relevant next sub-skill based on their initial question:
+After successful organize, route the patient to the most relevant next sub-skill based on their initial question. For clinical-judgment skills (MTB / trial matching / pathway exploration) — which live outside the public cancer-buddy bundle — **scan the available-skills list first** and tell the user explicitly which engine the environment has, so they don't get a silent "skill not found" downstream.
 
-- Newly diagnosed, wants to understand → `cancer-buddy-explore` (maximal diagnostics tier)
-- Has gene report, wants treatment guidance → `cancer-buddy-mtb-lite`
-- Looking for trials → `cancer-buddy-trial-match`
+- Newly diagnosed, wants to understand → `cancer-buddy-explore` (private, in cancer-buddy-pro-skill)
+- Has gene report, wants treatment guidance → see "MTB hand-off" below
+- Looking for trials → `cancer-buddy-trial-match` (private, in cancer-buddy-pro-skill)
+- Wants to find a hospital/center that does MTB or runs trials → `cancer-buddy-find-care` (public, ships in this repo)
+
+### MTB hand-off — environment-aware
+
+When the user has gene/molecular reports and asks about treatment guidance, scan the current session's available-skills list and route as follows. The full vMTB project ships under either of two registered skill names — `cancerdao-vmtb` (current) or `vmtb-skill` (legacy/alias) — accept either. **Do not silently degrade — always tell the user which engine ran (or that none did) so the patient knows what they're getting.**
+
+| Env state | Action | What to tell the user |
+|---|---|---|
+| `cancerdao-vmtb` **or** `vmtb-skill` present (public, full clinician-grade vMTB — multi-agent committee + verifier + auditable HTML report) | Hand off to whichever name resolved. | "环境里检测到完整版 vMTB skill (`cancerdao-vmtb` / `vmtb-skill`) — 多专家委员会 + 5 维质控 + 可审计 HTML 报告。我把整理好的 profile 接力过去。" |
+| `cancer-buddy-mtb-lite` present (private, ships inside cancer-buddy-pro-skill — lighter clinical flow) | Hand off to `cancer-buddy-mtb-lite`. | "环境里有内部版 mtb-lite。这是简化的临床流程（比完整版 vmtb-skill 轻），适合快速过一遍。" |
+| Both present | Default to the full vMTB (more thorough); mention `mtb-lite` as the lighter alternative and let the user choose. | "你环境里两个都装了。我默认走完整版 vMTB；如果只是想快速过一遍可以切到 `mtb-lite`。" |
+| Neither present | Do **not** generate any MTB-style recommendation inside cancer-buddy itself — public cancer-buddy is companion-scope, MTB is explicitly out of scope (see `../cancer-buddy/SKILL.md`). Route the user to `cancer-buddy-find-care` so they can find a hospital MTB clinic, and tell them what they'd need to install if they want to run it locally. | "公开版抗癌搭子不做 MTB 临床判断。要在本地跑 MTB，需要安装 `cancerdao-vmtb` / `vmtb-skill`（公开）或 `cancer-buddy-pro-skill`（内部）。要找做 MTB 的医院，我可以接力到 `cancer-buddy-find-care`。" |
+
+The disclosure is mandatory in all four branches. Never run a "best-effort" MTB recommendation from cancer-buddy itself — that's exactly the boundary the public skill is drawn around.
 
 ## Role behavior
 
