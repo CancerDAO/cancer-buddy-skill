@@ -46,9 +46,15 @@ Written under `patients/<patient_code>/`:
      - `patient_code: <optional — auto-generate `PT-<hex>` from hash(basename + mtime) if missing>`
      - `patient_data_root: <first defined among $CANCER_BUDDY_PATIENTS_DIR, $VMTB_PATIENT_DATA_ROOT, $HOME/CancerDAO/patients>`
 
-   The subagent uses Claude's native vision for image OCR (no external OCR tools required — zero-config). It returns pure JSON: `{role, patient_dir, files_classified, ocr_sidecars_generated, readiness_grade, readiness_score, blocking_gaps, warnings, review_flags_total, review_flags_red, review_flags_yellow, review_flags_green, review_summary_path}`.
+   The subagent uses Claude's native vision for image OCR (no external OCR tools required — zero-config). It returns pure JSON: `{role, patient_dir, files_classified, ocr_sidecars_generated, readiness_grade, readiness_score, blocking_gaps, warnings, review_flags_total, review_flags_red, review_flags_yellow, review_flags_green, review_summary_path, continuation_needed, continuation_resume_from}`.
 
    If `review_flags_total` OR `review_summary_path` field is missing from the returned JSON, the organizer is non-compliant — re-dispatch with explicit reminder to run Step 4.6 + 4.7.
+
+   **Continuation loop (mandatory)**: if the returned JSON has `continuation_needed: true`, the subagent ran out of context before processing every input file. **Do NOT accept the partial result as final.** Dispatch a fresh subagent with the same `input_path` + `patient_code` + an additional instruction:
+
+   > "Resume organize for `<patient_code>`. The previous dispatch processed up to `<continuation_resume_from>` and stopped. Skip every file whose OCR sidecar already exists in `<patient_dir>/ocr/`; OCR all remaining files; merge into existing INDEX.md / timeline.md / case_text.md / profile.json / readiness.json / review_summary.md instead of overwriting; re-run §4.6 review_flags audit and §4.7 review_summary on the merged dataset. Return JSON with `continuation_needed` set to `false` if you finished, or `true` again with the next resume point if you also ran out of context."
+
+   Loop until `continuation_needed: false`. Typical 70-image archives finish in 1-3 dispatches. Never silently accept a partial run.
 
 3. **Verify outputs** — parse the returned JSON; confirm `profile.json` exists and required fields (`patient_code`, `primary_cancer`, `histology`, `stage`) are populated. If any are missing or null, surface to the user as a blocker before routing to any other sub-skill.
 
