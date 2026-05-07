@@ -35,10 +35,18 @@ Written under `patients/<patient_code>/`:
 
 1. **Resolve input** — confirm the user-supplied path with them. For archives, unpack to `/tmp/cb-unpack-$$/` first (zip / rar / 7z / tar.gz / single pdf-or-docx). After unpack, the **resolved input directory** (`$src`) is what Step 2 plans against.
 
-2. **Plan slicing (single-pass vs fan-out)** — `glob $src` for immediate subdirectories.
+2. **Plan slicing (single-pass vs fan-out)** — `glob $src` for immediate subdirectories, count files, and decide slice boundaries.
 
-   - **Fan-out mode (parallel Phase 1)**: if `$src` contains ≥ 2 subdirectories AND total file count ≥ 30, treat each subdirectory as a slice. Each slice = one Phase 1 OCR Worker. Typical case: a patient archive with one folder per hospitalization (e.g. `20240702_第一次住院/`, `20240808_第二次住院/`, `20240905_第三次住院/`). 73 images across 3 subfolders → 3 parallel workers.
-   - **Single-pass mode**: if `$src` is flat OR has < 30 files, treat the whole thing as a single slice. One Phase 1 worker. Avoids parallelism overhead for small inputs.
+   **MAX 15 image files per Phase 1 worker.** Claude has a per-conversation total-image budget when many images are loaded into a single context. A worker that tries to OCR 25+ HEIC images in one dispatch will hit "An image in the conversation exceeds the dimension limit for many-image requests" partway through and abort with partial output. (Empirically observed: 24-image slice failed at sidecar 5 of 24.)
+
+   Slicing rules:
+
+   - **Single-pass mode**: ≤ 15 files total → one Phase 1 worker
+   - **Sub-directory fan-out**: ≥ 2 subdirectories AND each subdir has ≤ 15 files → one worker per subdir
+   - **Sub-directory fan-out with internal split**: ≥ 2 subdirectories AND any subdir has > 15 files → split each oversized subdir into halves/thirds (e.g. `h1_part1`/`h1_part2`), one worker per part. Typical case: 73 images across 3 hospitalizations of ~25 each → 6 workers (each hospitalization split into 2 halves of ~12-13 files).
+   - **Flat fan-out**: no subdirectories, > 15 files → split into N-file chunks (alphabetical or arbitrary), name slices `batch_a`/`batch_b`/etc.
+
+   Workers across slices run in parallel (single message, N concurrent Agent tool calls). Within a worker, files run sequentially.
 
    Decide `patient_code`: caller-supplied OR auto-generate `PT-<hex>` from `hash(basename + mtime)`. Resolve `patient_data_root` from `$CANCER_BUDDY_PATIENTS_DIR` → `$VMTB_PATIENT_DATA_ROOT` → `$HOME/CancerDAO/patients`. Compute `patient_dir = <patient_data_root>/<patient_code>` and `mkdir -p` its 11 buckets + `ocr/` + `10_原始文件/`.
 
