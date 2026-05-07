@@ -12,6 +12,7 @@ Your deliverable: a populated `<patient_dir>/` with INDEX.md + timeline.md + rea
 
 ## Global principles
 
+- **Accuracy and completeness over speed. There is no budget cap.** Every text-bearing image gets an OCR sidecar; every file gets a bucket assignment; every extracted field gets a source citation. If you find yourself thinking "I'll just OCR the load-bearing docs and skip the rest" → STOP. A partial run is worse than no run, because it gives a false impression of coverage to downstream sub-skills (mtb-lite / trial-match / vmtb / nutrition / education) that rely on the dataset being complete.
 - Preserve source fidelity. Never fabricate values. When unreadable, write `null` (in JSON) or `[OCR_UNCERTAIN]` (in text).
 - Surface uncertainty explicitly via SOURCE / CONFIDENCE tags on every OCR sidecar.
 - Respect the 11-bucket taxonomy below — no ad-hoc folder names.
@@ -79,12 +80,16 @@ Use Glob + Read/Bash to inventory `$src`. For each file:
 **2.2 Image (jpg / png / tiff):**
 - Use your native vision capability — open the image via the `Read` tool (Claude Code Read supports images).
 - Triage `content_type ∈ {ct_slice, xray, ultrasound, photo, pathology_slide, text_doc, mixed}`.
-- `ct_slice / xray / ultrasound / photo` → do NOT OCR, classify only. Image goes to `04_影像学/` with a stub sidecar noting the modality.
-- `text_doc / mixed / pathology_slide` → OCR the image. Your vision IS the OCR engine — transcribe the visible text line by line. Write the OCR result to `ocr/<basename>.md` with header:
-  ```
-  SOURCE: <source_type> | CONFIDENCE: <see §2.3>
-  ORIGINAL: 10_原始文件/<relpath>
-  ```
+- `ct_slice / xray / ultrasound / photo` → **stub sidecar required**: `ocr/<basename>.md` with header below + ≤5 lines noting modality, body region (if visible), and approximate date (if visible). Image goes to `04_影像学/`.
+- `text_doc / mixed / pathology_slide` → **full OCR required**: transcribe every visible character line by line into `ocr/<basename>.md`. Lab tables transcribe as Markdown tables. Order sheets transcribe as date | order | qty | sig | exec_status columns. Discharge certs transcribe heading + 治疗过程摘要 + 诊断 + 出院医嘱 + 签名 verbatim.
+
+Sidecar header (mandatory on every sidecar including stubs):
+```
+SOURCE: <source_type> | CONFIDENCE: <see §2.3>
+ORIGINAL: 10_原始文件/<relpath>
+```
+
+**MANDATE — no sampling, no skipping, no "load-bearing only".** If the input has 73 images, you produce 73 sidecars. The agent is not allowed to make a triage decision of the form "this lab strip is unimportant, skip it" — the user uploaded it for a reason, and downstream sub-skills decide importance, not the organizer. Saving tokens is not a reason to skip; if the work is large, do it in batches via the §Step-batching guidance below, but every file ends up represented.
 
 **2.2a Anti-anchoring rule (HARD CONSTRAINT — read before every OCR):**
 
@@ -346,11 +351,15 @@ Final message MUST be pure JSON, no prose:
   "review_flags_red": 3,
   "review_flags_yellow": 3,
   "review_flags_green": 3,
-  "review_summary_path": "/absolute/path/to/<patient_dir>/review_summary.md"
+  "review_summary_path": "/absolute/path/to/<patient_dir>/review_summary.md",
+  "continuation_needed": false,
+  "continuation_resume_from": null
 }
 ```
 
 `review_summary_path` is REQUIRED (even when readiness is A and review_flags is empty). If missing, the organizer is non-compliant — re-dispatch.
+
+`continuation_needed` defaults to `false`. Set to `true` ONLY when context window is filling and you cannot finish processing every file in this dispatch — set `continuation_resume_from` to the next unprocessed source-file basename. The caller's SKILL.md Step 2 detects `continuation_needed: true` and dispatches a fresh subagent with the same input, telling it to skip files already represented in `<patient_dir>/ocr/` and resume from the named file.
 
 ## Rules
 
@@ -361,5 +370,5 @@ Final message MUST be pure JSON, no prose:
 - SOURCE / CONFIDENCE tags are MANDATORY on every OCR sidecar. CONFIDENCE follows the §2.3 rule table — do NOT self-assess.
 - **review_flags audit is MANDATORY** — even if you find nothing, write `"review_flags": []`. An organizer that returns no `review_flags_total` field is non-compliant.
 - **review_summary.md is MANDATORY** — written every time, even when grade is A and review_flags is empty. See §4.7.
-- Budget: ≤ 50 Read (files can be many), ≤ 20 Bash, ≤ 10 Grep, ≤ 100 Write (files + sidecars + artifacts), ~60 turns total. If input has > 50 files, process in batches and checkpoint `INDEX.md` progressively.
+- **NO budget cap on tool calls or tokens.** Process every input file. If your context window is filling, checkpoint `INDEX.md` + `timeline.md` + the sidecars you have so far, then signal to the caller that a continuation dispatch is needed by returning JSON with `"continuation_needed": true` and `"continuation_resume_from": "<filename>"`. The caller will dispatch a fresh subagent that resumes from there. NEVER silently sample or skip — the user uploaded every file for a reason, and downstream sub-skills decide importance, not the organizer.
 - Output pure JSON only at the end — all narrative goes in the case_text.md / timeline.md / review_flags.md / review_summary.md artifacts.
