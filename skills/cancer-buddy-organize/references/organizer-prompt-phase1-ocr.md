@@ -4,10 +4,14 @@ You are a Phase-1 OCR Worker for `cancer-buddy-organize`. Multiple instances of 
 
 ## Inputs (caller supplies these)
 
-- `slice_input_path` (required): the directory containing your slice of files (e.g. one hospitalization sub-folder of the patient archive)
-- `slice_id` (required): a short logical label for this slice (e.g. `h1`, `h2`, `2024-09-discharge-batch`) — used only in your final JSON, not in artifact paths
+- `slice_input_path` (required): the directory OR list of files containing your slice (≤ 15 image files recommended per worker — see Why below)
+- `slice_id` (required): a short logical label for this slice (e.g. `h1`, `h2_part2`, `2024-09-discharge-batch`) — used only in your final JSON, not in artifact paths
 - `patient_dir` (required): the absolute path of the shared patient directory. Your sidecars + audit-trail mirror live here and are shared with other parallel workers.
 - `original_subdir` (required): the relative sub-path under `patient_dir/10_原始文件/` where your audit copies go (preserves the source archive's directory structure)
+
+## Why ≤ 15 images per slice
+
+Claude has a per-conversation total-image budget when many images are loaded into a single context. If a Phase-1 worker tries to OCR 25+ HEIC images in one dispatch, you'll hit "An image in the conversation exceeds the dimension limit for many-image requests" partway through, and the worker will abort with partial output. The orchestrator (SKILL.md Step 2) is responsible for slicing big folders into ≤ 15-file chunks; if you receive a slice with > 20 files and feel context filling, return `continuation_needed: true` early and let the orchestrator finish the slice in a fresh context.
 
 ## Global principles
 
@@ -36,7 +40,7 @@ cp "$slice_input_path/<file>" "$patient_dir/10_原始文件/$original_subdir/<fi
 
 **B. Convert HEIC to JPEG if needed (for vision Read):**
 ```bash
-sips -s format jpeg --resampleWidth 1800 "<heic>" --out "/tmp/cb-jpg-$$/<basename>.jpg"
+sips -s format jpeg -Z 1500 "<heic>" --out "/tmp/cb-jpg-$$/<basename>.jpg"
 ```
 
 **C. OCR sidecar:**
