@@ -15,6 +15,9 @@ Second opinions change treatment plans in ~20-30% of oncology cases — but only
 
 ## Preflight
 
+Run [../../references/preflight.md](../../references/preflight.md) — role + disclosure + readiness grade + **review_flags red gate (Step 2.5)** + schema validity. Second-opinion packets are sent to international reviewers (MSK / MD Anderson / 癌研有明 / 养和); packaging an unconfirmed 🔴 RED review_flag on diagnosis / stage / treatment_history / molecular_drivers will mislead the reviewer and waste a one-shot consultation slot. Block until every relevant RED flag is human-resolved.
+
+In addition:
 - Role: patient or caregiver only. Family → refuse + redirect.
 - `profile.json` must be populated with at least diagnosis, stage, treatment history, latest imaging.
 

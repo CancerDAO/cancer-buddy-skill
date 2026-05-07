@@ -15,7 +15,9 @@ What the patient eats affects treatment tolerance, healing, and outcome. This sk
 
 ## Preflight
 
-- Role resolution per `../../references/preflight.md`.
+Run [../../references/preflight.md](../../references/preflight.md) — role + disclosure + readiness grade + **review_flags red gate (Step 2.5)** + schema validity. Especially critical here: a 🔴 RED review_flag on `current_therapy` or `treatment_history[].name` makes the entire meal plan wrong (drug-food interaction table is keyed on actual drugs in use). Real failure case: when `current_therapy` was OCR'd as "瑞戈非尼 + 伊立替康" instead of the actual "雷替曲塞 + 信迪利单抗", the resulting nutrition plan included a TKI low-fat-breakfast medication-timing rule and a SN-38 delayed-diarrhea protocol — both clinically irrelevant, both confidently wrong. Block until human-resolved.
+
+In addition:
 - Require `patients/<patient_code>/profile.json` with `primary_cancer` and `current_therapy` populated; if missing, route back to organize.
 
 ## Workflow
