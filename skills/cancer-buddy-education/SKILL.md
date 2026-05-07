@@ -12,6 +12,10 @@ Turn clinical output into something the patient (and their family) can actually 
 - Patient has at least `profile.json` + one MTB report (lite or full).
 - Patient says: 宣教手册 / 给我爸妈看的版本 / 我爸妈看不懂报告 / patient handbook.
 
+## Preflight
+
+Run [../../references/preflight.md](../../references/preflight.md) — role + disclosure + readiness grade + **review_flags red gate (Step 2.5)** + schema validity. The handbook propagates upstream extracted facts (diagnosis, stage, current_therapy, molecular_drivers, treatment_history) directly to the patient/caregiver as authoritative-sounding educational content; an unconfirmed 🔴 RED review_flag on any of those fields makes the resulting handbook misleading. Block until resolved.
+
 ## Inputs
 
 - `patients/<pid>/profile.json`
