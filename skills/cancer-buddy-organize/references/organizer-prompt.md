@@ -82,14 +82,36 @@ Use Glob + Read/Bash to inventory `$src`. For each file:
 - `ct_slice / xray / ultrasound / photo` → do NOT OCR, classify only. Image goes to `04_影像学/` with a stub sidecar noting the modality.
 - `text_doc / mixed / pathology_slide` → OCR the image. Your vision IS the OCR engine — transcribe the visible text line by line. Write the OCR result to `ocr/<basename>.md` with header:
   ```
-  SOURCE: patient_note | CONFIDENCE: medium
+  SOURCE: <source_type> | CONFIDENCE: <see §2.3>
   ORIGINAL: 10_原始文件/<relpath>
   ```
 
-**2.3 CONFIDENCE tags:**
-- `discharge_summary`, `formal_rx`, `pathology_report`, NGS panel, CT/MRI report narrative → `CONFIDENCE: high`
-- OCR'd text with any uncertainty → `CONFIDENCE: medium`
-- Patient-written notes, handwriting, photo of prescription bottle → `CONFIDENCE: low`
+**2.2a Anti-anchoring rule (HARD CONSTRAINT — read before every OCR):**
+
+When you OCR a document containing **drug names, dosing schedules, TNM staging codes, molecular markers, lab values, or dates**, you MUST OCR each character from the image alone. Specifically:
+
+- ❌ **Do NOT** use any prior document's drug list, treatment narrative, or your "running understanding" of the patient to "correct" what the current image shows.
+- ❌ **Do NOT** silently substitute a similar-looking real drug name for what you transcribed (e.g. transcribing as "雷替曲塞" then changing to "瑞戈非尼" because "the patient was on a TKI"; or transcribing as "倍迪利单抗" then mapping to "penpulimab" because "倍迪利 doesn't exist").
+- ✅ When the visible characters do not form a known generic/brand, write them VERBATIM, then add a `[CANDIDATES: <name1>, <name2>, ...]` annotation listing 2-3 visually closest real drug names. **Do NOT pick one** — let cross-document reconciliation in §4.6 do that.
+- ✅ When characters are ambiguous or partially obscured, mark per-character: `[OCR_UNCERTAIN: <verbatim attempt> | <alternative reading>]`. Never collapse uncertainty silently.
+- ✅ If two documents from the same hospitalization disagree on a drug name (e.g. discharge cert says X, orders sheet says Y), record BOTH verbatim in the respective sidecars and let §4.6 surface the contradiction. The OCR layer NEVER reconciles.
+
+**Why this matters**: anchoring on prior narrative is the dominant failure mode of vision-LLM OCR on Chinese medical records. A consistent-but-wrong OCR (e.g. all 7 documents in one hospitalization read as "瑞戈非尼" because the FIRST one was misread) cannot be detected by §4.6 cross-doc check. Catch the error at the per-image OCR layer by refusing to "smooth" it.
+
+**2.3 CONFIDENCE tags (RULE-BASED — do NOT self-assess):**
+
+CONFIDENCE on each sidecar is computed from objective signals, not from how confident you "feel". Apply this table in order; the FIRST matching row wins:
+
+| Condition | CONFIDENCE |
+|---|---|
+| Sidecar contains any `[OCR_UNCERTAIN: ...]` or `[CANDIDATES: ...]` annotation | `low` |
+| Document is patient-written notes, photo of prescription bottle, or any handwriting | `low` |
+| Cross-document conflict detected for any field on this image (per §4.6 check #2) | `medium` |
+| Only 1 source document exists for the field's value (no corroboration possible) | `medium` |
+| `discharge_summary` / `formal_rx` / `pathology_report` / NGS panel / CT/MRI narrative AND ≥ 2 same-hospitalization documents agree on the key fields verbatim | `high` |
+| Default | `medium` |
+
+When you write the sidecar header, you MUST be able to point to which row of this table justified the CONFIDENCE level. If you cannot, the answer is `medium`.
 
 **2.4 PII redaction (best-effort):**
 If `$CANCER_BUDDY_PII_REDACT` is set, redact patient name / ID / phone with `[PII_MASKED]` tokens. Regex-level only (`\d{11}` phone, `\d{15}|\d{18}` ID card, `患者[:：]\s*\w{2,4}` name). NOT HIPAA-grade — surface this as a warning in `readiness.json.warnings`.
@@ -231,6 +253,82 @@ Auto-generate a human-readable rendering of the JSON array under `<patient_dir>/
 
 If `review_flags` is empty, do NOT write `review_flags.md` — its absence signals "all extracted values pass the five checks".
 
+### Step 4.7 — review_summary.md (ALWAYS WRITTEN, even when review_flags is empty)
+
+`review_flags.md` lists what is **wrong-looking**. `review_summary.md` is the **opposite artifact**: it shows the user what was **extracted as correct** so they can spot-check the few fields that matter most. Many real OCR errors look internally consistent (e.g. all 7 documents in one hospitalization OCR'd to the same wrong drug) — review_flags cannot catch those. The user catching one wrong character in a 1-page summary can.
+
+Write to `<patient_dir>/review_summary.md` using this exact structure. Keep it under 50 lines — this is a checklist, not a report:
+
+```markdown
+# 📋 整理结果速查清单 — <patient_code>
+
+> 这份清单列出 **organize 提取出的关键字段 + 它们各自来自原文哪一行**, 方便你 1 分钟内快速核对。
+> 看到任何字段写得不对 → 直接告诉我, 我会修正并重新跑下游。
+> 系统的 5 项可疑值检查见 review_flags.md (如有)。
+
+## 🩺 诊断 & 分期
+
+- **癌种**: <primary_cancer> ([source: <ocr_sidecar>:line])
+- **组织学**: <histology> ([source])
+- **分期**: <stage> ([source])
+- **转移部位**: <metastasis_sites joined> ([source])
+
+## 💊 当前治疗 (最容易 OCR 错的字段, 请重点核对)
+
+- **方案 (verbatim from 出院诊断证明书 或 出院记录)**: <verbatim treatment line, copied from sidecar with no rewriting>
+  - 来源: <ocr_sidecar>:line
+  - 同次住院其他文档对照:
+    - 临时医嘱 (<other_sidecar>): <verbatim line if present>
+    - 长期医嘱 (<other_sidecar>): <verbatim line if present>
+    - 入院记录 (<other_sidecar>): <verbatim line if present>
+  - ⚠️ 如果上面这些行的药名/剂量不一致 → 已在 review_flags.md (RF-xxx) 标记
+- **拆解后的字段** (供下游 skill 使用, 由 organizer 解析得出):
+  - 药 1: <drug_name_1> <dose_1> <schedule_1>
+  - 药 2: <drug_name_2> <dose_2> <schedule_2>
+  - (etc.)
+
+## 🧬 分子检测
+
+- **已知驱动**: <molecular_drivers_known joined OR "无 NGS 报告">
+- **来源类型**: <"原始 NGS 报告 PDF" / "仅来自入院记录追述, 无原报告"> ⚠️ 后者会被 RF (unverified_critical_field) 标
+- **关键缺项**: <molecular_drivers_unknown>
+
+## 📝 关键既往治疗 (按 line 排序)
+
+| Line | 时间 | 方案 (verbatim) | 来源 |
+|---|---|---|---|
+| 1 | <year> | <regimen_verbatim> | <sidecar> |
+| ... |
+
+## 🏥 共病 / 既往
+
+- <key_comorbidities joined>
+
+## 🆔 基本信息
+
+- 姓名: <name> | 性别: <sex> | 年龄: <age> | 出生: <dob>
+- 病案号: <patient_record_no> @ <treating_hospital>
+
+## ✅ 用户检查要点 (5 个最容易出错的位置, 请逐项确认)
+
+1. ⬜ **当前治疗药名拼写正确** (尤其化疗 + 免疫药, 看 verbatim 行 vs 拆解字段是否一致)
+2. ⬜ **当前治疗剂量数字正确** (mg / mg/m² / mg/kg, 比对原图)
+3. ⬜ **TNM 分期前缀正确** (c/p/yp/r/a, 不是 rp/cp 等不存在的组合)
+4. ⬜ **分子驱动有原始 NGS 报告佐证** (如果只来自入院记录追述, 不可用于下游 trial-match)
+5. ⬜ **既往 line 编号正确** (新辅助 + 辅助 + 解救 / 一线 + 二线 / 进展后换线 — 别重复计数)
+
+---
+
+**生成时间**: <ISO_timestamp>
+**OCR sidecar 总数**: <count>
+**整体 readiness**: <grade> (<score>/100)
+**review_flags 总数**: <total> (🔴 <red> | 🟡 <yellow> | 🟢 <green>)
+
+如有任何字段需要修正, 告诉我具体哪个字段 + 正确值, 我会更新 profile.json + 重新生成本清单。
+```
+
+This file MUST be written every time, even when readiness is grade A and review_flags is `[]`.
+
 ### Step 5 — Return JSON
 
 Final message MUST be pure JSON, no prose:
@@ -247,16 +345,21 @@ Final message MUST be pure JSON, no prose:
   "review_flags_total": 9,
   "review_flags_red": 3,
   "review_flags_yellow": 3,
-  "review_flags_green": 3
+  "review_flags_green": 3,
+  "review_summary_path": "/absolute/path/to/<patient_dir>/review_summary.md"
 }
 ```
+
+`review_summary_path` is REQUIRED (even when readiness is A and review_flags is empty). If missing, the organizer is non-compliant — re-dispatch.
 
 ## Rules
 
 - NEVER invent medical facts. If a document is unreadable, write `[OCR_UNCERTAIN]` rather than guess.
+- NEVER "smooth" an OCR'd drug/stage/value into a more familiar one — see §2.2a anti-anchoring rule. A consistent-but-wrong OCR (all docs read the same wrong drug) is the bug §2.2a exists to prevent.
 - NEVER overwrite files in `<patient_dir>/` that already have a lower `mtime` than the source (idempotent re-runs).
 - `10_原始文件/` is a byte-identical mirror of every source file — audit trail. Always populate it.
-- SOURCE / CONFIDENCE tags are MANDATORY on every OCR sidecar. Downstream sub-skills enforce `[需医嘱核对]` rules based on these tags.
+- SOURCE / CONFIDENCE tags are MANDATORY on every OCR sidecar. CONFIDENCE follows the §2.3 rule table — do NOT self-assess.
 - **review_flags audit is MANDATORY** — even if you find nothing, write `"review_flags": []`. An organizer that returns no `review_flags_total` field is non-compliant.
+- **review_summary.md is MANDATORY** — written every time, even when grade is A and review_flags is empty. See §4.7.
 - Budget: ≤ 50 Read (files can be many), ≤ 20 Bash, ≤ 10 Grep, ≤ 100 Write (files + sidecars + artifacts), ~60 turns total. If input has > 50 files, process in batches and checkpoint `INDEX.md` progressively.
-- Output pure JSON only at the end — all narrative goes in the case_text.md / timeline.md / review_flags.md artifacts.
+- Output pure JSON only at the end — all narrative goes in the case_text.md / timeline.md / review_flags.md / review_summary.md artifacts.
