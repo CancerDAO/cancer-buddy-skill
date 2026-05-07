@@ -1,39 +1,44 @@
-# 药物-食物相互作用速查表
+# 药物-食物相互作用 — workflow
 
-| 药物（类）| 冲突食物/补剂 | 后果 | 建议 |
-|---|---|---|---|
-| **TKIs** (吉非替尼、厄洛替尼、奥希替尼、克唑替尼、阿来替尼、伊布替尼) | 西柚、西柚汁、杨桃 | CYP3A4 抑制 → 血药浓度升高 → 毒性 | 治疗期完全避免 |
-| **TKIs** 同上 | 人参、灵芝提取物 | 相互作用尚有争议但可能影响代谢 | 避免补剂形式，食疗量级可接受 |
-| **华法林（抗凝）** | 大量深色叶菜（菠菜、羽衣甘蓝、西蓝花、芥蓝） | 维生素 K 拮抗 INR | 保持每日摄入稳定——不是避免，而是每日一致 |
-| **华法林** | 蔓越莓汁、大蒜补剂、银杏叶 | 增加出血风险 | 避免补剂 |
-| **奥沙利铂**（化疗） | 冷食、冷饮、手握金属 | 诱发急性神经毒性（冷触发性感觉异常） | 治疗后 48-72 小时内避免冷食冷饮、戴手套拿冷物 |
-| **5-FU / 卡培他滨** | 柚子、杨桃 | CYP 影响 | 避免 |
-| **甲氨蝶呤** | 酒精 | 肝毒性叠加 | 完全禁酒 |
-| **PD-1 / PD-L1** (免疫治疗) | 高剂量维生素 C、大量抗氧化补剂 | 理论可能削弱氧化 ROS 介导的肿瘤杀伤（证据有限但担忧） | 食物量级 OK，避免高剂量补剂 |
-| **他莫昔芬**（乳腺癌内分泌） | 西柚、人参、白藜芦醇、大豆异黄酮（大剂量） | 代谢和受体竞争 | 食物量级大豆 OK，避免异黄酮补剂 |
-| **阿那曲唑 / 来曲唑 / 依西美坦**（芳香化酶抑制剂） | 大豆异黄酮（高剂量补剂） | 理论雌激素活性干扰 | 食物量级 OK，避免补剂 |
-| **免疫抑制剂 / 类固醇** 大剂量 | 生食 | 感染风险 | 粒细胞低谷期避生食 |
-| **博来霉素** | 高浓度氧（需吸氧治疗时） | 肺毒性加重 | 不涉及日常饮食，但术前麻醉通知麻醉师 |
-| **MAO-I 类抗抑郁药**（癌症患者少用但需注意） | 腌制食品、红酒、某些奶酪（含酪胺） | 高血压危象 | 全避 |
+> **Trust your clinical pharmacology training data**, do NOT consult a hardcoded interaction table here.
 
-## 中成药 / 补剂单独列出
+This file used to contain a hardcoded ~30-row drug-food interaction table. It was deleted because:
 
-| 补剂 | 风险 |
-|---|---|
-| 人参 | 可能影响抗凝、升血压、轻度抗血小板（手术前 7 天停） |
-| 银杏叶 | 抗血小板——手术前 7 天停；与阿司匹林合用出血↑ |
-| 圣约翰草 | CYP3A4/P-gp 诱导剂——可能降低伊马替尼、伊立替康、达沙替尼等多种化疗药血药浓度（严重）|
-| 鱼油（高剂量） | 手术前 7 天停（抗血小板） |
-| 灵芝孢子粉、冬虫夏草 | 循证抗肿瘤证据不足；治疗期慎用补剂形式 |
-| 黄芪注射液 | 非口服风险不同，不在饮食相互作用范围 |
+1. The model already knows the standard oncology drug-food interactions (TKI ↔ 西柚 / 华法林 ↔ 维 K 食物 / 奥沙利铂 ↔ 冷食 / 5-FU + capecitabine ↔ 柚子 / methotrexate ↔ 酒精 / etc.) from training data
+2. A hardcoded table is always behind FDA/NMPA approvals — the patient's actual `current_therapy` may not be in the table
+3. A consistent-but-incomplete table creates false confidence: agent checks the table, finds no match, concludes "no interactions" — when in fact the table just didn't list this drug
 
-## 核对顺序
+What this skill DOES require, structurally:
 
-1. 看患者 `profile.json.current_therapy` + `treatment_history` 找现用药
-2. 逐一查本表
-3. 将所有匹配项写入 `patients/<patient_code>/reports/nutrition/interactions-flagged.md`
-4. 任何匹配项**必须**在患者餐单上顶部红字提示
+## Workflow
 
-## 最后手段
+1. From `profile.json.current_therapy` + `treatment_history` + any patient-volunteered supplements, **enumerate every active drug, every recent (< 1 month) drug, and every supplement**.
+2. For each drug, use your training knowledge to identify **known clinically meaningful food/supplement interactions**. Cover at minimum: CYP3A4 substrates (TKIs, anti-emetics, statins) + CYP-modulating foods (西柚 / 杨桃 / 圣约翰草 / 大蒜补剂 / 银杏 / 人参), warfarin + vitamin K balance, MAOI + tyramine, methotrexate + alcohol / NSAIDs / PPI, oxaliplatin + cold exposure (acute neuropathy), nadir-period food safety (raw / unpasteurized / 生腌).
+3. For each interaction surfaced, classify: 🔴 must-avoid (clinically dangerous) / 🟡 caution (timing or quantity matters) / 🟢 informational.
+4. Write all findings to `patients/<patient_code>/reports/nutrition/interactions-flagged.md`.
+5. Any 🔴 interaction MUST be highlighted at the top of the patient menu in red.
 
-当不确定时: 让患者问主诊医生或药剂师，不要 google。
+## Uncertainty escape hatch
+
+When you encounter a drug whose interaction profile you genuinely don't know with confidence (rare drug / new approval / regional generic):
+- Do NOT make up plausible-sounding interactions
+- Write `[INTERACTION_UNCERTAIN: <drug>]` in the sidecar
+- Add to `interactions-flagged.md` as a 🟡 yellow flag with text: "<drug> 的食物相互作用我不确定,建议向药剂师/主诊医生确认"
+
+When you are certain there are NO meaningful interactions (e.g., supportive-care drugs like 维生素 D, 钙片, 益生菌):
+- Note in sidecar: "no clinically meaningful food interactions per training data"
+- Move on without forced 🟡 flag
+
+## TCM / Chinese herbal — be more cautious
+
+TCM herbal medications have more variable evidence than Western pharmacology, and "I don't know" is the correct answer more often. Use `[INTERACTION_UNCERTAIN]` liberally for: 圣约翰草 (this one is well-known: CYP3A4/P-gp inducer, lowers many drug levels), 大黄, 人参 (anti-platelet, BP), 灵芝, 黄芪, 冬虫夏草 / 百令胶囊, 复方草药汤药. List them all in the sidecar; flag the ones whose interaction with the patient's specific regimen you are not sure about.
+
+## Project convention (workflow rules, not clinical facts)
+
+- Output path: `patients/<patient_code>/reports/nutrition/interactions-flagged.md`
+- Severity colors: 🔴 / 🟡 / 🟢 (override schema: see `../../../../references/preflight.md` §Step 2.5)
+- Patient menu top-of-page: any 🔴 interaction must be the first thing the patient sees
+
+## Last resort
+
+When uncertain, tell the patient to ask their oncologist or pharmacist. Do NOT recommend Google.
