@@ -68,7 +68,7 @@ ls ~/.claude/plugins/vmtb-skill/SKILL.md \
 
 这些**不在搭子的能力范围**——请找主诊医生，或者内部版 `cancer-buddy-pro-skill` 的专业工具：
 
-- **临床试验匹配的 criterion-level 评估**（入排标准逐条 CoT 判断）— *做这一步走配套的 `clinical-trial-matching` skill（CancerDAO 开源，find-care 在用户要求 criterion 级匹配时**按需自动 `npx skills add` 拉取**，不需要用户预装）；找哪里在招试验仍走 find-care*
+- **临床试验匹配的 criterion-level 评估**（入排标准逐条 CoT 判断）— *做这一步走配套的 [`clinical-trial-matching`](https://github.com/CancerDAO/clinical-trial-matching-skill) skill（CancerDAO 开源，find-care 在用户要求 criterion 级匹配时**按需自动 `npx skills add` 拉取**，不需要用户预装）；找哪里在招试验仍走 find-care*
 - **诊断路径决策**（还要做哪些检查、8 维治疗路径穷举）
 - **扩展准入 / 博鳌 / 同情用药 / 跨境治疗的医学路径**
 - **缓和医疗 / 临终医学决策**（症状末期药物、阿片管理、预立医嘱法律）
