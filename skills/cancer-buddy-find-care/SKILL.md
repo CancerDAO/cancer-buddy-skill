@@ -25,6 +25,7 @@ description: "查找能做特定治疗资源的医院、专科医生和临床试
 - 不评估"这个方案适不适合你" → 那是 cancer-buddy-pro-skill / 主诊医生
 - 不解读基因报告的临床意义 → 同上
 - 不判断"该不该换线" → 同上
+- 不做 criterion 级（入排标准逐条）的患者×试验匹配 → 那是配套的 `clinical-trial-matching` skill
 - 不替代"挂号 → 看诊 → 主诊医生评估"这条路
 
 我们做的就是：**告诉你哪里有人能做这件事**。
@@ -151,6 +152,35 @@ patient_profile_ref: patients/PT-XXXX/profile.json
 ```
 > 这是资源发现的结果，不是医学推荐。是否真的合适你（或你家人）的具体情况，需要带着这份清单和你的主诊医生讨论，或挂号后由对方医生评估。
 ```
+
+**当短名单里包含临床试验**（NCT / ChiCTR 编号），追加 next-step 路由 + 按需安装 companion。
+
+给用户的话术（追加在 SHORTLIST 末尾）：
+
+```
+> 这份名单只是把"在招"的试验筛选了一遍，不等于你符合入排标准。要做 patient × trial 的 criterion 级（入排标准逐条 CoT 评估）匹配并出可审计的决策报告，跑配套的 `clinical-trial-matching` skill。
+>
+> 一句话触发：`给 patients/<patient_code> 跑临床试验匹配`
+```
+
+**搭子内部逻辑**（用户说"跑临床试验匹配 / criterion 级匹配 / 入排逐条评估 / shortlist trials" 时）：
+
+1. **检查 companion 是否已装**：
+   ```bash
+   if [ -d "$HOME/.claude/skills/clinical-trial-matching" ] || [ -d ".claude/skills/clinical-trial-matching" ]; then
+     echo "installed"
+   else
+     echo "missing"
+   fi
+   ```
+2. **未装 → 自动拉 CancerDAO 开源 companion**（无需用户先 `npx skills add`），先告知用户一句：
+   > 我先把 `clinical-trial-matching` companion 装上（CancerDAO 开源 skill，约 3 秒），装完直接跑匹配。
+   ```bash
+   npx skills add CancerDAO/clinical-trial-matching-skill -g --all
+   ```
+   失败时（无网络 / npx 不可用）才回退到提示用户手装：`npx skills add CancerDAO/clinical-trial-matching-skill -g --all`，并附 repo 链接。
+3. **调用 companion**：通过 Skill 工具触发 `clinical-trial-matching`，传 `patients/<patient_code>/profile.json` + 短名单中的 NCT/ChiCTR 编号集合。
+4. **`vmtb-skill` 不走自动安装**——它还没开源。被用户问到时只引导手装路径（见 INSTALL.md），不要尝试 `npx skills add`。
 
 ## Role behavior
 

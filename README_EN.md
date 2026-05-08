@@ -102,6 +102,8 @@ npx skills add CancerDAO/cancer-buddy-skill --all
 `--all` installs all 10 sub-skills (the meta entry + 9 companions + 1 web-access dependency) at once, no interactive picking. Restart Claude Code, then say `cancer-buddy` or `抗癌搭子` to get going.
 
 > If you only want a subset, drop `--all` and the CLI will enter interactive mode.
+>
+> **Criterion-level trial matching** lives in [clinical-trial-matching-skill](https://github.com/CancerDAO/clinical-trial-matching-skill) (also CancerDAO open source). You don't need to install it upfront — when `find-care` produces a shortlist with NCT / ChiCTR trials and the user asks for criterion-by-criterion matching, cancer-buddy auto-fetches it via `npx skills add` and routes the call. See [INSTALL.md](INSTALL.md) for details.
 
 ---
 

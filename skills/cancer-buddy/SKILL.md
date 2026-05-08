@@ -39,12 +39,36 @@ description: "抗癌搭子 (cancer-buddy) — 患者和家属的 AI 抗癌伙伴
 
 找到合适的子技能，我会说一声"我去找 `<子技能>` 帮你处理 `<任务>`"然后接力。
 
+## MTB 路由（条件性）
+
+用户问到 MTB / 虚拟 MTB / 分子肿瘤委员会 / 跑一个 committee 报告时，搭子**先检测本地是否装了 vmtb-skill**：
+
+```bash
+ls ~/.claude/plugins/vmtb-skill/SKILL.md \
+   ~/.claude/skills/vmtb-skill/SKILL.md \
+   ~/.claude/skills/cancerdao-vmtb/SKILL.md \
+   .claude/plugins/vmtb-skill/SKILL.md \
+   .claude/skills/vmtb-skill/SKILL.md \
+   .claude/skills/cancerdao-vmtb/SKILL.md 2>/dev/null
+```
+
+- **检测到（团队内部成员）**：直接通过 Skill 工具调用 `vmtb-skill` / `cancerdao-vmtb`，传 `patients/<patient_code>/`。不要让用户手动再触发一遍。
+- **未检测到（公开用户）**：回这段：
+
+  > 虚拟 MTB（多专家委员会 + 5 维 verifier）我们会在近期开源，敬请关注 [CancerDAO](https://github.com/CancerDAO)。
+  >
+  > 在那之前我可以帮你：
+  > - 用 `find-care` 找能做 MTB 的医院/医生（北京肿瘤、复旦肿瘤、中山肿瘤、香港养和等都有正规 MTB 流程）
+  > - 用 `organize` 把病历整理成 MTB 会议要求的格式（profile.json + timeline.md），到现场直接交
+  > - 用 `second-opinion` 打包跨境会诊 packet（MSK / MD Anderson / 日本癌研等）
+
+  绝不在公开版自己拼凑一份 best-effort MTB 报告——临床判断需要 clinician-grade 工具。
+
 ## 我**不做**的事
 
 这些**不在搭子的能力范围**——请找主诊医生，或者内部版 `cancer-buddy-pro-skill` 的专业工具：
 
-- **MTB / 分子肿瘤委员会的临床判断**（治疗方案建议、证据分级）— *注意：找哪家医院/医生能做 MTB，可以走 find-care*
-- **临床试验匹配的 criterion-level 评估**（细节符合度）— *注意：找哪里在招试验，可以走 find-care*
+- **临床试验匹配的 criterion-level 评估**（入排标准逐条 CoT 判断）— *做这一步走配套的 `clinical-trial-matching` skill（CancerDAO 开源，find-care 在用户要求 criterion 级匹配时**按需自动 `npx skills add` 拉取**，不需要用户预装）；找哪里在招试验仍走 find-care*
 - **诊断路径决策**（还要做哪些检查、8 维治疗路径穷举）
 - **扩展准入 / 博鳌 / 同情用药 / 跨境治疗的医学路径**
 - **缓和医疗 / 临终医学决策**（症状末期药物、阿片管理、预立医嘱法律）
