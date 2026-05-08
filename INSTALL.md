@@ -44,18 +44,43 @@ npx skills update cancer-buddy
 npx skills remove cancer-buddy
 ```
 
-## Optional: install vmtb-skill for full MTB analysis
+## Companion skills
 
-`cancer-buddy-find-care` helps you **find hospitals/doctors that do MTB** — but it doesn't run the MTB analysis itself. For the actual deep committee analysis (pathologist + geneticist + recruiter + oncologist + chair + 5-dimension verifier, 15–20 minutes), install `vmtb-skill`. It uses 17 dedicated subagents, so it ships as a Claude Code plugin:
+Cancer-buddy is companion-scope — it deliberately does NOT do clinical decision-making. Two companion skills cover the clinical/decision tier:
+
+### clinical-trial-matching — auto-fetched on demand
+
+Repo: [CancerDAO/clinical-trial-matching-skill](https://github.com/CancerDAO/clinical-trial-matching-skill) (CancerDAO open source). Does criterion-level CoT gating, R1–R5 hard rules, vs-SoC efficacy, decision synthesizer — built on NCBI TrialGPT.
+
+**You don't install it upfront.** When `cancer-buddy-find-care` produces a shortlist that contains NCT / ChiCTR trials and the user wants criterion-by-criterion matching, find-care:
+1. Checks whether `clinical-trial-matching` is already in `~/.claude/skills/` (or `.claude/skills/`).
+2. If missing, runs `npx skills add CancerDAO/clinical-trial-matching-skill -g --all` (≈3 s) and tells the user it's doing so.
+3. Routes the call.
+
+If you'd rather pre-install (offline machine, slow network, etc.):
 
 ```bash
-cd ~/.claude/plugins && git clone https://github.com/zwbao/vmtb-skill
+npx skills add CancerDAO/clinical-trial-matching-skill -g --all
 ```
 
-In short:
+### vmtb-skill — full virtual MTB analysis (open-sourcing soon)
+
+`cancer-buddy-find-care` helps you **find hospitals/doctors that do MTB** — it doesn't run the MTB analysis itself. For the deep committee analysis (pathologist + geneticist + recruiter + oncologist + chair + 5-dimension verifier, 15–20 min), the dedicated tool is `vmtb-skill`. **It's not open-sourced yet — public release is in preparation, follow [@CancerDAO](https://github.com/CancerDAO) for the announcement.**
+
+In the meantime, cancer-buddy auto-detects whether `vmtb-skill` is already installed locally:
+
+- **Installed (internal team members)** → router invokes it directly; no extra steps needed.
+- **Not installed (public users)** → router replies with the "open-sourcing soon" message and offers `find-care` (find an MTB-capable venue), `organize` (prep records for an in-person MTB), or `second-opinion` (cross-border packet).
+
+Internal team members get the install path through CancerDAO's internal onboarding — not documented here.
+
+### Routing summary
+
 - **Where can my MTB happen?** → `cancer-buddy-find-care` (this repo)
-- **Run a virtual MTB on my case?** → `vmtb-skill` (separate repo, optional)
-- **Real clinical MTB decisions?** → your treating oncologist + the venue you found above
+- **Find trial centers / hospitals near me** → `cancer-buddy-find-care` (this repo)
+- **Match me to a specific trial criterion-by-criterion** → `clinical-trial-matching` (auto-fetched by find-care)
+- **Run a virtual MTB on my case** → `vmtb-skill` if installed (internal); otherwise "open-sourcing soon" + the alternatives above
+- **Real clinical MTB decisions** → your treating oncologist + the venue you found above
 
 ## Verify
 

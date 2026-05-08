@@ -102,6 +102,8 @@ npx skills add CancerDAO/cancer-buddy-skill --all
 `--all` 会把 10 个子技能（搭子主入口 + 9 个陪伴模块 + 1 个联网底层 web-access）一次性全部装好，不用手动勾选。装完重启 Claude Code，对它说 `抗癌搭子` 或 `帮我分析病情` 就能用。
 
 > 如果你只想装其中几个子技能，把 `--all` 去掉即可，CLI 会进入交互选择。
+>
+> **临床试验 criterion 级匹配** 由 [clinical-trial-matching-skill](https://github.com/CancerDAO/clinical-trial-matching-skill) 提供（也是 CancerDAO 开源）。你不需要手动装：当 `find-care` 在短名单里发现 NCT / ChiCTR 试验、用户要求逐条入排匹配时，搭子会按需自动 `npx skills add` 拉下来再调用。完整说明见 [INSTALL.md](INSTALL.md)。
 
 ---
 
