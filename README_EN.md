@@ -105,6 +105,16 @@ npx skills add CancerDAO/cancer-buddy-skill --all
 >
 > **Criterion-level trial matching** lives in [clinical-trial-matching-skill](https://github.com/CancerDAO/clinical-trial-matching-skill) (also CancerDAO open source). You don't need to install it upfront — when `find-care` produces a shortlist with NCT / ChiCTR trials and the user asks for criterion-by-criterion matching, cancer-buddy auto-fetches it via `npx skills add` and routes the call. See [INSTALL.md](INSTALL.md) for details.
 
+### 🔒 Privacy-first: drop-in local-OCR variant of `cancer-buddy-organize`
+
+The default `cancer-buddy-organize` uses Claude vision (cloud) for OCR. If you have **stricter privacy requirements + local hardware that can run PaddleOCR**, you can swap it for the local variant:
+
+```bash
+npx skills add CancerDAO/cancer-buddy-organize-local-skill -g
+```
+
+→ [cancer-buddy-organize-local-skill](https://github.com/CancerDAO/cancer-buddy-organize-local-skill): local PaddleOCR + PaddleNLP NER (auditable character accuracy + double-layer PII redaction). Produces the **same** `profile.json` / `timeline.md` / `readiness.json` contract as the default — every downstream cancer-buddy / vMTB sub-skill works unchanged. Trade: one-time 5-10 min PaddleOCR venv install, ~10 min per batch. **Most users should stay on the default** `cancer-buddy-organize` — zero dependencies, works out of the box.
+
 ---
 
 ## Usage

@@ -105,6 +105,16 @@ npx skills add CancerDAO/cancer-buddy-skill --all
 >
 > **临床试验 criterion 级匹配** 由 [clinical-trial-matching-skill](https://github.com/CancerDAO/clinical-trial-matching-skill) 提供（也是 CancerDAO 开源）。你不需要手动装：当 `find-care` 在短名单里发现 NCT / ChiCTR 试验、用户要求逐条入排匹配时，搭子会按需自动 `npx skills add` 拉下来再调用。完整说明见 [INSTALL.md](INSTALL.md)。
 
+### 🔒 隐私优先：可替换的本地 OCR 版本 `cancer-buddy-organize`
+
+默认 `cancer-buddy-organize` 使用 Claude vision 做 OCR（云端）。如果你**对隐私有更高要求 + 有可跑 PaddleOCR 的本地硬件**，可以用同输出契约的本地变体替换：
+
+```bash
+npx skills add CancerDAO/cancer-buddy-organize-local-skill -g
+```
+
+→ [cancer-buddy-organize-local-skill](https://github.com/CancerDAO/cancer-buddy-organize-local-skill)：本地 PaddleOCR + PaddleNLP NER（字符精度可审计 + PII 双层脱敏），产出的 `profile.json` / `timeline.md` / `readiness.json` 与默认版本**完全互通**，下游所有 cancer-buddy / vMTB 子技能无需改动。代价：多一次性 5-10 分钟的 PaddleOCR venv 安装、~10 分钟批处理时长。**不需要的人继续用默认 `cancer-buddy-organize`，零依赖、开箱即用。**
+
 ---
 
 ## 使用
