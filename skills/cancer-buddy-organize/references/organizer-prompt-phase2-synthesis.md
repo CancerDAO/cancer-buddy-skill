@@ -57,77 +57,106 @@ DO NOT rename here. Renaming happens in Step 1.5 once all OCR results are pooled
 
 Imaging stubs (ct_slice / xray / ultrasound / photo) all go to `04_影像学/`.
 
-## Step 1.5 — Canonical record naming (record_namer pass)
+## Step 1.5 — Canonical record naming (你做的事，不是脚本)
 
-After Step 1 finishes (all files classified + copied to bucket dirs with original basenames), invoke the canonical namer to compute a stable rename plan from the actual OCR content:
+After Step 1 finishes (all files classified + copied to bucket dirs with original basenames), **YOU** read every OCR sidecar and build a rename plan. This is a judgment task — read the sidecar like a medical archivist, don't run regex. Hardcoded vocab (cancer list / doc_type patterns / hospital regex) is forbidden: real hospitals have names you've never seen, real cancers have subtypes the regex doesn't cover.
 
-```bash
-# Build the input JSON from the classification results.
-# One entry per classified file. ocr_text = full text content of the ocr/<basename>.md sidecar.
-NAMER_INPUT=$(mktemp -t namer-input.json)
-cat > "$NAMER_INPUT" <<'JSON_HEREDOC'
-[
-  {
-    "original_path": "<absolute path under bucket dir>",
-    "ocr_sidecar":   "<absolute path of ocr/<basename>.md>",
-    "ocr_text":      "<full sidecar body>",
-    "bucket":        "<e.g. 03_病理报告>",
-    "subbucket":     "<optional>",
-    "default_org":   null
+For each classified file, decide four fields from the OCR sidecar text:
+
+| Field | How you decide |
+|---|---|
+| `date` | The report-issuance date inside the OCR text (检验日期 / 报告日期 / 出院日期 / 手术日期). `YYYY-MM-DD`. If the sidecar has no date at all, fall back to `stat -f %Sm -t %Y-%m-%d "$file"` (file mtime). If even that's not meaningful, use `UNKNOWN-DATE`. |
+| `doc_type` | The most specific Chinese term from the report itself. Examples: `病理报告`, `基因检测`, `出院小结`, `CT`, `PET-CT`, `MRI`, `血常规`, `肿瘤标志物`, `手术记录`, `化疗记录`, `会诊意见`. Don't invent terms; quote what the document calls itself. Falls back to subbucket name only when truly unreadable. |
+| `org` | 出具机构 priority per PRD §6.B: (1) the formal hospital/lab name printed inside the report body — 例 `中山大学附属第六医院`, `华大基因`, `燃石医学`; (2) hospital name embedded in the original filename; (3) task-level default if caller supplied one; (4) `unknown-org`. Strip suffixes that aren't part of the formal name (科室、地址、电话). |
+| `page` | If the document is multi-page and this file is one page (e.g. sidecar contains `第 3 / 8 页`), the page number. Otherwise null. |
+
+Also at this step, judge two patient-level fields by reading across all sidecars together:
+
+| Field | How you decide |
+|---|---|
+| `cancer_label` | The patient's primary cancer in 2-6 Chinese characters, the way the PRD examples write it: `宫颈癌`, `乳腺癌`, `肺腺癌`, `结直肠癌`, `胆管癌`, `胆囊腺癌`, etc. Use the histology when it changes treatment relevance (`肺腺癌` vs `肺鳞癌`), but stay short. If multiple sidecars disagree, prefer the most recent 病理报告 / 基因检测; if still ambiguous or absent, leave null. |
+| `first_dx_date` | Earliest parseable date from any 病理报告 / 出院小结 mentioning the diagnosis. If absent, the earliest report date in the archive. Null if no date anywhere. |
+
+Write a single `.rename_plan.json` at the patient_dir root with this shape (you produce it as a JSON `Write`, no script involved):
+
+```json
+{
+  "patient_dir_rename": {
+    "cancer_label": "宫颈癌 | null",
+    "first_dx_yyyymm": "2024-03 | null",
+    "proposed": "宫颈癌_2024-03_<hash4>",
+    "fallback_used": false
   },
-  ...
-]
-JSON_HEREDOC
-
-python3 "$skill_dir/scripts/record_namer.py" \
-    --plan-from "$NAMER_INPUT" \
-    --current-dir "$patient_dir" \
-    > "$patient_dir/.rename_plan.json"
+  "file_renames": [
+    {
+      "original_path": "<abs>",
+      "new_basename": "<YYYY-MM-DD>_<doc_type>_<org>[_p<n>].<ext>",
+      "sidecar_old": "ocr/<old>.md",
+      "sidecar_new": "ocr/<new>.md",
+      "extracted": {"date": "...", "doc_type": "...", "org": "...", "page": null}
+    }
+  ]
+}
 ```
 
-The script outputs a JSON plan per [`../scripts/record_namer.py`](../scripts/record_namer.py) docstring contract:
+`<hash4>` = first 4 hex of `sha256(patient_dir_abspath + cancer_label + first_dx_yyyymm)` — `printf` it with shasum so the value is stable across reruns.
 
-- `patient_dir_rename`: `{cancer_label, first_dx_yyyymm, hash4, proposed: "<cancer>_<YYYY-MM>_<hash4>", fallback_used}` — used in Step 1.7
-- `file_renames[]`: each entry has `original_path`, `new_basename` (`<YYYY-MM-DD>_<doc_type>_<机构>.<ext>`, PRD §6.B format), `sidecar_rename`, and an `audit` block explaining where date / doc_type / org came from
-- `ref_backfill.manifest_old_to_new` and `sidecar_old_to_new`: applied in Step 1.6
-
-`机构` extraction order (per PRD §6.B): ocr_body → filename → task_default → `unknown-org`. Missing date → mtime fallback or `UNKNOWN-DATE`. Collisions auto-suffixed `_2`, `_3`.
+If `cancer_label` or `first_dx_date` cannot be determined from OCR content, set `fallback_used: true` and leave `proposed: null` — Step 1.7 will keep the bootstrap `PT-<hex>` directory name. **Never** invent a cancer to satisfy the rename; partial truth beats convenient fiction.
 
 ## Step 1.6 — Apply rename plan atomically
 
-For each entry in `file_renames[]`:
+For each entry in `file_renames[]`, run the mechanical mv (this part is fine in bash — no judgment, just moving bytes):
 
 ```bash
-mv "$entry.original_path" "$entry.new_path"
-if [ -n "$entry.sidecar_rename" ]; then
-    mv "$entry.sidecar_rename.old" "$entry.sidecar_rename.new"
-fi
+# safe filesystem chars
+sanitize() { printf '%s' "$1" | tr -d '\000-\037' | tr '/\\<>:"|?*' '-'; }
+
+while IFS= read -r entry; do
+    op=$(jq -r '.original_path' <<<"$entry")
+    nb=$(sanitize "$(jq -r '.new_basename' <<<"$entry")")
+    np="$(dirname "$op")/$nb"
+    # collision: if target exists and it's a different file, suffix _2, _3, ...
+    if [ -e "$np" ] && [ "$op" != "$np" ]; then
+        i=2
+        stem="${nb%.*}"; ext="${nb##*.}"
+        while [ -e "$(dirname "$op")/${stem}_${i}.${ext}" ]; do i=$((i+1)); done
+        np="$(dirname "$op")/${stem}_${i}.${ext}"
+    fi
+    [ "$op" != "$np" ] && mv -n "$op" "$np"
+
+    sc_old=$(jq -r '.sidecar_old // empty' <<<"$entry")
+    sc_new=$(jq -r '.sidecar_new // empty' <<<"$entry")
+    if [ -n "$sc_old" ] && [ -n "$sc_new" ] && [ -f "$patient_dir/$sc_old" ]; then
+        mv -n "$patient_dir/$sc_old" "$patient_dir/$sc_new"
+    fi
+done < <(jq -c '.file_renames[]' "$patient_dir/.rename_plan.json")
 ```
 
-Then **back-fill all references**:
+Then back-fill references:
 
-- `source_manifest.tsv`: rewrite each row's `path` column using `ref_backfill.manifest_old_to_new`. If a column for `original_basename` already exists, keep it (audit trail). Otherwise add a new column `original_basename` before writing the canonical one.
-- All `ocr/<basename>.md` SOURCE fields: update `SOURCE: <old basename>` → `SOURCE: <new basename>` (the sidecar file itself was renamed above; this fixes its internal SOURCE header).
-- Any `timeline.md` / `case_text.md` written in earlier iterations: not generated yet at this point — Step 2 will use the new canonical filenames directly from the rename plan, so no back-fill is needed there.
+- `source_manifest.tsv`: rewrite each row's `path` column to point at the canonical basename. Keep an `original_basename` column for audit trail (add it if it doesn't already exist).
+- Every renamed `ocr/<basename>.md`: update the inner `SOURCE:` header to match the new basename.
+- `timeline.md` / `case_text.md`: not written yet at this stage — they get the canonical names directly in Step 2.
 
-**Idempotency**: if the rename plan would map a file to its current name (already canonical from a prior run), skip the `mv`. Never overwrite an existing file with the same target name without applying the collision suffix from the plan.
+**Idempotency**: `mv -n` refuses to overwrite. If a file is already at its canonical name (re-run), it's a no-op.
 
 ## Step 1.7 — Rename patient_dir based on extracted cancer + first DX date
 
-Read `patient_dir_rename` from the plan. If `fallback_used: false`:
+If `fallback_used: false` and `proposed` is non-null:
 
 ```bash
-PARENT_DIR="$(dirname $patient_dir)"
-NEW_DIR="$PARENT_DIR/$patient_dir_rename.proposed"
+PARENT_DIR="$(dirname "$patient_dir")"
+PROPOSED=$(jq -r '.patient_dir_rename.proposed' "$patient_dir/.rename_plan.json")
+NEW_DIR="$PARENT_DIR/$PROPOSED"
 if [ "$patient_dir" != "$NEW_DIR" ] && [ ! -e "$NEW_DIR" ]; then
     mv "$patient_dir" "$NEW_DIR"
     patient_dir="$NEW_DIR"
 fi
 ```
 
-If `fallback_used: true` (no recognizable cancer type or no parseable date in any OCR sidecar): keep the bootstrap `PT-<hex>` name. Do NOT force a partial rename.
+Otherwise keep the bootstrap `PT-<hex>` name. **Never** rename a directory you only half-understand.
 
-Result: a patient_dir named `<cancer>_<YYYY-MM>_<hash4>` (e.g. `宫颈癌_2024-03_4f2a`) when OCR yields enough signal — recognizable but PII-free. Falls back to `PT-<hex>` when OCR is too sparse.
+Result: when OCR has enough signal, the directory becomes `<cancer>_<YYYY-MM>_<hash4>` (e.g. `宫颈癌_2024-03_4f2a`) — recognizable but PII-free. When signal is sparse, `PT-<hex>` survives. Both are valid terminal states.
 
 ## Step 2 — Synthesize core artifacts
 
@@ -324,7 +353,7 @@ Pure JSON, no prose:
 - NEVER invent medical facts. Read what sidecars say, don't fill in plausible-sounding gaps.
 - NEVER skip the §3 review_flags audit — even if you find nothing, write `"review_flags": []`.
 - NEVER skip writing review_summary.md — required even when grade is A and review_flags is empty.
-- NEVER rename files in Step 1 — canonical naming is owned by `record_namer.py` in Step 1.5 / 1.6. Step 1 copies with original basenames only.
-- NEVER skip Step 1.5 — that's the engineering enforcement of PRD §6.B file naming (`日期_类型_机构.<ext>`). Prompt-driven rename is a known failure mode (see commit history May 2026).
+- NEVER rename files in Step 1 — Step 1 copies with original basenames; canonical naming is Step 1.5's judgment + Step 1.6's mechanical mv.
+- NEVER skip Step 1.5 — that's where PRD §6.B file naming (`日期_类型_机构.<ext>`) gets enforced. The fix here is "structure the prompt so the judgment is explicit + the mechanical part is atomic", NOT "hand it to a regex script". Hardcoded vocab (cancer list, doc-type patterns, hospital regex) generalizes badly to real archives — read the OCR semantically.
 - `coverage_complete: false` is acceptable as long as you list the missing files; caller will retry-mini-Phase1 + re-run you.
 - Output pure JSON only at the end — narrative goes in case_text.md / timeline.md / review_flags.md / review_summary.md.
