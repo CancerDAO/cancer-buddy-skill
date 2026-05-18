@@ -45,15 +45,89 @@ For each sidecar, read its content (or the SOURCE field) to decide:
 - `date`: `YYYY-MM-DD` if extractable from sidecar content, else null
 - `hospital`: 出具机构 from sidecar content
 - `summary`: ≤ 80 字中文摘要
-- `brief_desc`: 2–4 词, used for filename
+- `subbucket`: optional finer category within the bucket (used by record_namer as doc_type fallback)
 
-Then copy the source file from `10_原始文件/` to its bucket:
+Copy the source file from `10_原始文件/` to its bucket **using its ORIGINAL basename**:
 ```bash
 cp "$patient_dir/10_原始文件/<original_path>" \
-   "$patient_dir/<target_directory>/<YYYY-MM-DD>_<brief_desc>.<ext>"
+   "$patient_dir/<target_directory>/<original_basename>"
 ```
 
+DO NOT rename here. Renaming happens in Step 1.5 once all OCR results are pooled — single source of truth, no double-write.
+
 Imaging stubs (ct_slice / xray / ultrasound / photo) all go to `04_影像学/`.
+
+## Step 1.5 — Canonical record naming (record_namer pass)
+
+After Step 1 finishes (all files classified + copied to bucket dirs with original basenames), invoke the canonical namer to compute a stable rename plan from the actual OCR content:
+
+```bash
+# Build the input JSON from the classification results.
+# One entry per classified file. ocr_text = full text content of the ocr/<basename>.md sidecar.
+NAMER_INPUT=$(mktemp -t namer-input.json)
+cat > "$NAMER_INPUT" <<'JSON_HEREDOC'
+[
+  {
+    "original_path": "<absolute path under bucket dir>",
+    "ocr_sidecar":   "<absolute path of ocr/<basename>.md>",
+    "ocr_text":      "<full sidecar body>",
+    "bucket":        "<e.g. 03_病理报告>",
+    "subbucket":     "<optional>",
+    "default_org":   null
+  },
+  ...
+]
+JSON_HEREDOC
+
+python3 "$skill_dir/scripts/record_namer.py" \
+    --plan-from "$NAMER_INPUT" \
+    --current-dir "$patient_dir" \
+    > "$patient_dir/.rename_plan.json"
+```
+
+The script outputs a JSON plan per [`../scripts/record_namer.py`](../scripts/record_namer.py) docstring contract:
+
+- `patient_dir_rename`: `{cancer_label, first_dx_yyyymm, hash4, proposed: "<cancer>_<YYYY-MM>_<hash4>", fallback_used}` — used in Step 1.7
+- `file_renames[]`: each entry has `original_path`, `new_basename` (`<YYYY-MM-DD>_<doc_type>_<机构>.<ext>`, PRD §6.B format), `sidecar_rename`, and an `audit` block explaining where date / doc_type / org came from
+- `ref_backfill.manifest_old_to_new` and `sidecar_old_to_new`: applied in Step 1.6
+
+`机构` extraction order (per PRD §6.B): ocr_body → filename → task_default → `unknown-org`. Missing date → mtime fallback or `UNKNOWN-DATE`. Collisions auto-suffixed `_2`, `_3`.
+
+## Step 1.6 — Apply rename plan atomically
+
+For each entry in `file_renames[]`:
+
+```bash
+mv "$entry.original_path" "$entry.new_path"
+if [ -n "$entry.sidecar_rename" ]; then
+    mv "$entry.sidecar_rename.old" "$entry.sidecar_rename.new"
+fi
+```
+
+Then **back-fill all references**:
+
+- `source_manifest.tsv`: rewrite each row's `path` column using `ref_backfill.manifest_old_to_new`. If a column for `original_basename` already exists, keep it (audit trail). Otherwise add a new column `original_basename` before writing the canonical one.
+- All `ocr/<basename>.md` SOURCE fields: update `SOURCE: <old basename>` → `SOURCE: <new basename>` (the sidecar file itself was renamed above; this fixes its internal SOURCE header).
+- Any `timeline.md` / `case_text.md` written in earlier iterations: not generated yet at this point — Step 2 will use the new canonical filenames directly from the rename plan, so no back-fill is needed there.
+
+**Idempotency**: if the rename plan would map a file to its current name (already canonical from a prior run), skip the `mv`. Never overwrite an existing file with the same target name without applying the collision suffix from the plan.
+
+## Step 1.7 — Rename patient_dir based on extracted cancer + first DX date
+
+Read `patient_dir_rename` from the plan. If `fallback_used: false`:
+
+```bash
+PARENT_DIR="$(dirname $patient_dir)"
+NEW_DIR="$PARENT_DIR/$patient_dir_rename.proposed"
+if [ "$patient_dir" != "$NEW_DIR" ] && [ ! -e "$NEW_DIR" ]; then
+    mv "$patient_dir" "$NEW_DIR"
+    patient_dir="$NEW_DIR"
+fi
+```
+
+If `fallback_used: true` (no recognizable cancer type or no parseable date in any OCR sidecar): keep the bootstrap `PT-<hex>` name. Do NOT force a partial rename.
+
+Result: a patient_dir named `<cancer>_<YYYY-MM>_<hash4>` (e.g. `宫颈癌_2024-03_4f2a`) when OCR yields enough signal — recognizable but PII-free. Falls back to `PT-<hex>` when OCR is too sparse.
 
 ## Step 2 — Synthesize core artifacts
 
@@ -223,8 +297,13 @@ Pure JSON, no prose:
 ```json
 {
   "role": "phase2_synthesis_worker",
-  "patient_dir": "/absolute/path",
+  "patient_dir": "/absolute/path (post-Step-1.7 rename)",
+  "patient_dir_original": "/absolute/path (pre-Step-1.7, useful for caller audit)",
+  "patient_dir_renamed": true,
   "files_classified": 73,
+  "files_renamed_canonical": 71,
+  "files_renamed_skipped": 2,
+  "rename_plan_path": "/.../<patient_dir>/.rename_plan.json",
   "ocr_sidecars_read": 73,
   "coverage_complete": true,
   "missing_sidecars": [],
@@ -245,5 +324,7 @@ Pure JSON, no prose:
 - NEVER invent medical facts. Read what sidecars say, don't fill in plausible-sounding gaps.
 - NEVER skip the §3 review_flags audit — even if you find nothing, write `"review_flags": []`.
 - NEVER skip writing review_summary.md — required even when grade is A and review_flags is empty.
+- NEVER rename files in Step 1 — canonical naming is owned by `record_namer.py` in Step 1.5 / 1.6. Step 1 copies with original basenames only.
+- NEVER skip Step 1.5 — that's the engineering enforcement of PRD §6.B file naming (`日期_类型_机构.<ext>`). Prompt-driven rename is a known failure mode (see commit history May 2026).
 - `coverage_complete: false` is acceptable as long as you list the missing files; caller will retry-mini-Phase1 + re-run you.
 - Output pure JSON only at the end — narrative goes in case_text.md / timeline.md / review_flags.md / review_summary.md.

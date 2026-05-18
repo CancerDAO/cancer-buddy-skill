@@ -75,12 +75,13 @@ Written under `patients/<patient_code>/`:
    - `subagent_type: general-purpose`
    - `description: "Organize synthesis"`
    - `prompt`: the full content of [`references/organizer-prompt-phase2-synthesis.md`](references/organizer-prompt-phase2-synthesis.md), with these `## Call parameters` appended:
-     - `patient_dir: <absolute patient_dir>`
+     - `patient_dir: <absolute patient_dir>` (current bootstrap path; Phase 2 may rename it in Step 1.7)
      - `phase1_summary: <JSON list of all Phase 1 worker results>`
+     - `skill_dir: <absolute path to this skill — used to locate scripts/record_namer.py. Typical: ~/.claude/skills/cancer-buddy-organize>`
 
-   Phase 2 reads all sidecars (cross-slice), classifies into the 11 buckets, builds INDEX.md / timeline.md / case_text.md / profile.json / readiness.json, runs the §4.6 review_flags audit (now WITH cross-slice visibility), and writes review_flags.md (if non-empty) + review_summary.md (always).
+   Phase 2 reads all sidecars (cross-slice), classifies into the 11 buckets **using original basenames** (Step 1), then invokes [`scripts/record_namer.py`](scripts/record_namer.py) to compute a canonical rename plan from the OCR content (Step 1.5), atomically renames physical files + sidecars + back-fills `source_manifest.tsv` (Step 1.6), and renames the patient_dir itself to `<cancer>_<YYYY-MM>_<hash4>` when OCR yields a recognizable cancer type (Step 1.7). Only after canonical naming does Phase 2 build INDEX.md / timeline.md / case_text.md / profile.json / readiness.json, run the §4.6 review_flags audit, and write review_flags.md (if non-empty) + review_summary.md (always).
 
-   Phase 2 returns: `{role, patient_dir, files_classified, ocr_sidecars_read, coverage_complete, missing_sidecars, readiness_grade, readiness_score, blocking_gaps, warnings, review_flags_total, review_flags_red, review_flags_yellow, review_flags_green, review_summary_path}`.
+   Phase 2 returns: `{role, patient_dir, patient_dir_original, patient_dir_renamed, files_classified, files_renamed_canonical, files_renamed_skipped, rename_plan_path, ocr_sidecars_read, coverage_complete, missing_sidecars, readiness_grade, readiness_score, blocking_gaps, warnings, review_flags_total, review_flags_red, review_flags_yellow, review_flags_green, review_summary_path}`. The `patient_dir` field is the post-rename path; if the caller still holds the bootstrap `PT-<hex>` path, use `patient_dir` (not the original) for any downstream operations.
 
 6. **Coverage gap retry** — if Phase 2 returns `coverage_complete: false`, dispatch a retry-mini-Phase1 worker with just the missing files as input, then re-run Phase 2. Loop until `coverage_complete: true`. Most runs converge in 0 or 1 retries.
 
@@ -150,7 +151,8 @@ Authoritative matrix in `../../references/roles.md`. For this skill:
 ## References
 
 - [organizer-prompt-phase1-ocr.md](references/organizer-prompt-phase1-ocr.md) — Phase 1 worker prompt: per-slice OCR, parallel-safe, sidecars-only
-- [organizer-prompt-phase2-synthesis.md](references/organizer-prompt-phase2-synthesis.md) — Phase 2 worker prompt: cross-slice synthesis + review_flags audit + review_summary
+- [organizer-prompt-phase2-synthesis.md](references/organizer-prompt-phase2-synthesis.md) — Phase 2 worker prompt: cross-slice synthesis + canonical rename (Step 1.5–1.7) + review_flags audit + review_summary
+- [scripts/record_namer.py](scripts/record_namer.py) — canonical filename engine: `<YYYY-MM-DD>_<doc_type>_<机构>.<ext>` per PRD §6.B + `<cancer>_<YYYY-MM>_<hash4>` patient_dir
 - [profile-card.md](references/profile-card.md) — Patient Profile Card display template
 - [../../references/patient-profile-schema.md](../../references/patient-profile-schema.md) — schema contract shared with vmtb-skill
 - [../../references/preflight.md](../../references/preflight.md) — shared entry-gate (role + disclosure + readiness grade + Step 2.5 review_flags red gate + schema validity)
