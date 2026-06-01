@@ -1,5 +1,16 @@
 # 疾病机制图库（Mermaid）
 
+## Contents
+
+- [1. 癌症细胞周期与化疗作用点](#1-癌症细胞周期与化疗作用点) — chemo cell-cycle targets
+- [2. 靶向治疗机制（EGFR TKI 举例）](#2-靶向治疗机制egfr-tki-举例) — targeted therapy (EGFR TKI)
+- [3. 免疫检查点抑制剂机制](#3-免疫检查点抑制剂机制) — immune checkpoint inhibitors
+- [4. 辐射损伤修复](#4-辐射损伤修复) — radiation damage / repair
+- [5. 肿瘤微环境与免疫逃逸](#5-肿瘤微环境与免疫逃逸) — tumor microenvironment / immune escape
+- [选图速查](#选图速查) — diagram-selection lookup by current_therapy
+
+---
+
 Mechanism diagrams for common cancer treatment modalities. Each block is a
 simple flowchart (≤ 10 nodes) followed by a plain-language Chinese explanation
 the patient/family can read without medical training.

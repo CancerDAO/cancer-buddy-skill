@@ -87,6 +87,12 @@ But there's one thing cancer-buddy will always do:
 
 When clear signals of a mental-health crisis show up, surface real-world help first.
 
+> **MTB analysis is a separate tool.** `find-care` only helps you **find** hospitals / doctors / trial sites that run an MTB — it does not run the molecular tumor board analysis itself. Full vMTB lives in the dedicated `vmtb-skill` (or find an in-person venue via `find-care`). See [INSTALL.md](INSTALL.md).
+
+### Evidence Contract
+
+Every concrete claim about a hospital, doctor, clinical trial, help hotline, or citation must trace back to a **live source** — the model never invents them. `find-care` researches first-party sources over the live web (via `web-access`) and attaches provenance; when no verifiable source exists, cancer-buddy says so plainly rather than fabricating a plausible-looking answer.
+
 ---
 
 ## Install

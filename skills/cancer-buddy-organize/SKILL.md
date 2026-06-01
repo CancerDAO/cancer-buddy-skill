@@ -1,6 +1,11 @@
 ---
 name: cancer-buddy-organize
-description: "Organize patient medical records from PDF/images/docx into a canonical patients/<patient_code>/ directory with profile.json, timeline.md, readiness.json, OCR sidecars, and 01_当前状态…11_诊断证明 buckets. Use when the user hands over a folder of medical records, or says 病历整理, 我有一堆报告, 帮我整理报告. For multi-hospitalization archives ≥ 30 files: fans out parallel Phase-1 OCR Workers (one per source subdirectory) and reduces with a Phase-2 Synthesis Worker that does cross-slice review_flags audit. For small/flat inputs: single-pass."
+description: "Turn a patient's raw medical records (PDF/images/docx) into a canonical, structured patients/<patient_code>/ directory every other sub-skill can consume. Use when the user hands over a folder of medical records, or says 病历整理 / 我有一堆报告 / 帮我整理报告."
+license: MIT
+metadata:
+  author: CancerDAO
+  version: "0.2.0"
+  tags: medical-records ocr structuring oncology patient-data readiness
 ---
 
 # cancer-buddy-organize
@@ -95,14 +100,14 @@ Written under `patients/<patient_code>/`:
    After displaying, prompt the user: "请核对上面 5 个检查要点。任何字段需要修正,直接告诉我哪个字段 + 正确值,我会更新 profile.json 并重新生成清单。"
 
 10. **Surface review_flags (MANDATORY)** — if `review_flags_total > 0`, read `review_flags.md` and display its content to the user immediately after `review_summary.md`. This is a hard gate, not optional polish:
-    - **If any 🔴 red flag present**: tell the user "进入下游 skill 之前请先逐条确认或 override 这些 🔴 项 — 它们会直接影响 trial-match / mtb-lite / vmtb 的推荐"
+    - **If any 🔴 red flag present**: tell the user "进入下游 skill 之前请先逐条确认或 override 这些 🔴 项 — 它们会直接影响后续分析与推荐 (若装有 pro-skill: trial-match / mtb-lite / vmtb)"
     - **If only 🟡/🟢 flags**: present them as "建议核对", do not block downstream routing
     - **If `review_flags_total: 0`**: still tell the user "所有提取字段已通过 5 项可疑值检查 (格式/跨文档矛盾/临床逻辑/原始证据/数值趋势), 无待确认项 — 但仍请核对上面的 review_summary.md 速查清单"
     - The user's resolution per flag (`accept_suggestion` / `keep_original` / `custom_value` / `defer`) is logged back into `readiness.json.review_flags[i].user_confirmed = true` plus a `resolution` sub-object.
 
 11. **Output profile card** — display the Patient Profile Card ([references/profile-card.md](references/profile-card.md)) to the patient using the `terminology.md` format rules (中英 + 通俗解释). The card's "🔍 待人工确认" section pulls from `readiness.json.review_flags[]`.
 
-    **Downstream gate**: do NOT route the user to any downstream sub-skill (mtb-lite / trial-match / vmtb / nutrition / education) while any 🔴 red review_flag is unconfirmed. A wrong drug name at this stage poisons every downstream report.
+    **Downstream gate**: do NOT route the user to any downstream sub-skill (education / find-care / vault, or any 若装有 pro-skill analysis route) while any 🔴 red review_flag is unconfirmed. A wrong drug name at this stage poisons every downstream report.
 
 ## Why fan-out + reduce instead of single-pass
 
@@ -132,11 +137,17 @@ Organize does not make medical recommendations. Still:
 
 ## Next-step guidance
 
-After successful organize, route the patient to the most relevant next sub-skill based on their initial question:
+After successful organize, route the patient to the most relevant next companion sub-skill based on their initial question:
 
-- Newly diagnosed, wants to understand → `cancer-buddy-explore` (maximal diagnostics tier)
-- Has gene report, wants treatment guidance → `cancer-buddy-mtb-lite`
-- Looking for trials → `cancer-buddy-trial-match`
+- Newly diagnosed, wants to understand their condition → `cancer-buddy-education`
+- Wants help finding the right hospital / specialist → `cancer-buddy-find-care`
+- Wants to keep their organized records as a personal data vault → `cancer-buddy-vault`
+
+If the user has the private **pro-skill** bundle installed, deeper analysis routes become available — gate any mention of them behind "若装有 pro-skill":
+
+- 若装有 pro-skill, newly diagnosed wanting maximal diagnostics → `cancer-buddy-explore`
+- 若装有 pro-skill, has a gene report and wants treatment guidance → `cancer-buddy-mtb-lite`
+- 若装有 pro-skill, looking for clinical trials → `cancer-buddy-trial-match`
 
 ## Role behavior
 
@@ -144,7 +155,7 @@ Authoritative matrix in `../../references/roles.md`. For this skill:
 
 - **Role = patient**: First-person. "帮我整理我的病历" → produce profile.json / timeline.md / readiness.json. Profile's `data_sources[]` names patient as source.
   - *Disclosure*: disclosure_state=suppressed on patient entry → warn that organize will likely break suppression; proceed only with confirmation.
-- **Role = caregiver**: Second-person. "帮你家人整理报告". On first-ever organize in this patient_code, offer to populate `profile.json.caregivers[]` with the caregiver's relation + name + contact preference. Tone warmer, includes "整理这些很累吧，一步一步来"-style acknowledgment.
+- **Role = caregiver**: Second-person. "帮你家人整理报告". Tone warmer, includes "整理这些很累吧，一步一步来"-style acknowledgment. On first-ever organize in this patient_code, organize creates the profile but does NOT write `profile.json.caregivers[]` itself — that array is owned by `cancer-buddy-caregiver` (a documented exception in `../../references/patient-profile-schema.md`, which writes the caregiver's relation + name + contact preference). Offer to hand the user off to `cancer-buddy-caregiver` to record who they are.
 - **Role = family**: Refuse. Emit: `病历整理要靠主照护者操作（Ta 手里有原件）。要不要我帮你生成一份 2 页要点让 Ta 参考？` Do not run organize.
 
 ## References

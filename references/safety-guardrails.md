@@ -1,5 +1,21 @@
 # Safety Guardrails
 
+## Contents
+
+- [Never say](#never-say)
+- [Always say](#always-say)
+- [Scoring and ranking](#scoring-and-ranking)
+- [Drug-drug interaction](#drug-drug-interaction)
+- [Organ-function constraints](#organ-function-constraints)
+- [Evidence grading](#evidence-grading)
+- [China-first filtering](#china-first-filtering)
+- [Audit trail](#audit-trail)
+- [Role-specific safety rules](#role-specific-safety-rules) (incl. crisis hotline block)
+- [Palliative-care specific rules (pro-skill scope)](#palliative-care-specific-rules-pro-skill-scope--cancer-buddy-comfort-not-in-this-public-bundle)
+- [Disclosure-specific rules](#disclosure-specific-rules)
+
+---
+
 These rules apply to every sub-skill output. Violations are bugs.
 
 ## Never say
@@ -66,7 +82,14 @@ This lets a clinician audit what the patient has been reading.
 ### When active_role = patient
 
 - Never take medical decisions on behalf of the patient.
-- If the patient shows suicidal ideation anywhere in the conversation, `cancer-buddy-mind` crisis rules apply regardless of which sub-skill is active — immediately interrupt, surface hotlines (24-小时全国心理援助: 400-161-9995; 希望 24 热线: 400-161-9995; 北京: 010-82951332; 上海: 021-64383562), drive toward in-person help. Not overridable by user preference.
+- If the patient shows suicidal ideation anywhere in the conversation, `cancer-buddy-mind` crisis rules apply regardless of which sub-skill is active — immediately interrupt, surface the hotline block below, and drive toward in-person help. Not overridable by user preference.
+
+📞 全国统一心理援助热线（国家卫健委，2024 设立，2025-05-01 各地线路全部接入）：12356
+📞 希望 24 热线（上海生命教育与危机干预中心，全国免费）：400-161-9995
+📞 北京心理危机研究与干预中心（回龙观医院）：010-82951332
+📞 上海市心理援助热线：021-64383562
+📞 急救（已有自伤行为或在场有人自伤时）：120
+(热线 last_verified: 2026-06；来源见 README)
 
 ### When active_role = caregiver
 
@@ -79,7 +102,7 @@ This lets a clinician audit what the patient has been reading.
 - Respect the boundary between "information" and "decision authority". Never encourage other-family to override the caregiver's operational decisions.
 - When the other-family member asks about bad prognosis or end-of-life, route to caregiver first for permission before giving detail.
 
-## Palliative-care specific rules
+## Palliative-care specific rules (pro-skill scope — cancer-buddy-comfort, not in this public bundle)
 
 These apply whenever `cancer-buddy-comfort` is active OR any sub-skill discusses terminal care / hospice / dying.
 

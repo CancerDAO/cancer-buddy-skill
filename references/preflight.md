@@ -1,6 +1,6 @@
 # Readiness Preflight
 
-Shared entry-gate check for every sub-skill that reads an existing patient directory (`explore`, `mtb-lite`, `trial-match`, `manage`). See `patient-profile-schema.md` §readiness.json for the full schema.
+Shared entry-gate check for every companion sub-skill in this public bundle that reads an existing patient directory: `cancer-buddy-organize`, `cancer-buddy-education`, `cancer-buddy-nutrition`, `cancer-buddy-second-opinion`, `cancer-buddy-disclosure`, `cancer-buddy-caregiver`. See `patient-profile-schema.md` §readiness.json for the full schema.
 
 ## Step 0 — Role
 

@@ -2,6 +2,15 @@
 
 每个配置给出：3-5 句开口脚本、要听取的信号、要避免的措辞。脚本是起点，不是台词 —— 改成家庭自己的语言，保留"谁对谁说"的结构。
 
+## Contents
+
+- [1. 配偶 → 配偶（spouse → spouse）](#1-配偶--配偶spouse--spouse)
+- [2. 成年子女 → 年迈父母（adult child → aging parent）](#2-成年子女--年迈父母adult-child--aging-parent)
+- [3. 父母 → 年幼孩子（parent → young child，3-9 岁）](#3-父母--年幼孩子parent--young-child3-9-岁)
+- [4. 父母 → 成年子女（parent → adult child）](#4-父母--成年子女parent--adult-child)
+- [5. 兄弟姐妹 → 兄弟姐妹（sibling → sibling）](#5-兄弟姐妹--兄弟姐妹sibling--sibling)
+- [跨脚本通用原则](#跨脚本通用原则)
+
 ---
 
 ## 1. 配偶 → 配偶（spouse → spouse）

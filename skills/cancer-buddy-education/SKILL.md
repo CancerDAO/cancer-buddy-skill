@@ -1,6 +1,11 @@
 ---
 name: cancer-buddy-education
-description: "Generate a patient-friendly education handbook (Markdown with Mermaid diagrams) from the MTB report and patient profile. Includes quick reference card, my-health-summary in plain language, drug sheets with side-effect management, daily living guide, follow-up schedule, cost/insurance navigation, FAQ. Absorbs mechanism diagrams, cancer-type modules, and phase-organized FAQ from vmtb-patient-education. Triggers on 宣教手册, 给我爸妈看的版本, patient handbook, 患者教育."
+description: "从 MTB 报告和患者档案生成患者友好的宣教手册（含 Mermaid 机制图的 Markdown），包含速查卡、大白话健康摘要、带副作用管理的药物单、日常生活指南、复诊安排、费用/医保导航、分阶段 FAQ；吸收了 vmtb-patient-education 的机制图、癌种模块和按阶段组织的 FAQ。Use when 患者有 profile.json + 至少一份 MTB 报告（lite 或 full），需要把临床报告转成患者和家属能日常使用的材料。Triggers on: 宣教手册, 给我爸妈看的版本, 我爸妈看不懂报告, patient handbook, 患者教育."
+license: MIT
+metadata:
+  author: CancerDAO
+  version: "0.2.0"
+  tags: patient-education oncology handbook mermaid caregiver health-literacy
 ---
 
 # cancer-buddy-education
@@ -45,8 +50,8 @@ See [references/handbook-template.md](references/handbook-template.md) for the f
    - My Health Summary (1 page, plain language)
    - Per-drug sheets (what it does, how to take, side-effect watchlist)
    - Daily living guide (nutrition placeholder → full version in v2 nutrition skill, exercise, sleep, work)
-   - Follow-up schedule (derived from cancer-buddy-manage monitoring calendar)
-   - Cost and insurance navigation (reference: [../../cancer-buddy-access/references/access-pathways.md] for drug access + insurance section)
+   - Follow-up schedule (若装有 pro-skill 的 manage 模块；否则用通用复诊模板)
+   - Cost and insurance navigation (generic drug-access / 医保 section; for full expanded-access pathways see the pro-skill access module if installed)
    - FAQ (common patient questions grouped by disease stage)
 5. Embed Mermaid diagrams: disease-mechanism flow, treatment-decision tree.
 

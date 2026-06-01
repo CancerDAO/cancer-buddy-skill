@@ -1,6 +1,11 @@
 ---
 name: cancer-buddy-find-care
 description: "查找能做特定治疗资源的医院、专科医生和临床试验。**只做资源发现，不做临床判断**。典型问题：哪家医院能做 MTB（分子肿瘤委员会）？我这个癌种谁是国内做得最好的医生？我能去的城市里有没有 X 靶点的临床试验？这个免疫治疗副作用问题哪里看更专业？输入：profile.json（癌种/分期/分子分型/所在城市/能否跨城/经济条件）+ 一个具体诉求。输出：排序后的资源短名单（含挂号路径、地址、联系方式、匹配理由）。Triggers on: 找医院, 哪家医院能做 MTB, 哪个医生擅长, 临床试验在哪招, 异地就医, 推荐医生, 找专家, 哪儿能做 NGS, 找肿瘤多学科会诊, MDT 哪里有, 找试验中心."
+license: MIT
+metadata:
+  author: CancerDAO
+  version: "0.2.0"
+  tags: cancer find-care hospital clinical-trials mtb referral
 ---
 
 # cancer-buddy-find-care
@@ -44,12 +49,12 @@ description: "查找能做特定治疗资源的医院、专科医生和临床试
 
 | 字段 | 必需？ | 用途 |
 |---|---|---|
-| `cancer_type` | 必需 | 决定查哪些专科榜单 |
-| `stage` | 推荐 | 影响 MTB / 试验匹配优先级 |
-| `molecular_profile` | MTB/试验任务必需 | 没有就先去做 NGS |
-| `geo.current_city` + `geo.willing_radius` | 必需 | 否则全国/全球范围太散 |
+| `diagnosis.primary_site`（+ `diagnosis.histology`） | 必需 | 决定查哪些专科榜单 |
+| `diagnosis.stage` | 推荐 | 影响 MTB / 试验匹配优先级 |
+| `molecular.drivers` | MTB/试验任务必需 | 没有就先去做 NGS |
+| `geo.current_city` + `geo.willing_radius_km` | 必需 | 否则全国/全球范围太散 |
 | `economic.budget_band` | 推荐 | 影响公立/私立/海外比例 |
-| `insurance.medicare_city` | 推荐 | 异地医保备案影响推荐 |
+| `insurance.enrolled_city` | 推荐 | 异地医保备案影响推荐 |
 
 **字段不全时**：不要让 subagent 瞎跑。先回过头问用户补齐 1–3 个关键字段，再调研。
 
@@ -62,14 +67,14 @@ description: "查找能做特定治疗资源的医院、专科医生和临床试
 ```yaml
 query_type: hospital | doctor | trial_site | combined
 clinical_target:
-  cancer_type: 非小细胞肺癌
-  subtype: 腺癌
-  stage: IV
-  molecular: EGFR 19del, post-Osimertinib progression
+  primary_site: 非小细胞肺癌      # 来自 profile diagnosis.primary_site
+  histology: 腺癌                # 来自 profile diagnosis.histology
+  stage: IV                     # 来自 profile diagnosis.stage
+  molecular: EGFR 19del, post-Osimertinib progression  # 来自 profile molecular.drivers
   service_needed: MTB（分子肿瘤委员会）会诊
 geo:
-  primary_city: 杭州
-  acceptable_cities: [上海, 南京]
+  primary_city: 杭州             # 来自 profile geo.current_city
+  acceptable_cities: [上海, 南京]  # 由 geo.willing_radius_km 推导
   cross_border: false
 constraints:
   budget: 公立可承受 / 不考虑海外
@@ -173,12 +178,14 @@ patient_profile_ref: patients/PT-XXXX/profile.json
      echo "missing"
    fi
    ```
-2. **未装 → 自动拉 CancerDAO 开源 companion**（无需用户先 `npx skills add`），先告知用户一句：
-   > 我先把 [`clinical-trial-matching`](https://github.com/CancerDAO/clinical-trial-matching-skill) companion 装上（CancerDAO 开源 skill，约 3 秒），装完直接跑匹配。
-   ```bash
-   npx skills add CancerDAO/clinical-trial-matching-skill -g --all
-   ```
-   失败时（无网络 / npx 不可用）才回退到提示用户手装：`npx skills add CancerDAO/clinical-trial-matching-skill -g --all`，repo: https://github.com/CancerDAO/clinical-trial-matching-skill
+2. **未装 → 先征得用户同意再安装（OPT-IN，绝不静默全局安装）**。这是一次全局 `npx skills add -g`，会改动用户的 `~/.claude/skills`，所以**必须先问、得到明确同意才执行**：
+   > 跑 criterion 级匹配需要 [`clinical-trial-matching`](https://github.com/CancerDAO/clinical-trial-matching-skill) companion（CancerDAO 开源 skill）。它现在没装。要我帮你全局安装吗？这会运行 `npx skills add CancerDAO/clinical-trial-matching-skill -g --all`，写入 `~/.claude/skills`。回复"装"我就装；你也可以自己手动装。
+   - **用户明确同意后**才运行：
+     ```bash
+     npx skills add CancerDAO/clinical-trial-matching-skill -g --all
+     ```
+   - 用户拒绝 / 未回复 → 不安装，给出手装命令让用户自行决定：`npx skills add CancerDAO/clinical-trial-matching-skill -g --all`，repo: https://github.com/CancerDAO/clinical-trial-matching-skill
+   - 安装失败时（无网络 / npx 不可用）→ 同样回退到提示用户手装，不要反复重试。
 3. **调用 companion**：通过 Skill 工具触发 `clinical-trial-matching`，传 `patients/<patient_code>/profile.json` + 短名单中的 NCT/ChiCTR 编号集合。
 4. **`vmtb-skill` 不走自动安装**——它还没开源。被用户问到时只引导手装路径（见 INSTALL.md），不要尝试 `npx skills add`。
 
@@ -190,7 +197,7 @@ patient_profile_ref: patients/PT-XXXX/profile.json
 
 ## Disclosure 行为
 
-如果 `disclosure_state.suppressed=true` 且 `role=patient`：
+如果 `disclosure_state == "suppressed"`（字符串枚举，非对象）且 `role=patient`：
 - 患者可能还不完全知道分期/分子情况，但"找做 X 的医院" 这个动作本身已经说明 ta 知道在找什么
 - 正常执行，但 SHORTLIST 里**避免**渲染"晚期/IV/进展后"等可能加重情绪的表述，用临床中性语
 - 详见 `../../references/disclosure-behavior.md`
@@ -212,6 +219,13 @@ patients/<patient_code>/reports/find-care/<query-slug>/
 `<query-slug>` 形如 `mtb-nsclc-egfr-hangzhou-2026-04`，便于翻历史。
 
 ## Safety
+
+### NEVER-FABRICATE 硬门槛（最终 SHORTLIST 不可绕过）
+
+- 最终 SHORTLIST 里的**每一家医院 / 每一位医生 / 每一个 NCT / 每一个 ChiCTR 编号都必须可追溯到某个 subagent 返回的 `source_url`**。没有 `source_url` 的条目不得进入名单。
+- merge/score 主 agent **绝不**凭自身知识凭空添加任何实体——它只能合并、打分、过滤 subagent 实际抓回的条目；它没见过的医院/医生/试验，就当作不存在。
+- **试验编号若在实时注册库（ClinicalTrials.gov / ChiCTR）查不到 live 命中，直接 DROP，不准猜测或补全**。宁可名单短，不要编一个看似合理的 NCT/ChiCTR 号。
+- 种子库 `mtb-centers-cn-seed.md` 的条目**只有在其 `last_verified` 新鲜窗口内经过实时复核后**才能进入名单；超窗或未复核的条目若仍要呈现，必须显式标注 `未核实（种子库，需现场确认）`，不得当作已核实事实输出。
 
 - **绝不**承诺"这家医院能治好"或"这位医生方案最好"
 - **绝不**把 NGS 报告解读、用药建议、剂量调整写到 SHORTLIST 里——遇到这类需求路由回 pro-skill 或主诊医生

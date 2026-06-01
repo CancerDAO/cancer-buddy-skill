@@ -1,6 +1,11 @@
 ---
 name: cancer-buddy-disclosure
-description: "Diagnosis-disclosure negotiation for Chinese family contexts. Reads/writes profile.disclosure_state + disclosure_history[]. Models layered disclosure (progressive, not binary), age-specific scripts (aging parents / spouse / children / adolescent patient), handles 'when patient suddenly asks' scenarios, capacity assessment (dementia tracks separately), when to involve medical social worker or ethics committee. Role-aware: patient (inverted — telling family), caregiver (main), family (other-kin decision). Safety: never override patient autonomy when capacity + desire-to-know; never encourage permanent deception; never shame family's initial suppression. Triggers on: 要不要告诉, 不想让 Ta 知道, Ta 不知道自己得癌, 瞒着, 告诉, 知情同意, 他爸妈不让说, 披露, disclosure."
+description: "Negotiates whether/how/when to tell a Chinese cancer patient their diagnosis, modeling layered (not binary) disclosure. Use when a family is deciding whether to suppress or reveal the diagnosis, a patient is breaking the news to kin, or someone spontaneously asks 我是不是癌症. Triggers on: 要不要告诉, 不想让 Ta 知道, Ta 不知道自己得癌, 瞒着, 知情同意, 他爸妈不让说, 披露, disclosure."
+license: MIT
+metadata:
+  author: CancerDAO
+  version: "0.2.0"
+  tags: disclosure diagnosis-disclosure chinese-family patient-autonomy caregiver palliative
 ---
 
 # cancer-buddy-disclosure
@@ -14,13 +19,15 @@ Chinese families often suppress the cancer diagnosis from the patient. From love
 - Other family member learned and is conflicted about respecting or breaking the suppression
 - Patient spontaneously asks family "我是不是癌症？" / "我是不是要死了？"
 - Any sub-skill detects disclosure-state issue and routes here (e.g. comfort / survivorship / explore hitting a `suppressed` state for `active_role = patient`)
-- User says 要不要告诉 / 不想让 Ta 知道 / Ta 不知道自己得癌 / 瞒着 / 告诉 / 知情同意 / 他爸妈不让说 / 披露 / disclosure
+- User says 要不要告诉 / 不想让 Ta 知道 / Ta 不知道自己得癌 / 瞒着 / 知情同意 / 他爸妈不让说 / 披露 / disclosure
 
 ## Preflight
 
-- Role resolution (read `patients/<patient_code>/role.json`)
-- Readiness ≥ C (patient profile has enough structured data to reason about — dx at minimum)
-- Schema validity (`profile.json` passes `validate-profile-schema.sh`)
+This skill's core use-case is the **early family conversation that precedes organize** — often before any records exist. So the usual readiness/schema gates are relaxed here.
+
+- Role resolution (read `patients/<patient_code>/role.json` if present; otherwise infer role from how the user frames the question).
+- **No readiness gate.** A diagnosis name alone (even spoken, with no `profile.json`) is enough to start. If `profile.json` is missing, proceed on what the user tells you and offer to run organize later.
+- **No schema-validity gate.** Do NOT block on `validate-profile-schema.sh`. If `profile.json` exists, read `disclosure_state` + `disclosure_history[]` defensively (tolerate missing/partial fields); if it does not exist, skip straight to the conversation and only persist state once a patient directory exists.
 - No disclosure gate — this IS the disclosure skill. Entry is always permitted regardless of current `disclosure_state`.
 
 ## Workflow
@@ -31,7 +38,7 @@ Chinese families often suppress the cancer diagnosis from the patient. From love
    - Ask whether patient wants to know. Families often have NOT asked; many Chinese patients want to know more than adult children assume.
    - Apply [references/layered-disclosure-model.md](references/layered-disclosure-model.md) — basic-dx → prognosis → treatment-options → palliative, each layer paced.
    - Generate age-appropriate and relationship-appropriate scripts from [references/age-specific-disclosure.md](references/age-specific-disclosure.md) and [references/family-scripts.md](references/family-scripts.md).
-4. **Write `profile.disclosure_state`** (`suppressed` / `partial` / `full` / `unknown`) and **append to `disclosure_history[]`** after every transition: who decided, what layer, when, why. Every move through the layered model is logged.
+4. **Write `profile.disclosure_state`** (`suppressed` / `partial` / `full` / `null`, per the canonical schema enum) and **append to `disclosure_history[]`** after every transition: who decided, what layer, when, why. Every move through the layered model is logged. (Only persist once a patient directory exists — see Preflight.)
 5. **When patient spontaneously asks** (e.g. "我是不是癌症？"): family does NOT need to lie and does not need to force full disclosure at that instant. Use [references/when-patient-asks.md](references/when-patient-asks.md) pivot scripts; if the patient asks the same question 3+ times across days, treat it as a desire-to-know signal and begin a disclosure-layer transition.
 6. **When professional mediation is needed**: family disagrees internally and patient has capacity + desire-to-know / dispute between patient and surrogate / dementia with conflicting family views / legal-status questions about advance directive. Recommend medical social work (医务社工), palliative team, or hospital ethics committee (医务处 / 伦理委员会).
 
@@ -60,7 +67,7 @@ Writes `profile.disclosure_state` and appends to `profile.disclosure_history[]`.
 
 ## References
 
-- [right-to-know-china-law.md](references/right-to-know-china-law.md) — 执业医师法 Article 22, 侵权责任法 / 民法典 侵权编, practical patient-rights landscape
+- [right-to-know-china-law.md](references/right-to-know-china-law.md) — 《医师法》第二十五条（现行）、旧《执业医师法》第二十六条（已废止）、《民法典》第 1219 条, practical patient-rights landscape
 - [layered-disclosure-model.md](references/layered-disclosure-model.md) — progression, not binary
 - [age-specific-disclosure.md](references/age-specific-disclosure.md) — aging parents / spouse / children / adolescent patient
 - [family-scripts.md](references/family-scripts.md) — scripts for 5 relationship configurations

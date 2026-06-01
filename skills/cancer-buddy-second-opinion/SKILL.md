@@ -1,6 +1,11 @@
 ---
 name: cancer-buddy-second-opinion
-description: "Generate a reviewer-consumable English case packet for cross-border or domestic second opinions. Produces concise English case summary (1-2 page PDF-ready markdown), medical records index, doctor-to-doctor cover letter, DHL/FedEx medical-record shipping guide, and 'how to present the second opinion back to your primary oncologist' script. Covers major Chinese tertiary + international centers (MSK, MD Anderson, 日本癌研, 新加坡国立). Role-aware: patient or caregiver only; other-family routing refused. Triggers on: 第二意见, 去别的医院看看, 跨境会诊, MSK, MD Anderson, 日本癌研, 梅奥, 香港养和."
+description: "为跨境或国内第二意见生成审阅者可直接使用的英文病例资料包。产出简洁英文病例摘要（1-2 页可转 PDF 的 markdown）、病历索引、医生对医生的转诊信、DHL/FedEx 病历寄送指南，以及「如何把第二意见带回主治医生处沟通」的脚本。覆盖国内三甲与国际中心（如 MSK、MD Anderson 等，更多见正文 top-centers）。按角色处理：仅限患者或照护者，其他家属路由会被拒绝。Use when 患者或照护者想去国内别家医院或跨境寻求第二意见、需要把病例打包成审阅者可用的英文资料包时。Triggers on: 第二意见, 去别的医院看看, 跨境会诊, MSK, MD Anderson, 日本癌研, 梅奥, 香港养和。"
+license: MIT
+metadata:
+  author: CancerDAO
+  version: "0.2.0"
+  tags: oncology second-opinion cross-border referral patient-navigation
 ---
 
 # cancer-buddy-second-opinion
@@ -88,6 +93,7 @@ Written under `patients/<patient_code>/reports/second-opinion/<target-center>/`:
 - Never encourage sending records to paid internet services that are not established medical institutions.
 - Respect patient privacy — the packet should include only what's relevant to the clinical question.
 - Cross-border shipping involves real customs/medical-privacy considerations. Do not handwave.
+- **Never fabricate center intake details.** International second-opinion programs, intake emails, portals, eligibility rules, fees and turnaround change frequently and are sometimes discontinued. Do NOT assert that a given center "has an online second-opinion program" / "accepts X" / "intake email is Y" from memory or from the seed data in [references/top-centers.md](references/top-centers.md) / [references/cross-border-shipping.md](references/cross-border-shipping.md). Confirm the intake program on the center's **official international-patient page** before stating it to the user. The center seed data in those references is `last_verified`-dated and **non-authoritative** — treat it as a starting point for lookup, never as the source of truth. When you cannot verify live, say so and point the user to the official international-patient office rather than inventing a contact.
 
 ## References
 

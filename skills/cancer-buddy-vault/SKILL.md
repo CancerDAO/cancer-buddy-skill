@@ -1,6 +1,11 @@
 ---
 name: cancer-buddy-vault
-description: "Build the patient's N=1 data vault — structured directory, sharing levels (🔒 private → 🔑 authorized → 📊 anonymized-for-AI → 🌐 public), access log. Not cloud storage; it's a local file structure the patient owns, can move, and can share selectively. Triggers on 数据保险箱, N=1, 我的健康档案, 数据分享, data vault."
+description: "为患者建立 N=1 数据保险箱——结构化目录、分级分享（🔒 私密 → 🔑 授权 → 📊 匿名供 AI → 🌐 公开）、访问日志。不是云存储，而是患者自己拥有、可迁移、可选择性分享的本地文件结构。Use when 患者想长期整理病历、把数据分级分享给医生/研究者、或控制谁能看自己的健康档案。Triggers on: 数据保险箱, N=1, 我的健康档案, 数据分享, 隐私, 谁能看, 匿名, data vault."
+license: MIT
+metadata:
+  author: CancerDAO
+  version: "0.2.0"
+  tags: 数据保险箱 隐私 数据分享 匿名化 访问日志 N=1
 ---
 
 # cancer-buddy-vault

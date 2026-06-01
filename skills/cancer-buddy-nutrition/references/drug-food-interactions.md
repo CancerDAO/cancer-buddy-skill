@@ -1,22 +1,29 @@
 # 药物-食物相互作用 — workflow
 
-> **Trust your clinical pharmacology training data**, do NOT consult a hardcoded interaction table here.
+## 证据契约（EVIDENCE CONTRACT — 最高优先级）
 
-This file used to contain a hardcoded ~30-row drug-food interaction table. It was deleted because:
+每一条向患者展示的 🔴 红色（必须避免）或 🟡 黄色（需谨慎）药物-食物/补剂相互作用，**必须**满足以下之一,否则不得展示：
 
-1. The model already knows the standard oncology drug-food interactions (TKI ↔ 西柚 / 华法林 ↔ 维 K 食物 / 奥沙利铂 ↔ 冷食 / 5-FU + capecitabine ↔ 柚子 / methotrexate ↔ 酒精 / etc.) from training data
-2. A hardcoded table is always behind FDA/NMPA approvals — the patient's actual `current_therapy` may not be in the table
-3. A consistent-but-incomplete table creates false confidence: agent checks the table, finds no match, concludes "no interactions" — when in fact the table just didn't list this drug
+1. 通过 **web-access skill** 实时联网核实于权威源（FDA/NMPA 药品说明书、DrugBank、Lexicomp、UpToDate、PubMed 等），并随条目附上来源链接；或
+2. 携带可追溯的内联引用（说明书条目、指南、文献 PMID）。
+
+**禁止仅凭训练记忆，就把任何一条相互作用作为 🔴 红色「必须避免」直接发给患者。** 记忆可以用来*提示需要去核实哪些组合*，但不能作为最终展示给患者的证据。
+
+若当前离线、无法联网核实，或核实后仍不确定：**不得标红**，一律降级呈现为 🟡「需药师确认（未在线核实）」，并提示患者向主诊医生/药剂师确认。
+
+充分确立的经典相互作用（TKI ↔ 西柚 / 华法林 ↔ 维 K 食物 / 奥沙利铂 ↔ 冷食 / 5-FU + capecitabine ↔ 柚子 / methotrexate ↔ 酒精 等）依然可作为应当核查的候选清单，但向患者展示时**每条都必须带上来源引用**——「众所周知」不能替代引用。
+
+> 本文件**不**内置硬编码相互作用表。原因仍然成立：硬编码表永远落后于 FDA/NMPA 审批、患者实际 `current_therapy` 可能不在表内、且「查表无命中→结论无相互作用」会制造虚假信心。但这绝不意味着可以用训练记忆代替核实——每条展示给患者的相互作用都受上面的证据契约约束。
 
 What this skill DOES require, structurally:
 
 ## Workflow
 
 1. From `profile.json.current_therapy` + `treatment_history` + any patient-volunteered supplements, **enumerate every active drug, every recent (< 1 month) drug, and every supplement**.
-2. For each drug, use your training knowledge to identify **known clinically meaningful food/supplement interactions**. Cover at minimum: CYP3A4 substrates (TKIs, anti-emetics, statins) + CYP-modulating foods (西柚 / 杨桃 / 圣约翰草 / 大蒜补剂 / 银杏 / 人参), warfarin + vitamin K balance, MAOI + tyramine, methotrexate + alcohol / NSAIDs / PPI, oxaliplatin + cold exposure (acute neuropathy), nadir-period food safety (raw / unpasteurized / 生腌).
-3. For each interaction surfaced, classify: 🔴 must-avoid (clinically dangerous) / 🟡 caution (timing or quantity matters) / 🟢 informational.
-4. Write all findings to `patients/<patient_code>/reports/nutrition/interactions-flagged.md`.
-5. Any 🔴 interaction MUST be highlighted at the top of the patient menu in red.
+2. For each drug, use your training knowledge **only to assemble a candidate list** of clinically meaningful food/supplement combinations worth checking. Cover at minimum: CYP3A4 substrates (TKIs, anti-emetics, statins) + CYP-modulating foods (西柚 / 杨桃 / 圣约翰草 / 大蒜补剂 / 银杏 / 人参), warfarin + vitamin K balance, MAOI + tyramine, methotrexate + alcohol / NSAIDs / PPI, oxaliplatin + cold exposure (acute neuropathy), nadir-period food safety (raw / unpasteurized / 生腌).
+3. **For each candidate, before showing it to the patient, satisfy the 证据契约 above**: load the **web-access skill** and verify against a live authoritative source, or attach a traceable inline citation. Only then classify: 🔴 must-avoid (clinically dangerous, **verified**) / 🟡 caution (timing or quantity matters) / 🟢 informational. A candidate you could not verify online (offline / unreachable / still uncertain) is **never 🔴** — present it as 🟡「需药师确认（未在线核实）」.
+4. Write all findings to `patients/<patient_code>/reports/nutrition/interactions-flagged.md`, **each entry carrying its source link / citation** (or the「未在线核实」marker).
+5. Any verified 🔴 interaction MUST be highlighted at the top of the patient menu in red, with its citation.
 
 ## Uncertainty escape hatch
 

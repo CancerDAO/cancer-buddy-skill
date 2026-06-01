@@ -2,6 +2,21 @@
 
 大部分 top centers 接受电子提交或 mail。先试电子。
 
+## Contents
+
+- [优先顺序](#优先顺序)
+- [DHL / FedEx 医疗记录寄送](#dhl--fedex-医疗记录寄送)
+  - [DHL International](#dhl-international)
+  - [FedEx International](#fedex-international)
+  - [海关申报](#海关申报)
+  - [费用](#费用)
+  - [追踪 + 保险](#追踪--保险)
+- [具体各中心寄送地址](#具体各中心寄送地址)
+- [寄送前检查清单](#寄送前检查清单)
+- [隐私/法律注意](#隐私法律注意)
+
+> 各中心地址 / intake 邮箱 / 第二意见平台为 **non-authoritative 种子数据 (last_verified: 2026-06-01)**，会变动或停办。陈述前请到该中心官方 international-patient 页面核实，见 [top-centers.md](top-centers.md) 顶部说明。
+
 ## 优先顺序
 
 1. **电子提交**（首选）

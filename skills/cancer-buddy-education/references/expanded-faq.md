@@ -1,5 +1,13 @@
 # 扩展 FAQ（按阶段组织）
 
+## Contents
+
+- [刚确诊阶段](#刚确诊阶段) — newly-diagnosed (Q1–Q15)
+- [治疗期](#治疗期) — active-treatment (Q1–Q15)
+- [随访 / 生存期](#随访--生存期) — survivorship / follow-up (Q1–Q15)
+
+---
+
 Organized by treatment phase. Pull the section matching the patient's current
 phase from `profile.json`:
 

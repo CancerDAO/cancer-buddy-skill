@@ -1,5 +1,18 @@
 # Data Vault — N=1 Patient Data Schema & Sharing Protocol
 
+## Contents
+
+- [Directory Structure](#directory-structure)
+- [JSON Schema: profile.json](#json-schema-profilejson)
+- [JSON Schema: timeline.json](#json-schema-timelinejson)
+- [sharing-settings.json](#sharing-settingsjson)
+- [Data Sharing Levels](#data-sharing-levels)
+- [Data Quality Scoring](#data-quality-scoring)
+- [Privacy Compliance](#privacy-compliance)
+- [Access Audit Log](#access-audit-log)
+- [Revocation Process](#revocation-process)
+- [Data Breach Protocol](#data-breach-protocol)
+
 ## Directory Structure
 
 ```

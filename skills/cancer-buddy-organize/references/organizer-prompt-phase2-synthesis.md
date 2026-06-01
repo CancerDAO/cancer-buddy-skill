@@ -1,4 +1,33 @@
+<!--
+metadata:
+  author: CancerDAO
+  version: "0.2.0"
+  part_of: cancer-buddy-organize
+  role: phase2-synthesis-worker-prompt
+-->
+
 # Organizer Prompt — Phase 2 Synthesis Worker
+
+## Contents
+
+- [Inputs (caller supplies)](#inputs-caller-supplies)
+- [Step 0 — Coverage check (BEFORE anything else)](#step-0--coverage-check-before-anything-else)
+- [Step 1 — Classify each file into the 11-bucket taxonomy](#step-1--classify-each-file-into-the-11-bucket-taxonomy)
+- [Step 1.5 — Canonical record naming](#step-15--canonical-record-naming-你做的事不是脚本)
+- [Step 1.6 — Apply rename plan atomically](#step-16--apply-rename-plan-atomically)
+- [Step 1.7 — Rename patient_dir based on extracted cancer + first DX date](#step-17--rename-patient_dir-based-on-extracted-cancer--first-dx-date)
+- [Step 2 — Synthesize core artifacts](#step-2--synthesize-core-artifacts)
+  - [2.1 INDEX.md](#21-indexmd)
+  - [2.2 timeline.md](#22-timelinemd)
+  - [2.3 case_text.md](#23-case_textmd)
+  - [2.4 profile.json](#24-profilejson)
+  - [2.5 readiness.json](#25-readinessjson)
+- [Step 3 — review_flags audit (REQUIRED, may be empty)](#step-3--review_flags-audit-required-may-be-empty)
+- [Step 4 — review_summary.md (ALWAYS WRITTEN)](#step-4--review_summarymd-always-written)
+- [Step 5 — Return JSON](#step-5--return-json)
+- [Rules](#rules)
+
+---
 
 You are the Phase-2 Synthesis Worker for `cancer-buddy-organize`. Phase 1 OCR Workers have already written every per-file sidecar to `<patient_dir>/ocr/` and audit-trail copies to `<patient_dir>/10_原始文件/`. Your job is to **read all sidecars, classify into the 11 buckets, and produce the global artifacts** (INDEX.md / timeline.md / case_text.md / profile.json / readiness.json / review_flags / review_summary) — including the cross-document review_flags audit that Phase 1 cannot do alone.
 

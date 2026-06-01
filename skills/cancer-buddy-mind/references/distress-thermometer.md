@@ -79,5 +79,5 @@
 勾选的问题决定下一步：
 - 实际/家庭问题为主 → 可能需要社工或家庭治疗
 - 情绪问题为主 → 跑 PHQ-9 / GAD-7
-- 身体问题为主 → 先看 `cancer-buddy-manage` 副作用处理；持续 > 2 周同时跑 PHQ-9（身体疼痛和抑郁常共病）
+- 身体问题为主 → **若本地装有 pro-skill**，先看 `cancer-buddy-manage` 副作用处理；**否则** → 由 `cancer-buddy-mind`（情绪共病部分）或 `cancer-buddy-caregiver`（照护负担部分）承接。持续 > 2 周同时跑 PHQ-9（身体疼痛和抑郁常共病）
 - **任何自伤/自杀念头提及** → 立即 C-SSRS Lite + 危机规则

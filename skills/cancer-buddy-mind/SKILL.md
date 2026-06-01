@@ -1,11 +1,22 @@
 ---
 name: cancer-buddy-mind
-description: "Mental health screening and support for cancer patients and their caregivers. Uses validated screeners (PHQ-9 depression, GAD-7 anxiety, NCCN Distress Thermometer, C-SSRS Lite suicide risk), produces graded response: self-help / seek clinician / crisis escalation. Non-negotiable crisis rule: any positive suicidal ideation triggers immediate hotline surfacing. Triggers on: 睡不着, 焦虑, 抑郁, 崩溃, 没力气, 不想活, 想哭, 心理, burnout."
+description: "用经过验证的量表（PHQ-9 抑郁、GAD-7 焦虑、NCCN 苦难温度计、C-SSRS Lite 自杀风险）为肿瘤患者及照护者做心理筛查与分级支持，输出自助 / 就医 / 危机升级三级响应。Use when 患者或照护者出现情绪困扰、需要心理评估、或其他子技能检测到自杀意念需转入临床筛查。危机拦截（crisis INTERCEPTION）由 meta 层的 crisis path 负责；mind 负责跑 C-SSRS Lite 与 PHQ-9 随访，并独占临床筛查与倦怠（clinical-screening burnout）。Triggers on: 睡不着, 焦虑, 抑郁, 崩溃, 没力气, 不想活, 想哭, 心理, mental health, screening, burnout."
+license: MIT
+metadata:
+  author: CancerDAO
+  version: "0.2.0"
+  tags: mental-health screening phq-9 gad-7 crisis caregiver
 ---
 
 # cancer-buddy-mind
 
 Cancer and mental health are tangled. Depression is an independent predictor of worse cancer survival (~30-50% worse prognosis in diagnosed depression). Caregivers hit depression rates 25-40%. This skill screens both, safely.
+
+## Crisis ownership
+
+**Crisis INTERCEPTION is owned by the meta-layer crisis path** (the shared `safety-guardrails.md` crisis route), not by this skill. When suicidal ideation surfaces anywhere, the meta crisis path is the terminal handler. `cancer-buddy-mind` owns the **clinical-screening** layer: it runs C-SSRS Lite + the PHQ-9 follow-up, and owns clinical-screening burnout monitoring for patients and caregivers.
+
+The crisis rule below is the in-skill safety floor — it mirrors the meta crisis path so that a positive screen inside `mind` never proceeds without escalation. It does not replace the meta path.
 
 ## Crisis rule (non-negotiable)
 

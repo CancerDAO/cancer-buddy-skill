@@ -1,6 +1,8 @@
 # Disclosure Behavior Matrix
 
-When `patients/<patient_code>/profile.json.disclosure_state = "suppressed"` and the current session role is `patient`, every sub-skill must apply the behavior below. This is the authoritative table; each affected sub-skill's `## Role behavior` section must match.
+`profile.json.disclosure_state` is a **string enum** — one of `"full"` | `"partial"` | `"suppressed"` | `null` (per `patient-profile-schema.md`). It is never an object; read it as a string and compare against the literal `"suppressed"`. Do not test a `.suppressed` sub-field.
+
+When `patients/<patient_code>/profile.json.disclosure_state == "suppressed"` and the current session role is `patient`, every sub-skill must apply the behavior below. This is the authoritative table; each affected sub-skill's `## Role behavior` section must match.
 
 Clinical sub-skills (mtb-lite / trial-match / explore / access / comfort / adherence / survivorship / manage / inflection) moved to `cancer-buddy-pro-skill` (private). Their disclosure behavior is maintained there.
 

@@ -18,19 +18,7 @@ Clinicians use vmtb-skill, not cancer-buddy. Patients-to-peer connection is out 
 2. Subsequent sessions for same `patient_code`: meta-skill reads `role.json`, confirms the inherited role is still right.
 3. Mid-session switch: `/switch-role <patient|caregiver|family>` updates `role.json` active role; sub-skills re-read on next invocation.
 
-`role.json` schema:
-
-```json
-{
-  "schema_version": "1",
-  "active_role": "patient|caregiver|family",
-  "set_at": "2026-04-23T10:00:00Z",
-  "history": [
-    {"role": "caregiver", "set_at": "2026-04-20T09:00:00Z"},
-    {"role": "patient", "set_at": "2026-04-23T10:00:00Z"}
-  ]
-}
-```
+`role.json` schema is defined once in [`patient-profile-schema.md` § role.json](patient-profile-schema.md#rolejson--single-source-of-truth) — that file is the single source of truth. Do not re-list the schema here.
 
 ## Per-role tone rules
 

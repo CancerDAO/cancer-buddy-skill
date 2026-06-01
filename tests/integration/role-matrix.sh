@@ -15,7 +15,12 @@ for skill_md in "$REPO_ROOT"/skills/cancer-buddy-*/SKILL.md; do
   fi
   body=$(awk '/^## Role behavior/,/^## [^R]/' "$skill_md")
   for role in patient caregiver family; do
-    if ! echo "$body" | grep -q "Role = $role\|role = $role\|active_role = $role"; then
+    # Accept any of: "Role = patient", "role = patient", "role=patient",
+    # "active_role = patient", "active_role=patient" — i.e. case-insensitive
+    # (active_)?role with optional whitespace around the '='. Skills are
+    # inconsistent about the spacing/casing (find-care uses `role=patient`,
+    # the rest use `Role = patient`); both are valid.
+    if ! grep -qiE "(active_)?role[[:space:]]*=[[:space:]]*$role" <<<"$body"; then
       echo "FAIL: $name Role behavior missing '$role' branch" >&2
       errs=$((errs+1))
     fi

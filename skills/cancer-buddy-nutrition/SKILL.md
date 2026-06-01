@@ -1,6 +1,11 @@
 ---
 name: cancer-buddy-nutrition
-description: "Individualized nutrition plans by cancer type and treatment phase (pre-op / chemo / radio / immuno / recovery). Checks drug-food interactions (ginseng↔anticoagulants, grapefruit↔TKIs, etc). Role-aware: patient-mode gives self-cook menus; caregiver-mode adds shopping lists and a week's prep plan; refuses other-family routing. Triggers on: 吃什么, 忌口, 化疗期饮食, 术后营养, 补剂, 中医饮食, 灵芝, 人参, 蛋白粉."
+description: "按癌种与治疗阶段（术前/化疗/放疗/免疫/康复）生成个体化饮食方案，并核查药物-食物相互作用（人参↔抗凝、西柚↔TKI 等）。Use when 患者或照护者问吃什么、忌口、补剂能不能吃、某药配某食物有没有冲突，或在新化疗周期/术后/免疫治疗起始等阶段切换时。Triggers on: 吃什么, 忌口, 化疗期饮食, 术后营养, 补剂, 保健品, 中药冲突, 中医饮食, 灵芝, 孢子粉, 人参, 蛋白粉."
+license: MIT
+metadata:
+  author: CancerDAO
+  version: "0.2.0"
+  tags: nutrition oncology drug-food-interactions supplements diet caregiver
 ---
 
 # cancer-buddy-nutrition
@@ -19,6 +24,19 @@ Run [../../references/preflight.md](../../references/preflight.md) — role + di
 
 In addition:
 - Require `patients/<patient_code>/profile.json` with `primary_cancer` and `current_therapy` populated; if missing, route back to organize.
+
+## 证据契约
+
+每一条向患者展示的 🔴 红色（必须避免）或 🟡 黄色（需谨慎）药物-食物/补剂相互作用，**必须**满足以下之一：
+
+1. 通过 **web-access skill** 实时联网核实于权威源（FDA/NMPA 说明书、DrugBank、Lexicomp、UpToDate、PubMed 等），并随条目附上来源链接；或
+2. 携带可追溯的内联引用（说明书条目、指南、文献 PMID）。
+
+**禁止**仅凭训练记忆就把某条相互作用作为红色「必须避免」直接发给患者。
+
+若当前离线、无法联网核实，或核实后仍不确定：**不得**标红，一律降级呈现为 🟡「需药师确认（未在线核实）」，并提示患者向主诊医生/药剂师确认。
+
+充分确立的经典相互作用（如西柚↔TKI、华法林↔维 K 食物、奥沙利铂↔冷食）依然可用作示例，但向患者展示时**每条都必须带上来源引用**——「众所周知」不能替代引用。
 
 ## Workflow
 
@@ -45,7 +63,7 @@ Written under `patients/<patient_code>/reports/nutrition/`:
 ## Safety
 
 - **Never recommend "anti-cancer foods"** without level A evidence. Foods with marketing claims (灵芝孢子粉、抗癌茶、虫草) → explicitly state "尚无可靠循证支持抗肿瘤疗效"。
-- Drug-food interactions with clinical consequences (bleeding with warfarin + dark leafy greens, TKI AUC shifts with grapefruit) ALWAYS flagged in red.
+- Drug-food interactions with clinical consequences (bleeding with warfarin + dark leafy greens, TKI AUC shifts with grapefruit) flagged in red **only when verified per the 证据契约**; unverifiable ones degrade to 🟡「需药师确认（未在线核实）」, never silent red-from-memory.
 - For immunocompromised phases (chemo nadir, post-transplant, high-dose steroids), emphasize food safety (avoid raw, undercooked, unpasteurized) not calorie micromanagement.
 - Recognize that many patients lose 10-20% body weight during treatment — calorie goals are often "eat what you can keep down", not ideal macro ratios.
 - Never tell a patient to stop an evidence-based therapy in favor of a diet (e.g., Gerson protocol).

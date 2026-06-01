@@ -1,6 +1,22 @@
 # Sid Sijbrandij Case Analysis — Design Philosophy Reference
 
+> **Note:** Internal design rationale only — NOT loaded at runtime by any sub-skill.
+> Never surface to patients (see `terminology.md`); this file documents *why* cancer-buddy is shaped the way it is, nothing more.
+
 Internal reference for understanding the methodology behind cancer-buddy. Not patient-facing.
+
+## Contents
+
+- [Who](#who)
+- [The Three Principles](#the-three-principles)
+- [The Team Structure](#the-team-structure)
+- [The Diagnostic Strategy (Deep Dive)](#the-diagnostic-strategy-deep-dive)
+- [The Treatment Strategy (Deep Dive)](#the-treatment-strategy-deep-dive)
+- [What's Broken in the System (Sid's Critique)](#whats-broken-in-the-system-sids-critique)
+- [The Economics](#the-economics)
+- [Cancer-Buddy Translation Table](#cancer-buddy-translation-table)
+- [Even One Ventures](#even-one-ventures)
+- [The Core Thesis](#the-core-thesis)
 
 ---
 
