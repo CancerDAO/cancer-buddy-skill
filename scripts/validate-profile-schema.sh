@@ -68,10 +68,10 @@ if isinstance(th, list):
     last_line = None
     for i, t in enumerate(th):
         if not isinstance(t, dict): continue
-        if "line" in t and last_line is not None and t["line"] < last_line:
+        if t.get("line") is not None and last_line is not None and t["line"] < last_line:
             fail(f"treatment_history[{i}] line {t['line']} < previous line {last_line}")
-        if "line" in t: last_line = t["line"]
-        if "start" in t:
+        if t.get("line") is not None: last_line = t["line"]
+        if t.get("start"):
             try:
                 s = datetime.strptime(t["start"], "%Y-%m-%d")
                 if last_start is not None and s < last_start:
