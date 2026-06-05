@@ -41,7 +41,7 @@ if "diagnosis" in p and isinstance(p["diagnosis"], dict):
         if k not in p["diagnosis"]: fail(f"missing diagnosis.{k}")
 
 basics = p.get("basics", {})
-if "ecog" in basics:
+if "ecog" in basics and basics["ecog"] is not None:
     if not (isinstance(basics["ecog"], int) and 0 <= basics["ecog"] <= 4):
         fail(f"invalid basics.ecog: {basics['ecog']} (must be 0-4)")
 
