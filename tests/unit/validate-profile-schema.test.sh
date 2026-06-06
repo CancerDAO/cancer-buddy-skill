@@ -233,6 +233,68 @@ cat > "$tmpdir/c24/profile.json" <<'JSON'
 JSON
 run_case "invalid sex value" fail "$tmpdir/c24"
 
+# --- required-field & type-soundness cases (null/wrong-type in REQUIRED positions = malformed) ---
+
+# case 25: required field present-but-null (patient_code) — must fail (null == missing)
+mkdir -p "$tmpdir/c25"
+cat > "$tmpdir/c25/profile.json" <<'JSON'
+{"schema_version":"1.0.0","patient_code":null,"diagnosis":{"primary_site":"lung","histology":"adeno","stage":"IV"}}
+JSON
+run_case "required field null" fail "$tmpdir/c25"
+
+# case 26: diagnosis present-but-null — must fail (was silently passing)
+mkdir -p "$tmpdir/c26"
+cat > "$tmpdir/c26/profile.json" <<'JSON'
+{"schema_version":"1.0.0","patient_code":"PT-X","diagnosis":null}
+JSON
+run_case "diagnosis null" fail "$tmpdir/c26"
+
+# case 27: diagnosis is a non-object (string) — must fail (was silently passing)
+mkdir -p "$tmpdir/c27"
+cat > "$tmpdir/c27/profile.json" <<'JSON'
+{"schema_version":"1.0.0","patient_code":"PT-X","diagnosis":"lung cancer"}
+JSON
+run_case "diagnosis non-object" fail "$tmpdir/c27"
+
+# case 28: diagnosis sub-key present-but-null — must fail
+mkdir -p "$tmpdir/c28"
+cat > "$tmpdir/c28/profile.json" <<'JSON'
+{"schema_version":"1.0.0","patient_code":"PT-X","diagnosis":{"primary_site":"lung","histology":null,"stage":"IV"}}
+JSON
+run_case "diagnosis sub-key null" fail "$tmpdir/c28"
+
+# case 29: basics is a non-object truthy value (string containing 'ecog') — clean fail, no crash
+mkdir -p "$tmpdir/c29"
+cat > "$tmpdir/c29/profile.json" <<'JSON'
+{"schema_version":"1.0.0","patient_code":"PT-X","diagnosis":{"primary_site":"lung","histology":"adeno","stage":"IV"},"basics":"ecogish"}
+JSON
+run_case "basics non-object string" fail "$tmpdir/c29"
+
+# case 30: treatment_history is a non-array (string) — must fail (was silently skipped)
+mkdir -p "$tmpdir/c30"
+cat > "$tmpdir/c30/profile.json" <<'JSON'
+{"schema_version":"1.0.0","patient_code":"PT-X","diagnosis":{"primary_site":"lung","histology":"adeno","stage":"IV"},"treatment_history":"chemo"}
+JSON
+run_case "treatment_history non-array" fail "$tmpdir/c30"
+
+# case 31: role.json is a non-object (array) — clean fail, no ugly traceback-via-except
+mkdir -p "$tmpdir/c31"
+cat > "$tmpdir/c31/profile.json" <<'JSON'
+{"schema_version":"1.0.0","patient_code":"PT-X","diagnosis":{"primary_site":"lung","histology":"adeno","stage":"IV"}}
+JSON
+echo '["patient"]' > "$tmpdir/c31/role.json"
+run_case "role.json non-object" fail "$tmpdir/c31"
+
+# case 32: fully-valid profile with optional nulls + valid role.json still passes (regression)
+mkdir -p "$tmpdir/c32"
+cat > "$tmpdir/c32/profile.json" <<'JSON'
+{"schema_version":"1.0.0","patient_code":"PT-X","diagnosis":{"primary_site":"lung","histology":"adeno","stage":"IV"},
+ "basics":{"sex":null,"ecog":null},"treatment_history":[{"line":1,"start":null,"regimen":"X"}],
+ "disclosure_state":null,"acp_status":null}
+JSON
+echo '{"schema_version":"1","active_role":"patient"}' > "$tmpdir/c32/role.json"
+run_case "valid with optional nulls + role" pass "$tmpdir/c32"
+
 if (( fail > 0 )); then
   echo "$fail/$((pass+fail)) test cases failed"
   exit 1

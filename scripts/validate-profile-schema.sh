@@ -19,7 +19,7 @@ if [[ ! -f "$DIR/profile.json" ]]; then
 fi
 
 python3 - "$DIR" <<'PY'
-import json, sys, re
+import json, sys, os
 from datetime import datetime
 
 d = sys.argv[1]
@@ -37,13 +37,27 @@ if not isinstance(p, dict):
     print(f"ERROR: profile.json must be a JSON object, got {type(p).__name__}", file=sys.stderr); sys.exit(1)
 
 for key in ("schema_version", "patient_code", "diagnosis"):
-    if key not in p: fail(f"missing required field: {key}")
+    if key not in p:
+        fail(f"missing required field: {key}")
+    elif p[key] is None:
+        fail(f"required field {key} must not be null")
 
-if "diagnosis" in p and isinstance(p["diagnosis"], dict):
-    for k in ("primary_site", "histology", "stage"):
-        if k not in p["diagnosis"]: fail(f"missing diagnosis.{k}")
+if "diagnosis" in p and p["diagnosis"] is not None:
+    if not isinstance(p["diagnosis"], dict):
+        fail(f"diagnosis must be an object, got {type(p['diagnosis']).__name__}")
+    else:
+        for k in ("primary_site", "histology", "stage"):
+            if k not in p["diagnosis"]:
+                fail(f"missing diagnosis.{k}")
+            elif p["diagnosis"][k] is None:
+                fail(f"diagnosis.{k} must not be null")
 
-basics = p.get("basics") or {}
+basics = p.get("basics")
+if basics is None:
+    basics = {}
+elif not isinstance(basics, dict):
+    fail(f"basics must be an object, got {type(basics).__name__}")
+    basics = {}
 if "ecog" in basics and basics["ecog"] is not None:
     if not (isinstance(basics["ecog"], int) and 0 <= basics["ecog"] <= 4):
         fail(f"invalid basics.ecog: {basics['ecog']} (must be 0-4)")
@@ -65,7 +79,9 @@ if "surveillance_schedule_anchor" in p and p["surveillance_schedule_anchor"]:
     except ValueError:
         fail(f"invalid surveillance_schedule_anchor date: {p['surveillance_schedule_anchor']}")
 
-th = p.get("treatment_history", [])
+th = p.get("treatment_history")
+if th is not None and not isinstance(th, list):
+    fail(f"treatment_history must be an array, got {type(th).__name__}")
 if isinstance(th, list):
     last_start = None
     last_line = None
@@ -83,7 +99,6 @@ if isinstance(th, list):
             except ValueError:
                 fail(f"treatment_history[{i}] invalid start date: {t['start']}")
 
-import os
 rpath = f"{d}/readiness.json"
 if os.path.exists(rpath):
     try:
@@ -133,7 +148,9 @@ if os.path.exists(role_path):
     try:
         with open(role_path) as f:
             ro = json.load(f)
-        if ro.get("active_role") not in ("patient", "caregiver", "family"):
+        if not isinstance(ro, dict):
+            fail(f"role.json must be a JSON object, got {type(ro).__name__}")
+        elif ro.get("active_role") not in ("patient", "caregiver", "family"):
             fail(f"invalid role.json.active_role: {ro.get('active_role')}")
     except Exception as e:
         fail(f"role.json unparseable: {e}")
