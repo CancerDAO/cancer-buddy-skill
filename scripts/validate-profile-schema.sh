@@ -33,6 +33,9 @@ try:
 except Exception as e:
     print(f"ERROR: profile.json not parseable: {e}", file=sys.stderr); sys.exit(1)
 
+if not isinstance(p, dict):
+    print(f"ERROR: profile.json must be a JSON object, got {type(p).__name__}", file=sys.stderr); sys.exit(1)
+
 for key in ("schema_version", "patient_code", "diagnosis"):
     if key not in p: fail(f"missing required field: {key}")
 
@@ -40,12 +43,12 @@ if "diagnosis" in p and isinstance(p["diagnosis"], dict):
     for k in ("primary_site", "histology", "stage"):
         if k not in p["diagnosis"]: fail(f"missing diagnosis.{k}")
 
-basics = p.get("basics", {})
+basics = p.get("basics") or {}
 if "ecog" in basics and basics["ecog"] is not None:
     if not (isinstance(basics["ecog"], int) and 0 <= basics["ecog"] <= 4):
         fail(f"invalid basics.ecog: {basics['ecog']} (must be 0-4)")
 
-if "sex" in basics and basics["sex"] not in ("M", "F"):
+if "sex" in basics and basics["sex"] is not None and basics["sex"] not in ("M", "F"):
     fail(f"invalid basics.sex: {basics['sex']}")
 
 if "disclosure_state" in p and p["disclosure_state"] is not None:
@@ -86,9 +89,12 @@ if os.path.exists(rpath):
     try:
         with open(rpath) as f:
             r = json.load(f)
-        if "grade" in r and r["grade"] not in ("A", "B", "C", "D", "F"):
+        if not isinstance(r, dict):
+            fail(f"readiness.json must be a JSON object, got {type(r).__name__}")
+            r = {}
+        if r.get("grade") is not None and r["grade"] not in ("A", "B", "C", "D", "F"):
             fail(f"invalid readiness.grade: {r['grade']}")
-        if "review_flags" in r:
+        if r.get("review_flags") is not None:
             rf = r["review_flags"]
             if not isinstance(rf, list):
                 fail(f"review_flags must be array, got {type(rf).__name__}")

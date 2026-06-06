@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Validator null-tolerance** — `scripts/validate-profile-schema.sh` no longer
+  crashes or false-rejects on present-but-null optional fields, which `organize`
+  routinely emits for unknown values. Completes the work begun in #8
+  (`treatment_history[].start`/`.line`, `basics.ecog`) by covering every
+  remaining same-class gap: `basics` (whole object null → was a `TypeError`
+  traceback), `basics.sex`, `readiness.grade`, and `readiness.review_flags`
+  (null → treated as "no flags"). Also guards against a non-object
+  `profile.json`/`readiness.json` (clean error instead of a traceback). Enum
+  and ordering checks are unchanged; invalid non-null values are still rejected.
+
 ## [0.2.0] - 2026-06-01
 
 Audit-hardening pass. The recurring theme of this release is **never fabricate
