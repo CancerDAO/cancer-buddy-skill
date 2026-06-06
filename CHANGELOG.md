@@ -17,6 +17,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (null → treated as "no flags"). Also guards against a non-object
   `profile.json`/`readiness.json` (clean error instead of a traceback). Enum
   and ordering checks are unchanged; invalid non-null values are still rejected.
+- **Validator required-field & type soundness** — the mirror-image gaps the
+  null-tolerance sweep exposed: the validator used to **silently pass** malformed
+  data in required/structural positions. Now rejected, matching the documented
+  contract in `references/patient-profile-schema.md`: required fields
+  (`schema_version`, `patient_code`, `diagnosis` + its sub-keys) present-but-null
+  → fail (null == missing → re-organize); `diagnosis` / `basics` non-object →
+  fail (and `basics` as a non-object string no longer crashes); `treatment_history`
+  non-array → fail; `role.json` non-object → clean error. Deliberately **left
+  permissive** (no explicit contract mandate, false-reject risk): empty
+  `source_evidence[]` and null content keys inside `review_flags[]`. Dead
+  `import re` removed.
 
 ## [0.2.0] - 2026-06-01
 
