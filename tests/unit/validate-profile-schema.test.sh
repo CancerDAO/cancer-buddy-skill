@@ -181,6 +181,58 @@ cat > "$tmpdir/c17/readiness.json" <<'JSON'
 JSON
 run_case "user_confirmed wrong type" fail "$tmpdir/c17"
 
+# --- null-tolerance cases (organize emits null for unknown optional fields) ---
+
+# case 18: basics is null (whole object) — must not crash, treat as absent
+mkdir -p "$tmpdir/c18"
+cat > "$tmpdir/c18/profile.json" <<'JSON'
+{"schema_version":"1.0.0","patient_code":"PT-X","diagnosis":{"primary_site":"lung","histology":"adeno","stage":"IV"},"basics":null}
+JSON
+run_case "basics null" pass "$tmpdir/c18"
+
+# case 19: basics.sex null — unknown sex, not a violation
+mkdir -p "$tmpdir/c19"
+cat > "$tmpdir/c19/profile.json" <<'JSON'
+{"schema_version":"1.0.0","patient_code":"PT-X","diagnosis":{"primary_site":"lung","histology":"adeno","stage":"IV"},"basics":{"sex":null,"ecog":null}}
+JSON
+run_case "sex+ecog null" pass "$tmpdir/c19"
+
+# case 20: treatment_history with null start and null line — unknown, skipped
+mkdir -p "$tmpdir/c20"
+cat > "$tmpdir/c20/profile.json" <<'JSON'
+{"schema_version":"1.0.0","patient_code":"PT-X","diagnosis":{"primary_site":"lung","histology":"adeno","stage":"IV"},
+ "treatment_history":[{"line":null,"regimen":"X","start":null}]}
+JSON
+run_case "treatment_history null start/line" pass "$tmpdir/c20"
+
+# case 21: readiness.grade null — unknown grade, not a violation
+mkdir -p "$tmpdir/c21"
+cat > "$tmpdir/c21/profile.json" <<'JSON'
+{"schema_version":"1.0.0","patient_code":"PT-X","diagnosis":{"primary_site":"lung","histology":"adeno","stage":"IV"}}
+JSON
+echo '{"schema_version":"1","grade":null}' > "$tmpdir/c21/readiness.json"
+run_case "readiness grade null" pass "$tmpdir/c21"
+
+# case 22: review_flags null — no flags, treated as absent
+mkdir -p "$tmpdir/c22"
+cat > "$tmpdir/c22/profile.json" <<'JSON'
+{"schema_version":"1.0.0","patient_code":"PT-X","diagnosis":{"primary_site":"lung","histology":"adeno","stage":"IV"}}
+JSON
+echo '{"schema_version":"1","grade":"B","review_flags":null}' > "$tmpdir/c22/readiness.json"
+run_case "review_flags null" pass "$tmpdir/c22"
+
+# case 23: profile.json is a JSON array (non-object) — clean fail, no traceback
+mkdir -p "$tmpdir/c23"
+echo '[1,2,3]' > "$tmpdir/c23/profile.json"
+run_case "profile.json non-object" fail "$tmpdir/c23"
+
+# case 24: invalid sex value still rejected (guard didn't loosen the enum check)
+mkdir -p "$tmpdir/c24"
+cat > "$tmpdir/c24/profile.json" <<'JSON'
+{"schema_version":"1.0.0","patient_code":"PT-X","diagnosis":{"primary_site":"lung","histology":"adeno","stage":"IV"},"basics":{"sex":"male"}}
+JSON
+run_case "invalid sex value" fail "$tmpdir/c24"
+
 if (( fail > 0 )); then
   echo "$fail/$((pass+fail)) test cases failed"
   exit 1
