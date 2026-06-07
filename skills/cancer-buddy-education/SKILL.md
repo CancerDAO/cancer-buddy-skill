@@ -12,6 +12,16 @@ Turn clinical output into something the patient (and their family) can actually 
 - Patient has at least `profile.json` + one MTB report (lite or full).
 - Patient says: 宣教手册 / 给我爸妈看的版本 / 我爸妈看不懂报告 / patient handbook.
 
+## Locale
+
+Read [../../references/i18n.md](../../references/i18n.md). The whole handbook is a patient-visible template artifact, so before rendering anything:
+
+1. Read `patients/<pid>/profile.json` → `locale`. If present, use it — do not re-detect (education runs after organize, so a `locale` is almost always already persisted).
+2. If absent (no profile, or `locale` is null), detect from the primary patient-facing language of the records / the language the user is asking in, then write it back to `profile.json.locale` (BCP-47, e.g. `en` / `zh` / `fr`).
+3. Render every patient-visible scaffold string in that `locale` — handbook section titles, quick-reference-card labels, my-health-summary prose, drug-sheet headings, daily-living / follow-up / cost-navigation copy, FAQ question+answer prose, mechanism-diagram explanations, the family 亲友简报, ER-criteria wording, and the mandatory footer. The handbook is generated prose + templates, so this is a prompt instruction: **"Output all scaffold/narrative prose in `<locale>`; keep clinical entities verbatim per `references/i18n.md` §4."** Template-style references (`cancer-type-modules.md` 6-subsection headings, `expanded-faq.md` phase headings) carry their own per-locale heading table — follow it.
+4. Keep every clinical entity verbatim regardless of `locale` — drug names (osimertinib / 奥希替尼 as the source used them, Tagrisso), genes/variants (EGFR L858R, KRAS G12C, ALK fusion), TNM/stage (cT3N2M0, IIIA), response codes (RECIST PR, MSI-H), all numbers + units (CEA 12.4 ng/mL, 80 mg qd, fever > 38.5°C), biomarker labels (PD-L1 TPS 40%). Never translate, transliterate, or normalize them — mistranslating a clinical entity is a P0 medical-safety bug. An optional locale-appropriate gloss may be added *beside* the verbatim term in parentheses (per `terminology.md`), never replacing it.
+5. Honor an explicit user language override ("给我爸妈出英文版" / "answer me in English") → update `profile.json.locale` and follow it going forward.
+
 ## Preflight
 
 Run [../../references/preflight.md](../../references/preflight.md) — role + disclosure + readiness grade + **review_flags red gate (Step 2.5)** + schema validity. The handbook propagates upstream extracted facts (diagnosis, stage, current_therapy, molecular_drivers, treatment_history) directly to the patient/caregiver as authoritative-sounding educational content; an unconfirmed 🔴 RED review_flag on any of those fields makes the resulting handbook misleading. Block until resolved.
@@ -39,7 +49,7 @@ See [references/handbook-template.md](references/handbook-template.md) for the f
    - **Mechanism diagrams**: pull relevant diagrams from `references/mechanism-diagrams.md` based on patient's `current_therapy` type (chemo / targeted / immuno / radio).
    - **Cancer-type module**: include the patient's primary cancer section from `references/cancer-type-modules.md`.
    - **FAQ**: pull phase-relevant questions from `references/expanded-faq.md` based on current therapy phase (newly-diagnosed / active-treatment / survivorship).
-4. Render in Markdown with:
+4. Render in Markdown — all scaffold/narrative prose in `profile.json.locale`, clinical entities verbatim (§Locale) — with:
    - Cover page (name, patient_code, date, physician contact)
    - Quick reference card (emergency phone, ER criteria — fever > 38.5°C, new bleeding, etc.)
    - My Health Summary (1 page, plain language)
@@ -52,16 +62,16 @@ See [references/handbook-template.md](references/handbook-template.md) for the f
 
 ## Tone
 
-- Warm, direct, practical. Talk like a friend with medical knowledge.
-- Every medical term bilingual + plain explanation (see `terminology.md`).
-- Section-end: "你家里有人能帮你执行这一段吗？不行的话，搭子可以帮你安排提醒。"
+- Warm, direct, practical. Talk like a friend with medical knowledge — in the patient's `locale`.
+- Every medical term keeps its verbatim clinical form + a locale-appropriate plain-language gloss beside it (see `terminology.md` — locale-aware, not fixed bilingual).
+- Section-end prompt, rendered in `locale` (zh: "你家里有人能帮你执行这一段吗？不行的话，搭子可以帮你安排提醒。"; render the same meaning in the patient's locale otherwise) — invite the patient to flag if no one at home can help execute this section, offering to set reminders.
 
 ## Safety
 
 Apply `safety-guardrails.md` rules:
-- **Mandatory footer** on every handbook, quick-reference card, and drug sheet: `本手册为信息参考，任何治疗调整必须与主诊医生确认。`
+- **Mandatory footer** on every handbook, quick-reference card, and drug sheet, rendered in `locale` (zh: `本手册为信息参考，任何治疗调整必须与主诊医生确认。` — render the same disclaimer meaning in the patient's locale otherwise). The footer must be present in every locale; it is scaffold copy, not a clinical entity.
 - **No medical recommendations** — explain what drugs / tests / side-effects are, never instruct the patient to change dose, stop a drug, or skip a visit without clinician sign-off.
-- **ER criteria are absolute** — fever > 38.5°C, new bleeding, severe dyspnea, altered mental status → `立即就医，不要等门诊`.
+- **ER criteria are absolute** — the *thresholds* are clinical entities and stay verbatim in every locale (fever > 38.5°C, new bleeding, severe dyspnea, altered mental status); the surrounding call-to-action is scaffold, rendered in `locale` (zh: `立即就医，不要等门诊`).
 
 ## Role behavior
 
@@ -76,5 +86,6 @@ Apply `safety-guardrails.md` rules:
 - [mechanism-diagrams.md](references/mechanism-diagrams.md) — disease mechanism Mermaid diagrams (absorbed from vmtb-patient-education)
 - [cancer-type-modules.md](references/cancer-type-modules.md) — per-cancer-type patient modules
 - [expanded-faq.md](references/expanded-faq.md) — FAQ organized by treatment phase
+- [../../references/i18n.md](../../references/i18n.md) — shared locale layer (detect / persist / verbatim-clinical)
 - [../../references/terminology.md](../../references/terminology.md)
 - [../../references/safety-guardrails.md](../../references/safety-guardrails.md)

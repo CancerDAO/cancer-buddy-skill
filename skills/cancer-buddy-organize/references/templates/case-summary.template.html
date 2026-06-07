@@ -1,0 +1,326 @@
+<!--
+  ============ i18n LOCALE STRING TABLE (段D scaffold) ============
+  Localize the SCAFFOLD only; keep every clinical entity verbatim (i18n.md §4).
+  The renderer (case-summary-html-prompt.md) reads profile.json.locale and fills the
+  {{i18n.<key>}} placeholders below from this table. CSS + DOM structure stay 1:1 across
+  locales — only these string VALUES change. <html lang> + {{i18n.html_lang}} also follow locale.
+  zh = authoritative gold-standard wording. en = canonical translation. For a locale not
+  listed, generate equivalents in the target language (same meaning, same tone), keep clinical
+  terms verbatim. Add locale columns here; never hardcode a single-language scaffold string.
+
+  | key                  | zh                                          | en                                                        |
+  |----------------------|---------------------------------------------|-----------------------------------------------------------|
+  | html_lang            | zh-CN                                       | en                                                        |
+  | doc_title            | 病情简要总结                                 | Case Summary                                              |
+  | disclaimer           | 仅用于临床交流参考，不替代主治医师的判断       | For clinical-communication reference only; does not replace the attending physician's judgment |
+  | report_date_label    | 报告日期                                     | Report date                                               |
+  | sec_identity         | 患者标识                                     | Patient Identity                                          |
+  | lbl_sex_age          | 性别 / 年龄                                  | Sex / Age                                                 |
+  | lbl_nationality      | 国籍                                        | Nationality                                               |
+  | lbl_hwbmi            | 身高 / 体重 / BMI                            | Height / Weight / BMI                                     |
+  | lbl_ecog             | ECOG 体能评分                               | ECOG performance status                                   |
+  | sec_summary          | 病情概要                                     | Clinical Summary                                          |
+  | sec_lesions          | 主要病灶分布                                 | Major Lesion Distribution                                 |
+  | sec_molecular        | 核心分子检测                                 | Key Molecular Testing                                     |
+  | sec_labs             | 关键实验室指标                               | Key Laboratory Values                                     |
+  | sec_treatment        | 治疗史                                       | Treatment History                                         |
+  | sec_path             | 当前治疗路径                                 | Current Treatment Path                                    |
+  | val_nationality      | 海外                                        | Overseas                                                  |
+  | val_male             | 男                                          | Male                                                      |
+  | val_female           | 女                                          | Female                                                    |
+  | val_pending          | 待主治医师补充 / 资料缺失                     | To be supplemented by attending physician / data missing  |
+  | val_ecog_inferred    | （推断，待主治医师正式签署）                   | (inferred, pending formal sign-off by attending physician) |
+  | val_to_start         | 待启动                                       | Not yet started                                           |
+  | footer_doc           | 病情简要总结                                 | Case Summary                                              |
+  ================================================================
+-->
+<!DOCTYPE html>
+<html lang="{{i18n.html_lang}}">
+<head>
+<meta charset="UTF-8">
+<title>{{i18n.doc_title}}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+@page { size: A4; margin: 12mm 14mm; }
+* { box-sizing: border-box; }
+body {
+  font-family: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif;
+  font-size: 10.5pt;
+  line-height: 1.6;
+  color: #1f2937;
+  margin: 0;
+  padding: 12mm 14mm;
+  max-width: 210mm;
+}
+.header {
+  border-bottom: 2.5pt solid #1a4480;
+  padding-bottom: 6pt;
+  margin-bottom: 10pt;
+}
+.header h1 {
+  font-size: 15pt;
+  margin: 0 0 2pt 0;
+  color: #1a4480;
+  letter-spacing: 0.3pt;
+}
+.header .subtitle {
+  font-size: 9.5pt;
+  color: #4b5563;
+  margin: 0;
+}
+.header .meta {
+  font-size: 8.5pt;
+  color: #6b7280;
+  margin-top: 3pt;
+}
+h2 {
+  font-size: 10.5pt;
+  color: #1a4480;
+  margin: 9pt 0 4pt 0;
+  padding: 2pt 6pt;
+  background: #eef2f7;
+  border-left: 3pt solid #1a4480;
+  letter-spacing: 0.2pt;
+  page-break-after: avoid;
+  break-after: avoid;
+}
+.timeline { page-break-inside: avoid; break-inside: avoid; }
+.section-keep { page-break-inside: avoid; break-inside: avoid; }
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 9.8pt;
+  margin: 3pt 0 6pt 0;
+}
+th, td {
+  border: 0.5pt solid #d1d5db;
+  padding: 3pt 6pt;
+  text-align: left;
+  vertical-align: top;
+}
+th {
+  background: #f3f4f6;
+  font-weight: 600;
+  color: #1f2937;
+  width: 22%;
+}
+.kv-table td:first-child {
+  width: 22%;
+  background: #f9fafb;
+  font-weight: 600;
+  color: #374151;
+}
+.lab-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4pt;
+  margin: 3pt 0;
+}
+.lab-item {
+  border: 0.5pt solid #d1d5db;
+  border-radius: 3pt;
+  padding: 3pt 5pt;
+  font-size: 9.5pt;
+}
+.lab-item .label {
+  color: #6b7280;
+  font-size: 8.5pt;
+  display: block;
+}
+.lab-item .value {
+  font-weight: 600;
+  color: #1f2937;
+}
+.lab-item.abnormal { background: #fef3f2; border-color: #fca5a5; }
+.lab-item.abnormal .value { color: #b91c1c; }
+.lab-item.severe { background: #fef2f2; border-color: #ef4444; }
+.lab-item.severe .value { color: #991b1b; }
+.timeline { margin: 4pt 0 6pt 0; }
+.tl-item {
+  display: grid;
+  grid-template-columns: 32pt 1fr;
+  gap: 8pt;
+  margin: 3pt 0;
+  align-items: stretch;
+}
+.tl-marker {
+  background: #fef2f2;
+  color: #991b1b;
+  border: 1pt solid #ef4444;
+  border-radius: 3pt;
+  text-align: center;
+  font-weight: 700;
+  font-size: 9.5pt;
+  padding: 2pt 0;
+  line-height: 1.3;
+}
+.tl-marker.pending {
+  background: #fffbeb;
+  color: #92400e;
+  border-color: #f59e0b;
+}
+.tl-content {
+  border: 0.5pt solid #d1d5db;
+  border-radius: 3pt;
+  padding: 3pt 7pt;
+  background: #fafafa;
+}
+.tl-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1pt;
+}
+.tl-date {
+  font-size: 8.5pt;
+  color: #6b7280;
+}
+.tl-badge {
+  display: inline-block;
+  font-size: 8pt;
+  padding: 1pt 5pt;
+  border-radius: 2pt;
+  font-weight: 600;
+}
+.tl-badge.pd { background: #fee2e2; color: #991b1b; }
+.tl-badge.pending { background: #fef3c7; color: #92400e; }
+.tl-body { font-weight: 600; color: #1f2937; font-size: 10pt; }
+.tl-note { font-size: 9pt; color: #4b5563; margin-top: 1pt; }
+.diagnosis-line {
+  padding: 3pt 0 6pt 0;
+  font-size: 10.5pt;
+  font-weight: 600;
+  color: #1f2937;
+  margin: 3pt 0 6pt 0;
+}
+.case-summary {
+  padding: 3pt 0 6pt 0;
+  font-size: 10pt;
+  line-height: 1.65;
+  color: #1f2937;
+  margin: 3pt 0 6pt 0;
+  text-align: justify;
+}
+.path-box {
+  border: 1pt solid #1a4480;
+  border-radius: 3pt;
+  padding: 5pt 8pt;
+  background: #f0f6ff;
+  margin: 3pt 0;
+  font-size: 9.8pt;
+}
+.path-box .label {
+  font-weight: 700;
+  color: #1a4480;
+}
+.lesion-table td { font-size: 9.5pt; }
+.lesion-table td:first-child { font-weight: 600; color: #1a4480; background: #f9fafb; width: 22%; }
+.footer {
+  margin-top: 10pt;
+  padding-top: 5pt;
+  border-top: 0.5pt solid #d1d5db;
+  font-size: 8pt;
+  color: #6b7280;
+  text-align: right;
+}
+</style>
+</head>
+<body>
+
+<!-- ============ SECTION 1: HEADER ============ -->
+<!-- 来源: profile.json (diagnosis/stage/molecular 一句话) + 当日日期。subtitle 是一句话病情线,免责声明固定文案。 -->
+<div class="header">
+  <h1>{{i18n.doc_title}}</h1>
+  <p class="subtitle">{{one_line_condition}}</p>
+  <p class="meta">{{i18n.report_date_label}}：{{report_date}}　|　{{i18n.disclaimer}}</p>
+</div>
+
+<!-- ============ SECTION 2: 患者标识 ============ -->
+<!-- 来源: profile.json / patient_summary.json。粗粒度脱敏:性别+年龄段(50+)+国籍(海外),不落真名真生日。null 字段渲染"待主治医师补充 / 资料缺失"。 -->
+<h2>{{i18n.sec_identity}}</h2>
+<table class="kv-table">
+  <tr>
+    <td>{{i18n.lbl_sex_age}}</td><td>{{sex}} / {{age_band}}</td>
+    <td>{{i18n.lbl_nationality}}</td><td>{{nationality}}</td>
+  </tr>
+  <tr>
+    <td>{{i18n.lbl_hwbmi}}</td><td>{{height_weight_bmi}}</td>
+    <td>{{i18n.lbl_ecog}}</td><td>{{ecog}}</td>
+  </tr>
+</table>
+
+<!-- ============ SECTION 3: 病情概要(叙事) ============ -->
+<!-- 来源: subagent 语义生成,基于 patient_summary.json + timeline.json。3-5 句客观叙事:诊断+确诊时间→已用治疗线及转归→当前处境/下一步计划。不捏造,不给治疗建议。 -->
+<h2>{{i18n.sec_summary}}</h2>
+<p class="case-summary">{{case_summary_narrative}}</p>
+
+<!-- ============ SECTION 4: 主要病灶分布 ============ -->
+<!-- 来源: profile.json 影像字段 / case_text.md 影像段。逐行 LOOP:每个解剖部位一行(原发灶/肝转移/肺转移/淋巴结...)。无影像数据则整段渲染"待主治医师补充 / 资料缺失"。 -->
+<h2>{{i18n.sec_lesions}}</h2>
+<table class="lesion-table">
+  <!-- LOOP lesions: 每个部位一行 -->
+  <tr>
+    <td>{{lesion_site}}</td><td>{{lesion_detail}}</td>
+  </tr>
+  <!-- END LOOP -->
+</table>
+
+<!-- ============ SECTION 5: 核心分子检测 ============ -->
+<!-- 来源: molecular.json (variants / msi_mmr / ihc / tmb / 组织病理)。逐行映射。无分子数据则整段渲染"待主治医师补充 / 资料缺失"。 -->
+<h2>{{i18n.sec_molecular}}</h2>
+<table class="kv-table">
+  <!-- LOOP molecular_rows: 每个分子维度一行(驱动突变/免疫表型/DDR 与其他/组织病理) -->
+  <tr>
+    <td>{{molecular_label}}</td><td>{{molecular_value}}</td>
+  </tr>
+  <!-- END LOOP -->
+</table>
+
+<!-- ============ SECTION 6: 关键实验室指标 ============ -->
+<!-- 来源: labs.json。每项按 ULN 倍数 → class:正常=无 class,异常=abnormal,严重(>=3x ULN 或临床显著)=severe。LOOP labs,4 列网格自动换行。无 labs 则整段渲染"待主治医师补充 / 资料缺失"。 -->
+<h2>{{i18n.sec_labs}}（{{labs_period}}）</h2>
+<div class="lab-grid">
+  <!-- LOOP labs: class ∈ {"", "abnormal", "severe"} -->
+  <div class="lab-item {{lab_class}}"><span class="label">{{lab_name}}</span><span class="value">{{lab_value}}</span></div>
+  <!-- END LOOP -->
+</div>
+
+<!-- ============ SECTION 7: 治疗史 (timeline) ============ -->
+<!-- 来源: treatment_lines.json / timeline.json。LOOP lines:已结束/进行中的线 tl-marker(红框) + tl-badge.pd;待启动的线 tl-marker.pending(黄框) + tl-badge.pending。tl-date 用 started→ended;tl-body=regimen;tl-note=best_response/reason_for_change/影像转归。 -->
+<div class="section-keep">
+<h2>{{i18n.sec_treatment}}</h2>
+<div class="timeline">
+  <!-- LOOP treatment_lines -->
+  <div class="tl-item">
+    <div class="tl-marker {{line_marker_class}}">{{line_label}}</div>
+    <div class="tl-content">
+      <div class="tl-head">
+        <span class="tl-date">{{line_date_range}}</span>
+        <span class="tl-badge {{line_badge_class}}">{{line_badge_text}}</span>
+      </div>
+      <div class="tl-body">{{line_regimen}}</div>
+      <div class="tl-note">{{line_note}}</div>
+    </div>
+  </div>
+  <!-- END LOOP -->
+</div>
+</div>
+
+<!-- ============ SECTION 8: 当前治疗路径 ============ -->
+<!-- 来源: treatment_lines.json 当前线 + profile.json。逐条 LOOP:每条用 <span class="label">标签：</span>内容 + <br> 分隔。标签如"当前较可能的路径：""桥接：""备选试验路径："。无当前路径则整段渲染"待主治医师补充 / 资料缺失"。 -->
+<h2>{{i18n.sec_path}}</h2>
+<div class="path-box">
+  <!-- LOOP path_items: 每条一行,末条不加 <br> -->
+  <span class="label">{{path_label}}</span>{{path_content}}<br>
+  <!-- END LOOP -->
+</div>
+
+<!-- ============ FOOTER ============ -->
+<div class="footer">
+  {{i18n.footer_doc}} · {{report_date}}
+</div>
+
+</body>
+</html>

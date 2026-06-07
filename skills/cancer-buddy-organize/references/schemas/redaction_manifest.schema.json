@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cancerdao.org/schemas/cancer-buddy/redaction_manifest.schema.json",
+  "title": "RedactionManifest",
+  "description": "Handoff contract from 段A (cloud organize) to 段B (async PaddleOCR redaction job). Lists every bucket image that still needs in-image PII masking, with its bucket-relative path and its 10_原始文件/ mirror path. Produced by phase2-synthesis; consumed by scripts/run_redaction_job.py. Only PII is masked — clinical characters are never altered.",
+  "type": "object",
+  "required": ["schema", "patient_dir", "generated_at", "files"],
+  "additionalProperties": false,
+  "properties": {
+    "schema": { "const": "redaction_manifest_v1" },
+    "patient_dir": { "type": "string", "description": "Absolute path to <patient_dir> (e.g. /abs/PT-XXXX). All file paths below are relative to this directory." },
+    "generated_at": { "type": "string", "format": "date-time", "description": "ISO 8601 timestamp when phase2-synthesis emitted this manifest." },
+    "files": {
+      "type": "array",
+      "description": "One entry per image awaiting redaction. MD sidecars are already text-redacted in 段A and are NOT listed here.",
+      "items": {
+        "type": "object",
+        "required": ["id", "bucket_path", "mirror_path", "status"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string", "pattern": "^f\\d{3,}$", "description": "Stable per-file id, e.g. 'f001'. Used to join against redaction_status.json.files[].id." },
+          "bucket_path": { "type": "string", "pattern": "^[^/].*\\.(jpg|jpeg|png|tif|tiff|webp|bmp|JPG|JPEG|PNG|TIF|TIFF|WEBP|BMP)$", "description": "Bucket-relative path to the canonical image inside its 11-bucket subdirectory, e.g. '02_诊断与分期/病理报告/2024-03-15_病理报告_x.jpg'. Never absolute, never prefixed with ocr/." },
+          "mirror_path": { "type": "string", "pattern": "^10_原始文件/.+\\.(jpg|jpeg|png|tif|tiff|webp|bmp|JPG|JPEG|PNG|TIF|TIFF|WEBP|BMP)$", "description": "Bucket-relative path to the same image's byte-level audit mirror under 10_原始文件/, e.g. '10_原始文件/<subdir>/IMG_0001.jpg'. 段B replaces this mirror copy with the redacted version." },
+          "pii_hint": {
+            "type": "array",
+            "description": "Optional hints (LLM-judged in 段A) about which PII categories the redactor should expect on this image. Advisory only — 段B does its own NER detection and never relies solely on this list.",
+            "items": { "type": "string", "enum": ["patient_name", "patient_id", "admission_id", "bed_no", "phone", "address", "id_card", "birth_date", "signature_name", "other"] }
+          },
+          "status": { "type": "string", "enum": ["pending"], "description": "Manifest is the work queue; every entry is emitted as 'pending'. Live progress is tracked separately in redaction_status.json." }
+        }
+      }
+    }
+  }
+}

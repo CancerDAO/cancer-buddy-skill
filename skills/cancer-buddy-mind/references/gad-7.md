@@ -1,5 +1,7 @@
 # GAD-7 — 广泛性焦虑量表 (anxiety screener)
 
+> **Locale (i18n).** The item text and rating labels below are the `zh` source rendering. Per `../../../references/i18n.md`: present these 7 items and the 0-3 rating anchors to the patient **in `profile.json.locale`** (read it; detect from conversation language if absent). Use the validated translation of GAD-7 for that locale where one exists; keep the scale name "GAD-7", item order, 0-3 scoring and all numeric cutoffs in the scoring table **invariant across locales**. Do not invent items.
+
 过去两周里，您有多少时候受到以下问题的困扰？
 
 按 0-3 评分: 0=完全没有, 1=有几天, 2=一半以上的天数, 3=几乎每天

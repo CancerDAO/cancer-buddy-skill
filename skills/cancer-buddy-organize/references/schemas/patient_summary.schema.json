@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cancerdao.org/schemas/cancer-buddy/patient_summary.schema.json",
+  "title": "PatientSummary",
+  "description": "Patient-level rollup. One per patient. Consumed by vMTB and MTB-lite as the primary input. Every factual field carries source_refs that point into the OCR sidecar set (or 02_desensitized/ when desensitization layer is enabled).",
+  "type": "object",
+  "required": ["patient_code", "schema_version", "generated_at"],
+  "additionalProperties": false,
+  "properties": {
+    "patient_code": { "type": "string", "pattern": "^PT-[A-F0-9]+(_\\d+)?$" },
+    "schema_version": { "const": "1" },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "alias": {
+      "type": "string",
+      "description": "Business-readable alias: {patient_id}_{cancer_type}_{year}, e.g. 003_CRC_2024. Optional — only set when caller supplies enough metadata.",
+      "pattern": "^[0-9A-Za-z\\-]+_[A-Z]+_\\d{4}$"
+    },
+    "demographics": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "sex": { "type": ["string", "null"], "enum": ["M", "F", null] },
+        "age": { "type": ["integer", "null"], "minimum": 0, "maximum": 120 },
+        "dob": { "type": ["string", "null"], "format": "date" },
+        "height_cm": { "type": ["number", "null"] },
+        "weight_kg": { "type": ["number", "null"] },
+        "ecog": { "type": ["integer", "null"], "minimum": 0, "maximum": 5 },
+        "ecog_inferred": { "type": "boolean", "default": false },
+        "source_refs": { "$ref": "#/$defs/source_refs" }
+      }
+    },
+    "diagnosis": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "primary": { "type": ["string", "null"] },
+        "histology": { "type": ["string", "null"] },
+        "icd10": { "type": ["string", "null"] },
+        "diagnosed_at": { "type": ["string", "null"], "format": "date" },
+        "stage": { "type": ["string", "null"] },
+        "metastasis_sites": { "type": "array", "items": { "type": "string" } },
+        "source_refs": { "$ref": "#/$defs/source_refs" },
+        "confidence": { "type": ["number", "null"], "minimum": 0, "maximum": 1 }
+      }
+    },
+    "current_status": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "regimen": { "type": ["string", "null"], "description": "Flat human-readable verbatim string. e.g. '雷替曲塞 5mg d1 + 信迪利单抗 200mg d2 q21d (cycle 2)'." },
+        "response": { "type": ["string", "null"], "enum": ["CR", "PR", "SD", "PD", "NE", null] },
+        "as_of": { "type": ["string", "null"], "format": "date" },
+        "source_refs": { "$ref": "#/$defs/source_refs" }
+      }
+    },
+    "treating_hospitals": { "type": "array", "items": { "type": "string" } },
+    "patient_location_hint": { "type": ["string", "null"] },
+    "caregivers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "relation": { "type": "string" },
+          "name": { "type": ["string", "null"] },
+          "contact_preference": { "type": ["string", "null"] }
+        }
+      }
+    },
+    "confidence": {
+      "type": "object",
+      "description": "Per-key extraction confidence (0–1), populated by synthesis worker.",
+      "additionalProperties": { "type": "number", "minimum": 0, "maximum": 1 }
+    }
+  },
+  "$defs": {
+    "source_refs": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^(([0-9]{2}_[^\\s/]+(/[^\\s/]+)*\\.md(#L\\d+(-L\\d+)?|#[A-Za-z0-9_-]+)?)|(conversation:\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})?))$",
+        "description": "Anchor token normalized to the path-only string. File anchors begin with an NN_ bucket prefix (00_…10_) and point to a redacted MD sidecar inside its bucket; conversation anchors are the literal 'conversation:<ISO8601>'. The retired ocr/ and 02_脱敏病历/ prefixes are rejected. Optional fragment is #L<start>-L<end> or #section-anchor."
+      }
+    }
+  }
+}

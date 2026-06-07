@@ -1,5 +1,7 @@
 # PHQ-9 — 患者健康问卷-9 (depression screener)
 
+> **Locale (i18n).** The item text and rating labels below are the `zh` source rendering. Per `../../../references/i18n.md`: present these 9 items and the 0-3 rating anchors to the patient **in `profile.json.locale`** (read it; this skill detects from conversation language if absent). Use the validated translation of PHQ-9 for that locale where one exists; keep the scale name "PHQ-9", the item order, the 0-3 scoring, and every numeric cutoff in the scoring table **invariant across locales**. The `题 9` hard-trigger rule keys on item index 9 + score, not on any language. Do not invent items.
+
 过去两周里，您有多少时候受到以下问题的困扰？
 
 按 0-3 评分: 0=完全没有, 1=有几天, 2=一半以上的天数, 3=几乎每天

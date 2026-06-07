@@ -72,9 +72,24 @@ description: |
 
 完整危机规则见 [`cancer-buddy-mind`](../cancer-buddy-mind/SKILL.md) 和 [`../../references/safety-guardrails.md`](../../references/safety-guardrails.md)。
 
+## 语言（locale）—— 进门即确定，全程复用
+
+搭子是患者旅程的**入口**，locale 在这里一次定下来，后面所有子技能都复用，保证整段路语言一致。规则全文见 [`../../references/i18n.md`](../../references/i18n.md)，这里只列 router 要做的：
+
+1. **先读 `patients/<patient_code>/profile.json` 的 `locale`**（如果 patient_dir 已存在）。有值就直接用它出所有话术，**不重新检测**。
+2. profile 不存在或 `locale` 为 null → 从**用户开口消息的语言**检测（这是 LLM 判断，不跑硬编码字符集/keyword 语言表；读消息自己判）。给出 BCP-47 标签（`zh` / `en` / `fr` / `es` / `de` / …）。
+3. 检测到后**在路由前持久化**：写 `profile.json.locale = "<bcp47>"`（若 profile 尚不存在，由随后的 organize 经 `cb-organizer` 落盘；router 已检测出的 locale 作为 organize 的输入 locale，organize 不再重测）。
+4. **本技能所有患者可见文案按这个 locale 出**：身份询问选项、"我能带你去哪些地方"表、路由交接话术（"我去找 `<子技能>` 帮你处理 `<任务>`"）、MTB 路由回复、"我不做的事"清单、收尾清单——脚手架/叙事一律本地化。
+5. **临床实体逐字保留**（药名/基因/变异/TNM/数值+单位/biomarker），无论 locale 为何都不翻译——误译=医疗风险（见 `../../references/safety-guardrails.md` →"临床实体禁译"）。原文旁可选加 locale 通俗解释（走 `../../references/terminology.md`），但原词不删不换。
+6. 用户中途说"用英文回我" / "说中文" 等显式切换 → 更新 `profile.json.locale` 并往后照此出文案，**显式 override 永远压过自动检测**。
+
+> 危机检测（上一节）凌驾于 locale 之上：危机响应**先做**，用开口消息的语言即时回应，不等 locale 落盘。本节列出的话术（含本 SKILL.md 下文的所有中文示例文案）都是 `zh` 渲染样例——其它 locale 按本节用对应语言输出同义脚手架，结构/字段不变。
+
 ## 先聊一句（**仅在危机检测通过后才执行**）
 
 > 前置：先跑完上一节"进门前：危机检测"。**危机响应未结束前不要做身份询问**——身份门禁截胡帮助会让用户感到被冰冷地走流程。
+>
+> locale：身份询问选项与下文所有路由话术按 `profile.json.locale`（上一节确定）出。下面的中文是 `zh` 样例。
 
 如果用户已经在开口时**自报身份**（"我刚确诊"="患者本人"；"我妈做化疗我在带她"="主照护者"），**直接接住、不要再问一遍**——把识别到的身份写入 `patients/<patient_code>/role.json` 即可。
 
@@ -101,8 +116,11 @@ description: |
 | 吃什么、忌口 | → nutrition 自己做 | → nutrition 备餐 + 采购单 | 让主照护者来 |
 | 第二意见 packet 打包 | → second-opinion | → second-opinion operator 视角 | 让主照护者来 |
 | 找做 MTB / MDT 的医院、专科医生、临床试验中心 | → find-care | → find-care | 让主照护者来 |
+| 明天要看医生、复诊准备、不知道该问医生什么、就诊准备 | → visit-prep | → visit-prep（帮你家人备问题） | 让主照护者来 |
 
-找到合适的子技能，我会说一声"我去找 `<子技能>` 帮你处理 `<任务>`"然后接力。
+**visit-prep 前置**：就诊准备包复用 organize 产物（profile/timeline/readiness/missing_items）。若 patient_dir 还没建（profile.json 不存在）→ 先去 organize 整理，再回 visit-prep。
+
+找到合适的子技能，我会说一声"我去找 `<子技能>` 帮你处理 `<任务>`"然后接力（接力话术按 `profile.json.locale` 出；子技能拿到 patient_dir 后从 `profile.json.locale` 复用同一 locale，不重新检测）。
 
 ## MTB 路由（条件性）
 
@@ -150,6 +168,7 @@ ls ~/.claude/plugins/vmtb-skill/SKILL.md \
 
 ## 共用约定
 
+- 语言/locale 规则看 `../../references/i18n.md`（一次检测、持久化 `profile.json.locale`、全程复用；脚手架本地化、临床实体逐字保留）
 - 所有子技能的 role 规则看 `../../references/roles.md`
 - 病例存 `patients/<patient_code>/`（schema 见 `../../references/patient-profile-schema.md`）
 - 患者朝向的术语都走 `../../references/terminology.md`（中英 + 通俗解释）
@@ -157,6 +176,8 @@ ls ~/.claude/plugins/vmtb-skill/SKILL.md \
 - 披露状态：`../../references/disclosure-behavior.md`（当 `disclosure_state=suppressed` 且身份=患者时每个子技能怎么变形）
 
 ## 聊完一段
+
+（按 `profile.json.locale` 出；下面是 `zh` 样例，其它 locale 用对应语言出同结构）
 
 ```
 今天聊到的:

@@ -2,6 +2,8 @@
 
 > **Trust your clinical pharmacology training data**, do NOT consult a hardcoded interaction table here.
 
+> **Locale**: the `zh` patient-facing strings below (the 🟡 uncertainty line, the last-resort note) are the **source string table** — render the localized equivalent in `profile.json.locale` at output time per `../../../references/i18n.md` §5. Drug names, supplement names and the `[INTERACTION_UNCERTAIN: <drug>]` sidecar key stay verbatim across locales.
+
 This file used to contain a hardcoded ~30-row drug-food interaction table. It was deleted because:
 
 1. The model already knows the standard oncology drug-food interactions (TKI ↔ 西柚 / 华法林 ↔ 维 K 食物 / 奥沙利铂 ↔ 冷食 / 5-FU + capecitabine ↔ 柚子 / methotrexate ↔ 酒精 / etc.) from training data

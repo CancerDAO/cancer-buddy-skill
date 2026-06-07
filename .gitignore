@@ -1,2 +1,6 @@
 .DS_Store
 docs/superpowers/
+
+# Python bytecode
+__pycache__/
+*.pyc

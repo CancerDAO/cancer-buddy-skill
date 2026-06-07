@@ -72,7 +72,8 @@ Shape written by `cb-organizer` (shared with `vmtb-organizer`):
     {"state": "full",       "set_at": "2025-01-15T14:30:00Z", "set_by_role": "patient"}
   ],
   "acp_status": "none|discussed|documented|legally_filed|null",
-  "surveillance_schedule_anchor": "2025-08-30"
+  "surveillance_schedule_anchor": "2025-08-30",
+  "locale": "en|fr|es|zh|de|...|null"
 }
 ```
 
@@ -85,6 +86,7 @@ Fields are left `null` when truly unknown — the organizer never fabricates.
 - `disclosure_history` (optional): append-only log of state transitions with who set each.
 - `acp_status` (optional): advance care planning progress. Written by `cancer-buddy-comfort`.
 - `surveillance_schedule_anchor` (optional): ISO date. Starts the survivorship clock. Written by organize when treatment transitions to maintenance/post-treatment, or explicitly by patient/caregiver.
+- `locale` (optional, BCP-47 — `en` / `fr` / `es` / `zh` / `de` / …): the language all patient-facing **scaffold** (section titles, field labels, narrative connectives, user copy, date formats) is rendered in. **Auto-detected once, persisted here, reused for the whole patient journey** — organize detects it from the medical records' primary patient-facing language; chat sub-skills detect from the conversation language when no profile exists yet. Every sub-skill reads `locale` first and only re-detects when it's absent. Clinical entities (drug names / genes / variants / TNM / numbers / units) are **never** translated regardless of locale. An explicit user override ("answer me in English") updates this field and wins over detection. Full contract: `references/i18n.md`.
 
 ## readiness.json
 

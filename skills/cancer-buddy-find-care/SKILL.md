@@ -30,13 +30,25 @@ description: "查找能做特定治疗资源的医院、专科医生和临床试
 
 我们做的就是：**告诉你哪里有人能做这件事**。
 
+## Locale (i18n)
+
+读共享 `../../references/i18n.md`。流程开始时：
+
+1. 读 `patients/<patient_code>/profile.json` 的 `locale` 字段。有则直接复用，**不重新检测**——保证整个患者旅程脚手架语言一致。
+2. 无 profile / `locale` 为 null → 从用户当前对话语言检测 BCP-47 locale（en / fr / es / zh / …），写回 `profile.json.locale`（无 profile 时由后续 organize 落地，本 skill 检测到则先写）。
+3. 用户显式要求换语言（"answer me in English" / "用中文"）→ 更新 `profile.json.locale` 并照办，覆盖自动检测。
+
+**本地化脚手架，绝不动临床实体**：所有患者可见输出（QUERY.md、SHORTLIST.md、顶层结论、匹配理由、挂号路径、限制项、路由话术、diff/确认话术、免责声明、日期格式）按 locale 出；药名 / 基因 / 变异 / TNM / 分期 / 数值单位 / 量表标准名 / 注册号（NCT/ChiCTR）/ 机构原名一律 **verbatim 原文逐字**，禁止翻译（误译=医疗风险，见 `../../references/safety-guardrails.md` → 临床实体禁译）。机构名可在原名旁加 locale 通俗注释，不替换原名。
+
+派发 subagent 时在 prompt 里写明 **"Output all patient-visible scaffold/narrative prose in `<locale>`; keep clinical entities (drugs / genes / variants / TNM / numbers+units / registry IDs / institution names) verbatim per `../../references/i18n.md` §4."**
+
 ## Preflight
 
 ### Role check
 
 - `role=patient` 或 `role=caregiver`：正常工作
 - `role=family`（远亲/朋友）：refuse + 引导回主照护者
-  - 输出：`找医院/医生/试验涉及实际就医操作，需要患者本人或主照护者来推进。我可以陪你做的是把搜到的信息整理给 Ta 看。`
+  - 输出（**按 locale 出**，下文 zh 为 `zh` locale 的措辞，其它 locale 渲染同义文案）：`找医院/医生/试验涉及实际就医操作，需要患者本人或主照护者来推进。我可以陪你做的是把搜到的信息整理给 Ta 看。`
 
 ### Profile completeness
 
@@ -77,7 +89,9 @@ constraints:
 patient_profile_ref: patients/PT-XXXX/profile.json
 ```
 
-不确定的字段当面问用户，**别让 subagent 替你猜**。
+不确定的字段当面问用户，**别让 subagent 替你猜**。问用户的话术按 locale 出。
+
+> QUERY.md 的 YAML **键（key）是语言无关的稳定结构**，不本地化；值里的临床实体（cancer_type / molecular / stage…）保持病历原文逐字，叙事性自由文本（service_needed 描述、constraints 说明）按 locale 出。
 
 ### Step 2 — Plan parallel investigations
 
@@ -137,7 +151,7 @@ patient_profile_ref: patients/PT-XXXX/profile.json
 
 ### Step 5 — Write shortlist
 
-写到 `patients/<patient_code>/reports/find-care/<query-slug>/SHORTLIST.md`，按 [references/output-template.md](references/output-template.md)。
+写到 `patients/<patient_code>/reports/find-care/<query-slug>/SHORTLIST.md`，按 [references/output-template.md](references/output-template.md)。模板的脚手架字符串（section 标题 / 字段标签 / 匹配度档位词 / 免责声明）查 locale 字符串表渲染；临床实体逐字。
 
 每条目必含：
 - 名称（医院/医生/试验编号）
@@ -147,7 +161,7 @@ patient_profile_ref: patients/PT-XXXX/profile.json
 - 证据来源 URL 列表
 - 潜在风险/限制（费用 / 等候期 / 异地医保 / 试验排除标准）
 
-末尾**必须**有：
+末尾**必须**有（**按 locale 出**；下文均为 `zh` locale 示例措辞，其它 locale 渲染同义文案，临床实体与触发命令字面量逐字不译）：
 
 ```
 > 这是资源发现的结果，不是医学推荐。是否真的合适你（或你家人）的具体情况，需要带着这份清单和你的主诊医生讨论，或挂号后由对方医生评估。
@@ -155,7 +169,7 @@ patient_profile_ref: patients/PT-XXXX/profile.json
 
 **当短名单里包含临床试验**（NCT / ChiCTR 编号），追加 next-step 路由 + 按需安装 companion。
 
-给用户的话术（追加在 SHORTLIST 末尾）：
+给用户的话术（追加在 SHORTLIST 末尾，**按 locale 出**；NCT/ChiCTR 编号、命令字面量逐字不译）：
 
 ```
 > 这份名单只是把"在招"的试验筛选了一遍，不等于你符合入排标准。要做 patient × trial 的 criterion 级（入排标准逐条 CoT 评估）匹配并出可审计的决策报告，跑配套的 [`clinical-trial-matching`](https://github.com/CancerDAO/clinical-trial-matching-skill) skill。
@@ -173,7 +187,7 @@ patient_profile_ref: patients/PT-XXXX/profile.json
      echo "missing"
    fi
    ```
-2. **未装 → 自动拉 CancerDAO 开源 companion**（无需用户先 `npx skills add`），先告知用户一句：
+2. **未装 → 自动拉 CancerDAO 开源 companion**（无需用户先 `npx skills add`），先告知用户一句（**按 locale 出**，命令与 repo URL 逐字不译）：
    > 我先把 [`clinical-trial-matching`](https://github.com/CancerDAO/clinical-trial-matching-skill) companion 装上（CancerDAO 开源 skill，约 3 秒），装完直接跑匹配。
    ```bash
    npx skills add CancerDAO/clinical-trial-matching-skill -g --all
@@ -226,5 +240,5 @@ patients/<patient_code>/reports/find-care/<query-slug>/
 - [scoring-rubric.md](references/scoring-rubric.md) — 排序打分维度和权重
 - [output-template.md](references/output-template.md) — SHORTLIST.md 模板
 - [mtb-centers-cn-seed.md](references/mtb-centers-cn-seed.md) — 已知设有 MTB/MDT 项目的中国大陆癌种中心种子列表（人工维护，不替代实时调研）
-- 共用：`../../references/roles.md`, `../../references/safety-guardrails.md`, `../../references/disclosure-behavior.md`
+- 共用：`../../references/roles.md`, `../../references/safety-guardrails.md`, `../../references/disclosure-behavior.md`, `../../references/i18n.md`（locale 检测/persist/临床实体禁译）
 - 联网底层依赖：`../web-access/SKILL.md`（subagent 必须加载）

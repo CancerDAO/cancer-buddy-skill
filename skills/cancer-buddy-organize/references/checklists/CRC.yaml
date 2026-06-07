@@ -1,0 +1,87 @@
+# Colorectal Cancer (CRC) — minimum data checklist
+# Used by cancer-buddy-organize to generate missing_items.json
+# Driven by NCCN Colon/Rectal 2024 + CSCO CRC 2024
+
+cancer_type: CRC
+version: CRC-v1
+last_updated: 2026-05-25
+sources:
+  - "NCCN Colon Cancer v3.2024"
+  - "NCCN Rectal Cancer v3.2024"
+  - "CSCO 结直肠癌诊疗指南 2024"
+
+# Items are listed by stage context. The synthesis worker picks the
+# closest-fit stage_context and unions any "all" items.
+
+stages:
+  all:
+    - item: "病理报告 (含分化程度 + 浸润深度)"
+      priority: P0
+      category: pathology
+      reason: "诊断 + AJCC TNM 分期所需"
+    - item: "胸腹盆 CT (评估转移)"
+      priority: P0
+      category: imaging
+      reason: "全身分期"
+    - item: "肿瘤标志物: CEA, CA19-9"
+      priority: P0
+      category: lab
+      reason: "基线 + 治疗监测"
+    - item: "血常规 + 肝肾功能"
+      priority: P1
+      category: lab
+      reason: "化疗 / 手术安全评估"
+    - item: "ECOG / PS 评分"
+      priority: P1
+      category: history
+      reason: "治疗方案选择"
+
+  "I-II":
+    - item: "MSI / MMR 检测"
+      priority: P0
+      category: molecular
+      reason: "II 期辅助化疗决策 + 林奇综合征筛查"
+
+  "III":
+    - item: "MSI / MMR 检测"
+      priority: P0
+      category: molecular
+      reason: "辅助化疗决策 + 林奇综合征筛查"
+    - item: "盆腔 MRI (直肠癌)"
+      priority: P0
+      category: imaging
+      reason: "直肠癌环周切缘评估"
+
+  "IV":
+    - item: "KRAS / NRAS / BRAF 突变检测"
+      priority: P0
+      category: molecular
+      reason: "EGFR 抗体 (西妥昔单抗 / 帕尼单抗) 治疗决策"
+    - item: "MSI / MMR 检测"
+      priority: P0
+      category: molecular
+      reason: "免疫治疗适用性 (帕博利珠单抗 / 纳武利尤单抗)"
+    - item: "HER2 IHC / ISH 检测"
+      priority: P1
+      category: molecular
+      reason: "曲妥珠单抗双联治疗适用"
+    - item: "RAS/BRAF 野生型患者: NTRK 融合检测"
+      priority: P2
+      category: molecular
+      reason: "拉罗替尼 / 恩曲替尼适用"
+    - item: "肝转移患者: 肝脏 MRI 增强"
+      priority: P1
+      category: imaging
+      reason: "可切除性评估"
+    - item: "知情同意书 (基因检测 + 治疗)"
+      priority: P1
+      category: consent
+      reason: "PIPL + 临床合规"
+
+postoperative_followup:
+  - item: "术后 CEA 监测 (每 3 个月 × 2 年)"
+    priority: P1
+    category: lab
+  - item: "术后随访 CT (每 6-12 个月)"
+    priority: P1
+    category: imaging

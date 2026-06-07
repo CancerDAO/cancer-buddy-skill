@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cancerdao.org/schemas/cancer-buddy/molecular.schema.json",
+  "title": "Molecular",
+  "description": "NGS / IHC / MSI / MMR results for a patient.",
+  "type": "object",
+  "required": ["patient_code", "schema_version"],
+  "additionalProperties": false,
+  "properties": {
+    "patient_code": { "type": "string", "pattern": "^PT-[A-F0-9]+(_\\d+)?$" },
+    "schema_version": { "const": "1" },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "variants": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["gene"],
+        "additionalProperties": false,
+        "properties": {
+          "gene": { "type": "string" },
+          "variant": { "type": ["string", "null"], "description": "HGVS or legacy notation, e.g. 'G12C', 'p.G12C', 'c.34G>T'." },
+          "vaf": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+          "test_date": { "type": ["string", "null"], "format": "date" },
+          "method": { "type": ["string", "null"], "description": "NGS / Sanger / FISH / PCR / IHC" },
+          "tissue": { "type": ["string", "null"], "description": "Tumor / blood / ctDNA / liquid biopsy." },
+          "evidence_tier": { "type": ["string", "null"], "enum": ["I", "II", "III", "IV", null] },
+          "source_refs": {
+            "type": "array",
+            "items": { "type": "string", "pattern": "^(([0-9]{2}_[^\\s/]+(/[^\\s/]+)*\\.md(#L\\d+(-L\\d+)?|#[A-Za-z0-9_-]+)?)|(conversation:\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})?))$" }
+          }
+        }
+      }
+    },
+    "ihc": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["marker"],
+        "additionalProperties": false,
+        "properties": {
+          "marker": { "type": "string" },
+          "value": { "type": ["string", "null"] },
+          "test_date": { "type": ["string", "null"], "format": "date" },
+          "source_refs": {
+            "type": "array",
+            "items": { "type": "string", "pattern": "^(([0-9]{2}_[^\\s/]+(/[^\\s/]+)*\\.md(#L\\d+(-L\\d+)?|#[A-Za-z0-9_-]+)?)|(conversation:\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})?))$" }
+          }
+        }
+      }
+    },
+    "msi_mmr": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "status": { "type": ["string", "null"], "enum": ["MSS", "MSI-L", "MSI-H", "dMMR", "pMMR", null] },
+        "method": { "type": ["string", "null"], "enum": ["IHC", "PCR", "NGS", null] },
+        "source_refs": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^(([0-9]{2}_[^\\s/]+(/[^\\s/]+)*\\.md(#L\\d+(-L\\d+)?|#[A-Za-z0-9_-]+)?)|(conversation:\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})?))$" }
+        }
+      }
+    },
+    "tmb": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "value": { "type": ["number", "null"] },
+        "unit": { "type": ["string", "null"], "enum": ["mut/Mb", null] },
+        "source_refs": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^(([0-9]{2}_[^\\s/]+(/[^\\s/]+)*\\.md(#L\\d+(-L\\d+)?|#[A-Za-z0-9_-]+)?)|(conversation:\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})?))$" }
+        }
+      }
+    }
+  }
+}

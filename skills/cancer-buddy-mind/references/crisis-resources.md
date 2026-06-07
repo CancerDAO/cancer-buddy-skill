@@ -1,5 +1,7 @@
 # 危机资源 — 立即可用
 
+> **Locale (i18n).** Crisis resources are **region-bound, not locale-bound** (per `../../../references/i18n.md` and the SKILL.md locale note). Surface hotlines for the patient's **actual region/country** — the China table below is the default when the patient is in China; for other regions surface that region's verified crisis lines (e.g. 988 US, 116 123 UK Samaritans, 113 NL, local emergency number). **Phone numbers, institution names and the emergency number stay verbatim** — never translate or alter them. Only the surrounding guidance copy (section headings, "when to call immediately", the family-facing steps) is rendered in `profile.json.locale`. If you cannot verify a region's hotline, fall back to the universal instruction: go to the nearest hospital emergency department now, and surface the local emergency number.
+
 ## 24 小时电话
 
 | 电话 | 覆盖 | 说明 |

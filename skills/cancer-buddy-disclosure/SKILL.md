@@ -7,6 +7,18 @@ description: "Diagnosis-disclosure negotiation for Chinese family contexts. Read
 
 Chinese families often suppress the cancer diagnosis from the patient. From love, from fear, from habit. This skill does not judge that starting point — it helps families move through suppression → partial → full disclosure as a process, not an event. Binary "tell everything or hide everything" is the anti-pattern. Layered disclosure paced to the patient's desire-to-know is the pattern.
 
+This skill ships its reference scripts (`age-specific-disclosure.md`, `family-scripts.md`, `when-patient-asks.md`, `layered-disclosure-model.md`) in Chinese because the disclosure-suppression dynamic they model is a Chinese-family pattern. Those scripts are **language exemplars, not fixed copy** — when the patient's `locale` is not `zh`, the structure (speaker → listener, the three-step reflex, the layer-by-layer pacing) carries over but the actual phrasing is regenerated in the patient's locale (see `## Locale`). The Chinese phrasings stay as worked examples.
+
+## Locale
+
+Read [../../references/i18n.md](../../references/i18n.md). Before producing any patient-visible output:
+
+1. Read `patients/<patient_code>/profile.json` → `locale`. If present, use it — do not re-detect.
+2. If absent (no profile, or `locale` is null), detect from the language the user is conversing in (disclosure is a chat sub-skill; detect from the current conversation), then write it back to `profile.json.locale` (BCP-47, e.g. `en` / `zh` / `fr`).
+3. Render every patient-visible scaffold string — the drafted family scripts, pivot phrases, age-/relationship-specific opening lines, `negotiation-notes.md` / `family-scripts-drafted.md` / `decision-log.md` section titles and labels, professional-mediation routing copy (the names 医务社工 / 医务处 / 伦理委员会 stay verbatim as institutional terms, with a locale gloss beside them), and any explanation prose — in that `locale`. The reference scripts are exemplars: regenerate the phrasing in the target locale, preserving the speaker→listener structure and layer pacing.
+4. Keep every clinical entity verbatim (drug names, genes/variants, TNM/stage, numbers + units, biomarker labels — e.g. the `XX 癌` / `IV 期` / `osimertinib` placeholders families fill in) regardless of `locale` — never translate, transliterate, or normalize them. Mistranslating a clinical entity is a P0 medical-safety bug.
+5. Honor an explicit user language override ("answer me in English" / "用中文") → update `profile.json.locale` and follow it going forward.
+
 ## When to use
 
 - Caregiver asks whether to tell patient ("告不告诉我妈她得癌了?" / "他爸妈不让说")
@@ -30,14 +42,14 @@ Chinese families often suppress the cancer diagnosis from the patient. From love
 3. **If capacity intact**:
    - Ask whether patient wants to know. Families often have NOT asked; many Chinese patients want to know more than adult children assume.
    - Apply [references/layered-disclosure-model.md](references/layered-disclosure-model.md) — basic-dx → prognosis → treatment-options → palliative, each layer paced.
-   - Generate age-appropriate and relationship-appropriate scripts from [references/age-specific-disclosure.md](references/age-specific-disclosure.md) and [references/family-scripts.md](references/family-scripts.md).
+   - Generate age-appropriate and relationship-appropriate scripts from [references/age-specific-disclosure.md](references/age-specific-disclosure.md) and [references/family-scripts.md](references/family-scripts.md). These references hold Chinese exemplar phrasings; emit the drafted scripts in the patient's `locale` (per `## Locale`), keeping the speaker→listener structure and layer pacing, with clinical placeholders verbatim.
 4. **Write `profile.disclosure_state`** (`suppressed` / `partial` / `full` / `unknown`) and **append to `disclosure_history[]`** after every transition: who decided, what layer, when, why. Every move through the layered model is logged.
-5. **When patient spontaneously asks** (e.g. "我是不是癌症？"): family does NOT need to lie and does not need to force full disclosure at that instant. Use [references/when-patient-asks.md](references/when-patient-asks.md) pivot scripts; if the patient asks the same question 3+ times across days, treat it as a desire-to-know signal and begin a disclosure-layer transition.
+5. **When patient spontaneously asks** (e.g. "我是不是癌症？"): family does NOT need to lie and does not need to force full disclosure at that instant. Use [references/when-patient-asks.md](references/when-patient-asks.md) pivot scripts (Chinese exemplars; deliver the pivot phrasing in the patient's `locale`); if the patient asks the same question 3+ times across days, treat it as a desire-to-know signal and begin a disclosure-layer transition.
 6. **When professional mediation is needed**: family disagrees internally and patient has capacity + desire-to-know / dispute between patient and surrogate / dementia with conflicting family views / legal-status questions about advance directive. Recommend medical social work (医务社工), palliative team, or hospital ethics committee (医务处 / 伦理委员会).
 
 ## Output
 
-Under `patients/<patient_code>/reports/disclosure/`:
+Under `patients/<patient_code>/reports/disclosure/` — all three files rendered in the patient's `locale` (section titles, labels, prose), with clinical entities verbatim:
 - `negotiation-notes.md` — family-internal discussion log (who feels what, what's driving suppression, what's been tried)
 - `family-scripts-drafted.md` — drafted scripts for the next disclosure moment, tailored to speaker → listener configuration
 - `decision-log.md` — every `disclosure_state` transition with who decided, which layer, when, and the reason
@@ -66,6 +78,7 @@ Writes `profile.disclosure_state` and appends to `profile.disclosure_history[]`.
 - [family-scripts.md](references/family-scripts.md) — scripts for 5 relationship configurations
 - [when-patient-asks.md](references/when-patient-asks.md) — how family handles spontaneous patient questions
 - [capacity-and-surrogates.md](references/capacity-and-surrogates.md) — dementia and surrogate-decision track
+- [../../references/i18n.md](../../references/i18n.md) — shared locale layer (detect → persist `profile.json.locale` → reuse; localize scaffold, never translate clinical entities)
 - [../../references/preflight.md](../../references/preflight.md)
 - [../../references/safety-guardrails.md](../../references/safety-guardrails.md) — disclosure-specific rules
 - [../../references/disclosure-behavior.md](../../references/disclosure-behavior.md)

@@ -1,6 +1,15 @@
 # Cover Letter Template — Doctor-to-Doctor
 
-Front page of the packet. 250-400 words English. Tone: respectful peer-to-peer, not apologetic, not promotional.
+Front page of the packet. 250-400 words. Tone: respectful peer-to-peer, not apologetic, not promotional.
+
+## Localization
+
+Write the letter in **`reviewer_locale`** — the target reviewing center's language (derived in `SKILL.md` → Locale; NOT `profile.json.locale`). See [../../../references/i18n.md](../../../references/i18n.md).
+
+- The body below IS the `en` rendering (and the source-of-truth when a concierge translates to `ja`). For any other `reviewer_locale`, treat the fixed scaffold lines — the salutation, "Enclosed you will find:", the enclosure list labels, "Primary oncologist:", "Sincerely," and the contact-block labels — as a **`reviewer_locale → string table`**; localize those keys, keep the letter's order and structure 1:1.
+- **Clinical entities stay verbatim regardless of `reviewer_locale`**: the diagnosis-with-stage, drug names, regimen names, and any embedded clinical values. Never translate, transliterate, or normalize them — mistranslation is a P0 medical-safety bug.
+
+The text below is the `en` string-table values:
 
 ---
 
@@ -46,6 +55,7 @@ Sincerely,
 ## Formatting rules
 
 - One page printed
+- Written in `reviewer_locale` (English values shown); clinical entities verbatim
 - No marketing language ("best center in the world", "only hope")
 - No specific financial questions in the cover letter (save for intake form or separate email)
 - Always name the specific question — reviewers triage by question relevance

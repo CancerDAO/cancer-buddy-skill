@@ -36,6 +36,8 @@
 
 ## 匹配度等级（呈现给用户）
 
+> 评分逻辑本身语言无关；**呈现给用户的档位词按 `profile.json.locale` 出**（高/中/低 → High/Medium/Low …），用 [output-template.md](output-template.md) 的 `tier.*` 字符串表渲染，临床实体逐字不译。见 `../../../references/i18n.md`。
+
 总分映射：
 - **高匹配** ≥ 22 分 — 强烈值得纳入考虑范围
 - **中匹配** 14–21 分 — 可选项，建议二次核实

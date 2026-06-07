@@ -53,7 +53,7 @@ What cancer brings isn't just the treatment — it's the pile of information, th
 ### 9 companion modules
 
 ```
-organize        Turn PDFs / images / docx records into a structured archive
+organize        Turn PDFs / images / docx records into a structured archive (auto-isolates irrelevant files, reconciles re-uploads)
 caregiver       Caregiver support: division of labor, self-care, burnout screening
 mind            Mental-health screening + crisis response (depression / anxiety / suicide risk)
 disclosure      Whether to tell, how to tell, when to tell
@@ -65,6 +65,8 @@ find-care       Find MTB/MDT-capable hospitals, sub-specialty oncologists, and r
 ```
 
 You don't have to use them in order. The system will first understand your role (patient / caregiver / family member), then guide the next step based on context.
+
+cancer-buddy also **auto-localizes its output to your records' language**: English records get an English archive, French records get French — no manual setting (the detected language is saved to your profile so the whole journey stays consistent). Clinical terms — drug names, genes, variants, TNM, numeric values and units — always stay verbatim, because a mistranslation is a medical risk; localization only touches section titles, field labels, and narrative copy.
 
 ### Design philosophy
 

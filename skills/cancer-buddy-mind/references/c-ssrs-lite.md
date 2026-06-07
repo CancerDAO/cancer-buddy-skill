@@ -1,5 +1,7 @@
 # C-SSRS Lite — 哥伦比亚自杀严重程度量表（精简版）
 
+> **Locale (i18n).** The 6 items below are the `zh` source rendering. Per `../../../references/i18n.md`: present them to the patient **in `profile.json.locale`** (read it; detect from conversation language if absent), using the validated C-SSRS translation for that locale where one exists. Keep the scale name "C-SSRS", item order, the yes/no logic and the "any yes → crisis rule" trigger **invariant across locales** — the trigger keys on the boolean answer, never on language. When a positive answer fires the crisis rule, the crisis acknowledgment and `crisis-resources.md` guidance are also surfaced in `locale` (hotline numbers/institutions verbatim).
+
 ## 问题 1
 
 过去一个月里，你是否有过希望自己死去的念头？

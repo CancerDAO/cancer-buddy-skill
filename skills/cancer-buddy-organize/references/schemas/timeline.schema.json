@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cancerdao.org/schemas/cancer-buddy/timeline.schema.json",
+  "title": "Timeline",
+  "description": "Chronological clinical events for a patient. Mirrors timeline.md but in machine-readable form.",
+  "type": "object",
+  "required": ["patient_code", "schema_version", "events"],
+  "additionalProperties": false,
+  "properties": {
+    "patient_code": { "type": "string", "pattern": "^PT-[A-F0-9]+(_\\d+)?$" },
+    "schema_version": { "const": "1" },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "events": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["date", "category", "title"],
+        "additionalProperties": false,
+        "properties": {
+          "date": { "type": "string", "format": "date" },
+          "category": { "type": "string", "enum": ["diagnosis", "surgery", "chemo", "radio", "immuno", "targeted", "molecular_test", "imaging", "lab", "hospitalization", "consult", "other"] },
+          "title": { "type": "string" },
+          "detail": { "type": ["string", "null"] },
+          "hospital": { "type": ["string", "null"] },
+          "source_refs": {
+            "type": "array",
+            "items": { "type": "string", "pattern": "^(([0-9]{2}_[^\\s/]+(/[^\\s/]+)*\\.md(#L\\d+(-L\\d+)?|#[A-Za-z0-9_-]+)?)|(conversation:\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})?))$" }
+          }
+        }
+      }
+    }
+  }
+}
