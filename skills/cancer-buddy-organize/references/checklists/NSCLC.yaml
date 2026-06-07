@@ -1,0 +1,74 @@
+# Non-Small-Cell Lung Cancer (NSCLC) — minimum data checklist
+# Driven by NCCN NSCLC 2024 + CSCO NSCLC 2024
+
+cancer_type: NSCLC
+version: NSCLC-v1
+last_updated: 2026-05-25
+sources:
+  - "NCCN NSCLC v4.2024"
+  - "CSCO 非小细胞肺癌诊疗指南 2024"
+
+stages:
+  all:
+    - item: "病理报告 (含组织学亚型 — 腺癌 / 鳞癌 / 大细胞 / NOS)"
+      priority: P0
+      category: pathology
+      reason: "驱动 NCCN/CSCO 治疗分流"
+    - item: "胸部增强 CT"
+      priority: P0
+      category: imaging
+      reason: "T + N 分期"
+    - item: "脑 MRI 或 CT"
+      priority: P0
+      category: imaging
+      reason: "≥ IB 期常规筛查脑转移"
+    - item: "PET-CT (全身)"
+      priority: P1
+      category: imaging
+      reason: "M 分期 + 治疗反应评估"
+    - item: "血常规 + 肝肾功能 + 心电图"
+      priority: P1
+      category: lab
+    - item: "ECOG / PS 评分"
+      priority: P1
+      category: history
+
+  "I-II":
+    - item: "PD-L1 IHC (22C3 / SP263)"
+      priority: P0
+      category: molecular
+      reason: "II-III 期辅助免疫治疗决策"
+    - item: "EGFR / ALK 检测 (腺癌)"
+      priority: P0
+      category: molecular
+      reason: "Adjuvant 奥希替尼 / 阿来替尼适用性"
+
+  "III":
+    - item: "EGFR / ALK / ROS1 检测"
+      priority: P0
+      category: molecular
+      reason: "巩固免疫 vs 靶向治疗决策"
+    - item: "PD-L1 IHC (22C3 / SP263)"
+      priority: P0
+      category: molecular
+
+  "IV":
+    - item: "完整驱动基因组 NGS (EGFR/ALK/ROS1/BRAF/KRAS/MET/RET/HER2/NTRK)"
+      priority: P0
+      category: molecular
+      reason: "一线治疗决策 — 多个 FDA/NMPA 批准靶向药"
+    - item: "PD-L1 IHC (22C3 / SP263)"
+      priority: P0
+      category: molecular
+      reason: "免疫单药 (PD-L1 ≥ 50%) vs 化免联合"
+    - item: "TMB (NGS panel)"
+      priority: P2
+      category: molecular
+      reason: "免疫治疗附加证据"
+    - item: "脑 MRI 增强"
+      priority: P0
+      category: imaging
+      reason: "脑转灶分布 — 影响 TKI 选择 + 局部治疗"
+    - item: "知情同意书 (基因检测 + 治疗)"
+      priority: P1
+      category: consent

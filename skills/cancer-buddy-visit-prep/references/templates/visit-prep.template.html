@@ -1,0 +1,299 @@
+<!--
+  ============ i18n LOCALE STRING TABLE (visit-prep scaffold) ============
+  Localize the SCAFFOLD only; keep every clinical entity verbatim (../../../../references/i18n.md §4).
+  The renderer (visit-prep-html-prompt.md) reads profile.json.locale and fills the {{i18n.<key>}}
+  placeholders below from this table. CSS + DOM structure stay 1:1 across locales — only these string
+  VALUES change. <html lang> + {{i18n.html_lang}} also follow locale.
+  zh = authoritative gold-standard wording. en = canonical translation. For a locale not listed,
+  generate equivalents in the target language (same meaning, same tone), keep clinical terms verbatim.
+  Add locale columns here; never hardcode a single-language scaffold string.
+
+  | key                  | zh                                              | en                                                                  |
+  |----------------------|-------------------------------------------------|---------------------------------------------------------------------|
+  | html_lang            | zh-CN                                           | en                                                                  |
+  | doc_title            | 就诊准备包                                       | Visit Prep Pack                                                     |
+  | disclaimer           | 这份材料只帮你把档案理清、把问题列好，不替代主诊医生的判断，也不含任何治疗建议 | This pack only organizes your records and your questions; it does not replace your attending physician and contains no treatment advice |
+  | report_date_label    | 生成日期                                         | Generated                                                           |
+  | visit_type_label     | 就诊类型                                         | Visit type                                                          |
+  | vt_first             | 初诊                                            | First consultation                                                  |
+  | vt_followup          | 复诊                                            | Follow-up                                                          |
+  | vt_switch            | 换线决策                                         | Treatment-change decision                                           |
+  | sec_snapshot         | 医生速览（30 秒看完）                             | Doctor's Snapshot (30-second read)                                  |
+  | snap_diagnosis       | 诊断 / 分期                                      | Diagnosis / Stage                                                   |
+  | snap_molecular       | 分子检测                                         | Molecular                                                          |
+  | snap_current_line    | 当前治疗线                                       | Current line of therapy                                             |
+  | snap_key_labs        | 关键异常指标                                     | Key abnormal labs                                                   |
+  | sec_questions        | 我要问医生的                                      | What I Want to Ask My Doctor                                        |
+  | q_group_confirm      | 请医生确认的（来自待确认项）                       | To confirm with the doctor (from items flagged for review)          |
+  | q_group_confirm_tag  | 待确认                                          | To confirm                                                         |
+  | q_group_supplement   | 能否补做 / 补齐的                                 | Tests / documents that may need to be added                         |
+  | q_group_next         | 下一步怎么走                                      | What are the next steps                                             |
+  | q_group_framework    | 这次就诊该问的（按就诊类型）                       | Questions for this visit type                                       |
+  | sec_bring            | 带什么                                           | What to Bring                                                       |
+  | bring_originals       | 该带的原件                                       | Originals to bring                                                  |
+  | bring_for_questions  | 为上面的问题该带的资料                            | Records to support the questions above                             |
+  | sec_changes          | 上次 → 这次的变化                                | Since Last Visit                                                    |
+  | chg_new_symptoms     | 新出现的症状 / 不适                               | New symptoms / complaints                                          |
+  | chg_lab_trends       | 指标趋势                                         | Lab trends                                                         |
+  | chg_new_tests        | 上次之后做的新检查                               | New tests done since last visit                                     |
+  | val_pending          | 资料缺失 / 待补充                                | Data missing / to be supplemented                                  |
+  | val_none_flagged     | 暂无待确认项                                      | No items flagged for review                                         |
+  | footer_doc           | 就诊准备包                                       | Visit Prep Pack                                                    |
+  | footer_note          | 由抗癌搭子 cancer-buddy-visit-prep 生成 · 仅装配现有资料，未做任何临床判断 | Generated by cancer-buddy-visit-prep · assembled from existing records only; no clinical judgment made |
+  ================================================================
+-->
+<!DOCTYPE html>
+<html lang="{{i18n.html_lang}}">
+<head>
+<meta charset="UTF-8">
+<title>{{i18n.doc_title}}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+@page { size: A4; margin: 12mm 14mm; }
+* { box-sizing: border-box; }
+body {
+  font-family: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif;
+  font-size: 10.5pt;
+  line-height: 1.6;
+  color: #1f2937;
+  margin: 0;
+  padding: 12mm 14mm;
+  max-width: 210mm;
+}
+.header {
+  border-bottom: 2.5pt solid #1a4480;
+  padding-bottom: 6pt;
+  margin-bottom: 10pt;
+}
+.header h1 {
+  font-size: 15pt;
+  margin: 0 0 2pt 0;
+  color: #1a4480;
+  letter-spacing: 0.3pt;
+}
+.header .subtitle {
+  font-size: 9.5pt;
+  color: #4b5563;
+  margin: 0;
+}
+.header .meta {
+  font-size: 8.5pt;
+  color: #6b7280;
+  margin-top: 3pt;
+}
+h2 {
+  font-size: 10.5pt;
+  color: #1a4480;
+  margin: 9pt 0 4pt 0;
+  padding: 2pt 6pt;
+  background: #eef2f7;
+  border-left: 3pt solid #1a4480;
+  letter-spacing: 0.2pt;
+  page-break-after: avoid;
+  break-after: avoid;
+}
+.section-keep { page-break-inside: avoid; break-inside: avoid; }
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 9.8pt;
+  margin: 3pt 0 6pt 0;
+}
+th, td {
+  border: 0.5pt solid #d1d5db;
+  padding: 3pt 6pt;
+  text-align: left;
+  vertical-align: top;
+}
+.kv-table td:first-child {
+  width: 26%;
+  background: #f9fafb;
+  font-weight: 600;
+  color: #374151;
+}
+/* Doctor snapshot — compact key/value box */
+.snapshot-box {
+  border: 1pt solid #1a4480;
+  border-radius: 3pt;
+  background: #f0f6ff;
+  padding: 2pt 0;
+  margin: 3pt 0 6pt 0;
+}
+.snapshot-box .kv-table { margin: 0; }
+.snapshot-box .kv-table td { border-color: #c7d7ee; }
+/* Question blocks */
+.q-group { margin: 4pt 0 7pt 0; }
+.q-group .q-group-title {
+  font-weight: 600;
+  color: #1a4480;
+  font-size: 10pt;
+  margin: 4pt 0 2pt 0;
+}
+ol.q-list, ul.q-list {
+  margin: 2pt 0 4pt 0;
+  padding-left: 18pt;
+}
+ol.q-list li, ul.q-list li {
+  margin: 2pt 0;
+  font-size: 9.8pt;
+  line-height: 1.5;
+}
+/* A "to confirm" question carries the待确认项 framing, never asserted as fact */
+.q-confirm {
+  background: #fffbeb;
+  border-left: 3pt solid #f59e0b;
+  padding: 2pt 8pt;
+  border-radius: 2pt;
+}
+.q-confirm .q-group-title { color: #92400e; }
+.q-confirm-tag {
+  display: inline-block;
+  font-size: 8pt;
+  font-weight: 600;
+  color: #92400e;
+  background: #fef3c7;
+  border-radius: 2pt;
+  padding: 0 4pt;
+  margin-right: 4pt;
+}
+.bring-list { margin: 2pt 0 4pt 0; padding-left: 18pt; }
+.bring-list li { margin: 2pt 0; font-size: 9.8pt; }
+.bring-sub-title { font-weight: 600; color: #374151; font-size: 9.5pt; margin: 4pt 0 1pt 0; }
+.chg-block { margin: 3pt 0 5pt 0; }
+.chg-block .chg-title { font-weight: 600; color: #374151; font-size: 9.5pt; margin: 3pt 0 1pt 0; }
+.chg-block ul { margin: 1pt 0 3pt 0; padding-left: 18pt; }
+.chg-block li { margin: 1pt 0; font-size: 9.8pt; }
+.pending { color: #6b7280; font-style: italic; }
+.footer {
+  margin-top: 10pt;
+  padding-top: 5pt;
+  border-top: 0.5pt solid #d1d5db;
+  font-size: 8pt;
+  color: #6b7280;
+  text-align: right;
+}
+</style>
+</head>
+<body>
+
+<!-- ============ HEADER ============ -->
+<!-- 来源: profile.json (一句话病情线) + visit_type + 当日日期。disclaimer 固定文案(查表)，明文"不替代主诊医生 / 不含治疗建议"。 -->
+<div class="header">
+  <h1>{{i18n.doc_title}}</h1>
+  <p class="subtitle">{{one_line_condition}}　·　{{i18n.visit_type_label}}：{{visit_type_label}}</p>
+  <p class="meta">{{i18n.report_date_label}}：{{report_date}}　|　{{i18n.disclaimer}}</p>
+</div>
+
+<!-- ============ BLOCK 1: 医生速览 ============ -->
+<!-- 来源: profile.json (primary_cancer/histology/stage) + molecular.json (variants/msi_mmr/ihc/tmb) + treatment_lines.json 当前线 + labs.json 异常项。
+     直接字段映射,临床实体 verbatim(../../../../references/i18n.md §4)。任一字段 null → 渲染 {{i18n.val_pending}},不捏造。 -->
+<h2>{{i18n.sec_snapshot}}</h2>
+<div class="snapshot-box section-keep">
+  <table class="kv-table">
+    <tr><td>{{i18n.snap_diagnosis}}</td><td>{{snapshot_diagnosis}}</td></tr>
+    <tr><td>{{i18n.snap_molecular}}</td><td>{{snapshot_molecular}}</td></tr>
+    <tr><td>{{i18n.snap_current_line}}</td><td>{{snapshot_current_line}}</td></tr>
+    <tr><td>{{i18n.snap_key_labs}}</td><td>{{snapshot_key_labs}}</td></tr>
+  </table>
+</div>
+
+<!-- ============ BLOCK 2: 我要问医生的 (核心,subagent 派生) ============ -->
+<!-- 来源: subagent 从 readiness.json.review_flags[] / missing_items.json.missing[] / timeline (进展) 派生 + 叠 question-frameworks.md 的 visit_type 框架。
+     护栏: review_flags 一律呈现为"请医生确认:<X>"待确认问题,绝不裁决成事实(.q-confirm 黄框 + 待确认标签)。不推荐治疗/不解读/不临床判断。详见 visit-prep-html-prompt.md。 -->
+<h2>{{i18n.sec_questions}}</h2>
+
+<!-- Group A: 来自 review_flags → 待医生确认项 (黄框,绝不当事实) -->
+<div class="q-group q-confirm section-keep">
+  <div class="q-group-title">{{i18n.q_group_confirm}}</div>
+  <!-- LOOP confirm_questions: 每个 review_flag 一条,文案形如"请医生确认：档案里 <field> 记的是 <current_value>，对吗？" 若 review_flags 为空 → 渲染一条 <li class="pending">{{i18n.val_none_flagged}}</li> -->
+  <ul class="q-list">
+    <li><span class="q-confirm-tag">{{i18n.q_group_confirm_tag}}</span>{{confirm_question}}</li>
+  </ul>
+  <!-- END LOOP -->
+</div>
+
+<!-- Group B: 来自 missing_items → 能否补做/补齐 -->
+<div class="q-group section-keep">
+  <div class="q-group-title">{{i18n.q_group_supplement}}</div>
+  <!-- LOOP supplement_questions: 每个 missing_items.missing[] 一条,文案形如"能不能补做/补齐 <item>？(<reason>)" 无缺项 → <li class="pending">{{i18n.val_pending}}</li> -->
+  <ul class="q-list">
+    <li>{{supplement_question}}</li>
+  </ul>
+  <!-- END LOOP -->
+</div>
+
+<!-- Group C: 来自 timeline 进展 → 下一步 -->
+<div class="q-group section-keep">
+  <div class="q-group-title">{{i18n.q_group_next}}</div>
+  <!-- LOOP next_questions: 从最近 timeline 事件/转归派生的"下一步该问什么",患者向、非临床建议 -->
+  <ul class="q-list">
+    <li>{{next_question}}</li>
+  </ul>
+  <!-- END LOOP -->
+</div>
+
+<!-- Group D: visit_type 框架问题 (question-frameworks.md) -->
+<div class="q-group section-keep">
+  <div class="q-group-title">{{i18n.q_group_framework}}</div>
+  <!-- LOOP framework_questions: 从 question-frameworks.md 取 visit_type(初诊/复诊/换线决策) 对应脚手架,subagent 按本患者档案做轻量个性化(套字段,不新增临床判断) -->
+  <ol class="q-list">
+    <li>{{framework_question}}</li>
+  </ol>
+  <!-- END LOOP -->
+</div>
+
+<!-- ============ BLOCK 3: 带什么 ============ -->
+<!-- 来源: missing_items.json + 档案现状(data_sources / 各 bucket 是否有原件)。推该带的原件 + 为上面问题该带的资料。只列该带什么,不解读内容。 -->
+<h2>{{i18n.sec_bring}}</h2>
+<div class="section-keep">
+  <div class="bring-sub-title">{{i18n.bring_originals}}</div>
+  <!-- LOOP bring_originals: 病理原件 / 影像光盘或胶片 / 基因报告原件 等,按档案现状推。无可推项 → <li class="pending">{{i18n.val_pending}}</li> -->
+  <ul class="bring-list">
+    <li>{{bring_original_item}}</li>
+  </ul>
+  <!-- END LOOP -->
+
+  <div class="bring-sub-title">{{i18n.bring_for_questions}}</div>
+  <!-- LOOP bring_for_questions: 针对 Block 2 待问问题该一并带的资料(如待确认 stage → 带原始病理/诊断证明) -->
+  <ul class="bring-list">
+    <li>{{bring_for_question_item}}</li>
+  </ul>
+  <!-- END LOOP -->
+</div>
+
+<!-- ============ BLOCK 4: 上次 → 这次的变化 (仅复诊;visit_type != 复诊 时整块不渲染) ============ -->
+<!-- 来源: timeline.json + labs.json,抽"上次就诊后"的新症状/指标趋势/新检查。只罗列事实变化,不解读、不判断趋势好坏。每子块无数据 → <li class="pending">{{i18n.val_pending}}</li> -->
+<!-- RENDER_IF visit_type == followup -->
+<h2>{{i18n.sec_changes}}</h2>
+<div class="section-keep">
+  <div class="chg-block">
+    <div class="chg-title">{{i18n.chg_new_symptoms}}</div>
+    <!-- LOOP change_symptoms -->
+    <ul><li>{{change_symptom}}</li></ul>
+    <!-- END LOOP -->
+  </div>
+  <div class="chg-block">
+    <div class="chg-title">{{i18n.chg_lab_trends}}</div>
+    <!-- LOOP change_lab_trends: 形如 "CEA 12.4 → 18.7 ng/mL (2024-03 → 2024-05)" — 数值/单位 verbatim,只陈列趋势不判好坏 -->
+    <ul><li>{{change_lab_trend}}</li></ul>
+    <!-- END LOOP -->
+  </div>
+  <div class="chg-block">
+    <div class="chg-title">{{i18n.chg_new_tests}}</div>
+    <!-- LOOP change_new_tests -->
+    <ul><li>{{change_new_test}}</li></ul>
+    <!-- END LOOP -->
+  </div>
+</div>
+<!-- END RENDER_IF -->
+
+<!-- ============ FOOTER ============ -->
+<div class="footer">
+  {{i18n.footer_doc}} · {{report_date}}<br>
+  {{i18n.footer_note}}
+</div>
+
+</body>
+</html>

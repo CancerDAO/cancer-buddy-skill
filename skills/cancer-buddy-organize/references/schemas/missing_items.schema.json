@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cancerdao.org/schemas/cancer-buddy/missing_items.schema.json",
+  "title": "MissingItems",
+  "description": "Cancer-type checklist diff: what the patient still needs to gather, derived from references/checklists/{cancer_type}.yaml.",
+  "type": "object",
+  "required": ["patient_code", "schema_version", "checklist_version"],
+  "additionalProperties": false,
+  "properties": {
+    "patient_code": { "type": "string", "pattern": "^PT-[A-F0-9]+(_\\d+)?$" },
+    "schema_version": { "const": "1" },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "checklist_version": { "type": "string", "description": "Resolves to references/checklists/<cancer_type>.yaml@<version>. E.g. 'CRC-v1', 'NSCLC-v1'." },
+    "cancer_type": { "type": ["string", "null"] },
+    "stage_context": { "type": ["string", "null"] },
+    "missing": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["item", "priority"],
+        "additionalProperties": false,
+        "properties": {
+          "item": { "type": "string", "description": "Plain-language description of the missing investigation/document." },
+          "priority": { "type": "string", "enum": ["P0", "P1", "P2"] },
+          "reason": { "type": ["string", "null"], "description": "Why this is needed (e.g. 'IV 期 CRC 必需 / NCCN'). " },
+          "category": { "type": ["string", "null"], "enum": ["pathology", "imaging", "lab", "molecular", "history", "consent", null] }
+        }
+      }
+    },
+    "to_confirm": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["item"],
+        "additionalProperties": false,
+        "properties": {
+          "item": { "type": "string" },
+          "reason": { "type": ["string", "null"] },
+          "source_refs": {
+            "type": "array",
+            "items": { "type": "string", "pattern": "^(([0-9]{2}_[^\\s/]+(/[^\\s/]+)*\\.md(#L\\d+(-L\\d+)?|#[A-Za-z0-9_-]+)?)|(conversation:\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})?))$" }
+          }
+        }
+      }
+    }
+  }
+}

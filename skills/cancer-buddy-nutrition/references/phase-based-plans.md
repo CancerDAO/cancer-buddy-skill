@@ -1,5 +1,7 @@
 # 治疗阶段营养方案
 
+> **Locale**: phase titles, food-handling notes and any prose surfaced to the patient are the **source string table** — render in `profile.json.locale` per `../../../references/i18n.md` §5. Protein/calorie targets, numbers + units (`1.5-2.0 g/kg/day`, `ANC < 1.0`, `~300 kcal/day`), drug names (奥希替尼 / 阿法替尼 / 瑞戈非尼) and biomarker/target labels (EGFR / ALK / BRAF / MEK / PD-1 / PD-L1 / CTLA-4) stay verbatim across locales.
+
 ## 术前
 
 **目标**：为手术恢复储备。

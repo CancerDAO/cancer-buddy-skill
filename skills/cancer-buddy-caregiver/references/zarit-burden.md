@@ -1,5 +1,7 @@
 # Zarit Burden Interview — 照护者负担自评
 
+> **Locale** — this is a validated screening instrument: render the 22 item prompts, the response-anchor labels and the interpretation/trigger scaffold in `profile.json.locale` (see `../../../references/i18n.md`). The `zh` items below are the source string table; output the localized equivalent for any other locale, but **keep the instrument's standard name verbatim** (`Zarit Burden Interview`) and **keep all numbers/cutoffs verbatim** (`0-4` anchors, item numbers, score bands `0-20 / 21-40 / 41-60 / >60`, hard-trigger thresholds `≥ 3`). For a validated locale, prefer that locale's officially translated Zarit wording over an ad-hoc rendering; numbers and scoring never change.
+
 22 题版。每题按 0-4 评分（0=从来没有, 1=很少, 2=有时, 3=常常, 4=几乎总是）。
 
 ## 量表（直接问自己）

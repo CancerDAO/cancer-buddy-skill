@@ -1,5 +1,7 @@
 # 跨境寄送病历指南
 
+> **Localization** — this is a **patient-facing** operational guide → render the scaffold/prose in **`profile.json.locale`** (see [../../../references/i18n.md](../../../references/i18n.md)). The text below is the `zh` rendering; for another locale, output the equivalent guidance in that locale. Two carve-outs that stay verbatim regardless of locale: (1) the **customs-declaration English strings** in the 海关申报 table (`"Medical records for consultation. No commercial value. Personal use."` etc.) — couriers/customs need them in the destination's required language, do not translate; (2) **center names, addresses, emails, URLs, and clinical entities** — verbatim.
+
 大部分 top centers 接受电子提交或 mail。先试电子。
 
 ## 优先顺序
@@ -48,6 +50,9 @@
 - 收件方签收后 email 确认
 
 ## 具体各中心寄送地址
+
+> **⚠️ Freshness — these addresses/emails/portals are routing hints, not confirmed current truth.** International offices relocate, rename, and switch intake emails/portals without notice; an irreplaceable pathology block shipped to a stale address is lost and a one-shot consultation slot is burned. Per SKILL.md **Verify-before-send**, before any of these contact lines is quoted into `shipping-instructions.md` or a packet, do a live web check against the center's `source_url` in `top-centers.md`. If the live result differs, it wins; if it can't be confirmed, the instructions must say *"confirm the current shipping address/intake directly with the center"* — do not present a stale line as current.
+> `freshness` for every center below: `last_verified: 2026-06-08` · `verify_before_send: true` · `source_url:` see the matching row in `top-centers.md`.
 
 ### Memorial Sloan Kettering Cancer Center (MSK, NY)
 

@@ -1,5 +1,7 @@
 # 陪化疗当天 Checklist
 
+> **Locale** — render every checklist item, section title and self-care line in `profile.json.locale` (see `../../../references/i18n.md`). The `zh` text below is the source string table; output the localized equivalent for any other locale. Keep clinical entities verbatim: drug/regimen names the user supplies, temperature thresholds and units (`38°C`), time windows (`24-48 小时` / `24–48 h`), durations (`3-6 小时`). Translate only the scaffold (section titles, instructions, narrative connectives).
+
 ## 治疗前一天
 
 - 确认预约时间、科室、主管医生

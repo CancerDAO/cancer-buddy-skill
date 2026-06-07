@@ -1,6 +1,15 @@
-# Case Summary Template — English, 1-2 page
+# Case Summary Template — 1-2 page
 
-Format the English case summary as follows. Keep it under 2 pages when PDF-converted. Reviewers triage quickly — front-load the specific question.
+Format the case summary as follows. Keep it under 2 pages when PDF-converted. Reviewers triage quickly — front-load the specific question.
+
+## Localization
+
+Render the scaffold (section headers, field labels, formatting-rule prose) in **`reviewer_locale`** — the target reviewing center's language, derived in `SKILL.md` → Locale (NOT `profile.json.locale`). See [../../../references/i18n.md](../../../references/i18n.md).
+
+- The structure below IS the `en` rendering (and the source-of-truth when a downstream concierge translates to `ja`). For any other `reviewer_locale`, treat the section headers / field labels / table column heads as a **`reviewer_locale → string table`**: localize the *keys* (e.g. "Question for Reviewer", "Diagnosis", "Best response", "Reason for discontinuation"), keep the section order and table shape 1:1.
+- **Clinical entities stay verbatim regardless of `reviewer_locale`** — drug names (`osimertinib`), genes/variants (`EGFR L858R`), stage/TNM (`cT3N2M1a`, `IVA`), numbers + units (`80 mg QD`, `2.3 cm`, `VAF 42%`), biomarker labels (`PD-L1 TPS`, `TMB`, `MSS/MSI-H`). Never translate, transliterate, or normalize them — mistranslation is a P0 medical-safety bug.
+
+The headers shown below are the `en` string-table values:
 
 ---
 
@@ -83,9 +92,9 @@ See `records-index.md`. Key items: [biopsy report, latest imaging CD, molecular 
 
 ## Formatting rules
 
-- Use the exact section headers above
+- Use the section headers above, localized to `reviewer_locale` (English values shown)
 - Tables for any structured data (treatment history, labs)
-- Dates always YYYY-MM-DD or YYYY-MM
-- Measurements in SI units (cm, kg, mL, mmol/L)
-- Drug doses in brand-neutral generic names (osimertinib not Tagrisso)
+- Dates always YYYY-MM-DD or YYYY-MM (date format follows `reviewer_locale` convention only if the center requires it; default ISO)
+- Measurements in SI units (cm, kg, mL, mmol/L) — unit tokens are clinical entities, stay verbatim
+- Drug doses in brand-neutral generic names (osimertinib not Tagrisso), verbatim in source form
 - Keep under 2 printed pages — use bullets, not prose, where possible

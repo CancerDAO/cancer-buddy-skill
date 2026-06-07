@@ -1,5 +1,7 @@
 # Layered Disclosure Model —— 分层披露，而非"全告"或"全瞒"
 
+> **Locale**：四层模型（basic-dx → prognosis → treatment-options → palliative）、转入下一层的信号、转场脚本结构跨语言通用；示例用语为中文**语言范例**，按患者 `profile.json.locale` 出最终话术（见 SKILL.md `## Locale` + `../../references/i18n.md`）。临床占位（`IV 期`、中位生存期、`ECOG`、`RECIST`、药名/方案名）逐字保留，不翻译。`basic-dx` / `prognosis` / `treatment-options` / `palliative` 为稳定 layer key，跨 locale 不变。
+
 ## 核心命题
 
 披露不是一个事件（a moment），而是一个过程（a process）。把"告诉患者"想象成一个开关只有两档 —— 全告或全瞒 —— 是一个常见的思维错误，它让家属陷入"要么做冷酷的人，要么做善意的骗子"的二选一，然后通常选择后者，然后永远选不了前者。

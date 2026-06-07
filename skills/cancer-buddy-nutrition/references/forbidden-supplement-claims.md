@@ -1,5 +1,7 @@
 # 补剂的诚实评估
 
+> **Locale**: every `诚实回答` reply template and the closing 回答模板 below are the **source string table** — render the localized equivalent in `profile.json.locale` at output time per `../../../references/i18n.md` §5. Supplement standard names (灵芝孢子粉 / 冬虫夏草 / 人参 / vitamin C …), drug names and `<current_therapy>` placeholders stay verbatim across locales.
+
 患者和家属会问很多补剂——你要能给诚实、不带卖货气的评估。
 
 ## 原则

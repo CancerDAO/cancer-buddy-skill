@@ -13,9 +13,15 @@ Cancer treatment's real operator is often a spouse or adult child. This skill gi
 - User says: 家属 / 陪护 / burnout / 我是照顾者 / 我太累了 / 怎么陪诊 / 我爸妈/爱人生病了.
 - Any sub-skill detects caregiver-specific distress and routes here.
 
+## Locale
+
+Per `../../references/i18n.md`: read `profile.json.locale` first; if absent (or no profile yet), detect it from the **language the caregiver is conversing in** (the current chat input) and write it back to `profile.json.locale` (BCP-47, e.g. `zh` / `en` / `fr`). Reuse the persisted value on every later turn so the whole journey speaks one language. An explicit user override ("answer me in English" / "用中文") always wins and is written back.
+
+Render **every caregiver-visible output in that locale** — orientation copy, Zarit questionnaire, chemo-companion checklist, family-roles template, explaining-to-children scripts, the bad-news framing prompt, diff cards and routing copy. **Keep clinical entities verbatim** (drug names, genes/variants, TNM/stage, numbers + units, scale standard names) per `i18n.md` §4 — mistranslating one is a P0 safety bug. The reference files below carry their scaffold in `zh`; treat them as the source string table and render the localized equivalent at output time (§5 of `i18n.md`).
+
 ## Preflight
 
-Per `../../references/preflight.md`: role must be caregiver or family. If patient → refuse + offer "给家人看的要点" 2-page summary.
+Per `../../references/preflight.md`: role must be caregiver or family. If patient → refuse + offer a 2-page "key points for the family" summary, localized to `profile.json.locale`.
 
 ## Workflow
 
@@ -26,13 +32,13 @@ Determine what the caregiver needs:
 3. **Want to share load** → [family-roles-template.md](references/family-roles-template.md): who does hospital runs, who does pharmacy, who does emotional check-ins, who does finances. Export shareable family doc.
 4. **Kids ask what's going on** → [explaining-cancer-to-children.md](references/explaining-cancer-to-children.md) (age-appropriate language).
 5. **"I'm at the end of my rope"** → Zarit > 21 or affirmative suicidal statement → route to `cancer-buddy-mind` for caregiver-distress branch. Do NOT keep caregiver talking only to you.
-6. **Preparing for bad news** → soft framework for emotional pre-commitment without being morbid: "你想不想花 10 分钟想一下，如果接下来复查不好，你希望 Ta 得到什么？你希望你自己怎么被对待？"
+6. **Preparing for bad news** → soft framework for emotional pre-commitment without being morbid; render in `profile.json.locale`. `zh` source phrasing: "你想不想花 10 分钟想一下，如果接下来复查不好，你希望 Ta 得到什么？你希望你自己怎么被对待？"
 
 ## Role behavior
 
-- **Role = patient**: refuse + offer 2-page summary of caregiver skill for them to show their caregiver. Do not run workflow.
-- **Role = caregiver**: main workflow. All content second-person addressing the caregiver; 30% weight on self-care prompts.
-- **Role = family**: concise version. Focus on "how to support the primary caregiver without adding burden". Skip Zarit deep-dive; skip chemo-companion.
+- **Role = patient**: refuse + offer 2-page summary of caregiver skill for them to show their caregiver. Do not run workflow. (Summary in `profile.json.locale`.)
+- **Role = caregiver**: main workflow. All content second-person addressing the caregiver, in `profile.json.locale`; 30% weight on self-care prompts.
+- **Role = family**: concise version. Focus on "how to support the primary caregiver without adding burden". Skip Zarit deep-dive; skip chemo-companion. (In `profile.json.locale`.)
 
 ## Output
 
@@ -50,6 +56,7 @@ Written under `patients/<patient_code>/reports/caregiver/`:
 
 ## References
 
+- [../../references/i18n.md](../../references/i18n.md) — shared locale layer (detect / persist / verbatim-clinical)
 - [chemo-companion-checklist.md](references/chemo-companion-checklist.md)
 - [family-roles-template.md](references/family-roles-template.md)
 - [zarit-burden.md](references/zarit-burden.md) — 22-item Zarit Burden Interview (validated)

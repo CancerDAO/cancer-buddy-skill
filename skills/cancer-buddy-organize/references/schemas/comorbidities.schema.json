@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cancerdao.org/schemas/cancer-buddy/comorbidities.schema.json",
+  "title": "Comorbidities",
+  "description": "Concurrent conditions, long-term medications, and known allergies.",
+  "type": "object",
+  "required": ["patient_code", "schema_version"],
+  "additionalProperties": false,
+  "properties": {
+    "patient_code": { "type": "string", "pattern": "^PT-[A-F0-9]+(_\\d+)?$" },
+    "schema_version": { "const": "1" },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "conditions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name"],
+        "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string" },
+          "icd10": { "type": ["string", "null"] },
+          "onset": { "type": ["string", "null"], "format": "date" },
+          "status": { "type": ["string", "null"], "enum": ["active", "resolved", "in_remission", null] },
+          "source_refs": {
+            "type": "array",
+            "items": { "type": "string", "pattern": "^(([0-9]{2}_[^\\s/]+(/[^\\s/]+)*\\.md(#L\\d+(-L\\d+)?|#[A-Za-z0-9_-]+)?)|(conversation:\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})?))$" }
+          }
+        }
+      }
+    },
+    "medications": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name"],
+        "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string" },
+          "dose": { "type": ["string", "null"] },
+          "frequency": { "type": ["string", "null"] },
+          "indication": { "type": ["string", "null"] },
+          "started_at": { "type": ["string", "null"], "format": "date" },
+          "source_refs": {
+            "type": "array",
+            "items": { "type": "string", "pattern": "^(([0-9]{2}_[^\\s/]+(/[^\\s/]+)*\\.md(#L\\d+(-L\\d+)?|#[A-Za-z0-9_-]+)?)|(conversation:\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})?))$" }
+          }
+        }
+      }
+    },
+    "allergies": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["allergen"],
+        "additionalProperties": false,
+        "properties": {
+          "allergen": { "type": "string" },
+          "reaction": { "type": ["string", "null"] },
+          "source_refs": {
+            "type": "array",
+            "items": { "type": "string", "pattern": "^(([0-9]{2}_[^\\s/]+(/[^\\s/]+)*\\.md(#L\\d+(-L\\d+)?|#[A-Za-z0-9_-]+)?)|(conversation:\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})?))$" }
+          }
+        }
+      }
+    }
+  }
+}

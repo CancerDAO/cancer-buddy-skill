@@ -1,0 +1,65 @@
+# Hepatocellular Carcinoma (HCC) — minimum data checklist
+# Driven by NCCN Hepatobiliary 2024 + CSCO 原发性肝癌 2024
+
+cancer_type: HCC
+version: HCC-v1
+last_updated: 2026-05-25
+sources:
+  - "NCCN Hepatobiliary Cancers v3.2024"
+  - "CSCO 原发性肝癌诊疗指南 2024"
+
+stages:
+  all:
+    - item: "肝脏增强 MRI (LI-RADS 评估)"
+      priority: P0
+      category: imaging
+      reason: "HCC 临床诊断金标准 — 典型影像 + AFP 可豁免活检"
+    - item: "或肝脏增强 CT 三期"
+      priority: P0
+      category: imaging
+    - item: "AFP + AFP-L3 + PIVKA-II (DCP)"
+      priority: P0
+      category: lab
+      reason: "诊断 + 治疗反应监测"
+    - item: "HBV / HCV 血清学 (HBsAg, HBV DNA, anti-HCV)"
+      priority: P0
+      category: lab
+      reason: "抗病毒治疗启动 + 复发风险评估"
+    - item: "肝功能 (Child-Pugh 评分: 总胆红素 + 白蛋白 + 凝血 + 腹水 + 肝性脑病)"
+      priority: P0
+      category: lab
+      reason: "BCLC 分期 + 系统治疗安全评估"
+    - item: "BCLC 分期 (0 / A / B / C / D)"
+      priority: P0
+      category: history
+      reason: "唯一决定治疗路径的分期系统 — 优先于 TNM"
+    - item: "胸部 CT + 骨扫描 (≥ BCLC B)"
+      priority: P0
+      category: imaging
+      reason: "肝外转移评估"
+    - item: "血常规 + 肌酐"
+      priority: P1
+      category: lab
+
+  "BCLC B-C":
+    - item: "病理活检 (非典型影像 / 系统治疗前)"
+      priority: P1
+      category: pathology
+      reason: "免疫治疗启动建议有病理确认"
+
+  "BCLC C 系统治疗":
+    - item: "PD-L1 IHC"
+      priority: P2
+      category: molecular
+      reason: "辅助决策 — 非强制 (Atezo/Bev / Tremelimumab+Durva 不强制 PD-L1)"
+    - item: "胃镜 (静脉曲张筛查)"
+      priority: P0
+      category: imaging
+      reason: "Bevacizumab 用药前必查 — 静脉曲张破裂出血风险"
+    - item: "心脏超声 (LVEF)"
+      priority: P1
+      category: lab
+    - item: "甲状腺功能基线"
+      priority: P1
+      category: lab
+      reason: "免疫治疗 irAE 监测"

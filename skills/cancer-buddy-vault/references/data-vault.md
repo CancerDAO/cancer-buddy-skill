@@ -1,5 +1,13 @@
 # Data Vault — N=1 Patient Data Schema & Sharing Protocol
 
+## Locale
+
+This protocol is governed by [../../../references/i18n.md](../../../references/i18n.md). Resolve `locale` from `profile.json.locale` (detect + persist if absent) before producing any patient-visible output.
+
+- **JSON keys and enum values stay verbatim** (`recipient_type`, `access_type`, `"view"`, `"anonymized"`, level ids `private`/`authorized`/`anonymized`/`public`) — they are machine keys, not patient-facing prose.
+- **Human-readable values and prose are rendered in `locale`**: the `purpose` free-text, sharing-level *descriptions*, data-quality reminders, revocation confirmations, and breach notifications. Render fixed labels (level names, notice headings) as a `locale → string` lookup; run generative prose (case report, reminders) via a prompt instruction "Output scaffold/narrative prose in `<locale>`; keep clinical entities verbatim per `i18n.md` §4."
+- **Clinical entities stay verbatim in every locale** — diagnosis names, drug regimens, gene/variant strings, TNM/stage, numbers + units, biomarker labels are never translated, transliterated, or normalized (P0 medical-safety bug). The example strings below (e.g. "Profile is 72% complete. Missing: PD-L1 status…") show `en`; render the scaffold in the active `locale` while keeping the clinical tokens (`PD-L1`, `RNA-seq`) verbatim.
+
 ## Directory Structure
 
 ```
@@ -151,12 +159,14 @@ patient-vault/
 
 ## Data Sharing Levels
 
-| Level | Icon | Description | Use Case |
+The level **id** (`private` / `authorized` / `anonymized` / `public`) and icon are stable across locales; the **name / description / use-case** columns are rendered from a `locale → string` lookup (the table below is the `en` rendering).
+
+| Level id | Icon | Description (localize) | Use Case (localize) |
 |---|---|---|---|
-| Private | 🔒 | Only patient + designated caregiver | Default. All data starts here. |
-| Authorized | 🔑 | Specific doctors/researchers by invitation | Second opinions, clinical trial screening, MDT consultation |
-| Anonymized-for-AI | 📊 | De-identified data for federated learning | AI model improvement, population-level insights, no re-identification possible |
-| Public | 🌐 | Fully open (like a public patient data portal) | Patient advocacy, advancing research, radical transparency |
+| private | 🔒 | Only patient + designated caregiver | Default. All data starts here. |
+| authorized | 🔑 | Specific doctors/researchers by invitation | Second opinions, clinical trial screening, MDT consultation |
+| anonymized | 📊 | De-identified data for federated learning | AI model improvement, population-level insights, no re-identification possible |
+| public | 🌐 | Fully open (like a public patient data portal) | Patient advocacy, advancing research, radical transparency |
 
 ## Data Quality Scoring
 
@@ -170,7 +180,7 @@ Compute completeness percentage per category:
 | Imaging | baseline + most recent | Baseline = 50%, latest = 50% |
 | Timeline | >10 events covering diagnosis through current | <5 events = 30%, 5-10 = 60%, >10 = 100% |
 
-Generate missing data reminders: "Profile is 72% complete. Missing: PD-L1 status, RNA-seq results, most recent imaging report."
+Generate missing-data reminders in `locale`, keeping the clinical field names verbatim. `en`: "Profile is 72% complete. Missing: PD-L1 status, RNA-seq results, most recent imaging report." — render the scaffold ("Profile is N% complete. Missing: …") in the active `locale`, but keep `PD-L1`, `RNA-seq`, and any other clinical token verbatim.
 
 ## Privacy Compliance
 
@@ -255,7 +265,7 @@ When a patient revokes data sharing authorization:
   4. Log revocation event in audit log
 
 ### Confirmation to Patient
-Every revocation must generate a confirmation record sent to the patient containing:
+Every revocation must generate a confirmation record sent to the patient, with its prose rendered in `locale` (recipient ids, data-scope paths, and any clinical entity stay verbatim), containing:
 - Recipient whose access was revoked
 - Data scope that was revoked
 - Timestamp of revocation
@@ -284,7 +294,7 @@ Upon discovery of a data breach involving patient data:
 3. Prepare notification content
 
 **Hour 24–72: Notification**
-1. Notify affected patients with:
+1. Notify affected patients (notification prose rendered in each patient's `locale`; authority names and clinical entities verbatim) with:
    - What data was compromised
    - When the breach occurred and was discovered
    - What remediation steps have been taken

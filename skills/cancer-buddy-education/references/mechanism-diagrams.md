@@ -1,8 +1,29 @@
 # 疾病机制图库（Mermaid）
 
 Mechanism diagrams for common cancer treatment modalities. Each block is a
-simple flowchart (≤ 10 nodes) followed by a plain-language Chinese explanation
+simple flowchart (≤ 10 nodes) followed by a plain-language explanation
 the patient/family can read without medical training.
+
+## Locale
+
+Read `profile.json.locale` (detect + persist per `../../references/i18n.md` if
+absent). The diagrams and explanations below are the **`zh` source rendering**.
+When the patient's `locale` is not `zh`:
+
+- Render the **plain-language explanations** ("怎么读这张图" / "为什么会有副作用"
+  etc.) and the **descriptive node labels** (静止期 G0 → resting phase G0,
+  准备合成 → preparing synthesis, 免疫战士 → immune soldier) in that locale.
+- Keep **clinical entities inside nodes verbatim** in every locale: drug names
+  (环磷酰胺, 5-FU, 甲氨蝶呤, 紫杉醇, 顺铂, 吉非替尼, 奥希替尼, 帕博利珠,
+  纳武利尤, 阿替利珠, 度伐利尤, 贝伐珠单抗, 仑伐替尼 — as the source used them),
+  pathway/receptor/gene symbols (EGFR, ALK, ROS1, KRAS G12C, PD-1, PD-L1, RAS,
+  PI3K, Treg), cell-cycle phase codes (G0/G1/S/G2/M).
+- The Styling convention colour keys and the §选图速查 selection table are
+  scaffold — localize the prose/header cells, keep modality terms (TKI, PD-1/PD-L1)
+  verbatim, keep the `§N` section keys stable.
+
+The section headings ("怎么读这张图" / "为什么..." / "特别注意" / "前提条件" etc.)
+are localized prose, not fixed keys — render their meaning in `locale`.
 
 Styling convention (from vmtb-patient-education mermaid-guide):
 

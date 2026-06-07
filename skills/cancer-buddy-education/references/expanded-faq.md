@@ -3,12 +3,27 @@
 Organized by treatment phase. Pull the section matching the patient's current
 phase from `profile.json`:
 
-- **newly-diagnosed** → `## 刚确诊阶段`
-- **active-treatment** → `## 治疗期`
-- **survivorship** or follow-up → `## 随访 / 生存期`
+| Phase key (from profile) | `zh` heading (source) | `en` heading |
+|---|---|---|
+| **newly-diagnosed** | `## 刚确诊阶段` | `## Newly diagnosed` |
+| **active-treatment** | `## 治疗期` | `## In active treatment` |
+| **survivorship** / follow-up | `## 随访 / 生存期` | `## Follow-up / survivorship` |
+
+## Locale
+
+Read `profile.json.locale` (detect + persist per `../../references/i18n.md` if
+absent). The Q&A prose below is the **`zh` source rendering**. When the patient's
+`locale` is not `zh`, render the matching phase section's questions and answers in
+that locale — same meaning, same patient voice, same brevity — keeping every
+clinical entity verbatim (drug names like 培非格司亭 / G-CSF, response codes
+CR/PR/SD/PD, scale acronyms TNM/Ki67/MDT/NGS, numbers + units like WBC < 3.0,
+ANC < 1.5, fever > 38°C). Phase headings come from the table above. This is a
+prompt-driven localization of generated prose, not a hardcoded per-language
+string table.
 
 Answers intentionally short (2–3 sentences) so they can be read at the clinic.
-Medical terms bilingual on first mention.
+Each medical term keeps its verbatim clinical form on first mention with a
+locale-appropriate plain-language gloss beside it.
 
 ---
 

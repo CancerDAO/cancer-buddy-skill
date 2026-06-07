@@ -1,5 +1,7 @@
 # 中国地域饮食模板（化疗期示例）
 
+> **Locale**: these `zh` regional templates are the **source string table** for the 7-day menu. Render meal labels / section titles / prep notes in `profile.json.locale` per `../../../references/i18n.md` §5. Numbers + units (`1.2-1.5 g/kg/day`, `ANC < 1.0`) and any drug/biomarker names stay verbatim. For a non-`zh` locale, swap to dishes the patient can actually source/cook in that culinary context while keeping the same per-phase nutrition rules — do not transliterate Chinese dish names.
+
 基础目标: 蛋白 1.2-1.5 g/kg/day, 少食多餐, 温凉适宜, 粒细胞低谷期严格食品安全.
 
 ## 北方（家常）

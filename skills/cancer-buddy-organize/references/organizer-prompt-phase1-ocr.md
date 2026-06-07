@@ -81,9 +81,33 @@ The single biggest historical failure mode of this skill: a consistent-but-wrong
 
 Phase 2 may downgrade `high` to `medium` if it discovers a cross-slice contradiction during the §4.6 audit. That's not your problem — write the best per-slice CONFIDENCE you can.
 
-### §2.4 PII redaction (best-effort)
+### §2.4 PII redaction (MANDATORY)
 
-If `$CANCER_BUDDY_PII_REDACT` is set, regex-redact patient name / ID / phone with `[PII_MASKED]` tokens. NOT HIPAA-grade — Phase 2 surfaces this as a warning.
+**This is not best-effort and not env-gated. Every sidecar you write MUST be PII-free.** The MD sidecar is the **single downstream read source** for the entire pipeline (timeline, case_text, profile, the 段D HTML, the 段B redaction job) — downstream readers never touch the original image, so any plaintext PII that survives in the MD leaks all the way through. Redact it here, at the OCR layer, unconditionally.
+
+Replace every occurrence of the following with the literal token `[PII_MASKED]`:
+
+- patient name (患者姓名)
+- patient ID / medical-record number / 住院号 / 门诊号 / card number
+- phone numbers (电话/手机)
+- home / contact address (住址/家庭地址)
+- bed number (床号)
+- signatory personal names of any kind — 主诊/经治/主管/审核/报告/记录/操作医师签名, nurse signatures, 家属签名 (replace the name, keep the role label, e.g. `主治医师签名: [PII_MASKED]`)
+- national ID / 身份证号
+- date of birth / 出生日期 (the patient's birth date specifically — NOT clinical event dates)
+
+**Redaction touches PII tokens ONLY. It MUST NOT alter any clinical character.** Anti-anchoring (§2.2a) is unchanged and takes precedence: do not "correct", normalize, or rewrite drug names, dosing, TNM staging, molecular markers, lab values, or clinical event dates while redacting. If you are unsure whether a string is the patient's birth date or a clinical date, treat it as clinical (keep it verbatim) — clinical fidelity wins over over-redaction.
+
+This is a judgment task, not a fixed regex list — read each line in context and mask the PII tokens you actually see. Keep the surrounding clinical text, table structure, and role labels intact so Phase 2 and the 段D HTML can still consume the sidecar.
+
+**Record what you masked.** After the OCR body, append a trailer section to the sidecar listing the PII categories you actually masked in this file (one line, comma-separated category keys from the list above, or `none`):
+
+```
+## PII
+masked: patient_name, admission_id
+```
+
+Phase 2 reads this `## PII` section to build each file's `pii_hint` in `redaction_manifest.json` (so the 段B redaction job knows which regions to expect). If you masked nothing, write `masked: none`. This trailer is metadata, not clinical content — it carries no `[[src:...]]` anchor.
 
 ## Step 3 — Return JSON
 
