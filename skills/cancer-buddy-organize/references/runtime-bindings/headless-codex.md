@@ -4,14 +4,14 @@
 >
 > **场景前提(issue #13 / PRD §1)**:codex GPT-5.5 单进程 headless,沙箱临时盘,跑完删沙箱;persistVault 只持久化结构化文本(此前跳过桶 + 原图,导致 77 张原图全丢、档案不可浏览)。本 binding 的任务是让平台用 codex 驱动**新两阶段 organize** 而非退回旧 organize-local,从而进桶 + 段B 留可浏览打码版。
 >
-> **状态**:待平台确认两个开放点——(a) codex 走 `-i` 视觉 OCR 还是沙箱内 PaddleOCR(两者契约都支持,见 §2);(b) 段B 时序须接进 persistVault **之前**(§5 / 契约 §4.3)。字段级真值仍以 `phase1-ocr.md` / `phase2-synthesis.md` / `confirm-gate.md` / `redaction-job.md` 为准。
+> **状态**:待平台确认一个开放点——段B 时序须接进 persistVault **之前**(§5 / 契约 §4.3)。OCR 源不再是开放点:契约 §1.5 已钉死**文字源 = 驱动模型原生视觉**,headless 走 codex `-i` 视觉(哑 OCR / PaddleOCR 不是文字源,只在段B 像素打码用),见 §2。字段级真值仍以 `phase1-ocr.md` / `phase2-synthesis.md` / `confirm-gate.md` / `redaction-job.md` 为准。
 
 ## 0. 绑定总览
 
 | 接缝 | 契约要求(不变) | headless codex 填法 |
 |---|---|---|
 | 编排 | 所有 sidecar 在 Phase2 前就绪 | **单进程顺序**:逐文件 `codex exec` 产 sidecar,不并行 |
-| OCR 源 | 每文件产脱敏 MD(`SOURCE`/`CONFIDENCE`/`## PII`) | `codex exec -i <image>` 视觉 **或** 沙箱内 PaddleOCR(待平台选) |
+| OCR 源 | 每文件产脱敏 MD,**文字源=驱动模型原生视觉**(契约 §1.5) | `codex exec -i <image>` 视觉(哑 OCR 非文字源) |
 | 图像解码 | 给出可读栅格 | `heif-convert` / ImageMagick 转 HEIC(非 `sips`) |
 | 确认门 | 未确认不写正式字段 | **confirm-as-product**:产待确认项 JSON,平台 UI 两轮往返 |
 | 存储 | 结构化产物 + 桶 + manifest 为 canonical 输出集 | 平台 persist 选定桶 + manifest + 结构化文本到 R2/PG |
@@ -38,17 +38,15 @@
 - **切片预算**:契约把"≤N 图/实例"明确为 **host-tunable 参数,非不变量**(契约 §1.5 / §7)。CC 因 Claude 多图预算需 ≤15 切片;codex 单进程逐文件跑,**不切或按 codex 自己预算切**都合规,1.4 不变量照样成立。
 - **不变量**:sidecar 就绪是 Phase2 唯一前置;Phase1 阶段只写 sidecar 暂存区 + 原图镜像,不写任何全局产物;幂等(重跑跳过 mtime 更新的既有 sidecar)。
 
-## 2. 接缝:OCR 源 —— `codex exec -i` 或沙箱内 PaddleOCR
+## 2. 接缝:OCR 源 —— codex `-i` 原生视觉(哑 OCR 非文字源)
 
-- **契约要求**:每文件产**恰好一个**脱敏 sidecar MD,三段固定:`SOURCE: <type> | CONFIDENCE: <low|medium|high>` + `ORIGINAL: <稳定引用>` 头 / 逐字脱敏 OCR 正文(文字图全文逐字、影像图 ≤5 行 stub)/ `## PII` trailer(`masked: <类别>` 或 `masked: none`)。sidecar 是下游唯一读取源,**强制 PII 脱敏**成 `[PII_MASKED]`,不得带明文。
-- **填法 A — codex `-i` 视觉(已生产验证)**:
+- **契约要求**:每文件产**恰好一个**脱敏 sidecar MD,三段固定:`SOURCE: <type> | CONFIDENCE: <low|medium|high>` + `ORIGINAL: <稳定引用>` 头 / 逐字脱敏 OCR 正文(文字图全文逐字、影像图 ≤5 行 stub)/ `## PII` trailer(`masked: <类别>` 或 `masked: none`)。sidecar 是下游唯一读取源,**强制 PII 脱敏**成 `[PII_MASKED]`,不得带明文。**文字源钉死为驱动模型原生视觉**(契约 §1.5):
   ```bash
   codex exec -i "$raster" "<phase1-ocr.md 全文 + Call parameters: file_id=<fid>>"
   ```
-  把 `phase1-ocr.md` 的 per-file 部分作为 prompt,要求 codex 输出符合三段结构的 sidecar MD 文本;宿主把 stdout 写成 `<fid>.md`。**注意 `-i` 是匿名字节**:prompt 里不能依赖文件名,`ORIGINAL` 头用宿主传入的 `file_id`(宿主据 `file_map` 回填真实引用)。
-- **填法 B — 沙箱内 PaddleOCR**:在沙箱跑 vendored PaddleOCR(同段B `redact_ocr.py` 用的引擎)抽原始文字,再用一次 `codex exec`(纯文本,无 `-i`)做脱敏 + 三段结构化 + CONFIDENCE 规则判定。字符精度更高、无多模态预算,但多一道脱敏 LLM 调用。
-- **待平台确认**:走 A 还是 B(契约 §7 开放问题)。两者契约都支持,产出的 sidecar MD 结构必须逐字相同——下游不区分 OCR 源。
-- **CONFIDENCE 是规则判定非自评**(命中 `[OCR_UNCERTAIN]`/手写/瓶贴→`low`;正式文书且 ≥2 文档关键字段逐字一致→`high`;默认 `medium`,详见 phase1-ocr.md §2.3),无论 A/B 都按规则填。
+  把 `phase1-ocr.md` 的 per-file 部分作为 prompt,要求 codex **直接看图**输出符合三段结构的 sidecar MD 文本;宿主把 stdout 写成 `<fid>.md`。**注意 `-i` 是匿名字节**:prompt 里不能依赖文件名,`ORIGINAL` 头用宿主传入的 `file_id`(宿主据 `file_map` 回填真实引用)。
+- **不走哑 OCR 抽文字(已删原填法B)**:沙箱内 PaddleOCR 这类纯字符识别引擎**不是合法文字源**(契约 §1.5)——它只出字符流,没有"出生日期还是临床日期""住院号还是检验值"的语义判断,而强制脱敏 + anti-anchoring + `[OCR_UNCERTAIN]`/`[CANDIDATES]` 全要语义;它的字符错误会被悄悄当真值,正中"一致但全错"失败模式。**PaddleOCR 在 headless 路径只出现在段B 像素打码(§5 段B),且不产任何下游文字**。
+- **CONFIDENCE 是规则判定非自评**(命中 `[OCR_UNCERTAIN]`/手写/瓶贴→`low`;正式文书且 ≥2 文档关键字段逐字一致→`high`;默认 `medium`,详见 phase1-ocr.md §2.3)。
 - **不变量**:anti-anchoring(单文件单进程跑,天然不跨文件纠正;矛盾留给 Phase2 调和)、unreadable→`[OCR_UNCERTAIN]`、未知名→verbatim+`[CANDIDATES]`、无采样、只动 PII 不动临床字符、只写 per-file sidecar。
 
 ## 3. 接缝:图像解码 —— heif-convert / ImageMagick(非 sips)
@@ -90,17 +88,42 @@
   脚本读 `redaction_manifest.json` → PaddleOCR 打码 → QA 门 → 仅 `qa_passed=true` 才删原件 → 写 `redaction_status.json`。**原图永不离开沙箱**(段B 删前;段B 跑完只留打码版)→ 既"可浏览档案库"又"at-rest 不留明文"。段B 本就 runtime-neutral(契约 §4),与 CC 用同一脚本同一 manifest/status 契约,只是宿主负责"接进 persist 前"的触发时序。
 - **不变量**:sidecar 是唯一明文边界(Phase2/段D/段B 只读脱敏 MD);进桶 + 段B 打码留可浏览版不退化回"丢原图/不进桶";桶 `NN_` 数字前缀稳定 key、localize slug 不破坏锚点解析;暂存区综合后必须排空(`ocr_drain_incomplete` 暴露);manifest 必产且过 schema;schema 不过的 JSON 不写、dangling 锚点的 case_text 不写。
 
+## 5b. 段D 病情简要总结 —— 确定性渲染(模型不手写 HTML)
+
+- **契约要求**(契约 §4b deterministic core):段D 的 HTML **必须由脚本机械渲染**,模型只产语义部分。哑产出(HTML)走脚本,语义产出(叙事 + 渲染模型)走 LLM。
+- **填法(具体执行,headless)**:
+  1. **读模板**:`references/templates/case-summary.template.html`(含 i18n 字符串表 + LOOP/RENDER_IF 标记)。模型只读,不改。
+  2. **codex 只产两样东西**:一次 `codex exec`(纯文本)读脱敏 JSON(`profile.json` / `patient_summary.json` / `molecular.json` / `labs.json` / `treatment_lines.json` / `timeline.json` + `case_text.md` 影像段)→ 产 **`case_summary_data.json`**(渲染模型:scalar 字段 + `i18n` 表 + 0..N 行数组 lesions/molecular_rows/labs/treatment_lines/path_items + lab class / line marker class 等已算好的展示字段)+ 其中的 **`case_summary_narrative`** 叙事串(3–5 句客观叙事,按 `profile.json.locale`,临床实体 verbatim,禁新增医学判断)。**codex 绝不输出 HTML。**
+  3. **跑渲染脚本**(宿主 bash,无判断):
+     ```bash
+     python3 skills/cancer-buddy-organize/scripts/render_html_template.py \
+       --template skills/cancer-buddy-organize/references/templates/case-summary.template.html \
+       --data <patient_dir>/case_summary_data.json \
+       --out  <patient_dir>/病情简要总结.html
+     ```
+     渲染器是**零医学/零病例逻辑的通用模板引擎**(仅 Python 标准库,沙箱可跑):data 驱动,有几个 lab/lesion/治疗线就渲几个(0..N);空 section→"资料缺失"占位、不删 section;残留 `{{}}` 占位 → exit 1(渲染模型缺字段,拦下)。
+  4. **跑形校验**(宿主 bash):
+     ```bash
+     python3 skills/cancer-buddy-organize/scripts/validate_case_summary_html.py \
+       --html <patient_dir>/病情简要总结.html \
+       --template skills/cancer-buddy-organize/references/templates/case-summary.template.html
+     ```
+     只查**"形"不变量**(`<style>` 与模板逐字一致、用到的 class ⊆ 模板、无残留 `{{}}`、无明文 PII / 精确年龄、骨架 section 齐),**不断言具体内容存在**(不会因无化验缺 `.lab-grid` 而误杀)。exit≠0 → 拦下,不 persist 该 HTML。
+- **绝不手写 HTML**:codex 不得直接拼 HTML 串落 `病情简要总结.html`——手写会样式漂移 / 误删 section / 注入幻觉 class,正是脚本要消除的风险。
+- **不变量**:模型只产 `case_summary_data.json` + 叙事;HTML 一律 `render_html_template.py` 渲染 + `validate_case_summary_html.py` 校验;校验不过不 persist;临床实体 verbatim;只读脱敏 JSON/MD,绝不读原图。
+
 ---
 
 ## 6. 平台握手清单(PRD §10)
 
 平台需实现的 codex adapter:
 1. **顺序 driver**:遍历源清单逐文件起 Phase1(§1),全 sidecar 就绪后单次 Phase2(§5.1)。
-2. **OCR 源**:`codex exec -i` 视觉 **或** 沙箱内 PaddleOCR(§2,二选一,待确认)。
+2. **OCR 源**:`codex exec -i` 原生视觉(§2;哑 OCR 非文字源,无二选一)。
 3. **`file_id` 分配 + `file_id↔原名` 映射维护**(§0,因 `-i` 匿名字节)。
 4. **机械 mv / persist**:据 `.rename_plan.json` 搬运 + 选定文件 persist 到 R2/PG(§5.2/§5.4)。
 5. **confirm-as-product UI**:待确认项 JSON ↔ 平台 UI 两轮往返(§4)。
-6. **段B 接进 persist 前**:沙箱生命周期内跑 `run_redaction_job.py`(§5 段B 时序)。
+6. **段D 渲染 + 校验**:codex 产 `case_summary_data.json` + 叙事 → 宿主跑 `render_html_template.py` → `validate_case_summary_html.py`(§5b;codex 不手写 HTML)。
+7. **段B 接进 persist 前**:沙箱生命周期内跑 `run_redaction_job.py`(§5 段B 时序);遇 HEIC 内部转码成可浏览 JPG(`redaction-job.md`)。
 
 ## 7. 验收(对应 PRD §11.5–6)
 

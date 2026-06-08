@@ -13,6 +13,7 @@
 | Phase1 — per-file 脱敏 OCR | SKILL.md Step 3–4 + `phase1-ocr.md` | `Agent`(`general-purpose` subagent)并行扇出;worker 内 `Read` 视觉 + `sips` 解码 |
 | Phase2 — 综合 | SKILL.md Step 5–6 + `phase2-synthesis.md` | 单个 `Agent` reduce;agent 自己写 `patient_dir` |
 | 确认门(产物化) | SKILL.md Step 9–11 / 14 + `confirm-gate.md` | inline diff 卡(同会话即时往返) |
+| 段D — 病情简要总结 | SKILL.md Step 12 + `case-summary-html-prompt.md` | subagent 产 `case_summary_data.json` + 叙事;`Bash` 跑 `render_html_template.py` → `validate_case_summary_html.py`(子代理不手写 HTML,见 §5b) |
 | 段B — 像素打码 | SKILL.md Step 13 + `redaction-job.md` | `Bash` 拉起 `run_redaction_job.py`(runtime-neutral,见 `_template.md`/§5 存储) |
 
 CC 是唯一一个把 Phase1 **并行扇出**且把 OCR 跑在 **agent 上下文内视觉**的 binding;headless 宿主(见 `headless-codex.md`)走单进程顺序 + 外部 OCR。两者满足同一份契约。
@@ -30,9 +31,9 @@ CC 是唯一一个把 Phase1 **并行扇出**且把 OCR 跑在 **agent 上下文
 ## 2. 接缝:OCR 源(OCR source)
 
 - **契约要求(不变)**:每文件产一个脱敏 sidecar MD(`SOURCE`/`CONFIDENCE` 头 + 逐字脱敏正文 + `## PII` trailer);sidecar 是下游唯一读取源,不得带明文 PII。
-- **CC 填法**:Phase1 worker 在**自己的 agent 上下文内**用 `Read` 工具**视觉读图**(`phase1-ocr.md` Step 2C:对 JPEG/PDF/图直接 `Read`,逐行转录文字图、给非文字图出 stub)。强制 PII 脱敏成 `[PII_MASKED]` 在 worker 内逐行语义判断完成。
-- **为什么这样满足契约**:契约规定"产脱敏 MD",不规定"用什么识别"。CC 用 in-agent 视觉是因为 Claude 本身具备多模态读图能力,省一个外部 OCR 依赖。
-- **CC-specific,可被替换的部分**:in-agent `Read` 视觉。headless 宿主用 `codex -i` 视觉或沙箱内 PaddleOCR 填此接缝(`headless-codex.md` §2);产出的 sidecar MD 结构必须逐字相同。
+- **CC 填法**:Phase1 worker 在**自己的 agent 上下文内**用 `Read` 工具**原生视觉读图**(`phase1-ocr.md` Step 2C:对 JPEG/PDF/图直接 `Read`,逐行转录文字图、给非文字图出 stub)。强制 PII 脱敏成 `[PII_MASKED]` 在 worker 内逐行语义判断完成。
+- **为什么这样满足契约**:契约 §1.5 钉死**文字源 = 驱动模型原生视觉**;CC 的 `Read` 视觉即此。哑 OCR(PaddleOCR 等)**不是文字源**——它无语义判断、字符错误会被当真值(中"一致但全错"失败模式)。CC 全程不用哑 OCR 抽 sidecar 文字;PaddleOCR 只在段B 像素打码出现且不产下游文字。
+- **CC-specific,可被替换的部分**:in-agent `Read` 视觉。headless 宿主用 `codex -i` 原生视觉填此接缝(`headless-codex.md` §2,同样不走哑 OCR);产出的 sidecar MD 结构必须逐字相同。
 - **不变量**:anti-anchoring(不跨文件"纠正"、矛盾两边都记 verbatim、不调和);unreadable→`[OCR_UNCERTAIN]`、未知名→verbatim+`[CANDIDATES]`;无采样无预算上限;只动 PII token 绝不动临床字符;只写 per-file sidecar 不写全局产物。
 
 ## 3. 接缝:图像解码(image decode)
@@ -59,6 +60,30 @@ CC 是唯一一个把 Phase1 **并行扇出**且把 OCR 跑在 **agent 上下文
 - **段B 在存储侧的体现**:CC 用 `Bash` 拉起 `run_redaction_job.py`(`~/.venvs/mtb-ocr/bin/python`)——这一步**本就 runtime-neutral**(契约 §4),CC 与任何宿主用同一脚本同一 manifest/status 契约,只是"谁触发、何时触发"是宿主生命周期编排。CC 不阻塞在此 job 上(SKILL.md Step 13)。
 - **不变量**:sidecar 是唯一明文边界(段D/段B 只读脱敏 MD 不回读原图);进桶 + 段B 打码留可浏览版不退化;桶 `NN_` 数字前缀稳定 key、localize slug 不破坏锚点解析;暂存区综合后必须排空;manifest 必产;schema 不过的 JSON 不写、dangling 锚点的 case_text 不写。
 
+## 5b. 段D 病情简要总结 —— 确定性渲染(子代理不手写 HTML)
+
+- **契约要求**(契约 §4b deterministic core):段D HTML 由脚本机械渲染,子代理只产语义部分(渲染模型 + 叙事)。
+- **CC 填法**:
+  1. **读模板**:`references/templates/case-summary.template.html`(含 i18n 表 + LOOP/RENDER_IF 标记)。
+  2. **段D subagent 只产两样**:读脱敏 JSON(`profile.json`/`patient_summary.json`/`molecular.json`/`labs.json`/`treatment_lines.json`/`timeline.json` + `case_text.md` 影像段)→ 产 **`case_summary_data.json`**(scalar + `i18n` 表 + 0..N 行数组 + 已算好的 lab class / line marker class 等展示字段)+ 其中的 **`case_summary_narrative`** 叙事串(按 `profile.json.locale`,临床实体 verbatim,禁新增医学判断)。**subagent 绝不输出 HTML。**
+  3. **`Bash` 跑渲染**:
+     ```bash
+     python3 skills/cancer-buddy-organize/scripts/render_html_template.py \
+       --template skills/cancer-buddy-organize/references/templates/case-summary.template.html \
+       --data  <patient_dir>/case_summary_data.json \
+       --out   <patient_dir>/病情简要总结.html
+     ```
+     渲染器零医学逻辑、data 驱动(0..N),空 section→"资料缺失"占位不删 section,残留 `{{}}`→exit 1,仅标准库。
+  4. **`Bash` 跑形校验**:
+     ```bash
+     python3 skills/cancer-buddy-organize/scripts/validate_case_summary_html.py \
+       --html <patient_dir>/病情简要总结.html \
+       --template skills/cancer-buddy-organize/references/templates/case-summary.template.html
+     ```
+     只查"形"不变量(`<style>` 逐字一致 / class ⊆ 模板 / 无残留 `{{}}` / 无明文 PII / 无精确年龄 / 骨架齐),不断言具体内容存在(无化验缺 `.lab-grid` 不误杀)。
+- **CC-specific,可被替换的部分**:由 CC subagent 产渲染模型、`Bash` 跑脚本;headless 用 `codex exec` 产同一 `case_summary_data.json` 再宿主 bash 跑同样脚本(`headless-codex.md` §5b)——同一脚本、同一模板、同一形校验,两路逐字节等价。
+- **不变量**:子代理只产 `case_summary_data.json` + 叙事;HTML 一律脚本渲染 + 形校验;校验不过不交付;临床实体 verbatim;只读脱敏 JSON/MD 绝不读原图。
+
 ---
 
 ## 6. CC 不退化保证(PRD §8)
@@ -70,4 +95,5 @@ CC 是唯一一个把 Phase1 **并行扇出**且把 OCR 跑在 **agent 上下文
 - `organize-contract.md` — 运行时中立契约(本 binding 的分母)。
 - `runtime-bindings/headless-codex.md` — codex 单进程驱动草案(同 5 接缝的另一组填法)。
 - `runtime-bindings/_template.md` — 第三方 host 照填的空模板。
-- `../../SKILL.md` + `phase1-ocr.md` / `phase2-synthesis.md` / `confirm-gate.md` / `relevance-gate.md` / `upload-reconciliation.md` / `redaction-job.md` — 本 binding 各原语的字段级真值出处。
+- `../../SKILL.md` + `phase1-ocr.md` / `phase2-synthesis.md` / `confirm-gate.md` / `relevance-gate.md` / `upload-reconciliation.md` / `case-summary-html-prompt.md` / `redaction-job.md` — 本 binding 各原语的字段级真值出处。
+- `../../scripts/render_html_template.py` / `validate_case_summary_html.py` / `pii_rescan.py` / `validate_structured_outputs.py` — deterministic core 脚本(段D 渲染 + 形校验、PII 复扫、结构化 JSON 校验);仅 Python 标准库,CC / codex / 任意 host 可跑。

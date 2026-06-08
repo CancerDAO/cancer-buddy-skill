@@ -38,13 +38,15 @@ Use Glob/Bash to inventory `slice_input_path`. For each file, three actions:
 cp "$slice_input_path/<file>" "$patient_dir/10_原始文件/$original_subdir/<file>"
 ```
 
-**B. Convert HEIC to JPEG if needed (for vision Read):**
+**B. Decode HEIC to a temporary raster (so the driver model's vision can read it):**
 ```bash
 sips -s format jpeg -Z 1500 "<heic>" --out "/tmp/cb-jpg-$$/<basename>.jpg"
 ```
+This is an **image-decode seam ONLY** — it produces a throwaway raster to feed the driver model's native vision. It is **not** a stored copy and **not** a text source. The byte-level original (the `.HEIC`) is what you mirror to `10_原始文件/` in step A; the `/tmp` JPEG is discarded after the Read.
 
-**C. OCR sidecar:**
-- Use Read tool on the JPEG (or PDF / image directly).
+**C. OCR sidecar — text comes from the DRIVER MODEL's OWN NATIVE VISION, full stop:**
+- The text in every sidecar is produced by the **driver model reading the image directly** — Claude Code's `Read` tool on the JPEG / PDF / image (codex hosts: `codex exec -i <raster>`). This is the **only** text source. There is no fallback OCR engine for *producing text*.
+- **Dumb OCR engines (PaddleOCR / macOS Vision / Tesseract / etc.) are NOT a text source here.** They are used **only** in 段B for **pixel masking** (`redact_ocr.py` boxes PII regions on the raster). They never feed characters into a sidecar. If the driver model cannot read a character, the answer is `[OCR_UNCERTAIN]` / `[CANDIDATES]` (below) — **never** "fall back to PaddleOCR to extract the text".
 - Triage `content_type ∈ {ct_slice, xray, ultrasound, photo, pathology_slide, text_doc, mixed}`.
 - `ct_slice / xray / ultrasound / photo` → **stub sidecar required** (≤5 lines: modality + body region if visible + approximate date if visible).
 - `text_doc / mixed / pathology_slide` → **full OCR required**: transcribe every visible character line by line. Lab tables → Markdown tables. Order sheets → date | order | qty | sig | exec_status columns. Discharge certs → heading + 治疗过程摘要 + 诊断 + 出院医嘱 + 签名 verbatim.
@@ -109,6 +111,22 @@ masked: patient_name, admission_id
 
 Phase 2 reads this `## PII` section to build each file's `pii_hint` in `redaction_manifest.json` (so the 段B redaction job knows which regions to expect). If you masked nothing, write `masked: none`. This trailer is metadata, not clinical content — it carries no `[[src:...]]` anchor.
 
+### §2.5 PII rescan gate (MANDATORY — do NOT rely on a single LLM pass)
+
+After you have written every sidecar in your slice, run the deterministic residue scanner over them. A single semantic redaction pass (§2.4) can miss a phone number on a busy lab footer or a 住院号 that OCR'd onto the next line — the sidecar is the **single downstream plaintext boundary**, so we do not trust one self-pass to be airtight. The gate is rule-based and independent of your `## PII` self-report:
+
+```bash
+python3 skills/cancer-buddy-organize/scripts/pii_rescan.py "$patient_dir/ocr"
+```
+
+(Or point it at your slice's specific sidecar files if you only wrote a subset.) It scans the OCR **body** of each sidecar — skipping the `SOURCE:`/`ORIGINAL:` header and the `## PII` trailer — for plaintext PII that survived: label+value shapes (`患者姓名: 张伟`, `住院号: 12345`, 床号, 出生日期…), standalone 身份证号 / 手机 / 座机 numbers, and label/value pairs that straddle two lines. Exit `0` = clean; exit `1` = residue found (it prints each `file:line [category] snippet`).
+
+**If the gate reports `findings > 0`:** for each flagged line, re-open the sidecar, re-read that line **in context**, and mask the leaked PII token(s) to `[PII_MASKED]` — **clinical characters untouched** (§2.2a / §2.4 still bind: never touch a drug name, lab value, TNM, molecular marker, or clinical date while patching). Update the `## PII` trailer for any newly-masked category. Then **re-run the gate**. Repeat until it reports `findings=0`. Do NOT auto-regex-replace — the fix is a per-line judgement so you don't eat a clinical char adjacent to the matched span.
+
+**Hard gate:** you may NOT return `continuation_needed: false` (i.e. signal your slice is done for Phase 2) until `pii_rescan.py` passes (`findings=0`) on the sidecars you wrote. A slice with surviving plaintext PII does not proceed to Phase 2.
+
+> The scanner is a deterministic backstop, not the redactor. The redaction itself is your §2.4 semantic pass; this gate only catches what slipped through and forces a re-mask. (`redact_ocr.py` / dumb OCR remains 段B pixel-masking only — it never writes sidecar text.)
+
 ## Step 3 — Return JSON
 
 Final message MUST be pure JSON, no prose:
@@ -123,20 +141,25 @@ Final message MUST be pure JSON, no prose:
   "full_ocr_sidecars": 21,
   "ocr_uncertain_files": ["IMG_9839.HEIC"],
   "candidates_files": ["IMG_9840.HEIC"],
+  "pii_rescan_passed": true,
   "continuation_needed": false,
   "continuation_resume_from": null
 }
 ```
+
+`pii_rescan_passed` MUST be `true` whenever `continuation_needed` is `false` — it is your attestation that §2.5's `pii_rescan.py` reported `findings=0` on the sidecars you wrote. If you must return `continuation_needed: true` (context filled), set `pii_rescan_passed` for the portion you completed and let the continuation worker re-run the gate over the full set.
 
 `continuation_needed: true` ONLY when context fills before processing every file in your slice — set `continuation_resume_from` to the next unprocessed source-file basename. The caller dispatches a fresh worker that skips files already in `<patient_dir>/ocr/` and resumes.
 
 ## Rules
 
 - NEVER invent medical facts. Unreadable → `[OCR_UNCERTAIN]`.
+- TEXT comes from the driver model's OWN native vision (`Read` / codex `-i`). NEVER fall back to PaddleOCR / macOS Vision / Tesseract to *extract text* — dumb OCR is 段B pixel-masking only (§Step 2·C).
 - NEVER smooth OCR'd values across files (anti-anchoring §2.2a).
 - NEVER write INDEX.md / timeline.md / case_text.md / profile.json / readiness.json / review_flags.md / review_summary.md — those are Phase 2's responsibility. Writing any of them creates a race condition.
 - NEVER overwrite existing sidecars with lower mtime than source (idempotent re-run).
 - SOURCE/CONFIDENCE tags MANDATORY on every sidecar (including stubs).
+- MANDATORY PII rescan gate (§2.5): run `pii_rescan.py`, re-mask any residue, re-run until `findings=0` BEFORE signalling slice-done. Don't trust a single LLM pass.
 - NO budget cap. If context fills, return `continuation_needed: true` with the resume point.
 
 ## Runtime adaptation (binding layer — read [`organize-contract.md`](organize-contract.md) §Phase1)
@@ -145,9 +168,9 @@ This prompt is the **Claude Code reference implementation** of the runtime-neutr
 
 | Mechanism in this prompt | Status | Swap for non-CC hosts |
 |---|---|---|
-| `Read` tool reads images **by path** in-agent (visual OCR) | **CC-specific binding** | codex `-i` 视觉 / PaddleOCR / **宿主直接喂文本** — any OCR source that emits the same sidecar (`organize-contract.md` §6「OCR 源」) |
-| `sips -s format jpeg` to decode HEIC (§Step 2·B) | **CC-specific binding (macOS-only)** | CC binding 用 `sips`;其它 host 用 `heif-convert` / `imagemagick`,或由**宿主预处理**为可读栅格再喂入(`organize-contract.md` §6「图像解码」). The OCR engine never needs to know how the raster was produced. |
+| `Read` tool reads images **by path** in-agent (**driver-model native vision**) | **CC-specific binding** | codex `-i` 视觉 / **宿主直接喂文本(host already has trusted text)** — any source whose text is the driver model's own reading. **Dumb OCR (PaddleOCR / macOS Vision / Tesseract) is NOT a text source — it is 段B pixel-masking only.** Text is always native vision (`organize-contract.md` §6「OCR 源」). |
+| `sips -s format jpeg` to decode HEIC (§Step 2·B) | **CC-specific binding (macOS-only)** — pure **image-decode seam**: produces a throwaway raster for vision, NOT a stored copy, NOT a text source | CC binding 用 `sips`;其它 host 用 `heif-convert` / `imagemagick`,或由**宿主预处理**为可读栅格再喂入(`organize-contract.md` §6「图像解码」). The vision engine never needs to know how the raster was produced; the byte-level `.HEIC` is what gets mirrored to `10_原始文件/`, not the temp JPEG. |
 | ≤ 15 images per slice (§"Why ≤ 15 images") + slice dispatch | **host-tunable**, NOT a contract invariant — this is Claude's many-image budget特性 (`organize-contract.md` §1.5 / §7) | A headless host with a different (or no) multi-image budget may **not slice at all**, or slice by its own budget. The §1.4 "no sampling / every file gets a sidecar" invariant is what binds, not the chunk size. |
 | OCR engine choice + file_id ↔ sidecar 映射 | **may be done by the host** | The contract only requires sidecars be addressable by a stable `file_id` so 源文件 ↔ sidecar 一一对应; whether the agent or the host assigns `file_id` and persists the mapping is a binding decision (`organize-contract.md` §1.1 / §6「编排」). |
 
-**Logic / invariants do NOT move with the binding.** Regardless of which host drives Phase1: anti-anchoring (§2.2a — never "correct" across files), **mandatory PII redaction** (§2.4 — sidecar is the single downstream plaintext boundary), 逐字优先/不捏造 (`[OCR_UNCERTAIN]` / `[CANDIDATES]`), no-sampling, idempotent re-runs, and "stay in your lane" (no global artifacts) all stand verbatim. A binding may only change **who runs the mechanism**, never the behavioral contract.
+**Logic / invariants do NOT move with the binding.** Regardless of which host drives Phase1: **text comes from the driver model's own native vision — dumb OCR is never a text source, only 段B pixel-masking** (§Step 2·C), anti-anchoring (§2.2a — never "correct" across files), **mandatory PII redaction** (§2.4 — sidecar is the single downstream plaintext boundary), **mandatory PII rescan gate** (§2.5 — `pii_rescan.py` must pass `findings=0` before a slice proceeds; never trust a single LLM pass), 逐字优先/不捏造 (`[OCR_UNCERTAIN]` / `[CANDIDATES]`), no-sampling, idempotent re-runs, and "stay in your lane" (no global artifacts) all stand verbatim. A binding may only change **who runs the mechanism**, never the behavioral contract.
