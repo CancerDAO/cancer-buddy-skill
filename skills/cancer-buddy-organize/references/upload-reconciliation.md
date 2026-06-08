@@ -64,6 +64,12 @@
 - `evidence` 用可核对的依据(检查名/日期/机构/矛盾字段),`low` confidence 明说并给「先忽略」兜底。
 - 涉及关键字段(分期 / 分子驱动 / 治疗线)的 conflict,**必须**显式确认,不得当默认。
 
+## Runtime adaptation — 确认门产物化
+
+第 2 步那张「替换? 并存? 忽略?」diff 卡,在 **Claude Code binding** 里是用户当回合即答的 inline 卡(inline 即时往返)。这张 inline 卡是 **CC 参考机制,不是契约**。契约([`organize-contract.md`](organize-contract.md) §3 确认门、§6「确认门」接缝)只要求重传处置**经过门控**,不规定怎么呈现。
+
+headless 宿主(无 inline 回合)用 **confirm-as-product** 满足同一门:把每条 supersede/conflict 候选(含 `relation` / `target_doc` / `evidence` / `confidence`,conflict 两份事实并陈标 ⚠️)作为**产物数据**输出,交宿主 UI 事后问用户 替换/并存/忽略,再把用户决定第二轮回灌后才执行第 3 步。契约不变:**未确认 → 不写正式字段**;矛盾绝不静默覆盖、关键字段(分期/分子/治疗线)必须显式确认;替换=归档留底不是删除;本流程不引入任何自动删除。变的只是「谁渲染这张卡」,门控本身与 `update_log.json` 记账不变。
+
 ## 第 3 步 — 三路解析(用户选择后才执行)
 
 ### 3a. 替换(supersede 确认)

@@ -138,3 +138,16 @@ Final message MUST be pure JSON, no prose:
 - NEVER overwrite existing sidecars with lower mtime than source (idempotent re-run).
 - SOURCE/CONFIDENCE tags MANDATORY on every sidecar (including stubs).
 - NO budget cap. If context fills, return `continuation_needed: true` with the resume point.
+
+## Runtime adaptation (binding layer — read [`organize-contract.md`](organize-contract.md) §Phase1)
+
+This prompt is the **Claude Code reference implementation** of the runtime-neutral Phase1 contract (`organize-contract.md` §1). The contract pins the **behavior** — per-file pure function `(一个源文件, 稳定 file_id) → 一个脱敏 sidecar MD`, with the SOURCE/CONFIDENCE header, 逐字脱敏 OCR body, and `## PII` trailer — and a fixed set of invariants. The **mechanisms below are CC-specific bindings; any host may swap them out** as long as the §1.4 invariants still hold. Nothing in this section changes what a sidecar contains or when it may be written.
+
+| Mechanism in this prompt | Status | Swap for non-CC hosts |
+|---|---|---|
+| `Read` tool reads images **by path** in-agent (visual OCR) | **CC-specific binding** | codex `-i` 视觉 / PaddleOCR / **宿主直接喂文本** — any OCR source that emits the same sidecar (`organize-contract.md` §6「OCR 源」) |
+| `sips -s format jpeg` to decode HEIC (§Step 2·B) | **CC-specific binding (macOS-only)** | CC binding 用 `sips`;其它 host 用 `heif-convert` / `imagemagick`,或由**宿主预处理**为可读栅格再喂入(`organize-contract.md` §6「图像解码」). The OCR engine never needs to know how the raster was produced. |
+| ≤ 15 images per slice (§"Why ≤ 15 images") + slice dispatch | **host-tunable**, NOT a contract invariant — this is Claude's many-image budget特性 (`organize-contract.md` §1.5 / §7) | A headless host with a different (or no) multi-image budget may **not slice at all**, or slice by its own budget. The §1.4 "no sampling / every file gets a sidecar" invariant is what binds, not the chunk size. |
+| OCR engine choice + file_id ↔ sidecar 映射 | **may be done by the host** | The contract only requires sidecars be addressable by a stable `file_id` so 源文件 ↔ sidecar 一一对应; whether the agent or the host assigns `file_id` and persists the mapping is a binding decision (`organize-contract.md` §1.1 / §6「编排」). |
+
+**Logic / invariants do NOT move with the binding.** Regardless of which host drives Phase1: anti-anchoring (§2.2a — never "correct" across files), **mandatory PII redaction** (§2.4 — sidecar is the single downstream plaintext boundary), 逐字优先/不捏造 (`[OCR_UNCERTAIN]` / `[CANDIDATES]`), no-sampling, idempotent re-runs, and "stay in your lane" (no global artifacts) all stand verbatim. A binding may only change **who runs the mechanism**, never the behavioral contract.
