@@ -48,6 +48,8 @@ Every gated decision is presented as one compact, plain-language diff card befor
 - Never render a critical-field change, or a "已替换/已删除", as already done.
 - Conflicts present **both** facts side by side, flagged ⚠️, and never as a settled overwrite.
 
+**Rendering is runtime-neutral:** both an **inline diff card** (the Claude Code binding — user resolves it in the same turn) and **confirm-as-product** (a headless host emits the same candidate data as an artifact for its own UI to ask the user about after the fact, then re-feeds the decision) are compliant. The gate contract is unchanged either way — the items above (current→proposed, checkable basis, low-confidence opt-out, never-a-fait-accompli, conflicts side by side) and the irreversible-delete asymmetry hold identically regardless of who renders the card. See [`../skills/cancer-buddy-organize/references/organize-contract.md`](../skills/cancer-buddy-organize/references/organize-contract.md) §3 / §6「确认门」seam.
+
 **Locale (i18n):** the diff card is patient-facing scaffold → render the whole card in `profile.json.locale` (detect / persist per [`i18n.md`](i18n.md)). The `zh` wording in each caller's doc is the source string table; render the localized equivalent at output time (`i18n.md` §5). **Clinical entities inside the card stay verbatim** — drug names, gene symbols, variants, TNM/stage strings, numbers + units — per [`safety-guardrails.md`](safety-guardrails.md) "Clinical entities are never translated (P0)" and `i18n.md` §4. On-disk bucket slugs in the card follow the localized slug actually on disk (`i18n.md` §6). The privacy-floor sentence in the delete path is mandatory in **every** locale with no softening.
 
 ## Provenance — record every gated action in `update_log.json`

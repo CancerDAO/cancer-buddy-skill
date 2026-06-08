@@ -68,6 +68,8 @@ You don't have to use them in order. The system will first understand your role 
 
 cancer-buddy also **auto-localizes its output to your records' language**: English records get an English archive, French records get French — no manual setting (the detected language is saved to your profile so the whole journey stays consistent). Clinical terms — drug names, genes, variants, TNM, numeric values and units — always stay verbatim, because a mistranslation is a medical risk; localization only touches section titles, field labels, and narrative copy.
 
+organize is **runtime-neutral**: its behavior contract is decoupled from its execution mechanism, so the same contract can be driven by Claude Code, codex, or any other headless agent — the logic and output structure stay the same.
+
 ### Design philosophy
 
 cancer-buddy is a system of *companionship + structure*, not a *decision replacement*.

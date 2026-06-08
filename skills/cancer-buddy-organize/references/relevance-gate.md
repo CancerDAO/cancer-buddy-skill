@@ -95,6 +95,12 @@ Rules for the notice:
 - List the borderline (uncertain) files individually with a one-line reason each, because each needs a per-file 删/留 decision.
 - High-confidence non-medical files may be summarized as a count (they don't each need a decision — silence deletes them); the user only needs to know they exist and can claim any back.
 
+## Runtime adaptation — 确认门产物化
+
+The disposition notice above and the 删/留 prompt are rendered, in the **Claude Code binding**, as an inline diff card the user resolves in the same turn (inline 即时往返). That inline card is a **CC reference mechanism, not the contract**. The contract ([`organize-contract.md`](organize-contract.md) §3 确认门, §6「确认门」seam) requires only that the disposition decision be **gated** — never the specific rendering.
+
+A headless host (no inline turn) satisfies the same gate by **confirm-as-product**: it emits the待确认项 (the per-`uncertain/` file with its one-line reason, plus the high-confidence-batch count and the mandatory privacy-floor sentence) as a **data artifact** for its own UI to ask the user about after the fact, then re-feeds the user's 删/留/回收 decisions in a second round. The contract is unchanged either way: **未确认不写正式字段, and the silence⇒delete (high-confidence) vs silence⇒hold (borderline) asymmetry holds identically** — the privacy-floor sentence must still reach the user *before* any deletion regardless of rendering, and a borderline file with no explicit resolution is still never auto-deleted. Only "who renders the question" differs; the gate, the asymmetry, and the `update_log.json.relevance` ledger do not.
+
 ## Disposition parsing — three resolution paths
 
 After the notice, parse the user's response. There are exactly three outcomes per file:

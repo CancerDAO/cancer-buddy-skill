@@ -9,6 +9,12 @@
 | `scripts/redact_ocr.py` | 打码引擎(vendored from `cancer-buddy-organize-local-skill`,原样)。`redact_image_ocr()`:PaddleOCR 取字 → 正则+NER 判 PII → 只对 PII 区域画黑框 → 存图。 |
 | `scripts/run_redaction_job.py` | 批处理器。读 manifest → 逐图打码 → QA 门 → 回填桶+镜像 → 删原件 → 写 status。幂等可重试。 |
 
+## Runtime adaptation — runtime-neutral 独立步骤
+
+段B 在契约里登记为一个 **runtime-neutral 的独立后续步骤**(见 [`organize-contract.md`](organize-contract.md) §4 段B、§0 步骤4):它读 `redaction_manifest.json` → 打码 → QA 门 → 仅 `qa_passed=true` 才删原件 → 写 `redaction_status.json`,**本就 host-friendly**(纯脚本 + manifest,无 CC 专有原语),不改。由谁触发、何时触发(与主链同步还是异步后端 job)、用哪个解释器拉起,全是宿主生命周期编排——契约只约束「读 manifest → 打码 → QA 门 → 仅 QA 通过删原件 → 写 status」与下面的时序不变量。
+
+**时序不变量(平台关键):段B 须在平台 persist(持久化 / 离开沙箱本地工作区)之前、在沙箱内跑完**,持久化的桶图才是打码版;原图(明文 PII)永不离开沙箱(段B 删前;段B 跑完只留打码版)。headless 平台已表示能把 `run_redaction_job.py` 接进沙箱生命周期的 persist-前阶段——这既满足「可浏览档案库」(原图打码后保留)又满足「at-rest 不留明文」(持久化桶图为打码版)。详见 PRD §9 存储模型对齐。
+
 ## 平台异步触发约定
 
 - **运行模型**:异步后端 job。organize skill(段 A/D)**不阻塞**等打码;段 A 完成即产出 `redaction_manifest.json` 作为工作队列交接。
