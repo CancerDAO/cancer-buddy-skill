@@ -37,6 +37,17 @@ Ignore turns that are purely emotional, logistical, or questions ("我会不会�
 
 If a turn is genuinely ambiguous about a critical field (stage / molecular driver / line of therapy), prefer to **ask one clarifying question in the diff card** over guessing. Never fabricate a precise value the user did not give.
 
+## Platform-runtime adaptation (headless host / no interactive shell)
+
+The Process below is written for an agent with an interactive shell and direct filesystem access to `patient_dir` (it `cat`s / `sed`s / `mkdir`s and waits inline for the user to type 确认). Some host platforms run this skill differently and **cannot follow those steps literally**:
+
+- the model runs **read-only with no shell write access**, and/or the patient archive lives in object storage / a database and is **never mounted into the model's sandbox** (a deliberate data-safety / privacy boundary), and
+- the "emit a card → wait → write" pause is not a single shell turn but a **two-turn UI round-trip** (the host renders the diff card as native UI; the user clicks; the host applies the write).
+
+Such a host MAY realize this mode by **preserving the behavior contract while moving the mechanics into the platform runtime**: the model only *proposes* candidates (the same candidate shape as Step 2 — `target` / `field_path` / `current` / `proposed` / `category` / `confidence` / `evidence`), the host renders the shared confirm-gate diff card, and on explicit user confirmation the **host writes** via its own storage primitives (patching `profile.json`, appending `timeline.*`, archiving the `conversation_notes` note, appending `update_log.json`).
+
+This is conformant **iff the contract is preserved**: unconfirmed talk never touches a formal field; the diff card + explicit confirmation is the only thing that opens a write; the conversation anchor `[[src:conversation:<ISO8601>]]` and `patient_curated` tagging are applied; `alias` stays sticky and no broad rewrite happens. What changes is only *who executes the write* (the host, not a shell), not *what gets written or when*. The CancerDAO platform runs this skill in exactly this mode (its chat path is read-only with the vault kept in R2/Postgres outside the sandbox); this note documents that adaptation so the deviation from the literal `bash` steps is intentional and contract-checked, not a regression.
+
 ## Process
 
 ### Step 1 — Read existing state
