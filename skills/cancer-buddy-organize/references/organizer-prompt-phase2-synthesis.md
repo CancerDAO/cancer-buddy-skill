@@ -20,7 +20,7 @@ The full contract (detection, persist/reuse, verbatim policy, bucket-name map) i
 
 ## Inputs (caller supplies)
 
-- `patient_dir` (required): absolute path to the patient directory. Already has `ocr/` (temporary sidecar staging) and `10_原始文件/` (audit-trail mirror) populated by Phase 1.
+- `patient_dir` (required): absolute path to the patient directory. Already has `ocr/` (temporary sidecar staging) and `10_原始文件/` (audit-trail mirror) populated by Phase 1. **This path was resolved upstream by the single root-resolution rule** (`$CANCER_BUDDY_PATIENTS_DIR` → `$VMTB_PATIENT_DATA_ROOT` → `$HOME/CancerDAO/patients`, owned by SKILL.md / INSTALL.md). You **use it as-is** and **never re-resolve a root or invent your own**: the patients root is always `$(dirname "$patient_dir")` (the `alias` symlink in Step 2.8 and the cross-patient scan in Step 3a both derive from that — they don't re-read the env vars).
 - `phase1_summary` (optional): JSON list of per-slice Phase-1 results. Used to validate coverage; if you find sidecars Phase 1 didn't report, that's fine; if Phase 1 reported sidecars you can't find, that's a coverage error to surface.
 - `run_mode` (optional): `"full"` (default) or `"incremental"`. In incremental mode, only newly added/changed sidecars are reclassified and downstream artifacts are merged rather than rewritten.
 - `caller_default_hospital` (optional): the patient's `treating_hospitals[0]`, used as the level-3 fallback when resolving 出具机构 during canonical naming.
@@ -206,7 +206,7 @@ If `ocr_drain_incomplete` fires, add `"ocr_drain_incomplete: <basename>"` for ea
 
 ### Step 1f — Write `redaction_manifest.json`
 
-This is the hand-off contract to 段B (the async PaddleOCR redaction job). It lists every image that still needs PII pixels boxed, with both its bucket copy and its byte-level mirror so the job can replace both. Schema: [redaction_manifest.schema.json](references/schemas/redaction_manifest.schema.json) (`redaction_manifest_v1`, §6.1 of the design spec). Only **raster image** files need pixel redaction — include `jpg/jpeg/png/tif/tiff/webp/bmp` bucket entries (the extensions the schema's `bucket_path`/`mirror_path` patterns allow); pure-text PDFs/DOCX whose MD is already redacted do NOT go in the manifest (no pixels to box). HEIC: Phase 1 keeps the byte-level mirror as `.HEIC` but the bucket copy is the JPEG it converted for vision — list that JPEG bucket_path; if a mirror is still `.HEIC`, point `mirror_path` at the converted `.jpg` mirror so both ends match the schema pattern. For scanned-image PDFs (no text layer), rasterize per page is 段B's concern — list the source if it carries an image bucket copy.
+This is the hand-off contract to 段B (the async PaddleOCR redaction job). It lists every image that still needs PII pixels boxed, with both its bucket copy and its byte-level mirror so the job can replace both. Schema: [redaction_manifest.schema.json](references/schemas/redaction_manifest.schema.json) (`redaction_manifest_v1`, §6.1 of the design spec). Only **raster image** files need pixel redaction — include `jpg/jpeg/png/tif/tiff/webp/bmp` **and `heic/heif`** bucket entries (exactly the extensions the schema's `bucket_path`/`mirror_path` patterns allow); pure-text PDFs/DOCX whose MD is already redacted do NOT go in the manifest (no pixels to box). **HEIC: do NOT pre-stash a JPEG bucket copy.** The bucket keeps the original `.HEIC` (and the `10_原始文件/` mirror keeps `.HEIC` too); list that **`.heic` bucket_path** and the **`.heic` mirror_path** directly — both ends match the schema pattern, which now allows heic/heif. 段B transcodes HEIC internally (PaddleOCR can't read HEIC) before boxing PII and emits a browsable redacted image; that transcode is 段B's concern, not yours. Phase 1 may have produced a `/tmp` JPEG purely for vision OCR — that is ephemeral and **never** enters a bucket; never reference it in the manifest. For scanned-image PDFs (no text layer), rasterize per page is 段B's concern — list the source if it carries an image bucket copy.
 
 Build it from `.rename_plan.json` (paths are bucket-relative; if a Step 1c collision bumped a name to `_2`, use the actual on-disk path):
 
@@ -215,7 +215,7 @@ gen=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 jq --arg pd "$patient_dir" --arg gen "$gen" '
   {schema:"redaction_manifest_v1", patient_dir:$pd, generated_at:$gen,
    files: [ .files[]
-     | select((.ext|ascii_downcase) as $e | ["jpg","jpeg","png","tif","tiff","webp","bmp"] | index($e))
+     | select((.ext|ascii_downcase) as $e | ["jpg","jpeg","png","tif","tiff","webp","bmp","heic","heif"] | index($e))
      | {id, bucket_path:.file_dest, mirror_path, pii_hint:(.pii_hint // []), status:"pending"} ]}' \
   "$patient_dir/.rename_plan.json" > "$patient_dir/redaction_manifest.json"
 ```
@@ -605,7 +605,7 @@ Pure JSON, no prose:
 - NEVER leave the central `ocr/` dir behind: every MD must be moved into its bucket (`<bucket>/<canonical>.md`) and `ocr/` deleted (Step 1e). If an MD can't be drained, surface `ocr_drain_incomplete` and keep `ocr/`, don't strand the file.
 - NEVER emit an anchor (in any artifact, `source_evidence`, or `source_refs[]`) that still uses the `ocr/` or `02_脱敏病历/` prefix — those are retired; all anchors are bucket-relative or `conversation:<ISO8601>`.
 - ALWAYS write `redaction_manifest.json` (Step 1f) before returning — it is the only hand-off to 段B; a missing/invalid manifest blocks in-image PII masking. Surface validation failures into `readiness.json.warnings`, don't ship an invalid manifest.
-- `redaction_manifest.json` lists only raster images (jpg/jpeg/png/tif/tiff/webp/bmp); text PDFs/DOCX with already-redacted MD are NOT listed.
+- `redaction_manifest.json` lists only raster images (jpg/jpeg/png/tif/tiff/webp/bmp + heic/heif — HEIC stays HEIC in its bucket, 段B transcodes internally; no pre-stashed JPEG bucket copy); text PDFs/DOCX with already-redacted MD are NOT listed.
 - `coverage_complete: false` is acceptable as long as you list the missing files; caller will retry-mini-Phase1 + re-run you.
 - The alias is sticky: never overwrite a previously set `profile.json.alias` on incremental runs.
 - ALWAYS detect+persist `profile.json.locale` (reuse if already set) and render every patient-facing scaffold string (bucket slugs, timeline/case_text/review_summary prose, gap/warning text) in that locale per [`../../../references/i18n.md`](../../../references/i18n.md). NEVER translate a clinical entity (drug/gene/variant/TNM/number/unit) or a `doc_type` — those are verbatim; mistranslation is a P0 safety bug.

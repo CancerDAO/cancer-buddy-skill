@@ -63,9 +63,17 @@ sidecar 是**整条下游管线的唯一读取源**(timeline / case_text / profi
 - **幂等**:对同一源文件重复执行,不覆盖比源文件更新的既有 sidecar。
 - **不越界**:Phase1 只产 per-file sidecar,**绝不**写任何全局产物(INDEX/timeline/case_text/profile/readiness/review_flags/review_summary 全是 Phase2 的)——否则与并行实例产生竞态。
 
-### 1.5 契约**不规定**(交 binding)
+### 1.5 OCR 接缝钉死:文字源 = 驱动模型原生视觉(load-bearing)
 
-OCR 引擎(in-agent 视觉 / 外部识别 / 宿主直接喂文本皆可)、是否并行、单实例处理多少文件、非可读栅格(如 HEIC)如何解码为可读图。这些是 §6 的「OCR 源 / 图像解码 / 编排」接缝。**切片预算(如"≤N 图/实例")是某些宿主的多图预算特性,属 host-tunable 参数,不是契约不变量**——不切、按宿主预算切都合规,只要 1.4 不变量成立。
+sidecar 的逐字脱敏正文**必须由驱动模型(Claude / codex 等)的原生视觉读图产出**——模型直接看图、逐行转录、逐行语义判 PII。这是契约钉死的一条,不只是 binding 偏好:**哑 OCR(PaddleOCR 等纯字符识别引擎)不是合法的文字源**。原因有三:(a) 哑 OCR 只出字符流,没有"这是出生日期还是临床日期""这串数字是住院号还是检验值"的语义判断,而 1.3/1.4 要求的强制脱敏 + anti-anchoring + `[OCR_UNCERTAIN]`/`[CANDIDATES]` 全是语义判断;(b) 哑 OCR 字符错误会被悄悄当成真值,正中本 skill 最大历史失败模式("一致但全错");(c) 临床实体 verbatim 需要模型"看懂上下文再抄",不是 OCR 盲转。
+
+**PaddleOCR 在本管线里只出现在段B(§4 像素打码),且只为定位 PII 框、不产任何下游文字**(它识别出的字符用完即弃)。任何 binding 都不得把哑 OCR 的字符输出接成 sidecar 正文 / 任何下游文字产物。`headless-codex.md` 的 OCR 源接缝因此只填 codex `-i` 原生视觉一种,不再保留"PaddleOCR 抽文字填法B"。
+
+### 1.6 契约**不规定**(交 binding)
+
+是否并行、单实例处理多少文件、非可读栅格(如 HEIC)如何解码为可读图喂给模型视觉。这些是 §6 的「图像解码 / 编排」接缝。**切片预算(如"≤N 图/实例")是某些宿主的多图预算特性,属 host-tunable 参数,不是契约不变量**——不切、按宿主预算切都合规,只要 1.4 不变量成立。
+
+> HEIC 桶图:契约允许手机原图(常为 HEIC)**原样进桶**(§2.2 桶不变量 / §4 段B 不删可浏览档案库的精神:不丢原图)。`redaction_manifest.json` 的 `bucket_path`/`mirror_path` **放行 heic/heif**(连同 jpg/png/…)。HEIC 不可被 PaddleOCR 直接读,故段B 在打码这一步**内部转码**为可浏览 JPG(§4.3);Phase1 视觉若遇 HEIC,由图像解码接缝先转可读栅格喂模型(§6),不影响 sidecar 结构。
 
 ---
 
@@ -175,7 +183,8 @@ Phase2 的跨文档审计(Phase1 做不到,因 Phase1 只见自己那片;Phase2 
 
 - **QA 门是删原件的唯一前置**:打码先写临时文件不覆盖原图;对打码图二次扫描,仍检出 PII → QA 失败 → 弃临时图、保原图、标 `failed`、`original_deleted=false`。**仅 `qa_passed=true` 才允许删打码前原件**。
 - **删原件不可逆**:`status=done` 的上传原件+镜像原图被打码版永久覆盖,不可恢复明文;删除只在 `qa_passed=true` 发生。
-- **只遮 PII,不改临床字符**(黑框只盖 PII 区域 quad)。
+- **只遮 PII,不改临床字符**(黑框只盖 PII 区域 quad);**段B 是纯像素打码,不产任何文字**(读图只为定位 PII 框,识别字符用完即弃,不写任何 sidecar/JSON/文本)。
+- **HEIC 内部转码**:`bucket_path`/`mirror_path` 放行 heic/heif,但 PaddleOCR 读不了 HEIC,故段B 遇 HEIC 先**内部转码**为可读栅格 → 打码 → 提交**可浏览 JPG**(后缀 `.heic`→`.jpg`)→ 删原 HEIC。既不丢原图又保证 at-rest 桶图可浏览且无明文 PII。详见 `redaction-job.md`。
 - **幂等可重试**:每处理一张刷一次 status,重跑跳过 `done`。
 - **时序**:段B 须在任何"持久化 / 离开本地工作区"之前跑,持久化的桶图才是打码版;原图永不离开本地工作区(段B 删前;段B 跑完只留打码版)。
 
@@ -184,6 +193,23 @@ Phase2 的跨文档审计(Phase1 做不到,因 Phase1 只见自己那片;Phase2 
 段B 是一个**独立可调度步骤**:由谁触发、何时触发(与主链同步还是异步后端 job)、用哪个解释器/打码引擎拉起——全是宿主生命周期编排。契约只要求"读 manifest → 打码 → QA 门 → 仅 QA 通过删原件 → 写 status",以及 4.3 时序。运行细节(独立脚本、venv、退出码语义)见 `redaction-job.md`。这是 §6「存储」接缝在打码侧的体现。
 
 ---
+
+## 4b. deterministic core(确定性产出走脚本,不靠 LLM 自觉)
+
+organize 的产出分两类,**职责必须分离**,任何 binding 不得混:
+
+- **需要语义判断的 → 走 LLM**:OCR 读图(§1)、综合分类 / canonical 命名 / 锚点(§2)、确认候选检测(§3)、段D 病情概要叙事 + 把结构化 JSON 折成渲染模型(`case_summary_data.json`)。这些不可硬编码 keyword/正则名单。
+- **确定性、机械、与病人无关的 → 走脚本**,不靠 LLM"自觉"做对:
+  - **段D 渲染**:LLM 只产 `case_summary_data.json`(渲染模型:scalar + 0..N 行数组)+ 叙事串;**HTML 由 `scripts/render_html_template.py` 机械渲染**(读模板 → 填占位 / LOOP / RENDER_IF → 落 `病情简要总结.html`)。**LLM 绝不手写 HTML**——手写 HTML 会漂移样式、误删 section、注入幻觉 class。渲染器是**零医学/零病例逻辑的通用模板引擎**:data 驱动,有几个 lab/lesion/治疗线就渲几个(0..N);空 section 渲"资料缺失"占位、**不删 section**;无第三方依赖(仅 Python 标准库,Claude Code / codex 沙箱 / 任意 host 都能跑)。
+  - **段D 形校验**:`scripts/validate_case_summary_html.py` 只查**"形"不变量**(模板固定、与病人无关:`<style>` 与模板逐字一致、用到的 class ⊆ 模板 class、无残留 `{{}}`、无明文 PII、无精确年龄、骨架 section 齐)。**禁止断言具体内容存在**(如"必须有 `.lab-grid`"会误杀无化验的病人)——渲染器是 0..N,无化验的病人合法地没有 `.lab-item`。
+  - **PII 复扫**:`scripts/pii_rescan.py` 在 Phase1 写完 sidecar、Phase2 消费前**机械复扫** MD 正文残留明文 PII(不信 LLM 的 `## PII` 自报)。它是**检测器不是改写器**——命中交 agent 回看上下文重新打码(重打码是语义判断),复扫到清为止。
+  - **段B 像素打码**:§4,纯像素步,QA 门也是机械二次扫描。
+
+> 为什么这条是契约级而非 binding 偏好:把确定性产出交给 LLM"自觉做对"是本 skill 的系统性风险源(样式漂移、section 误删、PII 自报漏报、HTML 幻觉)。确定性步骤必须由 data 驱动的脚本钉死,LLM 只供它无法机械化的语义判断。
+
+## 4c. 输出根单一规则
+
+一次 organize run 的全部 canonical 产物(§2.2 输出集 + `病情简要总结.html` + `case_summary_data.json` + 段B status)**只落一个输出根**:`patients/<patient_code>/`(`patient_dir`)。不得把同一 run 的产物散到多个顶层目录。别名指针(业务别名)是**指回该 `patient_dir` 的指针**(symlink 或退化 alias 映射文件),不是第二份产物副本。binding 的 persist(对象存储 / 库)按此单根选文件持久化。
 
 ## 5. 跨步骤全局不变量
 
@@ -194,6 +220,9 @@ Phase2 的跨文档审计(Phase1 做不到,因 Phase1 只见自己那片;Phase2 
 3. **未确认不落正式字段 / 不可逆删除**(§3 确认门),无论 inline 还是 confirm-as-product。
 4. **临床保真 > 一切便利**:任何步骤、任何 binding 都不得翻译/规范化/平滑临床实体。
 5. **逻辑/schema/产物结构零改动**:换 binding 只换"谁执行机制",§1–§4 的 inputs/outputs/schema 不变。
+6. **OCR 文字源 = 驱动模型原生视觉**(§1.5):哑 OCR 不是文字源,PaddleOCR 仅段B 像素打码用、不产下游文字。
+7. **确定性产出走脚本,不靠 LLM 自觉**(§4b):段D HTML 由 `render_html_template.py` 渲染(LLM 不手写 HTML)、形校验 / PII 复扫 / 段B 打码全是机械步;LLM 只供语义判断。
+8. **输出根单一**(§4c):一次 run 全部产物落一个 `patient_dir`,别名是指针不是副本。
 
 ---
 
@@ -204,8 +233,8 @@ Phase2 的跨文档审计(Phase1 做不到,因 Phase1 只见自己那片;Phase2 
 | 接缝 | 契约要求(不变) | Claude Code binding(参考) | headless codex | 其它 agent(模板) |
 |---|---|---|---|---|
 | 编排 | 所有 sidecar 在 Phase2 前就绪 | 扇出 + reduce | 单进程顺序 | 各自 job 队列 |
-| OCR 源 | 每文件产脱敏 MD(`SOURCE`/`CONFIDENCE`/`## PII`) | in-agent 视觉读取 | 宿主视觉识别 / 离线 OCR | 任意 OCR / 宿主喂文本 |
-| 图像解码 | 给出可读栅格 | 平台转码命令 | 跨平台转码 | 宿主预处理 |
+| OCR 源 | 每文件产脱敏 MD,**文字源=驱动模型原生视觉**(§1.5,哑 OCR 非文字源) | in-agent `Read` 视觉 | codex `-i` 视觉 | 宿主驱动模型原生视觉 |
+| 图像解码 | 给出可读栅格喂模型视觉 | 平台转码命令(sips) | 跨平台转码(heif-convert) | 宿主预处理 |
 | 确认门 | 未确认不写正式字段 | inline diff 卡 | confirm-as-product + UI | 产物化 |
 | 存储 | 结构化产物 + 桶 + manifest 为 canonical 输出集 | agent 写 `patient_dir` | 选定文件持久化到对象存储/库 | 各自存储原语 |
 
@@ -218,4 +247,4 @@ Phase2 的跨文档审计(Phase1 做不到,因 Phase1 只见自己那片;Phase2 
 - **file_id ↔ 原名映射**:headless 宿主必须分配稳定 id 并维护映射(§1.1 契约要求,宿主实现)。
 - **段B 时序**:依赖宿主把打码步骤接进"持久化前"生命周期(§4.3 时序不变量,宿主侧)。
 - **切片预算**:某些宿主的多图预算特性 → host-tunable 参数(§1.5),headless 可不切或按自己预算切,不影响 1.4 不变量。
-- **OCR 源选型**:同一契约同时支持 in-agent 视觉 / 离线 OCR / 宿主喂文本,选哪种是 binding 侧重(影响具体 binding 草案,不影响契约)。
+- **OCR 源已钉死(非开放点)**:契约 §1.5 已钉死文字源 = 驱动模型原生视觉(in-agent `Read` / codex `-i`);哑 OCR 不是文字源,只在段B 像素打码用。各 binding 只在"用哪个宿主的原生视觉"上不同,不在"视觉 vs 哑 OCR"上选。

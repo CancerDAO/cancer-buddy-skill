@@ -6,8 +6,24 @@
 
 | 脚本 | 角色 |
 |---|---|
-| `scripts/redact_ocr.py` | 打码引擎(vendored from `cancer-buddy-organize-local-skill`,原样)。`redact_image_ocr()`:PaddleOCR 取字 → 正则+NER 判 PII → 只对 PII 区域画黑框 → 存图。 |
-| `scripts/run_redaction_job.py` | 批处理器。读 manifest → 逐图打码 → QA 门 → 回填桶+镜像 → 删原件 → 写 status。幂等可重试。 |
+| `scripts/redact_ocr.py` | 打码引擎(vendored from `cancer-buddy-organize-local-skill`,原样)。`redact_image_ocr()`:PaddleOCR 取字 → 正则+NER 判 PII → 只对 PII 区域画黑框 → 存图。**纯像素打码,不产任何文字**——它读图只为定位 PII 框,不向下游输出 OCR 文本(下游唯一文字源是段A 的脱敏 MD 旁车)。 |
+| `scripts/run_redaction_job.py` | 批处理器。读 manifest → 逐图打码(遇 HEIC 先内部转码,见下) → QA 门 → 回填桶+镜像 → 删原件 → 写 status。幂等可重试。 |
+
+## 段B 是纯像素打码,不产文字(职责边界)
+
+段B 只做一件事:把桶图里的明文 PII 像素涂黑。它**不是文字源**——`redact_ocr.py` 内部跑 PaddleOCR 只为定位 PII 区域 quad,识别出的字符**用完即弃**,绝不写成任何 sidecar / JSON / 文本产物。整条管线唯一的文字读取源是**段A Phase1 产的脱敏 MD 旁车**(契约 §5 不变量1:sidecar 是唯一明文边界)。段B 跑在文本管线之外、之后,跑完只改桶图像素,不动任何 `.md` / `.json`。
+
+## HEIC 桶图:段B 内部转码(PaddleOCR 读不了 HEIC)
+
+manifest 的 `bucket_path` / `mirror_path` 允许 `heic`/`heif`(手机照片档案原样进桶,见 `redaction_manifest.schema.json`)。但 **PaddleOCR 读不了 HEIC**,所以段B 遇 HEIC 必须先**内部转码**再打码:
+
+1. 检测 `bucket_path` 后缀为 `.heic`/`.heif`(大小写不限)。
+2. **内部转码**为可读栅格(`heif-convert` / ImageMagick `convert` / Pillow+pillow-heif,取沙箱内可用者),得临时 JPG。
+3. 对该 JPG 跑 `redact_image_ocr()` 打码 + QA 门(与普通 JPG 同一门,§QA 门语义)。
+4. QA 通过 → 提交**可浏览 JPG**(`<stem>.jpg`)进桶 / 镜像,**删原 HEIC**(原 HEIC 是删原件不可逆的一部分)。`redacted_path` 写新 JPG 路径,后缀由 `.heic` 变 `.jpg`。
+5. QA 失败 / 转码失败 / 无转码器 → 保原 HEIC、标 `failed`(转码器缺失可标 `blocked`,`reason` 写安装指引),`original_deleted=false`,留人工。
+
+> 为什么允许 HEIC 进桶却在段B 转码:段A 进桶时按"原样保留可浏览档案库"把手机原图(常为 HEIC)落桶,这是 manifest 之前**空清单的真因**(旧 pattern 拒 heic/heif → 每张手机照片静默掉队、manifest 为空)。修复是 schema 放行 heic/heif + 段B 在打码这一步把不可浏览的 HEIC 收敛成可浏览 JPG,既不丢原图又保证 at-rest 桶图可浏览且无明文 PII。
 
 ## Runtime adaptation — runtime-neutral 独立步骤
 
@@ -63,9 +79,9 @@ QA 门是 `redaction_status.json` 里 `qa_passed` 字段的来源,也是 `safety
 
 ## 提交语义(QA 通过后)
 
-1. **桶图替换**:`os.replace(临时打码图 → 桶图)` —— 原子替换,即删掉上传原件,桶里只剩打码版。
-2. **镜像替换**:把打码后的桶图 `copy2` 覆盖 `10_原始文件/<subdir>/<原图>` —— 删掉镜像里的打码前原图,**镜像只留打码版**(审计链本身已脱敏)。
-3. 标 `status="done"`、`redacted_path=<bucket_path>`、`qa_passed=true`、`original_deleted=true`。
+1. **桶图替换**:`os.replace(临时打码图 → 桶图)` —— 原子替换,即删掉上传原件,桶里只剩打码版。**HEIC 例外**:桶图后缀由 `.heic`/`.heif` 变 `.jpg`(写可浏览打码 JPG、删原 HEIC),`redacted_path` 记新 JPG 路径。
+2. **镜像替换**:把打码后的桶图 `copy2` 覆盖 `10_原始文件/<subdir>/<原图>` —— 删掉镜像里的打码前原图,**镜像只留打码版**(审计链本身已脱敏)。HEIC 同样收敛为 JPG。
+3. 标 `status="done"`、`redacted_path=<打码后桶图路径>`、`qa_passed=true`、`original_deleted=true`。
 
 ## 删原件不可逆警告
 
@@ -93,4 +109,4 @@ pending ──redact ok──▶ QA pass ──commit──▶ done   (qa_passed
 ## 下游衔接
 
 - 段 A 完成 → 产 manifest;段 D HTML 只读脱敏 JSON/MD,不读图,**不依赖**段 B 是否跑完。
-- 段 B 是纯收尾的图内涂黑 + 镜像收敛;跑完后桶里图为打码版,`.md` 旁车(段 A 已文本脱敏)仍是下游唯一读取源。
+- 段 B 是纯收尾的图内**像素**涂黑 + 镜像收敛(HEIC 顺带转码成可浏览 JPG);跑完后桶里图为打码版,`.md` 旁车(段 A 已文本脱敏)仍是下游唯一读取源。**段 B 不产任何文字**——它读图只为定位 PII 框,不向 sidecar/JSON/HTML 输出 OCR 文本。

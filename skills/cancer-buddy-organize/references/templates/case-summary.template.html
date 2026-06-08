@@ -265,6 +265,11 @@ th {
     <td>{{lesion_site}}</td><td>{{lesion_detail}}</td>
   </tr>
   <!-- END LOOP -->
+  <!-- RENDER_IF_NOT lesions: 无影像数据时占位整段不删 -->
+  <tr>
+    <td colspan="2">{{i18n.val_pending}}</td>
+  </tr>
+  <!-- END RENDER_IF -->
 </table>
 
 <!-- ============ SECTION 5: 核心分子检测 ============ -->
@@ -276,6 +281,11 @@ th {
     <td>{{molecular_label}}</td><td>{{molecular_value}}</td>
   </tr>
   <!-- END LOOP -->
+  <!-- RENDER_IF_NOT molecular_rows: 无分子数据时占位整段不删 -->
+  <tr>
+    <td colspan="2">{{i18n.val_pending}}</td>
+  </tr>
+  <!-- END RENDER_IF -->
 </table>
 
 <!-- ============ SECTION 6: 关键实验室指标 ============ -->
@@ -285,6 +295,9 @@ th {
   <!-- LOOP labs: class ∈ {"", "abnormal", "severe"} -->
   <div class="lab-item {{lab_class}}"><span class="label">{{lab_name}}</span><span class="value">{{lab_value}}</span></div>
   <!-- END LOOP -->
+  <!-- RENDER_IF_NOT labs: 无化验数据时占位整段不删 -->
+  <div class="lab-item"><span class="value">{{i18n.val_pending}}</span></div>
+  <!-- END RENDER_IF -->
 </div>
 
 <!-- ============ SECTION 7: 治疗史 (timeline) ============ -->
@@ -305,6 +318,14 @@ th {
     </div>
   </div>
   <!-- END LOOP -->
+  <!-- RENDER_IF_NOT treatment_lines: 无治疗线数据时占位整段不删 -->
+  <div class="tl-item">
+    <div class="tl-marker pending">—</div>
+    <div class="tl-content">
+      <div class="tl-body">{{i18n.val_pending}}</div>
+    </div>
+  </div>
+  <!-- END RENDER_IF -->
 </div>
 </div>
 
@@ -315,6 +336,9 @@ th {
   <!-- LOOP path_items: 每条一行,末条不加 <br> -->
   <span class="label">{{path_label}}</span>{{path_content}}<br>
   <!-- END LOOP -->
+  <!-- RENDER_IF_NOT path_items: 无当前路径数据时占位整段不删 -->
+  {{i18n.val_pending}}
+  <!-- END RENDER_IF -->
 </div>
 
 <!-- ============ FOOTER ============ -->

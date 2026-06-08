@@ -204,44 +204,56 @@ ol.q-list li, ul.q-list li {
      护栏: review_flags 一律呈现为"请医生确认:<X>"待确认问题,绝不裁决成事实(.q-confirm 黄框 + 待确认标签)。不推荐治疗/不解读/不临床判断。详见 visit-prep-html-prompt.md。 -->
 <h2>{{i18n.sec_questions}}</h2>
 
-<!-- Group A: 来自 review_flags → 待医生确认项 (黄框,绝不当事实) -->
+<!-- Group A: 来自 review_flags → 待医生确认项 (黄框,绝不当事实)。空→占位整组不删 -->
 <div class="q-group q-confirm section-keep">
   <div class="q-group-title">{{i18n.q_group_confirm}}</div>
-  <!-- LOOP confirm_questions: 每个 review_flag 一条,文案形如"请医生确认：档案里 <field> 记的是 <current_value>，对吗？" 若 review_flags 为空 → 渲染一条 <li class="pending">{{i18n.val_none_flagged}}</li> -->
   <ul class="q-list">
-    <li><span class="q-confirm-tag">{{i18n.q_group_confirm_tag}}</span>{{confirm_question}}</li>
+    <!-- LOOP confirm_questions -->
+    <li><span class="q-confirm-tag">{{i18n.q_group_confirm_tag}}</span>{{text}}</li>
+    <!-- END LOOP -->
+    <!-- RENDER_IF_NOT confirm_questions -->
+    <li class="pending">{{i18n.val_none_flagged}}</li>
+    <!-- END RENDER_IF -->
   </ul>
-  <!-- END LOOP -->
 </div>
 
-<!-- Group B: 来自 missing_items → 能否补做/补齐 -->
+<!-- Group B: 来自 missing_items → 能否补做/补齐。空→占位整组不删 -->
 <div class="q-group section-keep">
   <div class="q-group-title">{{i18n.q_group_supplement}}</div>
-  <!-- LOOP supplement_questions: 每个 missing_items.missing[] 一条,文案形如"能不能补做/补齐 <item>？(<reason>)" 无缺项 → <li class="pending">{{i18n.val_pending}}</li> -->
   <ul class="q-list">
-    <li>{{supplement_question}}</li>
+    <!-- LOOP supplement_questions -->
+    <li>{{text}}</li>
+    <!-- END LOOP -->
+    <!-- RENDER_IF_NOT supplement_questions -->
+    <li class="pending">{{i18n.val_pending}}</li>
+    <!-- END RENDER_IF -->
   </ul>
-  <!-- END LOOP -->
 </div>
 
-<!-- Group C: 来自 timeline 进展 → 下一步 -->
+<!-- Group C: 来自 timeline 进展 → 下一步。空→占位整组不删 -->
 <div class="q-group section-keep">
   <div class="q-group-title">{{i18n.q_group_next}}</div>
-  <!-- LOOP next_questions: 从最近 timeline 事件/转归派生的"下一步该问什么",患者向、非临床建议 -->
   <ul class="q-list">
-    <li>{{next_question}}</li>
+    <!-- LOOP next_questions -->
+    <li>{{text}}</li>
+    <!-- END LOOP -->
+    <!-- RENDER_IF_NOT next_questions -->
+    <li class="pending">{{i18n.val_pending}}</li>
+    <!-- END RENDER_IF -->
   </ul>
-  <!-- END LOOP -->
 </div>
 
-<!-- Group D: visit_type 框架问题 (question-frameworks.md) -->
+<!-- Group D: visit_type 框架问题 (question-frameworks.md)。空→占位整组不删 -->
 <div class="q-group section-keep">
   <div class="q-group-title">{{i18n.q_group_framework}}</div>
-  <!-- LOOP framework_questions: 从 question-frameworks.md 取 visit_type(初诊/复诊/换线决策) 对应脚手架,subagent 按本患者档案做轻量个性化(套字段,不新增临床判断) -->
   <ol class="q-list">
-    <li>{{framework_question}}</li>
+    <!-- LOOP framework_questions -->
+    <li>{{text}}</li>
+    <!-- END LOOP -->
+    <!-- RENDER_IF_NOT framework_questions -->
+    <li class="pending">{{i18n.val_pending}}</li>
+    <!-- END RENDER_IF -->
   </ol>
-  <!-- END LOOP -->
 </div>
 
 <!-- ============ BLOCK 3: 带什么 ============ -->
@@ -249,42 +261,64 @@ ol.q-list li, ul.q-list li {
 <h2>{{i18n.sec_bring}}</h2>
 <div class="section-keep">
   <div class="bring-sub-title">{{i18n.bring_originals}}</div>
-  <!-- LOOP bring_originals: 病理原件 / 影像光盘或胶片 / 基因报告原件 等,按档案现状推。无可推项 → <li class="pending">{{i18n.val_pending}}</li> -->
   <ul class="bring-list">
-    <li>{{bring_original_item}}</li>
+    <!-- LOOP bring_originals -->
+    <li>{{text}}</li>
+    <!-- END LOOP -->
+    <!-- RENDER_IF_NOT bring_originals -->
+    <li class="pending">{{i18n.val_pending}}</li>
+    <!-- END RENDER_IF -->
   </ul>
-  <!-- END LOOP -->
 
   <div class="bring-sub-title">{{i18n.bring_for_questions}}</div>
-  <!-- LOOP bring_for_questions: 针对 Block 2 待问问题该一并带的资料(如待确认 stage → 带原始病理/诊断证明) -->
   <ul class="bring-list">
-    <li>{{bring_for_question_item}}</li>
+    <!-- LOOP bring_for_questions -->
+    <li>{{text}}</li>
+    <!-- END LOOP -->
+    <!-- RENDER_IF_NOT bring_for_questions -->
+    <li class="pending">{{i18n.val_pending}}</li>
+    <!-- END RENDER_IF -->
   </ul>
-  <!-- END LOOP -->
 </div>
 
-<!-- ============ BLOCK 4: 上次 → 这次的变化 (仅复诊;visit_type != 复诊 时整块不渲染) ============ -->
-<!-- 来源: timeline.json + labs.json,抽"上次就诊后"的新症状/指标趋势/新检查。只罗列事实变化,不解读、不判断趋势好坏。每子块无数据 → <li class="pending">{{i18n.val_pending}}</li> -->
-<!-- RENDER_IF visit_type == followup -->
+<!-- ============ BLOCK 4: 上次 → 这次的变化 (仅复诊;is_followup 为假时整块不渲染) ============ -->
+<!-- 来源: timeline.json + labs.json,抽"上次就诊后"的新症状/指标趋势/新检查。只罗列事实变化,不解读、不判断趋势好坏。每子块无数据→占位行,整块不删。 -->
+<!-- is_followup 由 renderer 顶层布尔字段控制(visit_type==followup 时由 prompt 置 true);非复诊整块不渲染 -->
+<!-- RENDER_IF is_followup -->
 <h2>{{i18n.sec_changes}}</h2>
 <div class="section-keep">
   <div class="chg-block">
     <div class="chg-title">{{i18n.chg_new_symptoms}}</div>
-    <!-- LOOP change_symptoms -->
-    <ul><li>{{change_symptom}}</li></ul>
-    <!-- END LOOP -->
+    <ul>
+      <!-- LOOP change_symptoms -->
+      <li>{{text}}</li>
+      <!-- END LOOP -->
+      <!-- RENDER_IF_NOT change_symptoms -->
+      <li class="pending">{{i18n.val_pending}}</li>
+      <!-- END RENDER_IF -->
+    </ul>
   </div>
   <div class="chg-block">
     <div class="chg-title">{{i18n.chg_lab_trends}}</div>
-    <!-- LOOP change_lab_trends: 形如 "CEA 12.4 → 18.7 ng/mL (2024-03 → 2024-05)" — 数值/单位 verbatim,只陈列趋势不判好坏 -->
-    <ul><li>{{change_lab_trend}}</li></ul>
-    <!-- END LOOP -->
+    <ul>
+      <!-- LOOP change_lab_trends -->
+      <li>{{text}}</li>
+      <!-- END LOOP -->
+      <!-- RENDER_IF_NOT change_lab_trends -->
+      <li class="pending">{{i18n.val_pending}}</li>
+      <!-- END RENDER_IF -->
+    </ul>
   </div>
   <div class="chg-block">
     <div class="chg-title">{{i18n.chg_new_tests}}</div>
-    <!-- LOOP change_new_tests -->
-    <ul><li>{{change_new_test}}</li></ul>
-    <!-- END LOOP -->
+    <ul>
+      <!-- LOOP change_new_tests -->
+      <li>{{text}}</li>
+      <!-- END LOOP -->
+      <!-- RENDER_IF_NOT change_new_tests -->
+      <li class="pending">{{i18n.val_pending}}</li>
+      <!-- END RENDER_IF -->
+    </ul>
   </div>
 </div>
 <!-- END RENDER_IF -->
