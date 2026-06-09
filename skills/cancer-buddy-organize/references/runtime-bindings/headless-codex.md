@@ -7,7 +7,7 @@
 | 接缝 | 契约要求(不变) | headless codex 填法 |
 |---|---|---|
 | 编排 | Phase2 前所有 sidecar 就绪 | 单进程顺序遍历 source inventory,逐源调用 Codex |
-| LLM 输入源 | sidecar 正文由 LLM 输出;哑 OCR/parser 非正文来源 | `codex exec -i <raster>` 视觉或 Codex file-context/payload prompt |
+| LLM 输入源 | sidecar 正文和 PII locator 由 LLM 输出;纯 OCR/parser 非正文或 PII 判断来源 | `codex exec -i <raster>` 视觉或 Codex file-context/payload prompt |
 | 格式适配 | 只把源文件变成 LLM-readable input | `heif-convert`/ImageMagick/pdftoppm/document payload builder |
 | 确认门 | 未确认不写正式字段/不可逆删除 | confirm-as-product JSON + 平台 UI + 第二轮回灌 |
 | 存储+本体脱敏 | canonical 输出集;persist 前源文件本体脱敏通过 | 沙箱内生成 patient_dir;source redaction 完成后仅 persist 脱敏文件/MD/JSON/HTML |
@@ -21,8 +21,9 @@ for src in source_inventory:
   source_id = stable_id(src)
   mirror original into patient_dir/10_原始文件/
   adapter_input = adapt_for_llm(src)
-  sidecar = codex_llm_ingest(source_id, adapter_input)
+  sidecar, pii_regions = codex_llm_ingest(source_id, adapter_input)
   write patient_dir/ocr/<source_id>.md
+  write patient_dir/ocr/<source_id>.pii_regions.json
 run single Phase2 synthesis over all sidecars
 ```
 
@@ -31,8 +32,8 @@ Codex `-i` 喂的是匿名图像字节时,平台必须维护 `source_id ↔ 原�
 ## 2. LLM 输入源
 
 - 图片/扫描件: `codex exec -i <adapted-raster>` 让 Codex 视觉直接读,输出 redacted MD。
-- PDF/DOCX/spreadsheet/text:平台可构造 LLM-readable file context 或 payload,再让 Codex 输出 redacted MD。
-- PaddleOCR/Tesseract/macOS Vision/PDF text extractors/DOCX XML parsers 不能直接写 sidecar 临床正文。它们只允许做 adapter、source-file redaction 定位或 QA。
+- PDF/DOCX/spreadsheet/text:平台可构造 LLM-readable file context 或 payload,再让 Codex 输出 redacted MD 和 PII locator metadata。
+- 纯 OCR/parser 字符流不能直接写 sidecar 临床正文,也不能替代 Codex 做 PII locator 判断。它们只允许做 adapter 或机械文件处理。
 - sidecar header 必须含 `READ_MODE`, `ADAPTER`, `ADAPTER_PROVENANCE`, `ORIGINAL`。`ORIGINAL` 指向原始 staging mirror,不是临时 adapter 文件。
 
 ## 3. 格式适配
@@ -60,14 +61,14 @@ Phase2 产:
 - 11 buckets + co-located redacted MD
 - `source_inventory.json`
 - structured JSON / timeline / case_text / readiness / review outputs
-- `redaction_manifest.json` for images
+- full-format `redaction_manifest.json` for every persisted redaction-required source
 - `source_redaction_status.json` skeleton
 - `病情简要总结.html` from redacted JSON/MD
 
 Persist model:
 
 - `病情简要总结.html` may be generated before source-file redaction finishes because it reads only redacted MD/JSON.
-- Platform MUST NOT persist source files until `source_redaction_status.json` says every persisted source has `status=done`, `qa_passed=true`, `original_deleted=true`.
+- Platform MUST NOT persist source files until `source_redaction_status.json` says every persisted source has `status=done`, `coverage_passed=true`, `llm_qa_passed=true`, `qa_passed=true`, `original_deleted=true`.
 - Images use `run_redaction_job.py` from `redaction_manifest.json`, then sync image rows into `source_redaction_status.json`.
 - PDF/DOCX/spreadsheet/text require reliable source-file redactors. If missing, write `blocked` with reason and do not persist the source file.
 - Persist only: redacted bucket files, co-located redacted MD, JSON/HTML/logs/status. Plaintext originals never leave the sandbox/local workspace.

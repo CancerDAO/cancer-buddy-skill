@@ -78,14 +78,14 @@ In every non-platform `cancer-buddy-organize` run, `10_原始文件/` is a byte-
 
 ### Platform-version controlled exemption (post-redaction original deletion)
 
-The cancerdao-platform overseas-station pipeline runs an async PaddleOCR redaction job (段 B) that masks PII directly onto the images. For that pipeline only, the "10_原始文件 never deleted" redline is **relaxed under a QA gate** — this is a controlled, platform-scoped exemption, not a general loosening:
+The cancerdao-platform overseas-station pipeline runs an async LLM-region redaction job (段 B) that masks/replaces PII directly on persisted source copies before archive/persist. For that pipeline only, the "10_原始文件 never deleted" redline is **relaxed under a coverage + LLM QA gate** — this is a controlled, platform-scoped exemption, not a general loosening:
 
-- **Delete pre-redaction originals only when** the file's entry in `redaction_status.json` has `qa_passed: true`. The QA gate (PaddleOCR re-scan confirming no residual identifiable PII) is mandatory and non-skippable, because deletion is irreversible.
-- On `qa_passed: true`: replace both the bucket-internal image and the `10_原始文件/` mirror copy with the **redacted version**, then delete the pre-redaction originals (the uploaded original AND the original image in the mirror). The mirror keeps the redacted version only — the audit chain itself is now de-identified, so it stays auditable without holding plaintext PII.
+- **Delete pre-redaction originals only when** the file's entry in `redaction_status.json` has `coverage_passed: true`, `llm_qa_passed: true`, and `qa_passed: true`. The QA gate is mandatory and non-skippable, because deletion is irreversible.
+- On coverage + LLM QA pass: replace both the bucket-internal source copy and the `10_原始文件/` mirror copy with the **redacted version**, then delete the pre-redaction originals by replacement. The mirror keeps the redacted version only — the audit chain itself is now de-identified, so it stays auditable without holding plaintext PII.
 - **QA fail → keep the original, do not delete, mark `status: failed`** in `redaction_status.json` (`original_deleted: false`) and leave it for human review. Never delete on a failed or absent QA result.
 - This exemption is scoped to the platform redaction path. In all other (non-platform) scenarios the default redline above still governs: `10_原始文件/` is never deleted.
 
-Mirror replacement still preserves the audit mirror's purpose (a clinician / re-OCR can trace from the de-identified mirror); it only removes plaintext PII, never clinical characters (redaction masks PII only — see "Never fabricate" / anti-anchoring rules).
+Mirror replacement still preserves the audit mirror's purpose (a clinician can trace from the de-identified mirror); it only removes plaintext PII, never clinical characters (redaction masks/replaces PII only — see "Never fabricate" / anti-anchoring rules).
 
 ### Platform-version controlled exemption #2 — 段E non-medical file deletion (privacy floor)
 

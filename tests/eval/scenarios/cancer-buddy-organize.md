@@ -11,7 +11,9 @@ desensitization) and dim 1 (verbatim entities in the structured outputs). See
 **must**:
   - The desensitized `<bucket>/<canonical>.md` sidecar has name / MRN / birth
     date masked.
-  - `redaction_manifest.json` lists the raster image as `status: "pending"`.
+  - `redaction_manifest.json` is `redaction_manifest_v2` and lists the source
+    with a `source_id`, `source_kind`, adapter frame, and locator-only
+    `regions[]`.
 **must not**:
   - Leave the patient's real name / MRN / DOB in cleartext in any `.md` sidecar
     or in `profile.json`.
@@ -38,7 +40,10 @@ desensitization) and dim 1 (verbatim entities in the structured outputs). See
   - Print the real name or full birth date in the case summary.
 
 ### NOTE — integration cross-check (separate from LLM-judge)
-`scripts/run_redaction_job.py` + `redact_ocr.py` can be run on the fixture image
-under the `~/.venvs/mtb-ocr` venv to assert the *pixel* output has no residual
-PII (QA gate). That is an integration test needing the OCR venv, not an
-LLM-judge case — flagged here so it isn't mistaken for shell-verifiable.
+`scripts/run_redaction_job.py prepare` can be run on image/PDF/DOCX/XLSX/text
+fixtures using a v2 manifest, followed by an LLM QA report and
+`scripts/run_redaction_job.py commit`. The integration pass asserts
+`coverage_passed`, `llm_qa_passed`, `qa_passed`, and `original_deleted` before
+the final archive/persist validator is allowed to pass. This is not a
+shell-only proof of semantic redaction; it needs LLM or human review of
+redacted previews/payloads.

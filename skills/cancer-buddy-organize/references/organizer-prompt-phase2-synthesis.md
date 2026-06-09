@@ -136,7 +136,7 @@ After you've judged every file, write the plan to `<patient_dir>/.rename_plan.js
       "adapter_provenance": "decode_tool=sips;rotation=0",
       "persist": true,
       "redaction_required": true,
-      "redaction_strategy": "paddleocr_image",
+      "redaction_strategy": "llm_region_image",
       "extracted": {"date": "2024-03-15", "doc_type": "病理报告", "hospital": "中山六院", "page": null},
       "pii_hint": ["patient_name", "admission_id"]
     }
@@ -144,7 +144,7 @@ After you've judged every file, write the plan to `<patient_dir>/.rename_plan.js
 }
 ```
 
-`pii_hint` lists the PII categories Phase 1 masked in this file's MD (read them from the sidecar's `## PII` section if present, else infer from doc_type — e.g. 出院小结/诊断证明 typically carry `patient_name` + `admission_id`). This feeds `redaction_manifest.json` in Step 1f. `read_mode` / `adapter` / `adapter_provenance` come from the sidecar header and are provenance only; adapter output is never a clinical text source. `mirror_path` is the byte-level original under `10_原始文件/` — source-file redaction needs both the bucket copy and the mirror.
+`pii_hint` lists the PII categories Phase 1 masked in this file's MD (read them from the sidecar's `## PII` section if present, else infer from doc_type — e.g. 出院小结/诊断证明 typically carry `patient_name` + `admission_id`). This is category context only; the body-redaction contract uses the Phase 1 `<basename>.pii_regions.json` locator file in Step 1f. `read_mode` / `adapter` / `adapter_provenance` come from the sidecar header and are provenance only; adapter output is never a clinical text source. `mirror_path` is the byte-level original under `10_原始文件/` — source-file redaction needs both the bucket copy and the mirror.
 
 ### Step 1c — Materialize each file into its bucket (mechanical bash)
 
@@ -213,21 +213,82 @@ If `ocr_drain_incomplete` fires, add `"ocr_drain_incomplete: <basename>"` for ea
 
 ### Step 1f — Write `redaction_manifest.json`
 
-This is the hand-off contract to 段B (the pre-persist PaddleOCR image-redaction job). It lists every image that still needs PII pixels boxed, with both its bucket copy and its byte-level mirror so the job can replace both. Schema: [redaction_manifest.schema.json](references/schemas/redaction_manifest.schema.json) (`redaction_manifest_v1`, §6.1 of the design spec). Only **raster image** files need pixel redaction — include `jpg/jpeg/png/tif/tiff/webp/bmp` **and `heic/heif`** bucket entries (exactly the extensions the schema's `bucket_path`/`mirror_path` patterns allow); pure-text PDFs/DOCX whose MD is already redacted do NOT go in the manifest (no pixels to box). **HEIC: do NOT pre-stash a JPEG bucket copy.** The bucket keeps the original `.HEIC` (and the `10_原始文件/` mirror keeps `.HEIC` too); list that **`.heic` bucket_path** and the **`.heic` mirror_path** directly — both ends match the schema pattern, which now allows heic/heif. 段B transcodes HEIC internally (PaddleOCR can't read HEIC) before boxing PII and emits a browsable redacted image; that transcode is 段B's concern, not yours. Phase 1 may have produced a `/tmp` JPEG purely for LLM vision ingestion — that is ephemeral and **never** enters a bucket; never reference it in the manifest. For scanned-image PDFs (no text layer), body redaction is tracked by `source_redaction_status.json`; do not pretend a missing PDF redactor succeeded.
+This is the full-format hand-off contract to 段B. It lists every `persist:true && redaction_required:true` source file, not just images. Phase 1 produced the redacted MD sidecar and a sibling `<basename>.pii_regions.json`; you now bind that locator metadata to the canonical bucket path and mirror path. Schema: [redaction_manifest.schema.json](references/schemas/redaction_manifest.schema.json) (`redaction_manifest_v2`).
 
-Build it from `.rename_plan.json` (paths are bucket-relative; if a Step 1c collision bumped a name to `_2`, use the actual on-disk path):
+The manifest must never store plaintext PII. Each `regions[]` item stores only category + locator:
+
+- `llm_region_image`: raster/HEIC image regions, bound to the canonical raster adapter frame after EXIF/rotation correction.
+- `llm_region_pdf`: PDF page regions, bound to fixed-DPI rendered pages.
+- `llm_structured_docx`: DOCX XML/paragraph/run/table/header/footer locators, or a redacted payload if structure is not safely addressable.
+- `llm_structured_sheet`: XLSX cell/comment/property locators.
+- `llm_text_rewrite`: CSV/TXT/HTML/MD line/span locators or redacted payload.
+- `archive_rebuild`: original archive is never persisted; only redacted children are rebuilt into a new archive.
+- `blocked_unsupported`: unknown or unlocatable binary format. These sources can produce desensitized MD/JSON/HTML, but cannot enter the final package.
+
+For each plan entry, load the matching Phase 1 region metadata from the old sidecar stem before Step 1c moved it (same basename, `.pii_regions.json`). If the region metadata is missing while `redaction_required:true`, write a manifest entry with `status:"blocked"` and set the source strategy to `blocked_unsupported`; do not silently persist the source. If the file has `redaction_required:false`, omit it from the manifest and mark `not_required` in source status.
+
+Build it from `.rename_plan.json` plus the region metadata (paths are bucket-relative; if a Step 1c collision bumped a name to `_2`, use the actual on-disk path):
 
 ```bash
 gen=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-jq --arg pd "$patient_dir" --arg gen "$gen" '
-  {schema:"redaction_manifest_v1", patient_dir:$pd, generated_at:$gen,
-   files: [ .files[]
-     | select((.ext|ascii_downcase) as $e | ["jpg","jpeg","png","tif","tiff","webp","bmp","heic","heif"] | index($e))
-     | {id, bucket_path:.file_dest, mirror_path, pii_hint:(.pii_hint // []), status:"pending"} ]}' \
-  "$patient_dir/.rename_plan.json" > "$patient_dir/redaction_manifest.json"
+PATIENT_DIR="$patient_dir" python3 - <<'PY'
+import json, os, pathlib, datetime
+
+pd = pathlib.Path(os.environ["PATIENT_DIR"])
+plan = json.loads((pd / ".rename_plan.json").read_text(encoding="utf-8"))
+
+def kind_and_strategy(ext):
+    e = ext.lower()
+    if e in {"jpg", "jpeg", "png", "tif", "tiff", "webp", "bmp", "heic", "heif"}:
+        return "image", "llm_region_image"
+    if e == "pdf":
+        return "pdf", "llm_region_pdf"
+    if e in {"docx", "docm"}:
+        return "docx", "llm_structured_docx"
+    if e in {"xlsx", "xlsm", "csv"}:
+        return ("csv" if e == "csv" else "xlsx"), ("llm_text_rewrite" if e == "csv" else "llm_structured_sheet")
+    if e in {"txt", "html", "htm", "md"}:
+        return ("html" if e in {"html", "htm"} else e), "llm_text_rewrite"
+    if e in {"zip", "rar", "7z", "tar", "gz", "tgz"}:
+        return "archive", "archive_rebuild"
+    return "other", "blocked_unsupported"
+
+files = []
+for item in plan["files"]:
+    if not item.get("persist", True) or not item.get("redaction_required", True):
+        continue
+    source_kind, strategy = kind_and_strategy(item.get("ext", ""))
+    old_sidecar = pathlib.Path(item["ocr_sidecar_old"])
+    region_path = pd / old_sidecar.with_suffix(".pii_regions.json")
+    region_doc = {}
+    if region_path.exists():
+        region_doc = json.loads(region_path.read_text(encoding="utf-8"))
+    elif strategy != "blocked_unsupported":
+        strategy = "blocked_unsupported"
+        source_kind = "other"
+    files.append({
+        "id": item["id"],
+        "source_id": item["source_id"],
+        "source_kind": source_kind,
+        "bucket_path": item["file_dest"],
+        "mirror_path": item["mirror_path"],
+        "redacted_candidate_path": f".redaction_candidates/{item['id']}_{pathlib.Path(item['file_dest']).name}",
+        "redacted_payload_path": region_doc.get("redacted_payload_path"),
+        "adapter_frame": region_doc.get("adapter_frame", {"frame_kind": "none", "coordinate_space": "none"}),
+        "regions": region_doc.get("regions", []),
+        "status": "blocked" if strategy == "blocked_unsupported" else "pending"
+    })
+
+(pd / "redaction_manifest.json").write_text(json.dumps({
+    "schema": "redaction_manifest_v2",
+    "patient_dir": str(pd),
+    "generated_at": datetime.datetime.utcnow().replace(microsecond=0).isoformat() + "Z",
+    "files": files
+}, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+PY
 ```
 
-Validate against the schema before writing (mental validation if no `jsonschema`): every `bucket_path` resolves to an on-disk file and matches the image-extension pattern, every `mirror_path` exists under `10_原始文件/`, `status` is `"pending"`, `pii_hint[]` values ∈ the schema enum (`patient_name`, `patient_id`, `admission_id`, `bed_no`, `phone`, `address`, `id_card`, `birth_date`, `signature_name`, `other`). On failure, surface `"redaction_manifest_invalid: <reason>"` into `readiness.json.warnings`.
+Validate against the schema before writing (mental validation if no `jsonschema`): every manifest entry has `source_id`, `source_kind`, `bucket_path`, `mirror_path`, `redacted_candidate_path`, `adapter_frame`, and `regions[]`; every `bucket_path` and `mirror_path` resolves to an on-disk file; coordinates are normalized or page-bound as declared; no region contains plaintext PII; unsupported/unlocatable sources are `blocked`. On failure, surface `"redaction_manifest_invalid: <reason>"` into `readiness.json.warnings`.
 
 ### Step 1g — Write `source_inventory.json` and initialize `source_redaction_status.json`
 
@@ -250,7 +311,7 @@ Validate against the schema before writing (mental validation if no `jsonschema`
       "adapter_provenance": "decode_tool=sips;rotation=90",
       "persist": true,
       "redaction_required": true,
-      "redaction_strategy": "paddleocr_image",
+      "redaction_strategy": "llm_region_image",
       "redacted_path": null,
       "notes": null
     }
@@ -258,7 +319,7 @@ Validate against the schema before writing (mental validation if no `jsonschema`
 }
 ```
 
-Write `source_redaction_status.json` as the pre-persist hard gate skeleton. For image entries, link the `redaction_manifest.json` id and leave them `pending` until `run_redaction_job.py` completes and the platform syncs the done state. For PDF/DOCX/spreadsheet/text entries, if a reliable body redactor is not implemented in the current host, mark them `blocked` with a clear reason. **Blocked source files may still produce MD/JSON/HTML, but they cannot be persisted as source-file artifacts.**
+Write `source_redaction_status.json` as the pre-persist hard gate skeleton. Link each redaction-required entry to the `redaction_manifest.json` id and leave it `pending` until `run_redaction_job.py prepare` creates a candidate, LLM QA passes, and `commit` syncs the done state. Unknown or unlocatable binary entries use `blocked_unsupported` and `blocked` with a clear reason. **Blocked source files may still produce MD/JSON/HTML, but they cannot be persisted as source-file artifacts.**
 
 ```json
 {
@@ -270,10 +331,13 @@ Write `source_redaction_status.json` as the pre-persist hard gate skeleton. For 
     {
       "source_id": "s001",
       "status": "pending",
-      "strategy": "paddleocr_image",
+      "strategy": "llm_region_image",
       "redacted_path": null,
+      "coverage_passed": null,
+      "llm_qa_passed": null,
       "qa_passed": null,
       "original_deleted": null,
+      "qa_report_id": null,
       "reason": null,
       "linked_redaction_manifest_id": "f001"
     }
@@ -281,7 +345,7 @@ Write `source_redaction_status.json` as the pre-persist hard gate skeleton. For 
 }
 ```
 
-Final archive/persist MUST wait until every `persist:true && redaction_required:true` source has `status:"done"`, `qa_passed:true`, and `original_deleted:true`. `validate_structured_outputs.py` enforces this; do not declare an archive-ready run while any source is `pending` / `failed` / `blocked`.
+Final archive/persist MUST wait until every `persist:true && redaction_required:true` source has `status:"done"`, `coverage_passed:true`, `llm_qa_passed:true`, `qa_passed:true`, and `original_deleted:true`. `validate_structured_outputs.py` enforces this; do not declare an archive-ready run while any source is `pending` / `failed` / `blocked`.
 
 ## Step 2 — Synthesize core artifacts
 

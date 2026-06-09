@@ -17,10 +17,9 @@
 #      must be gated.
 #   D. vault declares PII stripping / de-identification on share.
 #
-# What this CANNOT prove: that a real image was actually pixel-redacted with
-# zero residual PII. That requires running redact_ocr.py on fixtures (an
-# integration test with the OCR venv) and/or LLM-judge on a sidecar sample
-# (scenarios/cancer-buddy-organize.md).
+# What this CANNOT prove: that a real source file was semantically fully
+# redacted. That requires running prepare + LLM QA + commit on fixtures and/or
+# a judge on redacted previews/payloads (scenarios/cancer-buddy-organize.md).
 set -euo pipefail
 source "$(dirname "$0")/_common.sh"
 errs=0
@@ -41,18 +40,38 @@ if [[ -f "$ORG_MD" ]]; then
     || fail "organize: does not state redaction masks PII only (anti-anchoring, clinical chars intact)"
 fi
 
-# B. redaction hand-off is backed by real artifacts.
+# B. redaction hand-off is backed by real artifacts and v2 schemas.
 [[ -f "$ORG/references/schemas/redaction_manifest.schema.json" ]] \
   || fail "organize: redaction_manifest.schema.json missing (hand-off contract)"
-[[ -f "$ORG/scripts/redact_ocr.py" ]] \
-  || fail "organize: scripts/redact_ocr.py missing (PaddleOCR pixel-redactor)"
 [[ -f "$ORG/scripts/run_redaction_job.py" ]] \
   || fail "organize: scripts/run_redaction_job.py missing (batch redaction job)"
+grep -q 'redaction_manifest_v2' "$ORG/references/schemas/redaction_manifest.schema.json" \
+  || fail "organize: redaction_manifest schema is not v2"
+grep -q 'redaction_status_v2' "$ORG/references/schemas/redaction_status.schema.json" \
+  || fail "organize: redaction_status schema is not v2"
+grep -q 'llm_region_image' "$ORG/references/schemas/source_inventory.schema.json" \
+  || fail "organize: source_inventory schema missing llm_region strategies"
+grep -q 'coverage_passed' "$ORG/references/schemas/source_redaction_status.schema.json" \
+  || fail "organize: source_redaction_status schema missing v2 coverage gate fields"
+
+# B2. old OCR redactor dependency must not re-enter active organize docs/scripts/tests.
+old_redactor_pattern='Paddle''OCR|paddle''ocr|redact_''ocr|mtb-''ocr|OCR ''venv|paddle''ocr_''image'
+grep -RInE "$old_redactor_pattern" \
+  "$ORG" "$REPO_ROOT/tests/eval" >/tmp/cb-old-redactor-refs.raw.$$ || true
+grep -vF "$0" /tmp/cb-old-redactor-refs.raw.$$ >/tmp/cb-old-redactor-refs.$$ || true
+rm -f /tmp/cb-old-redactor-refs.raw.$$
+if [[ -s /tmp/cb-old-redactor-refs.$$ ]]; then
+  cat /tmp/cb-old-redactor-refs.$$ >&2
+  rm -f /tmp/cb-old-redactor-refs.$$
+  fail "organize: old OCR redactor dependency/reference present"
+else
+  rm -f /tmp/cb-old-redactor-refs.$$
+fi
 
 # C. QA-gated irreversible-delete carve-out in shared guardrails.
 [[ -f "$SG" ]] || fail "safety-guardrails.md not found"
 if [[ -f "$SG" ]]; then
-  grep -qiE 'qa_passed|QA gate|QA 门' "$SG" \
+  grep -qiE 'coverage_passed|llm_qa_passed|QA gate|QA 门' "$SG" \
     || fail "safety-guardrails.md: QA-gated redaction-then-delete carve-out absent"
 fi
 

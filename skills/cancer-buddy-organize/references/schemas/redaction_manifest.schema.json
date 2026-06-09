@@ -2,31 +2,150 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://cancerdao.org/schemas/cancer-buddy/redaction_manifest.schema.json",
   "title": "RedactionManifest",
-  "description": "Handoff contract from 段A (cloud organize) to 段B PaddleOCR image redaction. Lists every bucket image that still needs in-image PII masking, with its bucket-relative path and its 10_原始文件/ mirror path. Produced by phase2-synthesis; consumed by scripts/run_redaction_job.py before archive/persist. Only PII is masked — clinical characters are never altered.",
+  "description": "Full-format source redaction handoff from Phase 1/2 to the deterministic region redactor. The LLM supplies redacted Markdown plus PII region metadata; this manifest carries only category + coordinates/structure locators, never plaintext PII. The redactor consumes it before archive/persist and never performs OCR.",
   "type": "object",
   "required": ["schema", "patient_dir", "generated_at", "files"],
   "additionalProperties": false,
   "properties": {
-    "schema": { "const": "redaction_manifest_v1" },
-    "patient_dir": { "type": "string", "description": "Absolute path to <patient_dir> (e.g. /abs/PT-XXXX). All file paths below are relative to this directory." },
-    "generated_at": { "type": "string", "format": "date-time", "description": "ISO 8601 timestamp when phase2-synthesis emitted this manifest." },
+    "schema": { "const": "redaction_manifest_v2" },
+    "patient_dir": {
+      "type": "string",
+      "description": "Absolute path to <patient_dir>. All file paths below are relative to this directory."
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp when phase2-synthesis emitted this manifest."
+    },
     "files": {
       "type": "array",
-      "description": "One entry per image awaiting redaction. MD sidecars are already text-redacted in 段A and are NOT listed here.",
+      "description": "One entry per source file selected for persist and requiring body redaction.",
       "items": {
         "type": "object",
-        "required": ["id", "bucket_path", "mirror_path", "status"],
+        "required": [
+          "id",
+          "source_id",
+          "source_kind",
+          "bucket_path",
+          "mirror_path",
+          "redacted_candidate_path",
+          "adapter_frame",
+          "regions",
+          "status"
+        ],
         "additionalProperties": false,
         "properties": {
-          "id": { "type": "string", "pattern": "^f\\d{3,}$", "description": "Stable per-file id, e.g. 'f001'. Used to join against redaction_status.json.files[].id." },
-          "bucket_path": { "type": "string", "pattern": "^[^/].*\\.(jpg|jpeg|png|tif|tiff|webp|bmp|heic|heif|JPG|JPEG|PNG|TIF|TIFF|WEBP|BMP|HEIC|HEIF)$", "description": "Bucket-relative path to the canonical image inside its 11-bucket subdirectory, e.g. '02_诊断与分期/病理报告/2024-03-15_病理报告_x.jpg'. Never absolute, never prefixed with ocr/. heic/heif are allowed here because phone-photo archives keep the original HEIC in its bucket; 段B transcodes HEIC internally (PaddleOCR cannot read HEIC) before pixel-redacting and emits a browsable JPG. Empty manifests previously happened because this pattern rejected heic/heif and every phone photo silently dropped out of the work queue." },
-          "mirror_path": { "type": "string", "pattern": "^10_原始文件/.+\\.(jpg|jpeg|png|tif|tiff|webp|bmp|heic|heif|JPG|JPEG|PNG|TIF|TIFF|WEBP|BMP|HEIC|HEIF)$", "description": "Bucket-relative path to the same image's byte-level audit mirror under 10_原始文件/, e.g. '10_原始文件/<subdir>/IMG_0001.heic'. heic/heif allowed (same reason as bucket_path). 段B replaces this mirror copy with the redacted (transcoded, browsable) version." },
-          "pii_hint": {
-            "type": "array",
-            "description": "Optional hints (LLM-judged in 段A) about which PII categories the redactor should expect on this image. Advisory only — 段B does its own NER detection and never relies solely on this list.",
-            "items": { "type": "string", "enum": ["patient_name", "patient_id", "admission_id", "bed_no", "phone", "address", "id_card", "birth_date", "signature_name", "other"] }
+          "id": {
+            "type": "string",
+            "pattern": "^f\\d{3,}$",
+            "description": "Stable per-file redaction id, e.g. f001. Joined by redaction_status.json files[].id."
           },
-          "status": { "type": "string", "enum": ["pending"], "description": "Manifest is the work queue; every entry is emitted as 'pending'. Live progress is tracked separately in redaction_status.json." }
+          "source_id": {
+            "type": "string",
+            "pattern": "^s\\d{3,}$",
+            "description": "Matches source_inventory.json files[].source_id."
+          },
+          "source_kind": {
+            "type": "string",
+            "enum": ["image", "pdf", "docx", "xlsx", "csv", "txt", "html", "md", "archive", "other"]
+          },
+          "bucket_path": {
+            "type": "string",
+            "pattern": "^[^/].+",
+            "description": "Bucket-relative canonical source path. Never absolute."
+          },
+          "mirror_path": {
+            "type": "string",
+            "pattern": "^10_原始文件/.+",
+            "description": "Patient-dir-relative staging mirror path. Replaced only after QA passes."
+          },
+          "redacted_candidate_path": {
+            "type": ["string", "null"],
+            "description": "Patient-dir-relative candidate path written by prepare mode. Null in the initial manifest."
+          },
+          "redacted_payload_path": {
+            "type": ["string", "null"],
+            "description": "Optional patient-dir-relative LLM-redacted payload for text-like formats when region locators are not sufficient. It must already be PII-free."
+          },
+          "adapter_frame": {
+            "type": "object",
+            "required": ["frame_kind", "coordinate_space"],
+            "additionalProperties": false,
+            "properties": {
+              "frame_kind": {
+                "type": "string",
+                "enum": ["image", "pdf_page", "docx_xml", "xlsx_sheet", "text", "archive_child", "none"]
+              },
+              "coordinate_space": {
+                "type": "string",
+                "enum": ["normalized_0_1", "pixel", "xml_locator", "cell", "line_span", "payload", "none"]
+              },
+              "width": { "type": ["number", "null"], "minimum": 0 },
+              "height": { "type": ["number", "null"], "minimum": 0 },
+              "dpi": { "type": ["number", "null"], "minimum": 0 },
+              "page_count": { "type": ["integer", "null"], "minimum": 0 },
+              "notes": { "type": ["string", "null"] }
+            }
+          },
+          "regions": {
+            "type": "array",
+            "description": "PII regions or structure locators identified by the LLM. Do not store plaintext PII in any field.",
+            "items": {
+              "type": "object",
+              "required": ["region_id", "category", "locator_type", "locator"],
+              "additionalProperties": false,
+              "properties": {
+                "region_id": {
+                  "type": "string",
+                  "pattern": "^r\\d{3,}$"
+                },
+                "category": {
+                  "type": "string",
+                  "enum": [
+                    "patient_name",
+                    "patient_id",
+                    "admission_id",
+                    "bed_no",
+                    "phone",
+                    "address",
+                    "id_card",
+                    "birth_date",
+                    "signature_name",
+                    "hospital_exact",
+                    "other"
+                  ]
+                },
+                "locator_type": {
+                  "type": "string",
+                  "enum": [
+                    "normalized_bbox",
+                    "normalized_quad",
+                    "pixel_bbox",
+                    "page_normalized_bbox",
+                    "page_normalized_quad",
+                    "xml_path",
+                    "cell",
+                    "line_span",
+                    "redacted_payload"
+                  ]
+                },
+                "locator": {
+                  "type": "object",
+                  "description": "Shape depends on locator_type. Coordinate locators use x/y/w/h or quad points; structure locators use part/path/cell/line/span. No plaintext PII allowed.",
+                  "additionalProperties": true
+                },
+                "confidence": {
+                  "type": ["number", "string", "null"],
+                  "description": "Optional confidence from the LLM, either numeric 0..1 or low/medium/high."
+                }
+              }
+            }
+          },
+          "status": {
+            "type": "string",
+            "enum": ["pending", "blocked"],
+            "description": "Manifest is the initial work queue. Live progress is tracked in redaction_status.json."
+          }
         }
       }
     }

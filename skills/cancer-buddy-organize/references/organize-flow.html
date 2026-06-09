@@ -1,0 +1,609 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>cancer-buddy-organize 病历整理流程</title>
+  <style>
+    :root {
+      --bg: #f6f7f9;
+      --surface: #ffffff;
+      --ink: #1d2430;
+      --muted: #5b6677;
+      --line: #d8dde6;
+      --mandatory: #0f766e;
+      --conditional: #b45309;
+      --optional: #475569;
+      --gate: #be123c;
+      --soft-mandatory: #e6f4f1;
+      --soft-conditional: #fff4df;
+      --soft-optional: #eef2f7;
+      --soft-gate: #fde8ef;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+      line-height: 1.55;
+    }
+
+    main {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 28px 20px 48px;
+    }
+
+    header {
+      margin-bottom: 22px;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 28px;
+      line-height: 1.2;
+      letter-spacing: 0;
+    }
+
+    .subtitle {
+      margin: 0;
+      color: var(--muted);
+      font-size: 15px;
+      max-width: 860px;
+    }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin: 18px 0 26px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 7px 10px;
+      background: var(--surface);
+      color: var(--muted);
+      font-size: 13px;
+      white-space: nowrap;
+    }
+
+    .badge strong {
+      color: var(--ink);
+      font-weight: 700;
+    }
+
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+
+    .dot.m { background: var(--mandatory); }
+    .dot.c { background: var(--conditional); }
+    .dot.o { background: var(--optional); }
+    .dot.g { background: var(--gate); }
+
+    .section-title {
+      margin: 30px 0 14px;
+      font-size: 18px;
+      line-height: 1.3;
+    }
+
+    .flow {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(150px, 1fr));
+      gap: 14px;
+      align-items: stretch;
+    }
+
+    .stage {
+      position: relative;
+      min-height: 232px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-top: 5px solid var(--mandatory);
+      border-radius: 8px;
+      padding: 14px;
+      box-shadow: 0 1px 2px rgba(20, 30, 45, 0.05);
+    }
+
+    .stage:not(:last-child)::after {
+      content: "";
+      position: absolute;
+      top: 50%;
+      right: -14px;
+      width: 14px;
+      height: 2px;
+      background: var(--line);
+      transform: translateY(-50%);
+    }
+
+    .stage:not(:last-child)::before {
+      content: "";
+      position: absolute;
+      top: calc(50% - 5px);
+      right: -16px;
+      width: 0;
+      height: 0;
+      border-top: 6px solid transparent;
+      border-bottom: 6px solid transparent;
+      border-left: 8px solid var(--line);
+    }
+
+    .stage h3 {
+      margin: 0 0 10px;
+      font-size: 16px;
+      line-height: 1.3;
+    }
+
+    .tag {
+      display: inline-block;
+      margin-bottom: 10px;
+      border-radius: 999px;
+      padding: 3px 8px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .tag.m {
+      color: var(--mandatory);
+      background: var(--soft-mandatory);
+    }
+
+    .tag.c {
+      color: var(--conditional);
+      background: var(--soft-conditional);
+    }
+
+    .tag.o {
+      color: var(--optional);
+      background: var(--soft-optional);
+    }
+
+    .tag.g {
+      color: var(--gate);
+      background: var(--soft-gate);
+    }
+
+    ul {
+      margin: 0;
+      padding-left: 18px;
+    }
+
+    li {
+      margin: 6px 0;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    li strong {
+      color: var(--ink);
+    }
+
+    .gate-row,
+    .branch-grid,
+    .final-grid {
+      display: grid;
+      gap: 14px;
+    }
+
+    .gate-row {
+      grid-template-columns: repeat(4, minmax(180px, 1fr));
+    }
+
+    .branch-grid {
+      grid-template-columns: repeat(3, minmax(220px, 1fr));
+    }
+
+    .final-grid {
+      grid-template-columns: 1.1fr 1fr;
+      align-items: start;
+    }
+
+    .box {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 14px;
+    }
+
+    .box.gate {
+      border-left: 5px solid var(--gate);
+    }
+
+    .box.conditional {
+      border-left: 5px solid var(--conditional);
+    }
+
+    .box.optional {
+      border-left: 5px solid var(--optional);
+    }
+
+    .box.mandatory {
+      border-left: 5px solid var(--mandatory);
+    }
+
+    .box h3,
+    .box h4 {
+      margin: 0 0 8px;
+      font-size: 16px;
+      line-height: 1.3;
+    }
+
+    .mini-flow {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 8px;
+    }
+
+    .mini-step {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 10px 12px;
+      background: #fbfcfd;
+    }
+
+    .mini-step strong {
+      display: block;
+      margin-bottom: 4px;
+    }
+
+    .mini-step span {
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .arrow-down {
+      text-align: center;
+      color: var(--muted);
+      font-size: 18px;
+      line-height: 1;
+    }
+
+    .rule-list {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(240px, 1fr));
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .rule {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 10px 12px;
+      background: #fbfcfd;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .rule strong {
+      color: var(--ink);
+    }
+
+    code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.92em;
+      color: #334155;
+      background: #eef2f7;
+      border-radius: 4px;
+      padding: 1px 4px;
+    }
+
+    @media (max-width: 980px) {
+      .flow {
+        grid-template-columns: repeat(2, minmax(220px, 1fr));
+      }
+
+      .stage::before,
+      .stage::after {
+        display: none;
+      }
+
+      .gate-row,
+      .branch-grid,
+      .final-grid,
+      .rule-list {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 560px) {
+      main {
+        padding: 22px 14px 36px;
+      }
+
+      h1 {
+        font-size: 23px;
+      }
+
+      .flow {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>病历整理完整流程</h1>
+      <p class="subtitle">
+        当前版本的核心思路是：LLM 负责读取、脱敏判断和定位；脚本负责确定性打码、校验和提交。最终包只有在 MD、JSON、HTML 和源文件副本都通过脱敏 gate 后才可持久化。
+      </p>
+      <div class="legend" aria-label="legend">
+        <span class="badge"><span class="dot m"></span><strong>[M]</strong> 理论上必然发生</span>
+        <span class="badge"><span class="dot c"></span><strong>[C]</strong> 条件触发</span>
+        <span class="badge"><span class="dot o"></span><strong>[O]</strong> 可选或后续模式</span>
+        <span class="badge"><span class="dot g"></span><strong>[G]</strong> 不通过就不能进入下一阶段</span>
+      </div>
+    </header>
+
+    <h2 class="section-title">主线流程</h2>
+    <section class="flow" aria-label="main flow">
+      <article class="stage">
+        <span class="tag m">[M] 1. 接收输入</span>
+        <h3>Resolve input</h3>
+        <ul>
+          <li>用户提供文件夹、单文件或压缩包。</li>
+          <li>压缩包先解到 <code>/tmp</code>。</li>
+          <li>确定 <code>patient_dir</code> 和 11 个桶目录。</li>
+        </ul>
+      </article>
+
+      <article class="stage">
+        <span class="tag m">[M] 2. 切片编排</span>
+        <h3>Plan slicing</h3>
+        <ul>
+          <li>统计文件和子目录。</li>
+          <li>大批量图片按 worker 切片。</li>
+          <li>保证每个源文件都会进入 Phase 1。</li>
+        </ul>
+      </article>
+
+      <article class="stage">
+        <span class="tag m">[M] 3. LLM 读取</span>
+        <h3>Phase 1 ingestion</h3>
+        <ul>
+          <li>复制明文源文件到本地 <code>10_原始文件/</code> staging。</li>
+          <li>adapter 只把文件变成 LLM-readable input。</li>
+          <li>LLM 输出脱敏 MD sidecar。</li>
+          <li>LLM 输出无明文的 <code>pii_regions</code> locator。</li>
+        </ul>
+      </article>
+
+      <article class="stage">
+        <span class="tag g">[G] 4. MD 脱敏复扫</span>
+        <h3>PII rescan</h3>
+        <ul>
+          <li><code>pii_rescan.py</code> 扫所有 sidecar。</li>
+          <li>发现残留 PII 就回 Phase 1 修。</li>
+          <li>通过后才允许进入 Phase 2。</li>
+        </ul>
+      </article>
+
+      <article class="stage">
+        <span class="tag m">[M] 5. 综合整理</span>
+        <h3>Phase 2 synthesis</h3>
+        <ul>
+          <li>读全部脱敏 MD。</li>
+          <li>语义分类到 11 个桶。</li>
+          <li>canonical rename。</li>
+          <li>源文件 copy 和 MD co-located。</li>
+          <li>生成 inventory、manifest、structured JSON。</li>
+        </ul>
+      </article>
+
+      <article class="stage">
+        <span class="tag m">[M] 6. 展示与摘要</span>
+        <h3>Review + HTML</h3>
+        <ul>
+          <li>展示 <code>review_summary.md</code>。</li>
+          <li>展示 profile card。</li>
+          <li>生成 <code>病情简要总结.html</code>。</li>
+          <li>HTML 只读脱敏 JSON/MD。</li>
+        </ul>
+      </article>
+    </section>
+
+    <h2 class="section-title">持久化前的源文件本体脱敏</h2>
+    <section class="gate-row" aria-label="source redaction gates">
+      <article class="box mandatory">
+        <span class="tag m">[M for persist]</span>
+        <h3>prepare</h3>
+        <ul>
+          <li>读取 <code>redaction_manifest_v2</code>。</li>
+          <li>按 LLM locator 生成 redacted candidate。</li>
+          <li>不覆盖原件，不删除原件。</li>
+        </ul>
+      </article>
+
+      <article class="box gate">
+        <span class="tag g">[G]</span>
+        <h3>coverage gate</h3>
+        <ul>
+          <li>locator 合法。</li>
+          <li>region 已覆盖。</li>
+          <li>candidate 可打开。</li>
+          <li>hash 与原件不同。</li>
+        </ul>
+      </article>
+
+      <article class="box gate">
+        <span class="tag g">[G]</span>
+        <h3>LLM QA gate</h3>
+        <ul>
+          <li>LLM 只看 redacted preview/payload。</li>
+          <li>输出 <code>llm_redaction_qa.json</code>。</li>
+          <li>报告只含 file id、pass/fail、类别。</li>
+        </ul>
+      </article>
+
+      <article class="box mandatory">
+        <span class="tag m">[M for persist]</span>
+        <h3>commit</h3>
+        <ul>
+          <li>只有 coverage + LLM QA 都 pass 才执行。</li>
+          <li>替换 bucket source copy。</li>
+          <li>替换 <code>10_原始文件/</code> mirror。</li>
+          <li>明文原件被覆盖删除。</li>
+        </ul>
+      </article>
+    </section>
+
+    <h2 class="section-title">最终验收门</h2>
+    <section class="final-grid" aria-label="final gates">
+      <article class="box gate">
+        <span class="tag g">[G] final package gate</span>
+        <h3><code>validate_structured_outputs.py</code></h3>
+        <div class="mini-flow">
+          <div class="mini-step">
+            <strong>结构化数据</strong>
+            <span>schema 校验，source_refs anchors 必须能解析。</span>
+          </div>
+          <div class="mini-step">
+            <strong>MD 无 PII</strong>
+            <span>再次运行 sidecar PII residue scan。</span>
+          </div>
+          <div class="mini-step">
+            <strong>source redaction hard gate</strong>
+            <span>每个 persisted source 必须 <code>done + coverage_passed + llm_qa_passed + qa_passed + original_deleted</code>。</span>
+          </div>
+          <div class="mini-step">
+            <strong>HTML 无 PII</strong>
+            <span><code>validate_case_summary_html.py</code> 校验模板 provenance、shape、无精确年龄和身份信息。</span>
+          </div>
+        </div>
+      </article>
+
+      <article class="box mandatory">
+        <span class="tag m">[M] ready state</span>
+        <h3>最终可持久化包</h3>
+        <ul>
+          <li>桶内源文件是 redacted copy。</li>
+          <li>MD、JSON、HTML 都来自脱敏输入。</li>
+          <li><code>10_原始文件/</code> mirror 也已替换为脱敏版本。</li>
+          <li>blocked / failed / pending 的源文件不能进入最终包。</li>
+        </ul>
+      </article>
+    </section>
+
+    <h2 class="section-title">条件分支</h2>
+    <section class="branch-grid" aria-label="conditional branches">
+      <article class="box conditional">
+        <span class="tag c">[C] continuation</span>
+        <h3>Phase 1 没跑完</h3>
+        <ul>
+          <li>worker 上下文满或文件未处理完。</li>
+          <li>只续跑剩余文件。</li>
+          <li>完成后回到 Phase 2。</li>
+        </ul>
+      </article>
+
+      <article class="box conditional">
+        <span class="tag c">[C] coverage retry</span>
+        <h3>Phase 2 发现缺 sidecar</h3>
+        <ul>
+          <li>列出 missing files。</li>
+          <li>派 mini Phase 1 补齐。</li>
+          <li>重新跑 Phase 2。</li>
+        </ul>
+      </article>
+
+      <article class="box conditional">
+        <span class="tag c">[C] 段E relevance gate</span>
+        <h3>发现非医疗文件</h3>
+        <ul>
+          <li>high-confidence unrelated: 进入 <code>99_无关文件/high_confidence</code>。</li>
+          <li>borderline: 进入 <code>99_无关文件/uncertain</code>。</li>
+          <li>高置信无关文件可 no-confirm 自动删除；borderline 不自动删。</li>
+        </ul>
+      </article>
+
+      <article class="box conditional">
+        <span class="tag c">[C] blocked unsupported</span>
+        <h3>源文件无法可靠脱敏</h3>
+        <ul>
+          <li>MD/JSON/HTML 可以继续生成。</li>
+          <li>该源文件标记 blocked。</li>
+          <li>最终 persist gate 不会允许它进入包。</li>
+        </ul>
+      </article>
+
+      <article class="box conditional">
+        <span class="tag c">[C] review flags</span>
+        <h3>发现可疑字段</h3>
+        <ul>
+          <li>生成并展示 <code>review_flags.md</code>。</li>
+          <li>红色 flag 未确认时阻止下游 skill。</li>
+          <li>用户确认后写回 resolution。</li>
+        </ul>
+      </article>
+
+      <article class="box conditional">
+        <span class="tag c">[C] HTML gate fail</span>
+        <h3>HTML 校验失败</h3>
+        <ul>
+          <li>不允许声明摘要完成。</li>
+          <li>回到 data/template 渲染修复。</li>
+          <li>不手写 HTML 绕过模板。</li>
+        </ul>
+      </article>
+    </section>
+
+    <h2 class="section-title">可选或后续模式</h2>
+    <section class="branch-grid" aria-label="optional modes">
+      <article class="box optional">
+        <span class="tag o">[O] conversation_incremental</span>
+        <h3>聊天中补充事实</h3>
+        <ul>
+          <li>不是首次整理主流程。</li>
+          <li>LLM 提取候选事实。</li>
+          <li>用户确认后才写 formal fields。</li>
+          <li>source ref 使用 conversation anchor。</li>
+        </ul>
+      </article>
+
+      <article class="box optional">
+        <span class="tag o">[O] upload_reconciliation</span>
+        <h3>已有档案后重新上传</h3>
+        <ul>
+          <li>LLM 判断 new / supersede / conflict。</li>
+          <li>替换、并存、忽略都要确认。</li>
+          <li>supersede 是归档旧文件，不静默删除。</li>
+        </ul>
+      </article>
+
+      <article class="box optional">
+        <span class="tag o">[O] downstream skills</span>
+        <h3>整理后进入下游</h3>
+        <ul>
+          <li>例如 education、nutrition、second-opinion。</li>
+          <li>前提是 profile、readiness 和 red flags 已处理。</li>
+          <li>下游只读整理后的脱敏产物。</li>
+        </ul>
+      </article>
+    </section>
+
+    <h2 class="section-title">一句话判断</h2>
+    <section class="box mandatory">
+      <span class="tag m">核心不变量</span>
+      <div class="rule-list">
+        <div class="rule"><strong>LLM 做判断：</strong>读取、转写、PII 判断、坐标/结构 locator、QA。</div>
+        <div class="rule"><strong>脚本做确定性动作：</strong>打码、替换、hash/coverage 校验、HTML 渲染、最终 gate。</div>
+        <div class="rule"><strong>明文不出本地 staging：</strong>最终包不能包含未脱敏源文件。</div>
+        <div class="rule"><strong>删除必须双通过：</strong><code>coverage_passed && llm_qa_passed && qa_passed</code> 后才覆盖明文原件。</div>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

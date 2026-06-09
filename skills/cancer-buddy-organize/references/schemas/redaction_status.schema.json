@@ -2,41 +2,57 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://cancerdao.org/schemas/cancer-buddy/redaction_status.schema.json",
   "title": "RedactionStatus",
-  "description": "Live progress record for the 段B PaddleOCR image-redaction job. Written/updated by scripts/run_redaction_job.py as it processes redaction_manifest.json before archive/persist. Idempotent and retryable: files already 'done' are skipped on re-run. The QA gate is authoritative for the delete-original safety carve-out — an original (upload + mirror copy) may be deleted ONLY when its file entry has qa_passed=true.",
+  "description": "Live progress record for deterministic LLM-region source redaction. Written by scripts/run_redaction_job.py from redaction_manifest_v2. The script never performs OCR; it only applies LLM-supplied coordinates/structure locators, then waits for LLM QA before committing irreversible original deletion.",
   "type": "object",
   "required": ["schema", "patient_dir", "updated_at", "summary", "files"],
   "additionalProperties": false,
   "properties": {
-    "schema": { "const": "redaction_status_v1" },
-    "patient_dir": { "type": "string", "description": "Absolute path to <patient_dir> (e.g. /abs/PT-XXXX). Must match the patient_dir of the manifest that drove this run." },
-    "updated_at": { "type": "string", "format": "date-time", "description": "ISO 8601 timestamp of the most recent write to this status file." },
+    "schema": { "const": "redaction_status_v2" },
+    "patient_dir": { "type": "string" },
+    "updated_at": { "type": "string", "format": "date-time" },
     "summary": {
       "type": "object",
-      "description": "Roll-up counters across files[]. total = manifest file count; pending + done + failed + blocked SHOULD equal total.",
-      "required": ["total", "pending", "done", "failed", "blocked"],
+      "required": ["total", "pending", "redacted_pending_qa", "done", "failed", "blocked"],
       "additionalProperties": false,
       "properties": {
         "total": { "type": "integer", "minimum": 0 },
-        "pending": { "type": "integer", "minimum": 0, "description": "Not yet attempted (or queued for retry)." },
-        "done": { "type": "integer", "minimum": 0, "description": "Redacted, QA-passed, original deleted." },
-        "failed": { "type": "integer", "minimum": 0, "description": "QA gate failed; original retained for manual review." },
-        "blocked": { "type": "integer", "minimum": 0, "description": "Cannot run — e.g. PaddleOCR venv (~/.venvs/mtb-ocr) missing." }
+        "pending": { "type": "integer", "minimum": 0 },
+        "redacted_pending_qa": { "type": "integer", "minimum": 0 },
+        "done": { "type": "integer", "minimum": 0 },
+        "failed": { "type": "integer", "minimum": 0 },
+        "blocked": { "type": "integer", "minimum": 0 }
       }
     },
     "files": {
       "type": "array",
-      "description": "One entry per manifest file, joined by id.",
       "items": {
         "type": "object",
-        "required": ["id", "status"],
+        "required": [
+          "id",
+          "source_id",
+          "status",
+          "redacted_candidate_path",
+          "redacted_path",
+          "coverage_passed",
+          "llm_qa_passed",
+          "qa_report_id",
+          "qa_passed",
+          "original_deleted",
+          "reason"
+        ],
         "additionalProperties": false,
         "properties": {
-          "id": { "type": "string", "pattern": "^f\\d{3,}$", "description": "Matches redaction_manifest.json.files[].id." },
-          "status": { "type": "string", "enum": ["pending", "done", "failed", "blocked"] },
-          "redacted_path": { "type": ["string", "null"], "description": "Bucket-relative path to the redacted image that replaced the bucket copy. Present when status='done'.", "pattern": "^([^/].*\\.(jpg|jpeg|png|tif|tiff|webp|bmp|JPG|JPEG|PNG|TIF|TIFF|WEBP|BMP))$" },
-          "qa_passed": { "type": ["boolean", "null"], "description": "QA gate result: true only when the second PaddleOCR pass confirms no residual recognizable PII token in the masked regions. Authoritative precondition for original deletion." },
-          "original_deleted": { "type": ["boolean", "null"], "description": "true once both the upload original and the pre-redaction mirror copy have been deleted (mirror keeps only the redacted version). May be true ONLY when qa_passed=true." },
-          "reason": { "type": ["string", "null"], "description": "Human-readable explanation for status='failed' or 'blocked', e.g. 'QA 残留 PII: 右上角姓名未框中' or 'PaddleOCR venv ~/.venvs/mtb-ocr 缺失'." }
+          "id": { "type": "string", "pattern": "^f\\d{3,}$" },
+          "source_id": { "type": "string", "pattern": "^s\\d{3,}$" },
+          "status": { "type": "string", "enum": ["pending", "redacted_pending_qa", "done", "failed", "blocked"] },
+          "redacted_candidate_path": { "type": ["string", "null"] },
+          "redacted_path": { "type": ["string", "null"] },
+          "coverage_passed": { "type": ["boolean", "null"] },
+          "llm_qa_passed": { "type": ["boolean", "null"] },
+          "qa_report_id": { "type": ["string", "null"] },
+          "qa_passed": { "type": ["boolean", "null"] },
+          "original_deleted": { "type": ["boolean", "null"] },
+          "reason": { "type": ["string", "null"] }
         }
       }
     }

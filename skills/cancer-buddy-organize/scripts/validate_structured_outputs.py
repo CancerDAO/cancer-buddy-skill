@@ -20,20 +20,20 @@ Gate sections (each contributes to one aggregated exit code):
   [2] PII residue rescan (pii_rescan.py):
       Independently re-scan every desensitized MD sidecar for plaintext PII that
       survived Phase-1 redaction. The sidecar is the only downstream plaintext
-      boundary, so residue here leaks everywhere. Reuses the redact_ocr.py regex
-      family (text-only — no OCR/image deps).
+      boundary, so residue here leaks everywhere. This is text-only; no OCR/image
+      dependency is allowed in the acceptance gate.
 
   [3] Redaction-manifest hand-off (segment B):
-      If the run produced raster bucket images (jpg/png/…), redaction_manifest.json
-      MUST exist and be a non-empty redaction_manifest_v1 with one entry per such
-      image awaiting redaction. (If there are NO raster images, an absent or empty
-      manifest is fine.)
+      If source_inventory.json selects any source file for persist and marks it as
+      redaction_required, redaction_manifest.json MUST be a redaction_manifest_v2
+      with one entry for each such source_id, regardless of file format.
 
   [4] Source inventory + source-file redaction hard gate:
       source_inventory.json MUST exist and every source file must have a redacted
       MD sidecar. Any source file selected for archive/persist MUST have a matching
-      source_redaction_status.json entry with status=done, qa_passed=true, and
-      original_deleted=true before the archive can leave the local workspace.
+      source_redaction_status.json entry with status=done, coverage_passed=true,
+      llm_qa_passed=true, qa_passed=true, and original_deleted=true before the
+      archive can leave the local workspace.
 
   [5] Case-summary HTML shape (validate_case_summary_html.py):
       If 病情简要总结.html exists, it must pass the shape+provenance invariants
@@ -83,9 +83,6 @@ STRUCTURED_FILES = {
 ANCHOR_RE = re.compile(
     r"^(([0-9]{2}_[^\s/]+(/[^\s/]+)*\.md(#L\d+(-L\d+)?|#[A-Za-z0-9_-]+)?)|(conversation:\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})?))$"
 )
-
-# Raster image extensions that imply a 段B redaction manifest entry is owed.
-RASTER_EXTS = {".jpg", ".jpeg", ".png", ".tif", ".tiff", ".webp", ".bmp", ".heic", ".heif"}
 
 try:
     from jsonschema import Draft202012Validator  # type: ignore
@@ -225,39 +222,32 @@ def gate_pii_rescan(patient_dir: Path, errors: list) -> None:
 # --------------------------------------------------------------------------- #
 # [3] redaction-manifest hand-off
 # --------------------------------------------------------------------------- #
-def _iter_bucket_rasters(patient_dir: Path):
-    """Yield raster image paths inside the 11 NN_ buckets (excludes 10_原始文件
-    audit mirror and the ocr/ staging dir — manifest entries point at bucket
-    canonical copies)."""
-    for b in sorted(patient_dir.glob("[0-9][0-9]_*")):
-        if not b.is_dir():
-            continue
-        if b.name.startswith("10_"):
-            continue  # audit mirror, not a manifest bucket_path target
-        for p in b.rglob("*"):
-            if p.is_file() and p.suffix.lower() in RASTER_EXTS:
-                yield p
-
-
 def gate_redaction_manifest(patient_dir: Path, errors: list) -> None:
-    rasters = list(_iter_bucket_rasters(patient_dir))
+    inventory_path = patient_dir / SOURCE_INVENTORY_NAME
     manifest_path = patient_dir / REDACTION_MANIFEST_NAME
-
-    if not rasters:
-        # No raster bucket images → no manifest owed. If a manifest exists anyway,
-        # only sanity-check it parses; an empty files[] is acceptable here.
-        if manifest_path.is_file():
-            try:
-                json.loads(manifest_path.read_text(encoding="utf-8"))
-            except Exception as e:
-                errors.append(f"{REDACTION_MANIFEST_NAME}: present but unparseable: {e}")
+    if not inventory_path.is_file():
+        # gate_source_inventory_and_redaction will report the missing inventory.
         return
 
-    # Raster images exist → manifest must exist, be valid, and be non-empty.
+    try:
+        inventory = json.loads(inventory_path.read_text(encoding="utf-8"))
+    except Exception:
+        return
+    required_sources = {
+        e.get("source_id")
+        for e in _file_entries(inventory)
+        if isinstance(e, dict)
+        and e.get("source_id")
+        and _entry_bool(e, "persist", True)
+        and _entry_bool(e, "redaction_required", True)
+    }
+    if not required_sources:
+        return
+
     if not manifest_path.is_file():
         errors.append(
-            f"{REDACTION_MANIFEST_NAME}: missing, but {len(rasters)} raster bucket "
-            "image(s) still carry plaintext-PII pixels and need a 段B hand-off"
+            f"{REDACTION_MANIFEST_NAME}: missing, but {len(required_sources)} persisted "
+            "source file(s) require body redaction before archive"
         )
         return
     try:
@@ -268,38 +258,39 @@ def gate_redaction_manifest(patient_dir: Path, errors: list) -> None:
     if not isinstance(manifest, dict):
         errors.append(f"{REDACTION_MANIFEST_NAME}: root must be an object")
         return
-    if manifest.get("schema") != "redaction_manifest_v1":
+    if manifest.get("schema") != "redaction_manifest_v2":
         errors.append(
-            f"{REDACTION_MANIFEST_NAME}: schema must be 'redaction_manifest_v1', "
+            f"{REDACTION_MANIFEST_NAME}: schema must be 'redaction_manifest_v2', "
             f"got {manifest.get('schema')!r}"
         )
     files = manifest.get("files")
     if not isinstance(files, list) or len(files) == 0:
         errors.append(
-            f"{REDACTION_MANIFEST_NAME}: files[] is empty but {len(rasters)} raster "
-            "bucket image(s) await redaction — every PII-bearing image must be queued"
+            f"{REDACTION_MANIFEST_NAME}: files[] is empty but {len(required_sources)} "
+            "persisted source file(s) require redaction"
         )
     elif isinstance(files, list):
-        listed = {
-            item.get("bucket_path")
+        listed_sources = {
+            item.get("source_id")
             for item in files
-            if isinstance(item, dict) and isinstance(item.get("bucket_path"), str)
+            if isinstance(item, dict) and isinstance(item.get("source_id"), str)
         }
-        missing = []
-        for raster in rasters:
-            try:
-                rel = raster.relative_to(patient_dir).as_posix()
-            except ValueError:
-                rel = raster.as_posix()
-            if rel not in listed:
-                missing.append(rel)
+        missing = sorted(required_sources - listed_sources)
         if missing:
             sample = ", ".join(missing[:5])
             more = "" if len(missing) <= 5 else f", ... +{len(missing) - 5} more"
             errors.append(
                 f"{REDACTION_MANIFEST_NAME}: missing manifest entry for "
-                f"{len(missing)} raster bucket image(s): {sample}{more}"
+                f"{len(missing)} persisted redaction-required source(s): {sample}{more}"
             )
+        for item in files:
+            if isinstance(item, dict):
+                bucket = item.get("bucket_path")
+                mirror = item.get("mirror_path")
+                if isinstance(bucket, str) and not (patient_dir / bucket).is_file():
+                    errors.append(f"{REDACTION_MANIFEST_NAME}: bucket_path not found: {bucket}")
+                if isinstance(mirror, str) and not (patient_dir / mirror).is_file():
+                    errors.append(f"{REDACTION_MANIFEST_NAME}: mirror_path not found: {mirror}")
     if HAS_JSONSCHEMA:
         schema_path = SCHEMA_DIR / "redaction_manifest.schema.json"
         if schema_path.is_file():
@@ -400,6 +391,10 @@ def gate_source_inventory_and_redaction(patient_dir: Path, errors: list) -> None
             errors.append(
                 f"{SOURCE_REDACTION_STATUS_NAME}: {sid}: status must be 'done' before persist, got {st.get('status')!r}"
             )
+        if st.get("coverage_passed") is not True:
+            errors.append(f"{SOURCE_REDACTION_STATUS_NAME}: {sid}: coverage_passed must be true before persist")
+        if st.get("llm_qa_passed") is not True:
+            errors.append(f"{SOURCE_REDACTION_STATUS_NAME}: {sid}: llm_qa_passed must be true before persist")
         if st.get("qa_passed") is not True:
             errors.append(f"{SOURCE_REDACTION_STATUS_NAME}: {sid}: qa_passed must be true before persist")
         if st.get("original_deleted") is not True:

@@ -44,9 +44,9 @@ sips -s format jpeg -Z 1500 "<heic>" --out "/tmp/cb-jpg-$$/<basename>.jpg"
 ```
 Examples: HEIC/HEIF/image → temporary raster; scanned PDF → rendered pages; DOCX/RTF → LLM-readable document payload; spreadsheet → LLM-readable table payload; archive → unpacked child sources. This is an **adapter seam ONLY** — it produces throwaway input to feed the driver LLM. It is **not** a stored copy and **not** a clinical text source. The byte-level original is what you mirror to `10_原始文件/` in step A; temporary rasters/pages/payloads are discarded after the LLM reads them. Record the adapter in the sidecar header.
 
-**C. Markdown sidecar — final clinical text comes from the DRIVER LLM, full stop:**
+**C. Markdown sidecar + PII region metadata — final clinical text and PII judgment come from the DRIVER LLM, full stop:**
 - The text in every sidecar is produced by the **driver LLM reading the adapted input** — Claude Code's `Read` tool on JPEG/PDF/image/file payload, or codex hosts via `codex exec -i <raster>` / LLM file context. This is the **only** sidecar text source.
-- **Dumb OCR engines and local parsers (PaddleOCR / macOS Vision / Tesseract / PDF text extractors / DOCX XML extractors / spreadsheet parsers / etc.) are NOT sidecar clinical text sources.** They may be used only to adapt input for the LLM, locate PII for source-file redaction, or QA. They never feed characters directly into a sidecar. If the driver LLM cannot read a character, the answer is `[OCR_UNCERTAIN]` / `[CANDIDATES]` / `[INGESTION_BLOCKED]` — **never** "fall back to PaddleOCR/parser to extract the text".
+- **Pure OCR engines and local parsers are NOT sidecar clinical text sources and are NOT the PII judge.** They may be used only to adapt input for the LLM or verify file mechanics. They never feed characters directly into a sidecar. If the driver LLM cannot read a character, the answer is `[OCR_UNCERTAIN]` / `[CANDIDATES]` / `[INGESTION_BLOCKED]` — **never** "fall back to a parser/OCR character stream to extract the text".
 - Triage `content_type ∈ {ct_slice, xray, ultrasound, photo, pathology_slide, text_doc, mixed}`.
 - `ct_slice / xray / ultrasound / photo` → **stub sidecar required** (≤5 lines: modality + body region if visible + approximate date if visible).
 - `text_doc / mixed / pathology_slide` → **full Markdown ingestion required**: transcribe every visible/LLM-readable character line by line. Lab tables → Markdown tables. Order sheets → date | order | qty | sig | exec_status columns. Discharge certs → heading + 治疗过程摘要 + 诊断 + 出院医嘱 + 签名 verbatim.
@@ -113,7 +113,44 @@ This is a judgment task, not a fixed regex list — read each line in context an
 masked: patient_name, admission_id
 ```
 
-Phase 2 reads this `## PII` section to build each file's `pii_hint` in `redaction_manifest.json` (so the 段B redaction job knows which regions to expect). If you masked nothing, write `masked: none`. This trailer is metadata, not clinical content — it carries no `[[src:...]]` anchor.
+Phase 2 reads this `## PII` section only as category context; the actual source-file redaction handoff comes from the separate `pii_regions` metadata below. If you masked nothing, write `masked: none`. This trailer is metadata, not clinical content — it carries no `[[src:...]]` anchor.
+
+**Also write PII region metadata for 段B.** For every source/content unit, write `$patient_dir/ocr/<basename>.pii_regions.json` next to its sidecar. This file must contain category + locator only, never the plaintext PII value:
+
+```json
+{
+  "schema": "pii_regions_v1",
+  "source_ref": "10_原始文件/<original_subdir>/<filename>",
+  "source_kind": "image",
+  "adapter_frame": {
+    "frame_kind": "image",
+    "coordinate_space": "normalized_0_1",
+    "width": 1500,
+    "height": 2121,
+    "dpi": null,
+    "notes": "EXIF/rotation already applied before coordinate judgment"
+  },
+  "regions": [
+    {
+      "region_id": "r001",
+      "category": "patient_name",
+      "locator_type": "normalized_bbox",
+      "locator": {"page": null, "x": 0.12, "y": 0.08, "width": 0.20, "height": 0.04},
+      "confidence": "high"
+    }
+  ]
+}
+```
+
+Locator rules:
+
+- Image/HEIC: coordinates bind to the canonical raster after EXIF orientation and rotation correction. Prefer `normalized_bbox` (`x/y/width/height` in `[0,1]`); use `normalized_quad` when text is skewed.
+- PDF: coordinates bind to a fixed-DPI rendered page adapter frame (`kind: "pdf_pages"`, include `dpi` and page size if known). Use `page_normalized_bbox` / `page_normalized_quad` with 1-based `page`.
+- DOCX: use structure locators such as `xml_path` with `part`, `paragraph_index`, `run_index` or `text_node_index` when the exact XML text node/run can be located. If the PII is visible to the LLM but not structurally locatable, write a region with `locator_type: "redacted_payload"` and prepare for Phase 2/段B to require a redacted payload, or mark the source blocked later.
+- XLSX/CSV/TXT/HTML/MD: use `cell` (`sheet`, `cell`) or `line_span` (`line`, `start`, `end`) locators; for full-text rewrites use `redacted_payload` and never store the original PII.
+- Archives: write region metadata for each child source. The archive itself is rebuilt only from redacted children; never persist the original archive.
+
+If there is no PII in the source, write `"regions": []`. If you cannot safely locate the PII you masked, still write the sidecar but include a `regions[]` item with `locator_type: "redacted_payload"` or add a warning in your final JSON so Phase 2 can mark the source `blocked_unsupported` instead of persisting a risky original.
 
 ### §2.5 PII rescan gate (MANDATORY — do NOT rely on a single LLM pass)
 
@@ -129,7 +166,7 @@ python3 skills/cancer-buddy-organize/scripts/pii_rescan.py "$patient_dir/ocr"
 
 **Hard gate:** you may NOT return `continuation_needed: false` (i.e. signal your slice is done for Phase 2) until `pii_rescan.py` passes (`findings=0`) on the sidecars you wrote. A slice with surviving plaintext PII does not proceed to Phase 2.
 
-> The scanner is a deterministic backstop, not the redactor. The redaction itself is your §2.4 semantic pass; this gate only catches what slipped through and forces a re-mask. (`redact_ocr.py` / dumb OCR remains 段B pixel-masking only — it never writes sidecar text.)
+> The scanner is a deterministic backstop, not the redactor. The redaction itself is your §2.4 semantic pass; this gate only catches what slipped through and forces a re-mask. Source-file redaction later uses your `pii_regions` metadata and deterministic scripts; it does not run OCR or make new PII judgments.
 
 ## Step 3 — Return JSON
 
@@ -141,6 +178,7 @@ Final message MUST be pure JSON, no prose:
   "slice_input_path": "<your slice_input_path>",
   "files_processed": 25,
   "sidecars_written": 25,
+  "pii_region_files_written": 25,
   "stub_sidecars": 4,
   "full_ingestion_sidecars": 21,
   "ingestion_uncertain_files": ["IMG_9839.HEIC"],
@@ -159,7 +197,7 @@ Final message MUST be pure JSON, no prose:
 ## Rules
 
 - NEVER invent medical facts. Unreadable → `[OCR_UNCERTAIN]`.
-- TEXT comes from the driver LLM reading the adapted input (`Read` / codex `-i` / LLM file context). NEVER fall back to PaddleOCR / macOS Vision / Tesseract / PDF or DOCX parsers to write sidecar clinical text — those tools are adapters or 段B/source-redaction helpers only (§Step 2·C).
+- TEXT and PII locators come from the driver LLM reading the adapted input (`Read` / codex `-i` / LLM file context). NEVER fall back to a pure OCR/parser character stream to write sidecar clinical text or decide PII — those tools are adapters or mechanical file helpers only (§Step 2·C).
 - NEVER smooth OCR'd values across files (anti-anchoring §2.2a).
 - NEVER write INDEX.md / timeline.md / case_text.md / profile.json / readiness.json / review_flags.md / review_summary.md — those are Phase 2's responsibility. Writing any of them creates a race condition.
 - NEVER overwrite existing sidecars with lower mtime than source (idempotent re-run).
@@ -173,9 +211,9 @@ This prompt is the **Claude Code reference implementation** of the runtime-neutr
 
 | Mechanism in this prompt | Status | Swap for non-CC hosts |
 |---|---|---|
-| `Read` tool reads adapted inputs **by path** in-agent (**driver LLM native vision/file context**) | **CC-specific binding** | codex `-i` 视觉 / LLM file context / host file-context handoff. **Dumb OCR/parsers are NOT sidecar clinical text sources — they are adapters or 段B/source-redaction helpers only.** Text is always LLM output (`organize-contract.md` §6「LLM 输入源」). |
+| `Read` tool reads adapted inputs **by path** in-agent (**driver LLM native vision/file context**) | **CC-specific binding** | codex `-i` 视觉 / LLM file context / host file-context handoff. **Pure OCR/parsers are NOT sidecar clinical text sources and do not decide PII regions — they are adapters or mechanical file helpers only.** Text and locator metadata are always LLM output (`organize-contract.md` §6「LLM 输入源」). |
 | `sips -s format jpeg` to decode HEIC (§Step 2·B) and equivalent PDF/DOCX/table adapters | **CC-specific binding (macOS/tooling-specific)** — pure **adapter seam**: produces throwaway input for LLM, NOT a stored copy, NOT a text source | CC binding 用 `sips` / available render/extract helpers;其它 host 用 `heif-convert` / `imagemagick` / `pdftoppm` / document payload builders,或由**宿主预处理**为 LLM-readable input (`organize-contract.md` §6「格式适配」). The LLM never needs to know how the adapter was produced; the byte-level original is what gets mirrored to `10_原始文件/`, not the temp adapter output. |
 | ≤ 15 images per slice (§"Why ≤ 15 images") + slice dispatch | **host-tunable**, NOT a contract invariant — this is Claude's many-image budget特性 (`organize-contract.md` §1.5 / §7) | A headless host with a different (or no) multi-image budget may **not slice at all**, or slice by its own budget. The §1.4 "no sampling / every file gets a sidecar" invariant is what binds, not the chunk size. |
 | LLM input choice + source_id ↔ sidecar 映射 | **may be done by the host** | The contract only requires sidecars be addressable by a stable `source_id` so 源文件/content unit ↔ sidecar 一一对应; whether the agent or the host assigns `source_id` and persists the mapping is a binding decision (`organize-contract.md` §1.1 / §6「编排」). |
 
-**Logic / invariants do NOT move with the binding.** Regardless of which host drives Phase1: **sidecar text comes from the driver LLM — dumb OCR/parsers are never sidecar clinical text sources, only adapters or 段B/source-redaction helpers** (§Step 2·C), anti-anchoring (§2.2a — never "correct" across files), **mandatory PII redaction** (§2.4 — sidecar is the single downstream plaintext boundary), **mandatory PII rescan gate** (§2.5 — `pii_rescan.py` must pass `findings=0` before a slice proceeds; never trust a single LLM pass), 逐字优先/不捏造 (`[OCR_UNCERTAIN]` / `[CANDIDATES]`), no-sampling, idempotent re-runs, and "stay in your lane" (no global artifacts) all stand verbatim. A binding may only change **who runs the mechanism**, never the behavioral contract.
+**Logic / invariants do NOT move with the binding.** Regardless of which host drives Phase1: **sidecar text and PII locator metadata come from the driver LLM — pure OCR/parsers are never sidecar clinical text sources or PII judges, only adapters or mechanical file helpers** (§Step 2·C), anti-anchoring (§2.2a — never "correct" across files), **mandatory PII redaction** (§2.4 — sidecar is the single downstream plaintext boundary), **mandatory PII rescan gate** (§2.5 — `pii_rescan.py` must pass `findings=0` before a slice proceeds; never trust a single LLM pass), 逐字优先/不捏造 (`[OCR_UNCERTAIN]` / `[CANDIDATES]`), no-sampling, idempotent re-runs, and "stay in your lane" (no global artifacts) all stand verbatim. A binding may only change **who runs the mechanism**, never the behavioral contract.
