@@ -68,6 +68,8 @@ Phase2 产:
 Persist model:
 
 - `病情简要总结.html` may be generated before source-file redaction finishes because it reads only redacted MD/JSON.
+- A headless run may stop at text/HTML artifacts only, but then it must report `archive_persist_ready:false`; it must not call the full archive/persist validator OK or tell the user "整理完成" as a final archive.
+- Any source sidecar cited by `timeline.md`, `case_text.md`, review outputs, or structured JSON `source_refs[]` is a formal medical source and must stay `persist:true`. `persist:false` is reserved for isolated unrelated/non-persisted files and must not be used to skip source redaction.
 - Platform MUST NOT persist source files until `source_redaction_status.json` says every persisted source has `status=done`, `coverage_passed=true`, `llm_qa_passed=true`, `qa_passed=true`, `original_deleted=true`.
 - Images use `run_redaction_job.py` from `redaction_manifest.json`, then sync image rows into `source_redaction_status.json`.
 - PDF/DOCX/spreadsheet/text require reliable source-file redactors. If missing, write `blocked` with reason and do not persist the source file.
@@ -93,6 +95,7 @@ Codex never hand-writes HTML.
 ## 7. 验收
 
 - `validate_structured_outputs.py <patient_dir>` passes only when structured JSON/anchors/PII rescan/redaction manifest/source inventory/source redaction status/HTML shape pass.
+- If `validate_structured_outputs.py` fails because a formally cited source is `persist:false`, fix the inventory/status to `persist:true` + `pending`/`blocked`; do not hide cited sources from the redaction gate.
 - `source_redaction_status.blocked` is a valid intermediate state but not archive-ready.
 - `source_inventory.json` must cover every input source.
 - Local OCR is never a sidecar text-source option in this binding.

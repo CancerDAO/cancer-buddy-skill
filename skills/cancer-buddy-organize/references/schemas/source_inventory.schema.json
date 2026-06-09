@@ -37,7 +37,7 @@
             "type": ["string", "null"],
             "description": "Short provenance such as decode_tool=sips;rotation=90 or pdftoppm pages=3. Temporary paths are allowed only as provenance, never as anchors."
           },
-          "persist": { "type": "boolean", "description": "Whether this source file is selected for final archive/persist." },
+          "persist": { "type": "boolean", "description": "Whether this source file is selected for final archive/persist. Medical sources cited by formal outputs (timeline/case_text/review outputs/structured JSON source_refs) must be true; false is reserved for isolated unrelated/non-persisted sources and cannot be used to bypass source-file redaction." },
           "redaction_required": { "type": "boolean", "description": "True when the source-file copy can carry plaintext PII and must pass source-file redaction before persist." },
           "redaction_strategy": {
             "type": "string",
