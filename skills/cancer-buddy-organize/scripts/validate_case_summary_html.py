@@ -54,7 +54,7 @@ _CLASS_ATTR_RE = re.compile(r"""\bclass\s*=\s*["']([^"']*)["']""", re.IGNORECASE
 _CSS_CLASS_RE = re.compile(r"\.([A-Za-z_][\w-]*)")
 _H2_RE = re.compile(r"<h2\b", re.IGNORECASE)
 
-# (d) PII patterns — mirror redact_ocr.py standalone patterns
+# (d) PII patterns — deterministic text-only residue checks
 _ID_CARD_RE = re.compile(r"[1-9]\d{5}(?:19|20)\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])\d{3}[\dXx]")
 _MOBILE_RE = re.compile(r"1[3-9]\d{9}")
 _LANDLINE_RE = re.compile(r"0\d{2,3}[-\s]?\d{7,8}")

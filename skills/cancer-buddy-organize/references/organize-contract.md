@@ -70,15 +70,15 @@ sidecar 是**整条下游管线的唯一读取源**(timeline / case_text / profi
 
 ### 1.5 LLM ingestion 接缝钉死:sidecar 正文 = LLM 输出(load-bearing)
 
-sidecar 的脱敏 Markdown 正文**必须由驱动 LLM(Claude / codex / OpenClaw/OpenCode 等)产出**。图片/扫描件由 LLM 原生视觉读取;PDF/DOCX/表格/文本等可以由宿主先适配成 LLM 可读的文件上下文、渲染页或 payload,但最终写入 sidecar 的临床文字、PII 判断和 Markdown 表格仍由 LLM 输出。这是契约钉死的一条,不只是 binding 偏好:**哑 OCR(PaddleOCR / Tesseract / macOS Vision 等纯字符识别引擎)与本地 parser 不是合法的 sidecar 临床正文来源**。它们可用于格式适配、像素/文档本体脱敏定位或 QA,但不能直接把字符流接成 sidecar 正文。
+sidecar 的脱敏 Markdown 正文**必须由驱动 LLM(Claude / codex / OpenClaw/OpenCode 等)产出**。图片/扫描件由 LLM 原生视觉读取;PDF/DOCX/表格/文本等可以由宿主先适配成 LLM 可读的文件上下文、渲染页或 payload,但最终写入 sidecar 的临床文字、PII 判断、Markdown 表格和 source-file PII locator 元数据仍由 LLM 输出。这是契约钉死的一条,不只是 binding 偏好:**纯字符识别引擎与本地 parser 不是合法的 sidecar 临床正文来源,也不是 PII 判断来源**。它们可用于格式适配或机械文件处理,但不能直接把字符流接成 sidecar 正文,也不能替代 LLM 产出 redaction locator。
 
-**PaddleOCR 在本管线里只出现在段B/source redaction,且只为定位 PII 框或 QA,不产任何下游文字**(它识别出的字符用完即弃)。任何 binding 都不得把哑 OCR 或 parser 的字符输出直接接成 sidecar 正文 / 任何下游文字产物。`headless-codex.md` 的 LLM 输入接缝因此只填 codex `-i` / LLM file context,不保留"PaddleOCR 抽文字填法B"。
+任何 binding 都不得把纯 OCR 或 parser 的字符输出直接接成 sidecar 正文 / 任何下游文字产物。`headless-codex.md` 的 LLM 输入接缝因此只填 codex `-i` / LLM file context,不保留非 LLM 抽文字分支。
 
 ### 1.6 契约**不规定**(交 binding)
 
 是否并行、单实例处理多少文件、非 LLM 可读格式如何适配。这些是 §6 的「格式适配 / 编排」接缝。HEIC 解码、PDF 渲染/文本层展开、DOCX/XML/table/image 展开、archive 解包都只是 adapter,不是文字来源。**切片预算(如"≤N 图/实例")是某些宿主的多图预算特性,属 host-tunable 参数,不是契约不变量**——不切、按宿主预算切都合规,只要 1.4 不变量成立。
 
-> HEIC 桶图:契约允许手机原图(常为 HEIC)**原样进桶**(§2.2 桶不变量 / §4 段B 不删可浏览档案库的精神:不丢原图)。`redaction_manifest.json` 的 `bucket_path`/`mirror_path` **放行 heic/heif**(连同 jpg/png/…)。HEIC 不可被 PaddleOCR 直接读,故段B 在打码这一步**内部转码**为可浏览 JPG(§4.3);Phase1 视觉若遇 HEIC,由格式适配接缝先转可读栅格喂模型(§6),不影响 sidecar 结构。
+> HEIC 桶图:契约允许手机原图(常为 HEIC)**原样进桶**(§2.2 桶不变量 / §4 段B 不删可浏览档案库的精神:不丢原图)。`redaction_manifest.json` 的 `bucket_path`/`mirror_path` **放行 heic/heif**(连同 jpg/png/…)。段B 在确定性打码这一步可先把 HEIC 转为 canonical raster / 可浏览 JPG candidate;Phase1 视觉若遇 HEIC,由格式适配接缝先转可读栅格喂模型(§6),不影响 sidecar 结构。
 
 ---
 
@@ -113,8 +113,8 @@ sidecar 的脱敏 Markdown 正文**必须由驱动 LLM(Claude / codex / OpenClaw
 | 6 结构化 JSON | `patient_summary/timeline/molecular/treatment_lines/labs/comorbidities` | 每事实字段带 `source_refs`;过 schema gate 才写,失败记 `schema_validation_failed`。 |
 | `missing_items.json` | 癌种 checklist diff(stage-context) | 映射不明 → `cancer_type:null`+`checklist_unmapped`。 |
 | `update_log.json` | 本次 run 审计条目 | full=全量条目;incremental=delta。 |
-| `redaction_manifest.json` | 段B 工作队列交接(`redaction_manifest_v1`) | 只列栅格图;每条 `bucket_path`+`mirror_path`+`pii_hint`+`status:pending`;过 schema 校验。 |
-| `source_redaction_status.json` | 最终 archive/persist 源文件本体脱敏状态(`source_redaction_status_v1`) | 由段B/source redaction 写入;所有 `persist:true && redaction_required:true` 的源文件必须 `done + qa_passed=true + original_deleted=true` 才能离开本地工作区。 |
+| `redaction_manifest.json` | 段B 工作队列交接(`redaction_manifest_v2`) | 全格式 source redaction manifest;每条含 `source_id/source_kind`、bucket+mirror、adapter_frame、`regions[]` locator;不得含明文 PII;过 schema 校验。 |
+| `source_redaction_status.json` | 最终 archive/persist 源文件本体脱敏状态(`source_redaction_status_v1`) | 由段B/source redaction 写入;所有 `persist:true && redaction_required:true` 的源文件必须 `done + coverage_passed=true + llm_qa_passed=true + qa_passed=true + original_deleted=true` 才能离开本地工作区。 |
 | 业务别名指针 | 顶层 alias 指针(指回 `patient_code` 目录) | `alias` 已设时建立;不可建链时退化为 alias 映射文件。 |
 
 字段级真值(schema、4 级机构回退、stage-context、8 域评分细则、locale 渲染)全部以 phase2-synthesis.md 为准,本契约不复述,只锚定"产出这些、满足这些不变量"。
@@ -180,29 +180,29 @@ Phase2 的跨文档审计(Phase1 做不到,因 Phase1 只见自己那片;Phase2 
 
 | 字段 | 必需 | 含义 |
 |---|---|---|
-| `redaction_manifest.json` | 是 | Phase2 产出的图片工作队列(`redaction_manifest_v1`):每张待打码图的桶内路径 + 镜像路径 + 可选 `pii_hint`。 |
+| `redaction_manifest.json` | 是 | Phase2 产出的全格式 redaction manifest(`redaction_manifest_v2`):每个要持久化且需脱敏的源文件的桶内路径 + 镜像路径 + adapter frame + PII regions/locators。 |
 | `source_inventory.json` | 是 | Phase2 产出的全源文件 inventory(`source_inventory_v1`):每个源文件的 persist/redaction intent。 |
 | `patient_dir` | 是 | 患者目录(段B/source redaction 从中定位 manifest、inventory 与文件)。 |
 
 ### 4.2 Output
 
-- 桶内图片被替换为**打码版**;镜像(字节级审计目录)同步收敛为打码版。
-- PDF/DOCX/其它源文件在可靠 redactor 不存在时写入 `blocked`,不得持久化明文;可靠 redactor 存在时写入脱敏版并删除明文原件。
-- `redaction_status.json`(`redaction_status_v1`):`summary{total,pending,done,failed,blocked}` + per-file `{id,status,redacted_path,qa_passed,original_deleted,reason}`,与 manifest 按 `id` join。
+- 桶内源文件被替换为**脱敏版**;镜像(字节级审计目录)同步收敛为脱敏版。
+- PDF/DOCX/表格/文本/图片/archive children 按 manifest locator 或 redacted payload 脱敏;未知或不可定位源文件写入 `blocked`,不得持久化明文。
+- `redaction_status.json`(`redaction_status_v2`):`summary{total,pending,redacted_pending_qa,done,failed,blocked}` + per-file `{id,source_id,status,redacted_path,coverage_passed,llm_qa_passed,qa_report_id,qa_passed,original_deleted,reason}`,与 manifest 按 `id` join。
 - `source_redaction_status.json`(`source_redaction_status_v1`):全源文件 hard gate,与 `source_inventory.json` 按 `source_id` join。
 
 ### 4.3 不变量
 
-- **QA 门是删原件的唯一前置**:打码先写临时文件不覆盖原图;对打码图二次扫描,仍检出 PII → QA 失败 → 弃临时图、保原图、标 `failed`、`original_deleted=false`。**仅 `qa_passed=true` 才允许删打码前原件**。
-- **删原件不可逆**:`status=done` 的上传原件+镜像原图被打码版永久覆盖,不可恢复明文;删除只在 `qa_passed=true` 发生。
-- **只遮 PII,不改临床字符**(黑框只盖 PII 区域 quad);**段B 是纯像素打码,不产任何文字**(读图只为定位 PII 框,识别字符用完即弃,不写任何 sidecar/JSON/文本)。
-- **HEIC 内部转码**:`bucket_path`/`mirror_path` 放行 heic/heif,但 PaddleOCR 读不了 HEIC,故段B 遇 HEIC 先**内部转码**为可读栅格 → 打码 → 提交**可浏览 JPG**(后缀 `.heic`→`.jpg`)→ 删原 HEIC。既不丢原图又保证 at-rest 桶图可浏览且无明文 PII。详见 `redaction-job.md`。
+- **QA 门是删原件的唯一前置**:prepare 先写 redacted candidate 不覆盖原件;LLM QA 未 pass 或 coverage 未 pass → 保原件、标 `failed`/`blocked`、`original_deleted=false`。**仅 `coverage_passed=true && llm_qa_passed=true && qa_passed=true` 才允许删打码前原件**。
+- **删原件不可逆**:`status=done` 的上传原件+镜像原件被脱敏版永久覆盖,不可恢复明文;删除只在 coverage + LLM QA 双通过后发生。
+- **只遮/替换 PII,不改临床字符**;**段B 不做 OCR、不产任何文字**。它只执行 manifest 中的 LLM locator / redacted payload,不写 sidecar 临床内容。
+- **HEIC 内部转码**:`bucket_path`/`mirror_path` 放行 heic/heif,段B 可先转 canonical raster → 打码 → 提交可浏览 JPG/PNG candidate → 覆盖原 HEIC。既不丢可浏览档案库又保证 at-rest 桶图无明文 PII。详见 `redaction-job.md`。
 - **幂等可重试**:每处理一张刷一次 status,重跑跳过 `done`。
 - **时序**:段B/source redaction 须在任何"持久化 / 离开本地工作区"之前跑,持久化的源文件才是脱敏版;明文原件永不离开本地工作区(删前短暂停留 staging;跑完只留脱敏版或 blocked 且不 persist)。
 
 ### 4.4 契约**不规定**(交 binding)
 
-段B/source redaction 是一个**独立可调度步骤**:由谁触发、何时触发(与段A/D同步还是由后端 worker 调度)、用哪个解释器/打码引擎拉起——全是宿主生命周期编排。契约只要求"读 manifest/inventory → 脱敏 → QA 门 → 仅 QA 通过删原件 → 写 status",以及 4.3 时序。图片运行细节(独立脚本、venv、退出码语义)见 `redaction-job.md`;非图片 redactor 缺失时必须 `blocked`。这是 §6「存储」接缝在打码侧的体现。
+段B/source redaction 是一个**独立可调度步骤**:由谁触发、何时触发(与段A/D同步还是由后端 worker 调度)、用哪个解释器/打码引擎拉起——全是宿主生命周期编排。契约只要求"读 manifest/inventory → prepare redacted candidates → LLM QA 门 → 仅 coverage+QA 通过删原件 → 写 status",以及 4.3 时序。运行细节、格式支持、退出码语义见 `redaction-job.md`;不支持格式必须 `blocked`。这是 §6「存储」接缝在打码侧的体现。
 
 ---
 
@@ -215,9 +215,9 @@ organize 的产出分两类,**职责必须分离**,任何 binding 不得混:
   - **段D 渲染**:LLM 只产 `case_summary_data.json`(渲染模型:scalar + 0..N 行数组)+ 叙事串;**HTML 由 `scripts/render_html_template.py` 机械渲染**(读模板 → 填占位 / LOOP / RENDER_IF → 落 `病情简要总结.html`)。**LLM 绝不手写 HTML**——手写 HTML 会漂移样式、误删 section、注入幻觉 class。渲染器是**零医学/零病例逻辑的通用模板引擎**:data 驱动,有几个 lab/lesion/治疗线就渲几个(0..N);空 section 渲"资料缺失"占位、**不删 section**;无第三方依赖(仅 Python 标准库,Claude Code / codex 沙箱 / 任意 host 都能跑)。
   - **段D 形校验**:`scripts/validate_case_summary_html.py` 只查**"形"不变量**(模板固定、与病人无关:`<style>` 与模板逐字一致、用到的 class ⊆ 模板 class、无残留 `{{}}`、无明文 PII、无精确年龄、骨架 section 齐)。**禁止断言具体内容存在**(如"必须有 `.lab-grid`"会误杀无化验的病人)——渲染器是 0..N,无化验的病人合法地没有 `.lab-item`。
   - **PII 复扫**:`scripts/pii_rescan.py` 在 Phase1 写完 sidecar、Phase2 消费前**机械复扫** MD 正文残留明文 PII(不信 LLM 的 `## PII` 自报)。它是**检测器不是改写器**——命中交 agent 回看上下文重新打码(重打码是语义判断),复扫到清为止。
-  - **段B 像素打码**:§4,纯像素步,QA 门也是机械二次扫描。
+  - **段B source redaction**:§4,脚本只执行 LLM locator/payload 并做 coverage gate;语义 QA 由 LLM QA report gate。
 
-> 为什么这条是契约级而非 binding 偏好:把确定性产出交给 LLM"自觉做对"是本 skill 的系统性风险源(样式漂移、section 误删、PII 自报漏报、HTML 幻觉)。确定性步骤必须由 data 驱动的脚本钉死,LLM 只供它无法机械化的语义判断。
+> 为什么这条是契约级而非 binding 偏好:把确定性产出交给 LLM"自觉做对"是本 skill 的系统性风险源(样式漂移、section 误删、PII 自报漏报、HTML 幻觉)。确定性步骤必须由 data 驱动的脚本钉死,LLM 只供它无法机械化的语义判断与 QA。
 
 ## 4c. 输出根单一规则
 
@@ -232,9 +232,9 @@ organize 的产出分两类,**职责必须分离**,任何 binding 不得混:
 3. **未确认不落正式字段 / 不可逆删除**(§3 确认门),无论 inline 还是 confirm-as-product。
 4. **临床保真 > 一切便利**:任何步骤、任何 binding 都不得翻译/规范化/平滑临床实体。
 5. **逻辑/schema/产物结构零改动**:换 binding 只换"谁执行机制",§1–§4 的 inputs/outputs/schema 不变。
-6. **sidecar 正文 = LLM 输出**(§1.5):图片/扫描件走 LLM 原生视觉;PDF/DOCX/表格/文本可先格式适配给 LLM;哑 OCR/parser 不是 sidecar 临床正文来源,PaddleOCR 仅段B/source redaction 定位/QA 用、不产下游文字。
-7. **archive/persist 受源文件脱敏硬门约束**:所有要持久化的源文件必须 `source_redaction_status.done && qa_passed && original_deleted`;blocked/failed/pending 均不得离开本地工作区。
-8. **确定性产出走脚本,不靠 LLM 自觉**(§4b):段D HTML 由 `render_html_template.py` 渲染(LLM 不手写 HTML)、形校验 / PII 复扫 / 段B 打码全是机械步;LLM 只供语义判断。
+6. **sidecar 正文和 PII locator = LLM 输出**(§1.5):图片/扫描件走 LLM 原生视觉;PDF/DOCX/表格/文本可先格式适配给 LLM;纯 OCR/parser 不是 sidecar 临床正文来源,也不是 PII 判断来源。
+7. **archive/persist 受源文件脱敏硬门约束**:所有要持久化的源文件必须 `source_redaction_status.done && coverage_passed && llm_qa_passed && qa_passed && original_deleted`;blocked/failed/pending 均不得离开本地工作区。
+8. **确定性产出走脚本,不靠 LLM 自觉**(§4b):段D HTML 由 `render_html_template.py` 渲染(LLM 不手写 HTML)、形校验 / PII 复扫 / 段B deterministic redaction 全是机械步;LLM 只供语义判断和 QA。
 9. **输出根单一**(§4c):一次 run 全部产物落一个 `patient_dir`,别名是指针不是副本。
 
 ---

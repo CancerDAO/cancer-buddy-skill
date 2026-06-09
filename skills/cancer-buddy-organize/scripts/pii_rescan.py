@@ -11,9 +11,9 @@ plaintext PII that survives in an MD leaks all the way through.
 
 This script is the **门** that runs AFTER the worker writes sidecars and BEFORE
 Phase 2 consumes them. It does NOT rely on the LLM's self-report (`## PII`
-trailer) — it independently rescans the *body text* of every sidecar with the
-same deterministic regex family the 段B pixel redactor (`redact_ocr.py`) uses,
-and flags any line that still looks like it carries plaintext PII.
+trailer) — it independently rescans the *body text* of every sidecar with a
+small deterministic PII-pattern family and flags any line that still looks like
+it carries plaintext PII. It never performs OCR.
 
 Scope (matches phase1-ocr.md §2.4 — "touches PII tokens ONLY"):
   - Only the OCR body is scanned. The `SOURCE:`/`ORIGINAL:` header and the
@@ -61,7 +61,7 @@ from pathlib import Path
 
 MASK_TOKEN = "[PII_MASKED]"
 
-# --- separators (mirrors redact_ocr.py) ------------------------------------
+# --- separators -------------------------------------------------------------
 _SEP = r"\s*[:：\s]\s*"
 
 # A "value" that still looks like plaintext PII (NOT already the mask token and

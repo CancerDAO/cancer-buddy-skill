@@ -41,8 +41,8 @@
           "redaction_required": { "type": "boolean", "description": "True when the source-file copy can carry plaintext PII and must pass source-file redaction before persist." },
           "redaction_strategy": {
             "type": "string",
-            "enum": ["paddleocr_image", "pdf_redactor", "docx_redactor", "spreadsheet_redactor", "text_rewrite", "not_required", "blocked_unsupported"],
-            "description": "Planned source-file redaction path. Missing PDF/DOCX implementations must use blocked_unsupported rather than persisting plaintext."
+            "enum": ["llm_region_image", "llm_region_pdf", "llm_structured_docx", "llm_structured_sheet", "llm_text_rewrite", "archive_rebuild", "not_required", "blocked_unsupported"],
+            "description": "Planned source-file redaction path. LLM region/locator metadata drives redaction; unsupported formats must use blocked_unsupported rather than persisting plaintext."
           },
           "redacted_path": { "type": ["string", "null"], "description": "Bucket-relative redacted source-file path when known." },
           "notes": { "type": ["string", "null"] }

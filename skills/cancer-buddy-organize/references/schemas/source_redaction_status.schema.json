@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://cancerdao.org/schemas/cancer-buddy/source_redaction_status.schema.json",
   "title": "SourceRedactionStatus",
-  "description": "Pre-persist source-file redaction status for every source file selected for archive/persist. This is the archive hard gate: persisted source files must be redacted, QA-passed, and have their plaintext originals deleted. Image entries may be synchronized from redaction_status.json; PDF/DOCX/other formats remain blocked until a reliable redactor exists.",
+  "description": "Pre-persist source-file redaction status for every source file selected for archive/persist. Persisted source files must be redacted by LLM-supplied region/structure locators, deterministic coverage-checked, LLM-QA-passed, and have their plaintext originals deleted.",
   "type": "object",
   "required": ["schema", "patient_dir", "updated_at", "summary", "files"],
   "additionalProperties": false,
@@ -27,17 +27,33 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["source_id", "status", "qa_passed", "original_deleted"],
+        "required": [
+          "source_id",
+          "status",
+          "qa_passed",
+          "original_deleted",
+          "coverage_passed",
+          "llm_qa_passed"
+        ],
         "additionalProperties": false,
         "properties": {
-          "source_id": { "type": "string", "pattern": "^s\\d{3,}$", "description": "Matches source_inventory.json.files[].source_id." },
+          "source_id": { "type": "string", "pattern": "^s\\d{3,}$" },
           "status": { "type": "string", "enum": ["pending", "done", "failed", "blocked", "not_required"] },
-          "strategy": { "type": ["string", "null"], "enum": ["paddleocr_image", "pdf_redactor", "docx_redactor", "spreadsheet_redactor", "text_rewrite", "not_required", "blocked_unsupported", null] },
-          "redacted_path": { "type": ["string", "null"], "description": "Bucket-relative redacted source-file path when status='done'." },
-          "qa_passed": { "type": ["boolean", "null"], "description": "Must be true for status='done' files that are selected for persist." },
-          "original_deleted": { "type": ["boolean", "null"], "description": "Must be true for status='done' files that are selected for persist." },
-          "reason": { "type": ["string", "null"], "description": "Required explanation for failed/blocked/non-required cases." },
-          "linked_redaction_manifest_id": { "type": ["string", "null"], "pattern": "^f\\d{3,}$", "description": "Image source linkage to redaction_manifest.json/redaction_status.json when applicable." }
+          "strategy": {
+            "type": ["string", "null"],
+            "enum": ["llm_region_image", "llm_region_pdf", "llm_structured_docx", "llm_structured_sheet", "llm_text_rewrite", "archive_rebuild", "not_required", "blocked_unsupported", null]
+          },
+          "redacted_path": { "type": ["string", "null"] },
+          "qa_passed": { "type": ["boolean", "null"] },
+          "coverage_passed": { "type": ["boolean", "null"] },
+          "llm_qa_passed": { "type": ["boolean", "null"] },
+          "qa_report_id": { "type": ["string", "null"] },
+          "original_deleted": { "type": ["boolean", "null"] },
+          "reason": { "type": ["string", "null"] },
+          "linked_redaction_manifest_id": {
+            "type": ["string", "null"],
+            "pattern": "^f\\d{3,}$"
+          }
         }
       }
     }
