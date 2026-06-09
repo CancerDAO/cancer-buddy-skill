@@ -294,6 +294,8 @@ Validate against the schema before writing (mental validation if no `jsonschema`
 
 `source_inventory.json` is the run-level proof that every source file/content unit went through LLM Markdown ingestion and records how the final source-file copy will be made safe before persist. Build it from `.rename_plan.json` and the sidecar headers:
 
+**Do not use `persist:false` as a shortcut around source-file redaction.** Any medical source whose sidecar is referenced by `timeline.md`, `case_text.md`, `review_summary.md`, `review_flags.md`, or any structured JSON `source_refs[]` is part of the formal archive and MUST remain `persist:true`. If body redaction cannot be completed in this Phase2 run, keep `persist:true`, keep `redaction_required:true`, set the appropriate strategy (or `blocked_unsupported`), and leave `source_redaction_status.json` as `pending` / `blocked` so the final archive/persist validator fails until 段B finishes. `persist:false` is reserved only for isolated unrelated sources that are not cited by formal outputs.
+
 ```json
 {
   "schema": "source_inventory_v1",
@@ -480,8 +482,11 @@ python3 scripts/validate_structured_outputs.py "$patient_dir"
 If it fails only on `source_redaction_status.json` / source-file redaction rows,
 report `archive_persist_ready:false` and continue to 段D HTML. The same command
 must exit 0 after 段B/source redaction before anything is persisted outside the
-local workspace. If the script doesn't exist or `jsonschema` is missing, fall
-back to manual mental validation for the Phase2 structured JSONs.
+local workspace. If it fails because a formally cited source is `persist:false`,
+that is a Phase2 bug: restore the source to `persist:true` and report
+`archive_persist_ready:false` instead of hiding the source from the redaction
+gate. If the script doesn't exist or `jsonschema` is missing, fall back to
+manual mental validation for the Phase2 structured JSONs.
 
 ### 2.7 `missing_items.json` (NEW — cancer-checklist diff)
 
@@ -744,10 +749,11 @@ Pure JSON, no prose:
 - NEVER write a `case_text.md` containing dangling anchors — surface the gap, don't ship a broken file.
 - NEVER leave the central `ocr/` dir behind: every MD must be moved into its bucket (`<bucket>/<canonical>.md`) and `ocr/` deleted (Step 1e). If an MD can't be drained, surface `ocr_drain_incomplete` and keep `ocr/`, don't strand the file.
 - NEVER emit an anchor (in any artifact, `source_evidence`, or `source_refs[]`) that still uses the `ocr/` or `02_脱敏病历/` prefix — those are retired; all anchors are bucket-relative or `conversation:<ISO8601>`.
+- NEVER mark a formally cited medical source `persist:false` to make validation pass. If `timeline.md` / `case_text.md` / review outputs / structured JSON cite a sidecar, that source is archive-selected and must stay `persist:true` until 段B redaction reaches `done`; pending/blocked status must surface as `archive_persist_ready:false`.
 - ALWAYS write `source_inventory.json` (Step 1g) before returning — it is the proof that every source file/content unit produced a redacted MD and records the source-file redaction strategy.
 - ALWAYS initialize `source_redaction_status.json` (Step 1g) before returning — it is the archive/persist hard gate. It may contain `pending` image entries after Phase2; that is fine for JSON/HTML generation but means `archive_persist_ready:false`.
-- ALWAYS write `redaction_manifest.json` (Step 1f) before returning — it is the image hand-off to 段B. A missing/invalid manifest blocks in-image PII masking. Surface validation failures into `readiness.json.warnings`, don't ship an invalid manifest.
-- `redaction_manifest.json` lists only raster images (jpg/jpeg/png/tif/tiff/webp/bmp + heic/heif — HEIC stays HEIC in its bucket, 段B transcodes internally; no pre-stashed JPEG bucket copy); text PDFs/DOCX with already-redacted MD are NOT listed.
+- ALWAYS write `redaction_manifest.json` (Step 1f) before returning — it is the full-format source-file hand-off to 段B. A missing/invalid manifest blocks source-file PII masking. Surface validation failures into `readiness.json.warnings`, don't ship an invalid manifest.
+- `redaction_manifest.json` lists every `persist:true && redaction_required:true` source file, not just raster images. Text PDFs/DOCX/spreadsheets/text may have already-redacted MD, but the source file itself still needs a supported redaction strategy or a `blocked_unsupported` status before archive/persist.
 - `coverage_complete: false` is acceptable as long as you list the missing files; caller will retry-mini-Phase1 + re-run you.
 - `archive_persist_ready` may be `false` immediately after Phase2 because HTML/JSON generation does not wait for source-file redaction. It becomes true only after every persisted source file has source-redaction status `done`, `qa_passed:true`, and `original_deleted:true`. Never represent a pending/blocked source as persisted.
 - The alias is sticky: never overwrite a previously set `profile.json.alias` on incremental runs.
