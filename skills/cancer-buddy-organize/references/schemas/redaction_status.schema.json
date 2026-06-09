@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://cancerdao.org/schemas/cancer-buddy/redaction_status.schema.json",
   "title": "RedactionStatus",
-  "description": "Live progress record for the async 段B PaddleOCR redaction job. Written/updated by scripts/run_redaction_job.py as it processes redaction_manifest.json. Idempotent and retryable: files already 'done' are skipped on re-run. The QA gate is authoritative for the delete-original safety carve-out — an original (upload + mirror copy) may be deleted ONLY when its file entry has qa_passed=true.",
+  "description": "Live progress record for the 段B PaddleOCR image-redaction job. Written/updated by scripts/run_redaction_job.py as it processes redaction_manifest.json before archive/persist. Idempotent and retryable: files already 'done' are skipped on re-run. The QA gate is authoritative for the delete-original safety carve-out — an original (upload + mirror copy) may be deleted ONLY when its file entry has qa_passed=true.",
   "type": "object",
   "required": ["schema", "patient_dir", "updated_at", "summary", "files"],
   "additionalProperties": false,

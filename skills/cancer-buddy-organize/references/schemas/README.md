@@ -11,6 +11,8 @@ These JSON Schemas define the structured outputs `cancer-buddy-organize` produce
 | `labs.json` | [labs.schema.json](labs.schema.json) | Lab panels with serial values |
 | `comorbidities.json` | [comorbidities.schema.json](comorbidities.schema.json) | Conditions + long-term meds + allergies |
 | `missing_items.json` | [missing_items.schema.json](missing_items.schema.json) | Cancer-checklist diff |
+| `source_inventory.json` | [source_inventory.schema.json](source_inventory.schema.json) | Per-source LLM ingestion provenance, sidecar path, and persist/redaction intent |
+| `source_redaction_status.json` | [source_redaction_status.schema.json](source_redaction_status.schema.json) | Pre-persist source-file redaction gate for images/PDF/DOCX/other source files |
 
 ## Anchor token contract
 
@@ -31,3 +33,11 @@ In narrative artifacts (`case_text.md`, the human-readable patient summary), the
 The synthesis worker validates each JSON it writes against its schema before saving. If validation fails, the file is NOT written and the error is surfaced into `readiness.json.warnings`.
 
 A minimal validator is shipped in `scripts/validate_structured_outputs.py` (consumes `jsonschema>=4.18`).
+
+The validator is also the archive hard gate. A final archive must include
+`source_inventory.json`, every inventory item must point to a redacted MD sidecar,
+and every source file selected for persist must have a matching
+`source_redaction_status.json` entry with `status="done"`,
+`qa_passed=true`, and `original_deleted=true`. PDF/DOCX or other source files
+without a reliable body redactor must be marked `blocked`; blocked files cannot be
+persisted as plaintext.

@@ -8,45 +8,50 @@
 
 ## 0. 契约总览
 
-organize 是 4 个纯函数步骤的有序组合。每步以 inputs → outputs(JSON / 文件产物)描述,带一组不变量。前三步是同一次 organize run 内的主链;第 4 步(段B 像素打码)是登记在册的**独立后续步骤**,可与主链解耦异步执行。
+organize 是 5 个纯函数步骤的有序组合。每步以 inputs → outputs(JSON / 文件产物)描述,带一组不变量。前三步是同一次 organize run 内的主链;段D HTML 可在脱敏 MD/JSON 完成后生成;第 5 步(段B/源文件本体脱敏)是最终 archive/persist 的硬门,可由后端 worker 调度,但必须在任何持久化/离开本地工作区之前完成。
 
 | # | 步骤 | 纯函数语义 | 主要产物 |
 |---|---|---|---|
-| 1 | Phase1 — per-file 脱敏 OCR | `(一个源文件, 稳定 file_id) → 一个脱敏 sidecar MD` | `<file>` 的脱敏 MD(`SOURCE/CONFIDENCE` 头 + 逐字脱敏正文 + `## PII` trailer) |
-| 2 | Phase2 — 综合 | `(全部 sidecar, 源清单, file_id↔原名映射) → canonical 输出集` | 11 桶 + `profile.json` + `timeline.*` + `case_text.md` + `readiness.json` + `review_flags.md` + 6 结构化 JSON + `missing_items.json` + `update_log.json` + `redaction_manifest.json` + 桶相对锚点 |
+| 1 | Phase1 — LLM Markdown ingestion | `(一个源文件或 content unit, 稳定 source_id, LLM-readable adapter input) → 一个脱敏 sidecar MD` | `<source>` 的脱敏 MD(`SOURCE/READ_MODE/ADAPTER/CONFIDENCE` 头 + LLM 脱敏正文 + `## PII` trailer) |
+| 2 | Phase2 — 综合 | `(全部 sidecar, source_inventory, source_id↔原名映射) → canonical 输出集` | 11 桶 + `source_inventory.json` + `profile.json` + `timeline.*` + `case_text.md` + `readiness.json` + `review_flags.md` + 6 结构化 JSON + `missing_items.json` + `update_log.json` + `redaction_manifest.json` + 桶相对锚点 |
 | 3 | 确认门(产物化) | `(待写正式字段/待删文件) → 待确认项数据;经确认 → 写/删` | 待确认项数据(候选结构);确认后才落正式字段或不可逆删除 |
-| 4 | 段B — 像素打码 | `(redaction_manifest.json, patient_dir) → 打码后桶图 + redaction_status.json` | 桶内图片替换为打码版 + 镜像收敛 + `redaction_status.json` |
+| 4 | 段D — HTML 渲染 | `(脱敏 JSON/MD) → case_summary_data.json → 病情简要总结.html` | 模板脚本渲染的 HTML;不读原始文件 |
+| 5 | 段B/source redaction — 持久化前本体脱敏 | `(redaction_manifest.json, source_inventory.json, patient_dir) → 打码/脱敏后源文件 + status` | 图片 `redaction_status.json` + 全源文件 `source_redaction_status.json`;QA 通过才删明文原件 |
 
-**步骤间数据流的唯一前置**:Phase2 开始前,其覆盖范围内**所有源文件的 sidecar 必须就绪**(契约要求"就绪",不要求"如何就绪")。Phase2 产出 `redaction_manifest.json` 即把段B 的工作队列交接出去;段B 是否跑完不阻塞 Phase2 与 段D HTML(段D 只读脱敏 JSON/MD,不读图)。
+**步骤间数据流的前置**:Phase2 开始前,其覆盖范围内**所有源文件/content unit 的 sidecar 必须就绪**(契约要求"就绪",不要求"如何就绪")。Phase2 产出 `redaction_manifest.json` 与 `source_inventory.json`;段B/source redaction 是否跑完不阻塞 Phase2 与 段D HTML(段D 只读脱敏 JSON/MD,不读图),但**阻塞最终 archive/persist**。
 
 ---
 
-## 1. Phase1 — per-file 脱敏 OCR(纯函数)
+## 1. Phase1 — LLM Markdown ingestion(纯函数)
 
-把**一个**源文件转成**一个**脱敏 sidecar MD。每个源文件独立成函数,彼此无依赖——这是契约把 Phase1 定义为"per-file 纯函数"的根本原因:就绪顺序、是否并行、用什么解码/识别都由 binding 决定,行为不受影响。
+把**一个**源文件或从源文件拆出的 content unit 转成**一个**脱敏 sidecar MD。每个源文件/content unit 独立成函数,彼此无依赖——这是契约把 Phase1 定义为"per-source 纯函数"的根本原因:就绪顺序、是否并行、格式如何适配都由 binding 决定,行为不受影响。
 
 ### 1.1 Inputs
 
 | 字段 | 必需 | 含义 |
 |---|---|---|
-| `source_file` | 是 | 一个源文件(任意栅格 / PDF / 文本 / 文档)。 |
-| `file_id` | 是 | 宿主分配的**稳定标识**,保证**源文件 ↔ sidecar 可一一对应**。同一源文件跨 run 同一 id;不同源文件 id 不碰撞。契约只要求"稳定且双向可查",不规定 id 形态(可为原名、哈希、序号…)。 |
+| `source_file` | 是 | 一个源文件或 content unit(任意图片 / PDF 页或文本层 / DOCX section/table/image / spreadsheet sheet / 文本 / archive 解包项)。 |
+| `source_id` | 是 | 宿主分配的**稳定标识**,保证**源文件/content unit ↔ sidecar 可一一对应**。同一源跨 run 同一 id;不同源 id 不碰撞。契约只要求"稳定且双向可查",不规定 id 形态。 |
+| `llm_readable_input` | 是 | 宿主适配后交给 LLM 的输入:可读栅格、文件上下文、渲染页、文档/表格 payload、或不可读 stub 说明。 |
 
-> `file_id` 是 Phase2 的 `file_id↔原名映射` 与 §6「编排」接缝的契约基石。headless 单进程宿主同样必须维护它(见 §7 开放问题)。
+> `source_id` 是 Phase2 的 `source_id↔原名映射`、`source_inventory.json` 与 §6「编排」接缝的契约基石。headless 单进程宿主同样必须维护它。
 
 ### 1.2 Output — 一个脱敏 sidecar MD
 
-每个源文件产出**恰好一个** sidecar,结构固定为三段:
+每个源文件/content unit 产出**恰好一个** sidecar,结构固定为三段:
 
 1. **头**(强制):
    ```
-   SOURCE: <source_type> | CONFIDENCE: <low|medium|high>
-   ORIGINAL: <指回该源文件字节级原件的稳定引用>
-   ```
+	   SOURCE: <source_type> | READ_MODE: <model_vision|llm_file_context|llm_rendered_pages|llm_text_payload|stub_unreadable> | CONFIDENCE: <low|medium|high>
+	   ADAPTER: <none|temp_raster|pdf_pages|docx_payload|spreadsheet_payload|text_payload|archive_unpacked|unsupported_stub>
+	   ADAPTER_PROVENANCE: <short provenance or none>
+	   ORIGINAL: <指回该源文件字节级原件的稳定引用>
+	   ```
    - `CONFIDENCE` 是**规则判定**,不是自评:命中 `[OCR_UNCERTAIN]`/`[CANDIDATES]`、手写/瓶贴/涂写 → `low`;单一来源无旁证 → `medium`;正式文书(出院小结/正式处方/病理/NGS/CT-MRI 叙述)且 ≥2 文档关键字段逐字一致 → `high`;默认 `medium`。详见 phase1-ocr.md §2.3。
-2. **逐字脱敏 OCR 正文**:
-   - text/mixed/pathology → **全文逐字转录**(表格转 Markdown 表;医嘱按 date|order|qty|sig|exec_status;出院证转 heading+治疗摘要+诊断+医嘱+签名 verbatim)。
-   - 纯影像(切片/X 光/超声/照片)→ **stub**(≤5 行:模态 + 可见体区 + 可见日期)。
+2. **LLM 生成的脱敏 Markdown 正文**:
+	   - text/mixed/pathology → **全文逐字转录**(表格转 Markdown 表;医嘱按 date|order|qty|sig|exec_status;出院证转 heading+治疗摘要+诊断+医嘱+签名 verbatim)。
+	   - 纯影像(切片/X 光/超声/照片)→ **stub**(≤5 行:模态 + 可见体区 + 可见日期)。
+	   - 不支持/损坏/无法读取 → **stub**(说明不可读原因 + `[OCR_UNCERTAIN]`/`[INGESTION_BLOCKED]`),并进入 review flag;禁止静默跳过。
 3. **`## PII` trailer**(强制):一行 `masked: <逗号分隔类别键>` 或 `masked: none`,登记本文件实际遮蔽的 PII 类别。供 Phase2 构建 `redaction_manifest.json` 的 `pii_hint`。该 trailer 是元数据,不带 `[[src:...]]` 锚点。
 
 ### 1.3 强制脱敏(P0,无豁免)
@@ -63,31 +68,31 @@ sidecar 是**整条下游管线的唯一读取源**(timeline / case_text / profi
 - **幂等**:对同一源文件重复执行,不覆盖比源文件更新的既有 sidecar。
 - **不越界**:Phase1 只产 per-file sidecar,**绝不**写任何全局产物(INDEX/timeline/case_text/profile/readiness/review_flags/review_summary 全是 Phase2 的)——否则与并行实例产生竞态。
 
-### 1.5 OCR 接缝钉死:文字源 = 驱动模型原生视觉(load-bearing)
+### 1.5 LLM ingestion 接缝钉死:sidecar 正文 = LLM 输出(load-bearing)
 
-sidecar 的逐字脱敏正文**必须由驱动模型(Claude / codex 等)的原生视觉读图产出**——模型直接看图、逐行转录、逐行语义判 PII。这是契约钉死的一条,不只是 binding 偏好:**哑 OCR(PaddleOCR 等纯字符识别引擎)不是合法的文字源**。原因有三:(a) 哑 OCR 只出字符流,没有"这是出生日期还是临床日期""这串数字是住院号还是检验值"的语义判断,而 1.3/1.4 要求的强制脱敏 + anti-anchoring + `[OCR_UNCERTAIN]`/`[CANDIDATES]` 全是语义判断;(b) 哑 OCR 字符错误会被悄悄当成真值,正中本 skill 最大历史失败模式("一致但全错");(c) 临床实体 verbatim 需要模型"看懂上下文再抄",不是 OCR 盲转。
+sidecar 的脱敏 Markdown 正文**必须由驱动 LLM(Claude / codex / OpenClaw/OpenCode 等)产出**。图片/扫描件由 LLM 原生视觉读取;PDF/DOCX/表格/文本等可以由宿主先适配成 LLM 可读的文件上下文、渲染页或 payload,但最终写入 sidecar 的临床文字、PII 判断和 Markdown 表格仍由 LLM 输出。这是契约钉死的一条,不只是 binding 偏好:**哑 OCR(PaddleOCR / Tesseract / macOS Vision 等纯字符识别引擎)与本地 parser 不是合法的 sidecar 临床正文来源**。它们可用于格式适配、像素/文档本体脱敏定位或 QA,但不能直接把字符流接成 sidecar 正文。
 
-**PaddleOCR 在本管线里只出现在段B(§4 像素打码),且只为定位 PII 框、不产任何下游文字**(它识别出的字符用完即弃)。任何 binding 都不得把哑 OCR 的字符输出接成 sidecar 正文 / 任何下游文字产物。`headless-codex.md` 的 OCR 源接缝因此只填 codex `-i` 原生视觉一种,不再保留"PaddleOCR 抽文字填法B"。
+**PaddleOCR 在本管线里只出现在段B/source redaction,且只为定位 PII 框或 QA,不产任何下游文字**(它识别出的字符用完即弃)。任何 binding 都不得把哑 OCR 或 parser 的字符输出直接接成 sidecar 正文 / 任何下游文字产物。`headless-codex.md` 的 LLM 输入接缝因此只填 codex `-i` / LLM file context,不保留"PaddleOCR 抽文字填法B"。
 
 ### 1.6 契约**不规定**(交 binding)
 
-是否并行、单实例处理多少文件、非可读栅格(如 HEIC)如何解码为可读图喂给模型视觉。这些是 §6 的「图像解码 / 编排」接缝。**切片预算(如"≤N 图/实例")是某些宿主的多图预算特性,属 host-tunable 参数,不是契约不变量**——不切、按宿主预算切都合规,只要 1.4 不变量成立。
+是否并行、单实例处理多少文件、非 LLM 可读格式如何适配。这些是 §6 的「格式适配 / 编排」接缝。HEIC 解码、PDF 渲染/文本层展开、DOCX/XML/table/image 展开、archive 解包都只是 adapter,不是文字来源。**切片预算(如"≤N 图/实例")是某些宿主的多图预算特性,属 host-tunable 参数,不是契约不变量**——不切、按宿主预算切都合规,只要 1.4 不变量成立。
 
-> HEIC 桶图:契约允许手机原图(常为 HEIC)**原样进桶**(§2.2 桶不变量 / §4 段B 不删可浏览档案库的精神:不丢原图)。`redaction_manifest.json` 的 `bucket_path`/`mirror_path` **放行 heic/heif**(连同 jpg/png/…)。HEIC 不可被 PaddleOCR 直接读,故段B 在打码这一步**内部转码**为可浏览 JPG(§4.3);Phase1 视觉若遇 HEIC,由图像解码接缝先转可读栅格喂模型(§6),不影响 sidecar 结构。
+> HEIC 桶图:契约允许手机原图(常为 HEIC)**原样进桶**(§2.2 桶不变量 / §4 段B 不删可浏览档案库的精神:不丢原图)。`redaction_manifest.json` 的 `bucket_path`/`mirror_path` **放行 heic/heif**(连同 jpg/png/…)。HEIC 不可被 PaddleOCR 直接读,故段B 在打码这一步**内部转码**为可浏览 JPG(§4.3);Phase1 视觉若遇 HEIC,由格式适配接缝先转可读栅格喂模型(§6),不影响 sidecar 结构。
 
 ---
 
 ## 2. Phase2 — 综合(纯函数)
 
-读全部 sidecar,分类进桶、canonical 改名、co-locate MD 与原图,产出全部全局结构化产物。
+读全部 sidecar,分类进桶、canonical 改名、co-locate MD 与源文件,产出全部全局结构化产物与 source-file redaction/persist 账本。
 
 ### 2.1 Inputs
 
 | 字段 | 必需 | 含义 |
 |---|---|---|
 | `sidecars` | 是 | Phase1 产出的全部脱敏 sidecar MD(就绪是前置,见 §0)。 |
-| `source_inventory` | 是 | 覆盖范围内的源文件清单(用于 coverage 校验:sidecar 数 < 源数 → 列缺口、记 `phase1_coverage_gap`,不中止)。 |
-| `file_id_to_name` | 是 | `file_id ↔ 原名` 映射,保证 sidecar 能回指源文件、canonical 改名可追溯。 |
+| `source_inventory` | 是 | 覆盖范围内的源文件/content unit 清单(用于 coverage 校验:sidecar 数 < 源数 → 列缺口、记 `phase1_coverage_gap`,不中止)。 |
+| `source_id_to_name` | 是 | `source_id ↔ 原名` 映射,保证 sidecar 能回指源文件、canonical 改名可追溯。 |
 | `run_mode` | 否 | `full`(默认)/ `incremental`(只重分类增量并合并下游)。 |
 | `caller_default_hospital` | 否 | 出具机构 4 级回退里的第 3 级(通常 `treating_hospitals[0]`)。 |
 | `triggered_by` / `reason` | 否 | 写入 `update_log.json` 的调用上下文。 |
@@ -97,6 +102,7 @@ sidecar 的逐字脱敏正文**必须由驱动模型(Claude / codex 等)的原�
 | 产物 | 内容 | 关键约束 |
 |---|---|---|
 | 11 桶 | 每文件落 `<bucket>/<canonical>.<ext>` + co-located `<bucket>/<canonical>.md` | 禁止桶根裸文件;无明确子类落该桶 `其他/`。 |
+| `source_inventory.json` | 每个源文件/content unit 的 LLM ingestion provenance + sidecar + persist/redaction intent | `source_inventory_v1`;每个要持久化的源文件必须能 join 到 `source_redaction_status.json`。 |
 | canonical 命名 | `<YYYY-MM-DD>_<doc_type>_<hospital>[_p<page>].<ext>` | doc_type/hospital/date 由 sidecar 语义判定(LLM,非正则);hospital 走 4 级回退;缺值 `unknown-date`/`unknown-org`。 |
 | `INDEX.md` | 每文件一行(桶/类型/日期/机构/置信/canonical/MD),按日期升序 | 路径全为桶相对 co-located 路径。 |
 | `timeline.md` / `timeline.json` | 时间序事件 + 机器可读镜像 | 每事件行 ≥1 个桶相对 `[[src:...]]` 锚点。 |
@@ -108,6 +114,7 @@ sidecar 的逐字脱敏正文**必须由驱动模型(Claude / codex 等)的原�
 | `missing_items.json` | 癌种 checklist diff(stage-context) | 映射不明 → `cancer_type:null`+`checklist_unmapped`。 |
 | `update_log.json` | 本次 run 审计条目 | full=全量条目;incremental=delta。 |
 | `redaction_manifest.json` | 段B 工作队列交接(`redaction_manifest_v1`) | 只列栅格图;每条 `bucket_path`+`mirror_path`+`pii_hint`+`status:pending`;过 schema 校验。 |
+| `source_redaction_status.json` | 最终 archive/persist 源文件本体脱敏状态(`source_redaction_status_v1`) | 由段B/source redaction 写入;所有 `persist:true && redaction_required:true` 的源文件必须 `done + qa_passed=true + original_deleted=true` 才能离开本地工作区。 |
 | 业务别名指针 | 顶层 alias 指针(指回 `patient_code` 目录) | `alias` 已设时建立;不可建链时退化为 alias 映射文件。 |
 
 字段级真值(schema、4 级机构回退、stage-context、8 域评分细则、locale 渲染)全部以 phase2-synthesis.md 为准,本契约不复述,只锚定"产出这些、满足这些不变量"。
@@ -129,7 +136,9 @@ Phase2 的跨文档审计(Phase1 做不到,因 Phase1 只见自己那片;Phase2 
 - **桶不变量**:每文件必进某桶的 typed 子目录,禁桶根裸文件;`NN_` 两位数字前缀是**语言无关稳定 key**,其后 slug 按 `locale` 渲染;下游一律按 `NN_` 数字前缀解析锚点,localize slug 不破坏解析(`bucket_path`/`file_dest`/`md_dest`/锚点用同一 localized slug,保证盘上路径与锚点一致)。
 - **locale 不变量**:Phase2 是 `profile.json.locale` 的 canonical 写者——检测并持久化(已存在则复用,除非用户显式改语言);所有患者向 scaffold(桶 slug、timeline/case_text/review_summary 文案、gap/warning 文案、确认通知)按 locale 渲染。**临床实体(药/基因/变异/TNM/数值+单位)与 `doc_type` 永远 verbatim,绝不翻译/转写/规范化**——误译是 P0 安全 bug。
 - **暂存区不残留**:综合结束后,中央 sidecar 暂存区必须被排空——每个 MD 都 co-located 进桶,排空失败 → 暴露 `ocr_drain_incomplete`、保留暂存区、不弃文件。任何产物不得在综合后引用中央暂存区。
-- **manifest 必产**:返回前必产 `redaction_manifest.json`(段B 唯一交接);只列栅格图;校验失败记 warning,不发无效 manifest。
+- **source inventory 必产**:返回前必产 `source_inventory.json`;每个源文件/content unit 一条,记录 `READ_MODE` / `ADAPTER` / sidecar path / persist/redaction intent;校验失败记 warning,不发无效 inventory。
+- **manifest 必产**:返回前必产 `redaction_manifest.json`(图片段B交接);只列栅格图;校验失败记 warning,不发无效 manifest。
+- **source redaction hard gate**:最终 archive/persist 前必须有 `source_redaction_status.json`;所有要持久化且需要脱敏的源文件必须 `status=done`、`qa_passed=true`、`original_deleted=true`。PDF/DOCX/其它本体脱敏器缺失时写 `blocked`,不得持久化明文。
 - **alias sticky**:incremental run 不覆写已设 `profile.json.alias`。
 - **不发坏产物**:schema 不过的结构化 JSON 不写、dangling 锚点的 case_text 不写——暴露缺口,不出半成品。
 
@@ -163,21 +172,24 @@ Phase2 的跨文档审计(Phase1 做不到,因 Phase1 只见自己那片;Phase2 
 
 ---
 
-## 4. 段B — 像素打码(已 runtime-neutral)
+## 4. 段B/source redaction — 持久化前本体脱敏(已 runtime-neutral)
 
-把桶里图片内的明文 PII 像素真正涂黑(段A 只做了 MD 文本级脱敏,桶图本身仍含明文 PII),QA 通过后用打码版**不可逆**覆盖原件,并收敛镜像。本步骤**本就 host-friendly**,在契约里登记为**独立后续步骤**,不改。
+把要持久化的源文件本体真正脱敏(段A 只做了 MD 文本级脱敏,源文件本身在本地 staging 内仍可能含明文 PII),QA 通过后用脱敏版**不可逆**覆盖/替换明文原件,并收敛镜像。本步骤**本就 host-friendly**,在契约里登记为最终 archive/persist 的硬门。
 
 ### 4.1 Inputs
 
 | 字段 | 必需 | 含义 |
 |---|---|---|
-| `redaction_manifest.json` | 是 | Phase2 产出的工作队列(`redaction_manifest_v1`):每张待打码图的桶内路径 + 镜像路径 + 可选 `pii_hint`。 |
-| `patient_dir` | 是 | 患者目录(段B 从中定位 manifest 与图)。 |
+| `redaction_manifest.json` | 是 | Phase2 产出的图片工作队列(`redaction_manifest_v1`):每张待打码图的桶内路径 + 镜像路径 + 可选 `pii_hint`。 |
+| `source_inventory.json` | 是 | Phase2 产出的全源文件 inventory(`source_inventory_v1`):每个源文件的 persist/redaction intent。 |
+| `patient_dir` | 是 | 患者目录(段B/source redaction 从中定位 manifest、inventory 与文件)。 |
 
 ### 4.2 Output
 
 - 桶内图片被替换为**打码版**;镜像(字节级审计目录)同步收敛为打码版。
+- PDF/DOCX/其它源文件在可靠 redactor 不存在时写入 `blocked`,不得持久化明文;可靠 redactor 存在时写入脱敏版并删除明文原件。
 - `redaction_status.json`(`redaction_status_v1`):`summary{total,pending,done,failed,blocked}` + per-file `{id,status,redacted_path,qa_passed,original_deleted,reason}`,与 manifest 按 `id` join。
+- `source_redaction_status.json`(`source_redaction_status_v1`):全源文件 hard gate,与 `source_inventory.json` 按 `source_id` join。
 
 ### 4.3 不变量
 
@@ -186,11 +198,11 @@ Phase2 的跨文档审计(Phase1 做不到,因 Phase1 只见自己那片;Phase2 
 - **只遮 PII,不改临床字符**(黑框只盖 PII 区域 quad);**段B 是纯像素打码,不产任何文字**(读图只为定位 PII 框,识别字符用完即弃,不写任何 sidecar/JSON/文本)。
 - **HEIC 内部转码**:`bucket_path`/`mirror_path` 放行 heic/heif,但 PaddleOCR 读不了 HEIC,故段B 遇 HEIC 先**内部转码**为可读栅格 → 打码 → 提交**可浏览 JPG**(后缀 `.heic`→`.jpg`)→ 删原 HEIC。既不丢原图又保证 at-rest 桶图可浏览且无明文 PII。详见 `redaction-job.md`。
 - **幂等可重试**:每处理一张刷一次 status,重跑跳过 `done`。
-- **时序**:段B 须在任何"持久化 / 离开本地工作区"之前跑,持久化的桶图才是打码版;原图永不离开本地工作区(段B 删前;段B 跑完只留打码版)。
+- **时序**:段B/source redaction 须在任何"持久化 / 离开本地工作区"之前跑,持久化的源文件才是脱敏版;明文原件永不离开本地工作区(删前短暂停留 staging;跑完只留脱敏版或 blocked 且不 persist)。
 
 ### 4.4 契约**不规定**(交 binding)
 
-段B 是一个**独立可调度步骤**:由谁触发、何时触发(与主链同步还是异步后端 job)、用哪个解释器/打码引擎拉起——全是宿主生命周期编排。契约只要求"读 manifest → 打码 → QA 门 → 仅 QA 通过删原件 → 写 status",以及 4.3 时序。运行细节(独立脚本、venv、退出码语义)见 `redaction-job.md`。这是 §6「存储」接缝在打码侧的体现。
+段B/source redaction 是一个**独立可调度步骤**:由谁触发、何时触发(与段A/D同步还是由后端 worker 调度)、用哪个解释器/打码引擎拉起——全是宿主生命周期编排。契约只要求"读 manifest/inventory → 脱敏 → QA 门 → 仅 QA 通过删原件 → 写 status",以及 4.3 时序。图片运行细节(独立脚本、venv、退出码语义)见 `redaction-job.md`;非图片 redactor 缺失时必须 `blocked`。这是 §6「存储」接缝在打码侧的体现。
 
 ---
 
@@ -220,9 +232,10 @@ organize 的产出分两类,**职责必须分离**,任何 binding 不得混:
 3. **未确认不落正式字段 / 不可逆删除**(§3 确认门),无论 inline 还是 confirm-as-product。
 4. **临床保真 > 一切便利**:任何步骤、任何 binding 都不得翻译/规范化/平滑临床实体。
 5. **逻辑/schema/产物结构零改动**:换 binding 只换"谁执行机制",§1–§4 的 inputs/outputs/schema 不变。
-6. **OCR 文字源 = 驱动模型原生视觉**(§1.5):哑 OCR 不是文字源,PaddleOCR 仅段B 像素打码用、不产下游文字。
-7. **确定性产出走脚本,不靠 LLM 自觉**(§4b):段D HTML 由 `render_html_template.py` 渲染(LLM 不手写 HTML)、形校验 / PII 复扫 / 段B 打码全是机械步;LLM 只供语义判断。
-8. **输出根单一**(§4c):一次 run 全部产物落一个 `patient_dir`,别名是指针不是副本。
+6. **sidecar 正文 = LLM 输出**(§1.5):图片/扫描件走 LLM 原生视觉;PDF/DOCX/表格/文本可先格式适配给 LLM;哑 OCR/parser 不是 sidecar 临床正文来源,PaddleOCR 仅段B/source redaction 定位/QA 用、不产下游文字。
+7. **archive/persist 受源文件脱敏硬门约束**:所有要持久化的源文件必须 `source_redaction_status.done && qa_passed && original_deleted`;blocked/failed/pending 均不得离开本地工作区。
+8. **确定性产出走脚本,不靠 LLM 自觉**(§4b):段D HTML 由 `render_html_template.py` 渲染(LLM 不手写 HTML)、形校验 / PII 复扫 / 段B 打码全是机械步;LLM 只供语义判断。
+9. **输出根单一**(§4c):一次 run 全部产物落一个 `patient_dir`,别名是指针不是副本。
 
 ---
 
@@ -233,10 +246,10 @@ organize 的产出分两类,**职责必须分离**,任何 binding 不得混:
 | 接缝 | 契约要求(不变) | Claude Code binding(参考) | headless codex | 其它 agent(模板) |
 |---|---|---|---|---|
 | 编排 | 所有 sidecar 在 Phase2 前就绪 | 扇出 + reduce | 单进程顺序 | 各自 job 队列 |
-| OCR 源 | 每文件产脱敏 MD,**文字源=驱动模型原生视觉**(§1.5,哑 OCR 非文字源) | in-agent `Read` 视觉 | codex `-i` 视觉 | 宿主驱动模型原生视觉 |
-| 图像解码 | 给出可读栅格喂模型视觉 | 平台转码命令(sips) | 跨平台转码(heif-convert) | 宿主预处理 |
+| LLM 输入源 | 每源产脱敏 MD,**sidecar 正文=LLM 输出**(§1.5,哑 OCR/parser 非正文来源) | in-agent `Read` 视觉 / 文件读取 | codex `-i` 视觉 / LLM file context | 宿主驱动 LLM 视觉或文件上下文 |
+| 格式适配 | 给出 LLM-readable input | sips / PDF render / DOCX payload | heif-convert / pdftoppm / host payload | 宿主预处理 |
 | 确认门 | 未确认不写正式字段 | inline diff 卡 | confirm-as-product + UI | 产物化 |
-| 存储 | 结构化产物 + 桶 + manifest 为 canonical 输出集 | agent 写 `patient_dir` | 选定文件持久化到对象存储/库 | 各自存储原语 |
+| 存储 | 结构化产物 + 桶 + manifest/inventory 为 canonical 输出集;persist 前源文件本体脱敏通过 | agent 写 `patient_dir` + pre-persist 段B | 选定脱敏文件持久化到对象存储/库 | 各自存储原语 |
 
 > 矩阵读法:**纵向**取一个 host 列 = 该 host 的薄 adapter 该填什么;**横向**取一行 = 该接缝在所有 host 上必须满足的同一契约要求。防 fork 漂移的根本:一份契约(本文件)+ N 个薄 binding,而非每家 fork 整条管道。
 
@@ -244,7 +257,7 @@ organize 的产出分两类,**职责必须分离**,任何 binding 不得混:
 
 ## 7. 开放问题(由 binding / 平台落实,非契约缺口)
 
-- **file_id ↔ 原名映射**:headless 宿主必须分配稳定 id 并维护映射(§1.1 契约要求,宿主实现)。
-- **段B 时序**:依赖宿主把打码步骤接进"持久化前"生命周期(§4.3 时序不变量,宿主侧)。
+- **source_id ↔ 原名映射**:headless 宿主必须分配稳定 id 并维护映射(§1.1 契约要求,宿主实现)。
+- **段B/source redaction 时序**:依赖宿主把本体脱敏步骤接进"持久化前"生命周期(§4.3 时序不变量,宿主侧)。
 - **切片预算**:某些宿主的多图预算特性 → host-tunable 参数(§1.5),headless 可不切或按自己预算切,不影响 1.4 不变量。
-- **OCR 源已钉死(非开放点)**:契约 §1.5 已钉死文字源 = 驱动模型原生视觉(in-agent `Read` / codex `-i`);哑 OCR 不是文字源,只在段B 像素打码用。各 binding 只在"用哪个宿主的原生视觉"上不同,不在"视觉 vs 哑 OCR"上选。
+- **LLM 正文来源已钉死(非开放点)**:契约 §1.5 已钉死 sidecar 正文 = 驱动 LLM 输出(in-agent `Read` / codex `-i` / LLM file context);哑 OCR/parser 不是 sidecar 临床正文来源,只在格式适配或段B/source redaction 定位/QA 中使用。

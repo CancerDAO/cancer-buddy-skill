@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://cancerdao.org/schemas/cancer-buddy/patient_summary.schema.json",
   "title": "PatientSummary",
-  "description": "Patient-level rollup. One per patient. Consumed by vMTB and MTB-lite as the primary input. Every factual field carries source_refs that point into the OCR sidecar set (or 02_desensitized/ when desensitization layer is enabled).",
+  "description": "Patient-level rollup. One per patient. Consumed by vMTB and MTB-lite as the primary input. Every factual field carries source_refs that point into the bucket-co-located redacted MD sidecar set.",
   "type": "object",
   "required": ["patient_code", "schema_version", "generated_at"],
   "additionalProperties": false,

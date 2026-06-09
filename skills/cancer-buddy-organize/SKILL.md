@@ -1,6 +1,6 @@
 ---
 name: cancer-buddy-organize
-description: "Organize patient medical records from PDF/images/docx into a canonical patients/<patient_code>/ directory with profile.json, timeline.md, readiness.json, desensitized MD sidecars co-located in 01_当前状态…11_诊断证明 buckets, 6 schema-validated structured JSONs (patient_summary / timeline / molecular / treatment_lines / labs / comorbidities), a cancer-checklist-driven missing_items.json, a business-readable alias ({patient_id}_{cancer_type}_{year}), an update_log.json audit trail, a 1:1 gold-standard 病情简要总结.html case summary, and a redaction_manifest.json hand-off for the async PaddleOCR pixel-redaction job. Every factual statement carries a [[src:...]] anchor (bucket-relative MD, or conversation:<ISO8601> for chat-captured facts). Use when the user hands over a folder of medical records, or says 病历整理, 我有一堆报告, 帮我整理报告. For multi-hospitalization archives ≥ 30 files: fans out parallel Phase-1 OCR Workers (one per source subdirectory) and reduces with a Phase-2 Synthesis Worker that does cross-slice + cross-patient review_flags audit. For small/flat inputs: single-pass. Supports run_mode=incremental for delta updates and run_mode=conversation_incremental to capture archivable facts from chat (diff-card confirmed)."
+description: "Organize patient medical records from PDF/images/docx/spreadsheets/archives into a canonical patients/<patient_code>/ directory. Every input format first goes through LLM-first Markdown ingestion: host adapters may render/decode/unpack files so the driver LLM can read them, but the redacted MD sidecar is written by the LLM, never by dumb OCR/parsers. Produces profile.json, timeline.md, readiness.json, bucket-co-located redacted MD sidecars, source_inventory.json, 6 schema-validated structured JSONs, missing_items.json, update_log.json, a 1:1 病情简要总结.html generated from redacted JSON/MD, redaction_manifest.json for image pixel redaction, and source_redaction_status.json as the final archive/persist hard gate. Final persistence is allowed only after source files are redacted, QA-passed, and plaintext originals deleted. Use when the user hands over a folder of medical records, or says 病历整理, 我有一堆报告, 帮我整理报告. Supports multi-slice Phase-1 LLM Markdown Ingestion Workers, Phase-2 synthesis, incremental updates, and conversation_incremental capture."
 ---
 
 # cancer-buddy-organize
@@ -26,7 +26,7 @@ Written under `patients/<patient_code>/`:
 - `timeline.md` (human-readable treatment timeline; every line ends with at least one `[[src:...]]` anchor)
 - `readiness.json` — coverage grade + `review_flags[]` (MTB readiness + 7-check suspicious-value audit, including cross-patient name collision + anchor-coverage gap)
 - `review_flags.md` — auto-generated human-readable rendering of `readiness.json.review_flags[]` (only written when array non-empty)
-- `review_summary.md` — **always written**: 1-page checklist of extracted key fields with verbatim source citations, for user spot-check (catches consistent-but-wrong OCR that review_flags can't)
+- `review_summary.md` — **always written**: 1-page checklist of extracted key fields with verbatim source citations, for user spot-check (catches internally consistent but wrong ingestion that review_flags can't)
 - `case_text.md` (consolidated narrative; every factual sentence anchored via `[[src:<bucket>/<canonical>.md#L<a>-L<b>]]` — bucket-relative, the desensitized MD that now lives next to its image)
 - `update_log.json` — append-only audit trail of every full / incremental run (timestamps, added/removed files, affected summaries, readiness deltas)
 - **6 structured JSON outputs** (schema-validated against `references/schemas/*.schema.json`):
@@ -37,9 +37,11 @@ Written under `patients/<patient_code>/`:
   - `labs.json` — lab panels with serial values
   - `comorbidities.json` — conditions + long-term meds + allergies
 - `missing_items.json` — cancer-type checklist diff (driven by `references/checklists/<cancer_type>.yaml`)
+- `source_inventory.json` — one entry per input source file/content unit: original/mirror path, LLM read mode, adapter provenance, sidecar path, bucket path, and persist/redaction intent. Conforms to `references/schemas/source_inventory.schema.json` (`source_inventory_v1`).
 - `01_当前状态/`…`11_诊断证明/` (raw file buckets; filenames follow `<YYYY-MM-DD>_<doc_type>_<hospital>.<ext>` — 4-level hospital fallback). Each file is co-located with its **desensitized MD sidecar** at `<bucket>/<canonical>.md` (the downstream-only read source — no plaintext PII).
-- `redaction_manifest.json` — hand-off contract to 段B (the async PaddleOCR pixel-redaction job): one entry per raster image still carrying plaintext PII pixels, listing its bucket copy + `10_原始文件/` mirror + `pii_hint[]` + `status: "pending"`. Conforms to `references/schemas/redaction_manifest.schema.json` (`redaction_manifest_v1`).
-- `redaction_status.json` — written by 段B's `run_redaction_job.py` (not by organize): per-file `pending/done/failed/blocked`, `qa_passed`, `original_deleted`. Conforms to `references/schemas/redaction_status.schema.json` (`redaction_status_v1`).
+- `redaction_manifest.json` — image hand-off contract to 段B (PaddleOCR pixel-redaction): one entry per raster/HEIC image needing PII pixel masking, listing its bucket copy + `10_原始文件/` mirror + `pii_hint[]` + `status: "pending"`. Conforms to `references/schemas/redaction_manifest.schema.json` (`redaction_manifest_v1`).
+- `redaction_status.json` — written by 段B's `run_redaction_job.py`: per-image `pending/done/failed/blocked`, `qa_passed`, `original_deleted`. Conforms to `references/schemas/redaction_status.schema.json` (`redaction_status_v1`).
+- `source_redaction_status.json` — final archive/persist hard gate for all source files. Every `persist:true && redaction_required:true` source must be `done`, `qa_passed:true`, and `original_deleted:true`; PDF/DOCX/other source-file redactors that are unavailable are `blocked` and cannot be persisted. Conforms to `references/schemas/source_redaction_status.schema.json` (`source_redaction_status_v1`).
 - `病情简要总结.html` — 段D one-page case summary, 1:1 against the gold-standard template, generated after the Profile Card from desensitized JSON only (never raw images).
 
 Additionally, at the patients-root level (one level above `<patient_code>`):
@@ -62,7 +64,7 @@ This skill follows the shared locale contract in [`../../references/i18n.md`](..
 
 2. **Plan slicing (single-pass vs fan-out)** — `glob $src` for immediate subdirectories, count files, and decide slice boundaries.
 
-   **MAX 15 image files per Phase 1 worker.** Claude has a per-conversation total-image budget when many images are loaded into a single context. A worker that tries to OCR 25+ HEIC images in one dispatch will hit "An image in the conversation exceeds the dimension limit for many-image requests" partway through and abort with partial output. (Empirically observed: 24-image slice failed at sidecar 5 of 24.)
+   **MAX 15 image-like inputs per Phase 1 worker on Claude Code.** Claude has a per-conversation total-image budget when many images/rendered pages are loaded into a single context. A worker that tries to ingest 25+ HEIC images or rendered PDF pages in one dispatch can hit image/context limits partway through and abort with partial output. Host-specific adapters may choose a different budget.
 
    Slicing rules:
 
@@ -75,23 +77,23 @@ This skill follows the shared locale contract in [`../../references/i18n.md`](..
 
    Decide `patient_code`: caller-supplied OR auto-generate `PT-<hex>` from `hash(basename + mtime)`. Resolve `patient_data_root` from `$CANCER_BUDDY_PATIENTS_DIR` → `$VMTB_PATIENT_DATA_ROOT` → `$HOME/CancerDAO/patients`. Compute `patient_dir = <patient_data_root>/<patient_code>` and `mkdir -p` its 11 buckets + `ocr/` + `10_原始文件/`.
 
-3. **Dispatch Phase 1 OCR Workers (parallel)** — for each slice, dispatch one `general-purpose` subagent in **a single message with N tool calls** (so they run concurrently, not sequentially). Each worker gets:
+3. **Dispatch Phase 1 LLM Markdown Ingestion Workers (parallel)** — for each slice, dispatch one `general-purpose` subagent in **a single message with N tool calls** (so they run concurrently, not sequentially). Each worker gets:
 
    - `subagent_type: general-purpose`
-   - `description: "Organize OCR slice <slice_id>"`
+   - `description: "Organize LLM ingestion slice <slice_id>"`
    - `prompt`: the full content of [`references/organizer-prompt-phase1-ocr.md`](references/organizer-prompt-phase1-ocr.md), with these `## Call parameters` appended at the end:
      - `slice_input_path: <absolute path to the slice's source directory>`
      - `slice_id: <short logical label — e.g. h1, h2, batch_a>`
      - `patient_dir: <absolute patient_dir>`
      - `original_subdir: <relative path under 10_原始文件/ where audit copies go — usually the source subdir's basename>`
 
-   Each Phase 1 worker writes ONLY to `<patient_dir>/ocr/` (sidecars) and `<patient_dir>/10_原始文件/<original_subdir>/` (audit mirror). They do NOT touch INDEX.md / timeline.md / profile.json / etc — those are Phase 2's job. Workers don't share context, so anti-anchoring is structurally enforced (each worker only sees its slice, no narrative buildup across hospitalizations).
+   Each Phase 1 worker writes ONLY to `<patient_dir>/ocr/` (redacted MD sidecars) and `<patient_dir>/10_原始文件/<original_subdir>/` (audit mirror). It may create temporary adapter outputs (HEIC raster, PDF rendered pages, DOCX/table payloads) only to feed the driver LLM; those adapter outputs are not stored, not anchors, and not clinical text sources. Workers do NOT touch INDEX.md / timeline.md / profile.json / etc — those are Phase 2's job. Workers don't share context, so anti-anchoring is structurally enforced.
 
-   Each worker returns: `{slice_id, files_processed, sidecars_written, stub_sidecars, full_ocr_sidecars, ocr_uncertain_files, candidates_files, continuation_needed, continuation_resume_from}`.
+   Each worker returns: `{slice_id, files_processed, sidecars_written, stub_sidecars, full_ingestion_sidecars, ingestion_uncertain_files, candidates_files, ingestion_blocked_files, continuation_needed, continuation_resume_from}`.
 
 4. **Phase 1 continuation loop** — for each worker that returned `continuation_needed: true`, dispatch a continuation worker for that slice:
 
-   > "Resume Phase 1 OCR for slice `<slice_id>` of `<patient_code>`. The previous dispatch processed up to `<continuation_resume_from>` and stopped. Skip every file whose sidecar already exists in `<patient_dir>/ocr/` (these have lower mtime than source); OCR all remaining files in `<slice_input_path>`. Return same JSON contract; set `continuation_needed: false` if done, or `true` with next resume point if context fills again."
+   > "Resume Phase 1 LLM Markdown ingestion for slice `<slice_id>` of `<patient_code>`. The previous dispatch processed up to `<continuation_resume_from>` and stopped. Skip every file whose sidecar already exists in `<patient_dir>/ocr/` (these have lower mtime than source); ingest all remaining files in `<slice_input_path>`. Return same JSON contract; set `continuation_needed: false` if done, or `true` with next resume point if context fills again."
 
    Loop per-slice until all slices report `continuation_needed: false`. Slices that finished cleanly do NOT need re-dispatch; only laggards. This is more efficient than re-dispatching the whole organize.
 
@@ -103,9 +105,9 @@ This skill follows the shared locale contract in [`../../references/i18n.md`](..
      - `patient_dir: <absolute patient_dir>`
      - `phase1_summary: <JSON list of all Phase 1 worker results>`
 
-   Phase 2 reads all sidecars (cross-slice), classifies into the 11 buckets, builds INDEX.md / timeline.md / case_text.md / profile.json / readiness.json, runs the §4.6 review_flags audit (now WITH cross-slice visibility), and writes review_flags.md (if non-empty) + review_summary.md (always).
+   Phase 2 reads all sidecars (cross-slice), classifies into the 11 buckets, builds source_inventory.json / INDEX.md / timeline.md / case_text.md / profile.json / readiness.json, runs the §4.6 review_flags audit (now WITH cross-slice visibility), and writes review_flags.md (if non-empty) + review_summary.md (always) + redaction_manifest.json + source_redaction_status.json skeleton.
 
-   Phase 2 returns: `{role, patient_dir, files_classified, ocr_sidecars_read, coverage_complete, missing_sidecars, readiness_grade, readiness_score, blocking_gaps, warnings, review_flags_total, review_flags_red, review_flags_yellow, review_flags_green, review_summary_path}`.
+   Phase 2 returns: `{role, patient_dir, files_classified, md_sidecars_relocated, coverage_complete, missing_sidecars, readiness_grade, readiness_score, blocking_gaps, warnings, review_flags_total, review_flags_red, review_flags_yellow, review_flags_green, review_summary_path, source_inventory_path, source_redaction_status_path, redaction_manifest_path, archive_persist_ready}`.
 
 6. **Coverage gap retry** — if Phase 2 returns `coverage_complete: false`, dispatch a retry-mini-Phase1 worker with just the missing files as input, then re-run Phase 2. Loop until `coverage_complete: true`. Most runs converge in 0 or 1 retries.
 
@@ -115,7 +117,7 @@ This skill follows the shared locale contract in [`../../references/i18n.md`](..
 
 9. **Display review_summary.md (MANDATORY, ALWAYS)** — read the file at `review_summary_path` and display its full content to the user. This is the **first** thing the user sees after organize — before profile card, before review_flags. It is a 1-page spot-check of extracted key fields with verbatim source citations.
 
-   Why this is the first display: many real OCR errors produce **internally consistent wrong values** (e.g. all 7 documents in one hospitalization OCR'd to the same wrong drug name). The 5-check `review_flags` audit cannot detect those — but a human reading `review_summary.md` can spot a wrong character in 30 seconds.
+   Why this is the first display: many real ingestion/transcription errors produce **internally consistent wrong values** (e.g. all 7 documents in one hospitalization copied the same wrong drug name). The 5-check `review_flags` audit cannot detect those — but a human reading `review_summary.md` can spot a wrong character in 30 seconds.
 
    After displaying, prompt the user: "请核对上面 5 个检查要点。任何字段需要修正,直接告诉我哪个字段 + 正确值,我会更新 profile.json 并重新生成清单。"
 
@@ -140,27 +142,26 @@ This skill follows the shared locale contract in [`../../references/i18n.md`](..
 
     The renderer is a zero-medical-logic template engine: it only substitutes `{{key}}` and expands `<!-- LOOP -->` / `<!-- RENDER_IF -->` blocks from the data, so CSS/DOM stay 1:1 and clinical entities are passed through verbatim. It stamps a `template_sha256:` provenance comment proving the HTML came from the template. 患者标识 stays coarse-grained (女 / 50+ / 海外 — never real name or birth date); any `null` field maps to the `资料缺失` placeholder, never a fabricated value.
 
-    **🔴 HARD GATE — organize is NOT done until all three hold:**
+    **🔴 TEXT/HTML GATE — 段D HTML is complete when both hold:**
     1. `病情简要总结.html` was produced by `render_html_template.py` from `references/templates/case-summary.template.html` (**rendered, not hand-written**). A subagent that pastes HTML inline fails this gate.
     2. `python3 scripts/validate_case_summary_html.py --html <patient_dir>/病情简要总结.html --template references/templates/case-summary.template.html` exits 0 (shape + PII + provenance invariants hold).
-    3. The full acceptance门 `python3 scripts/validate_structured_outputs.py <patient_dir>` exits 0.
 
-    Surface in the final report to the user: the **`template_sha`** echoed by `validate_case_summary_html.py` (this is the proof the template was used) **and** the one-line acceptance-gate result. If any of the three fails, fix the data JSON / re-render / re-mask and re-run — do not declare organize complete.
+    The full archive/persist acceptance门 is separate: `python3 scripts/validate_structured_outputs.py <patient_dir>` exits 0 only after `source_inventory.json` is complete and every persisted source has `source_redaction_status.done && qa_passed && original_deleted`. Before Step 13, this gate may fail because source-file redaction is still pending/blocked; that does **not** invalidate the desensitized MD/JSON/HTML artifacts, but it means `archive_persist_ready:false`. Surface in the final report to the user: the **`template_sha`** echoed by `validate_case_summary_html.py` (proof the template was used) plus the archive/persist readiness state. Do not declare final archive/persist complete until Step 13 passes and the full acceptance gate exits 0.
 
-13. **Hand off the redaction job (段B)** — organize does NOT run the pixel-redaction itself and does NOT block on it. By this point Phase 2 has already written `redaction_manifest.json` (the work queue). The platform's async backend worker picks it up and runs the vendored PaddleOCR redactor with the OCR venv interpreter:
+13. **Run or schedule source-file redaction before archive/persist (段B)** — Phase 2 has already written `redaction_manifest.json` for images and `source_redaction_status.json` for all source files. A backend worker may run this after 段A/D text/HTML generation, but **final archive/persist MUST block until every persisted source is redacted, QA-passed, and its plaintext original deleted**. For images, run the vendored PaddleOCR redactor with the OCR venv interpreter:
 
     ```bash
     ~/.venvs/mtb-ocr/bin/python \
       skills/cancer-buddy-organize/scripts/run_redaction_job.py <patient_dir>
     ```
 
-    `run_redaction_job.py` reads the manifest, redacts each image via `redact_ocr.py`'s `redact_image_ocr()`, runs a **QA gate** (re-scan confirms no residual PII before the irreversible delete), then replaces both the bucket copy and the `10_原始文件/` mirror with the redacted version, deletes the pre-redaction original **only when `qa_passed: true`**, and writes per-file progress to `redaction_status.json` (idempotent — re-runs skip `done` files; missing venv → all `blocked`). Full manifest/status contract, exit codes, and platform trigger convention: [`references/redaction-job.md`](references/redaction-job.md). The skill surfaces to the user that pixel redaction runs asynchronously and the bucket images may still carry plaintext PII pixels until the job reports `done` — the desensitized `.md` sidecars are already clean and are the only downstream read source.
+    `run_redaction_job.py` reads the manifest, redacts each image via `redact_ocr.py`'s `redact_image_ocr()`, runs a **QA gate** (re-scan confirms no residual PII before the irreversible delete), then replaces both the bucket copy and the `10_原始文件/` mirror with the redacted version, deletes the pre-redaction original **only when `qa_passed: true`**, and writes per-file progress to `redaction_status.json` (idempotent — re-runs skip `done` files; missing venv → all `blocked`). The platform then syncs image `done` rows into `source_redaction_status.json`. For PDF/DOCX/spreadsheet/text source files, a reliable redactor must write a `done` row; if no reliable redactor exists, write `blocked` and do **not** persist that source file. Full manifest/status contract, exit codes, and platform trigger convention: [`references/redaction-job.md`](references/redaction-job.md).
 
 14. **无关文件处置门 (段E, MANDATORY when the relevance gate isolated anything)** — Phase 2's Step 1·0 relevance triage (see [`references/relevance-gate.md`](references/relevance-gate.md)) diverted any non-medical file out of the 11 buckets into `99_无关文件/` (`high_confidence/` vs `uncertain/`). If either sub-dir is non-empty, surface **one plain-language disposition notice** (rendered in `profile.json.locale` — see `references/relevance-gate.md` → disposition-notice §) before the user moves on. The privacy-floor sentence **"我们不保存你的原始无关文件 —— 你不确认，我也会自动删除"** (zh template; rendered semantically-identical in the user's locale, e.g. `en`: "We don't keep your raw unrelated files — if you don't confirm, I'll delete them automatically.") is mandatory and must appear in that locale with no softening — the user is entitled to know *silence ⇒ deletion* before it happens. List each `uncertain/` (borderline) file individually with a one-line reason; summarize the `high_confidence/` batch as a count.
 
     Then parse the user's response into exactly three resolution paths (full logic in `relevance-gate.md`):
     - **删 (high-confidence non-medical)** — user confirms unrelated **OR** does not respond / defers / 随便 / closes the chat → **delete** the file from `99_无关文件/high_confidence/`. This is irreversible and intended (privacy floor: silence ⇒ delete). The `99_无关文件/` copy is the only copy (these were never anchored or bucketed), so deleting it is the whole point.
-    - **回收 (reclassify — "X 其实有用")** — user claims a specific isolated file matters → move it out of `99_无关文件/` into its correct typed bucket, run the *normal* late-arriving path (OCR → 脱敏 MD → canonical rename → co-locate MD → add to INDEX/timeline/case_text/structured JSONs; raster image also appended to `redaction_manifest.json` for 段B).
+    - **回收 (reclassify — "X 其实有用")** — user claims a specific isolated file matters → move it out of `99_无关文件/` into its correct typed bucket, run the *normal* late-arriving path (LLM ingestion → 脱敏 MD → canonical rename → co-locate MD → add to INDEX/timeline/case_text/structured JSONs; raster image also appended to `redaction_manifest.json` for 段B).
     - **Hold (borderline `relevance_uncertain`, the one exception)** — for borderline files the user has **not** explicitly resolved → **do nothing, keep in `99_无关文件/uncertain/`, never auto-delete.** Silence deletes a high-confidence non-medical file; silence does **not** delete a borderline file — deleting something that might be a real medical record is the worse error. Only an explicit "删"/"无关" deletes it; "留"/"这是病历" reclassifies it. Either way mark the `relevance_uncertain` review_flag `user_confirmed: true` with the chosen `resolution`.
 
     Record every isolated/deleted/reclassified/held action in `update_log.json.relevance` (the `auto_deleted` array is the irreversible-action ledger). The authoritative deletion red-line is the 段E entry in [`../../references/safety-guardrails.md`](../../references/safety-guardrails.md); this step is its operational门控.
@@ -171,21 +172,21 @@ This skill follows the shared locale contract in [`../../references/i18n.md`](..
 
 ## Runtime adaptation
 
-The Workflow above (Step 2–5: `glob`-based slicing → parallel `Agent` Phase-1 OCR fan-out → continuation loop → single `Agent` Phase-2 reduce, plus `Read`-based in-agent vision OCR and `sips` HEIC decode) is the **Claude Code reference binding** — one concrete way to drive organize, not the contract. The runtime-neutral **behavior contract** (what each step produces / when it may write / which invariants hold, with zero tool names) lives in [`references/organize-contract.md`](references/organize-contract.md); the per-host fill-ins are in [`references/runtime-bindings/`](references/runtime-bindings/) (`claude-code.md` = the mechanism documented here; `headless-codex.md`; `_template.md` for other agents).
+The Workflow above (Step 2–5: `glob`-based slicing → parallel `Agent` Phase-1 LLM Markdown ingestion fan-out → continuation loop → single `Agent` Phase-2 reduce, plus `Read`-based LLM vision/file-context ingestion and adapter commands such as `sips` HEIC decode) is the **Claude Code reference binding** — one concrete way to drive organize, not the contract. The runtime-neutral **behavior contract** (what each step produces / when it may write / which invariants hold, with zero tool names) lives in [`references/organize-contract.md`](references/organize-contract.md); the per-host fill-ins are in [`references/runtime-bindings/`](references/runtime-bindings/) (`claude-code.md` = the mechanism documented here; `headless-codex.md`; `_template.md` for OpenClaw/OpenCode/other agents).
 
 What this means for non-CC hosts:
 
-- A headless / single-process host (codex GPT-5.5, workbuddy, OpenCode, Cursor, …) **drives its own steps** — the `Agent` fan-out + reduce, `Read` vision, and `sips` decode are reference mechanisms, not requirements. It may run Phase-1 sequentially (single process), feed OCR via `-i` vision or an offline OCR engine, decode rasters with any cross-platform command, and persist outputs with its own storage primitives.
-- Whatever the binding, it produces the **same canonical output set** the contract defines (11 buckets + co-located 脱敏 MD, `profile.json`, `timeline.*`, `case_text.md`, `readiness.json`, `review_flags.md`, the 6 structured JSONs, `missing_items.json`, `update_log.json`, `redaction_manifest.json`, bucket-relative anchors) and honors the same invariants (sidecar is the only plaintext boundary; unconfirmed → no formal write / no irreversible delete; clinical entities verbatim; logic/schema/产物结构 unchanged).
-- The five seams (编排 / OCR 源 / 图像解码 / 确认门 / 存储) and each host's fill-in are the matrix in `organize-contract.md` §6. The `MAX 15 image files per worker` rule in Step 2 is a Claude many-image budget feature → **host-tunable** (don't slice / slice to the host's own budget); it is not a contract invariant.
+- A headless / single-process host (codex GPT-5.5, workbuddy, OpenClaw/OpenCode, Cursor, …) **drives its own steps** — the `Agent` fan-out + reduce, `Read` vision/file context, and `sips` decode are reference mechanisms, not requirements. It may run Phase-1 sequentially, feed LLM vision via `-i` or LLM file context, adapt formats with cross-platform commands, and persist only redacted outputs with its own storage primitives.
+- Whatever the binding, it produces the **same canonical output set** the contract defines (11 buckets + co-located 脱敏 MD, `source_inventory.json`, `profile.json`, `timeline.*`, `case_text.md`, `readiness.json`, `review_flags.md`, the 6 structured JSONs, `missing_items.json`, `update_log.json`, `redaction_manifest.json`, `source_redaction_status.json`, bucket-relative anchors) and honors the same invariants (sidecar text is LLM-generated; sidecar is the only downstream plaintext boundary; unconfirmed → no formal write / no irreversible delete; clinical entities verbatim; final persist waits for source-file redaction; logic/schema/产物结构 unchanged).
+- The five seams (编排 / LLM 输入源 / 格式适配 / 确认门 / 存储+持久化前本体脱敏) and each host's fill-in are the matrix in `organize-contract.md` §6. The `MAX 15 image files per worker` rule in Step 2 is a Claude many-image budget feature → **host-tunable** (don't slice / slice to the host's own budget); it is not a contract invariant.
 
 Claude Code does not change: the mechanism in Step 2–5 is preserved verbatim as the reference binding, the neutral layer is added on top, and the CC path regresses identically.
 
 ## Why fan-out + reduce instead of single-pass
 
-The original design was a single subagent processing every input file sequentially. A 73-image archive took ~33 minutes. Splitting into Phase 1 (parallel per-slice OCR) + Phase 2 (cross-slice synthesis + audit) gives three benefits:
+The original design was a single subagent processing every input file sequentially. A 73-image archive took ~33 minutes. Splitting into Phase 1 (parallel per-slice LLM Markdown ingestion) + Phase 2 (cross-slice synthesis + audit) gives three benefits:
 
-1. **Speed**: 3 parallel Phase-1 workers + 1 Phase-2 finishes in roughly the time of the SLOWEST slice + the synthesis pass — ~3× faster on multi-hospitalization archives in practice.
+1. **Speed**: 3 parallel Phase-1 LLM ingestion workers + 1 Phase-2 finishes in roughly the time of the SLOWEST slice + the synthesis pass — ~3× faster on multi-hospitalization archives in practice.
 2. **Anti-anchoring is stronger**: each Phase 1 worker only sees its slice (one hospitalization), so the narrative window the model could anchor on is shorter. Cross-slice contradictions are caught explicitly in Phase 2's §4.6 audit (which has the deterministic cross-doc check) rather than being smoothed over by a single agent's running narrative.
 3. **Better failure isolation**: if one slice's worker hits context exhaustion, only that slice retries (continuation loop). Slices that finished cleanly are not re-dispatched.
 
@@ -195,7 +196,7 @@ Single-pass is preserved for small inputs (< 30 files OR no subdirs) — the par
 
 When `<patient_dir>` already has `update_log.json`, the caller may pass `run_mode: "incremental"` to Phase 2. In that mode:
 
-- Phase 1 only re-OCRs files that are new under `10_原始文件/` or whose source mtime is newer than their sidecar. Other slices are skipped.
+- Phase 1 only re-ingests files that are new under `10_原始文件/` or whose source mtime is newer than their sidecar. Other slices are skipped.
 - Phase 2 reclassifies only the new sidecars; existing bucket assignments are preserved.
 - Top-level artifacts (`case_text.md`, `timeline.md`, `patient_summary.json`, `timeline.json`, `molecular.json`, `treatment_lines.json`, `labs.json`, `comorbidities.json`, `missing_items.json`) are rewritten only when their content would actually change.
 - `update_log.json` gets a new entry with `run_mode: "incremental"`, `added_files`, `removed_files`, `affected_summaries`, `triggered_by`, `reason`.
@@ -209,7 +210,7 @@ Use full mode (`run_mode: "full"`, default) for the very first organize, or when
 
 When the patient or caregiver is *chatting* about their condition (not handing over files) and a `<patient_dir>` with an existing `update_log.json` already exists, the caller may run `run_mode: "conversation_incremental"` to capture archivable facts that surface in the dialogue. Dispatch a `general-purpose` subagent with the full content of [`references/conversation-incremental-prompt.md`](references/conversation-incremental-prompt.md), appending `## Call parameters`: `patient_dir`, `conversation_turn` (verbatim user message + context), `turn_timestamp` (ISO-8601), `actor_role`.
 
-The flow: an LLM detects candidate archivable facts (新诊断/分期 / 新检验值 / 治疗变更 / 症状 / 体能-ECOG) → maps each to a `profile.json` field or a `timeline.md` row → presents a **diff card** (before → after, with the user's own words as 依据) → the user confirms / corrects / defers → only confirmed candidates are written. Provenance uses the conversation anchor `[[src:conversation:<ISO8601>]]` (never a file anchor). Confirmed facts land in `09_患者补充/conversation_notes/` with a `patient_curated` tag and update the formal field/row; `update_log.json` gets a `run_mode: "conversation_incremental"` entry. **Unconfirmed talk never touches formal fields** — this gate prevents a mis-spoken value from poisoning downstream reports. This mode does NOT re-OCR or re-run synthesis; for new *files* use full or incremental mode. Major changes ("我整套方案都换了") route to a full re-organize, not turn-by-turn merge.
+The flow: an LLM detects candidate archivable facts (新诊断/分期 / 新检验值 / 治疗变更 / 症状 / 体能-ECOG) → maps each to a `profile.json` field or a `timeline.md` row → presents a **diff card** (before → after, with the user's own words as 依据) → the user confirms / corrects / defers → only confirmed candidates are written. Provenance uses the conversation anchor `[[src:conversation:<ISO8601>]]` (never a file anchor). Confirmed facts land in `09_患者补充/conversation_notes/` with a `patient_curated` tag and update the formal field/row; `update_log.json` gets a `run_mode: "conversation_incremental"` entry. **Unconfirmed talk never touches formal fields** — this gate prevents a mis-spoken value from poisoning downstream reports. This mode does NOT re-ingest files or re-run synthesis; for new *files* use full or incremental mode. Major changes ("我整套方案都换了") route to a full re-organize, not turn-by-turn merge.
 
 ## Business-readable alias
 
@@ -236,7 +237,7 @@ Organize does not make medical recommendations. Still:
 - Never fabricate fields — when a value is truly unreadable in the source, the subagent writes `null` (JSON) or `[OCR_UNCERTAIN]` (text) and surfaces it as a gap.
 - Desensitization only masks PII — it never alters clinical characters (anti-anchoring). The MD sidecar is the downstream-only read source and must not carry plaintext PII.
 - Downstream sub-skills apply the full `safety-guardrails.md` rule set when they read what organize produced; wrong data here poisons every downstream report.
-- `10_原始文件/` is the audit trail — a byte-identical mirror of every source file **until** 段B's redaction job runs. Per the platform "redact-then-delete" carve-out (`safety-guardrails.md`), once a file's `redaction_status.json` entry is `qa_passed: true` the job replaces the mirror with the **redacted** version and deletes the pre-redaction original (bucket copy + mirror original); the audit chain is then itself desensitized. QA failure → original kept, marked `failed`, nothing deleted.
+- `10_原始文件/` is local staging/audit during the run — a byte-identical mirror of every source file **until** source-file redaction runs. Per the platform "redact-then-delete" carve-out (`safety-guardrails.md`), once a file's redaction status is `qa_passed: true` the job replaces the mirror with the **redacted** version and deletes the pre-redaction original (bucket copy + mirror original); the audit chain is then itself desensitized. QA failure/blocked → original stays only in local workspace for manual handling, marked `failed`/`blocked`, and must not be persisted.
 
 ## Next-step guidance
 
@@ -257,22 +258,22 @@ Authoritative matrix in `../../references/roles.md`. For this skill:
 
 ## References
 
-- [organizer-prompt-phase1-ocr.md](references/organizer-prompt-phase1-ocr.md) — Phase 1 worker prompt: per-slice OCR, parallel-safe, sidecars-only
+- [organizer-prompt-phase1-ocr.md](references/organizer-prompt-phase1-ocr.md) — Phase 1 worker prompt: per-slice LLM Markdown ingestion, parallel-safe, sidecars-only
 - [organizer-prompt-phase2-synthesis.md](references/organizer-prompt-phase2-synthesis.md) — Phase 2 worker prompt: cross-slice synthesis + 7-check review_flags audit + review_summary + 6 structured JSONs + missing_items.json + update_log.json + alias
 - [conversation-incremental-prompt.md](references/conversation-incremental-prompt.md) — 段C conversation-incremental worker prompt: detect archivable facts in chat → diff card → user-confirmed write to profile field / timeline row with `[[src:conversation:<ISO8601>]]` provenance + `patient_curated` tag; unconfirmed talk never written
 - [relevance-gate.md](references/relevance-gate.md) — 段E medical-relevance triage: LLM judgment (not keyword list) → medical / non-medical-high-confidence / borderline; `99_无关文件/` quarantine semantics; disposition notice + privacy floor; 删 (high-confidence auto-delete on no-confirm) / 回收 (reclassify) / hold (borderline never auto-deleted); `relevance_uncertain` 8th review_flag + `update_log.json.relevance` ledger
 - [upload-reconciliation.md](references/upload-reconciliation.md) — 扩段C re-upload reconciliation: LLM new/supersede/conflict relation判断 (not hardcoded same-name-date) → diff card 替换?/并存?/忽略? reusing段C's "先确认" gate; 替换 archives old doc to `_superseded_<ts>/` (not deleted) + anchor remap; conflict never silently overwritten; introduces no new auto-deletion; `run_mode: "upload_reconciliation"` update_log
 - [case-summary-html-prompt.md](references/case-summary-html-prompt.md) — 段D worker prompt: read desensitized JSONs → fill the gold-standard template 1:1 → `病情简要总结.html`; subagent generates only the 病情概要 narrative, every other section is field-mapping; coarse-grained identity, `null` → 待补充
 - [templates/case-summary.template.html](references/templates/case-summary.template.html) — 段D gold-standard HTML/CSS template (1:1 reproduction target, not "style-similar")
-- [redaction-job.md](references/redaction-job.md) — 段B contract: `redaction_manifest.json` → `run_redaction_job.py` → QA gate → bucket+mirror replace → delete original (only on `qa_passed`) → `redaction_status.json`; platform async trigger convention + `~/.venvs/mtb-ocr` venv requirement
+- [redaction-job.md](references/redaction-job.md) — 段B contract: `redaction_manifest.json` → `run_redaction_job.py` → QA gate → bucket+mirror replace → delete original (only on `qa_passed`) → `redaction_status.json`; pre-persist worker trigger convention + `~/.venvs/mtb-ocr` venv requirement
 - [profile-card.md](references/profile-card.md) — Patient Profile Card display template
 - [../../references/patient-profile-schema.md](../../references/patient-profile-schema.md) — schema contract shared with vmtb-skill
-- [references/schemas/](references/schemas/) — Draft 2020-12 JSON Schemas for the 6 structured outputs + `missing_items.json`
+- [references/schemas/](references/schemas/) — Draft 2020-12 JSON Schemas for the 6 structured outputs + `missing_items.json` + `source_inventory.json` + `source_redaction_status.json`
 - [references/schemas/anchor-contract.md](references/schemas/anchor-contract.md) — `[[src:...]]` anchor token syntax + coverage + path validity contract (bucket-relative file anchors + `conversation:<ISO8601>` anchors; `ocr/` prefix deprecated)
 - [references/schemas/redaction_manifest.schema.json](references/schemas/redaction_manifest.schema.json) — `redaction_manifest_v1` schema (段B work queue produced by Phase 2)
 - [references/schemas/redaction_status.schema.json](references/schemas/redaction_status.schema.json) — `redaction_status_v1` schema (段B per-file progress written by the job)
 - [references/checklists/](references/checklists/) — cancer-type minimum-data checklists driving `missing_items.json`
-- [scripts/validate_structured_outputs.py](scripts/validate_structured_outputs.py) — **total acceptance门** (one entry, aggregated exit code): the original 6-structured-output schema + anchor validation **plus** PII residue rescan (`pii_rescan`), redaction-manifest non-empty-if-images check, and case-summary HTML shape+provenance (`validate_case_summary_html`). Missing optional artifacts are not errors — validates what exists.
+- [scripts/validate_structured_outputs.py](scripts/validate_structured_outputs.py) — **archive/persist acceptance门** (one entry, aggregated exit code): the original structured-output schema + anchor validation **plus** PII residue rescan (`pii_rescan`), redaction-manifest coverage for raster/HEIC bucket images, required `source_inventory.json`, required `source_redaction_status.json` hard gate for persisted sources, and case-summary HTML shape+provenance (`validate_case_summary_html`).
 - [scripts/render_html_template.py](scripts/render_html_template.py) — generic, stdlib-only (no jinja2) HTML template engine with **zero medical/case logic**: substitutes `{{key}}` and expands `<!-- LOOP -->` (0..N, data-driven) / `<!-- RENDER_IF -->` / `<!-- RENDER_IF_NOT -->` (empty section → `资料缺失` placeholder, never deleted) from a data JSON; stamps a `template_sha256:` provenance comment. Used by 段D to render `病情简要总结.html` from `templates/case-summary.template.html`.
 - [scripts/validate_case_summary_html.py](scripts/validate_case_summary_html.py) — case-summary HTML validator: checks **shape invariants only** (template-fixed, patient-independent) — byte-identical `<style>`, used-classes ⊆ template classes, no residual `{{…}}`, no PII / precise age, full section skeleton, and `template_sha` provenance == the supplied template's SHA-256. **Never** asserts patient-specific content exists (would false-positive on a patient with no labs/lesions). Echoes `template_sha` on pass.
 - [scripts/pii_rescan.py](scripts/pii_rescan.py) — deterministic PII-residue门 on the desensitized MD sidecars (the single downstream plaintext boundary): independently re-scans sidecar bodies with the `redact_ocr.py` regex family (text-only, no OCR/image deps), skips `[PII_MASKED]` values + the `## PII` trailer, flags any surviving label+value or standalone 身份证/手机/座机. Detector, not auto-rewriter (re-masking is a judgement task).

@@ -20,7 +20,7 @@
 
 ## 第 1 步 — 识别重传关系(LLM 判断,不写 keyword list)
 
-把每张新图(或其 OCR 文本)与已有档案比对,**交 subagent / LLM 判断**它与现有档案的关系。这是语义判断任务 —— 读新图内容,对照 `profile.json` / `timeline.md` / 桶内已有 `.md` 旁车,**不要跑硬编码 keyword 名单 / Python 分类函数**判同名同日期。
+把每张新图/文件(或其 LLM ingestion sidecar)与已有档案比对,**交 subagent / LLM 判断**它与现有档案的关系。这是语义判断任务 —— 读新文件内容,对照 `profile.json` / `timeline.md` / 桶内已有 `.md` 旁车,**不要跑硬编码 keyword 名单 / Python 分类函数**判同名同日期。
 
 三类关系:
 
