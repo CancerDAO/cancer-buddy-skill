@@ -5,11 +5,10 @@ This script is the single deterministic门 the orchestrator runs after Phase 2 (
 after 段D HTML generation) to decide "is this patient_dir actually done?". It does
 NOT make any medical or content judgement — every check here is a *form/безопасность*
 invariant that is fixed regardless of which patient was processed. The LLM still
-owns OCR / narrative / classification; this gate only verifies the deterministic
+owns ingestion / narrative / classification; this gate only verifies the deterministic
 products line up.
 
-Gate sections (each contributes to one aggregated exit code; a missing optional
-artifact is not an error — the gate validates what exists):
+Gate sections (each contributes to one aggregated exit code):
 
   [1] Structured JSON schema + anchor (ORIGINAL behavior, unchanged):
       For each present structured output (patient_summary / timeline / molecular /
@@ -30,7 +29,13 @@ artifact is not an error — the gate validates what exists):
       image awaiting redaction. (If there are NO raster images, an absent or empty
       manifest is fine.)
 
-  [4] Case-summary HTML shape (validate_case_summary_html.py):
+  [4] Source inventory + source-file redaction hard gate:
+      source_inventory.json MUST exist and every source file must have a redacted
+      MD sidecar. Any source file selected for archive/persist MUST have a matching
+      source_redaction_status.json entry with status=done, qa_passed=true, and
+      original_deleted=true before the archive can leave the local workspace.
+
+  [5] Case-summary HTML shape (validate_case_summary_html.py):
       If 病情简要总结.html exists, it must pass the shape+provenance invariants
       against references/templates/case-summary.template.html — including the
       template_sha provenance proving it was machine-rendered (not hand-written).
@@ -57,6 +62,9 @@ SCHEMA_DIR = REPO_ROOT / "references" / "schemas"
 CASE_SUMMARY_TEMPLATE = REPO_ROOT / "references" / "templates" / "case-summary.template.html"
 CASE_SUMMARY_HTML_NAME = "病情简要总结.html"
 REDACTION_MANIFEST_NAME = "redaction_manifest.json"
+REDACTION_STATUS_NAME = "redaction_status.json"
+SOURCE_INVENTORY_NAME = "source_inventory.json"
+SOURCE_REDACTION_STATUS_NAME = "source_redaction_status.json"
 
 # Make sibling gate modules importable (pii_rescan / validate_case_summary_html).
 if str(SCRIPT_DIR) not in sys.path:
@@ -77,7 +85,7 @@ ANCHOR_RE = re.compile(
 )
 
 # Raster image extensions that imply a 段B redaction manifest entry is owed.
-RASTER_EXTS = {".jpg", ".jpeg", ".png", ".tif", ".tiff", ".webp", ".bmp"}
+RASTER_EXTS = {".jpg", ".jpeg", ".png", ".tif", ".tiff", ".webp", ".bmp", ".heic", ".heif"}
 
 try:
     from jsonschema import Draft202012Validator  # type: ignore
@@ -157,6 +165,24 @@ def validate_one(patient_dir: Path, fname: str, schema_name: str, errors: list):
                 errors.append(f"{fname}: missing required top-level field {k}")
 
     validate_anchors(patient_dir, data, fname, errors)
+
+
+def validate_doc_schema(fname: str, data, schema_name: str, errors: list) -> None:
+    if not HAS_JSONSCHEMA:
+        if not isinstance(data, dict):
+            errors.append(f"{fname}: root must be object, got {type(data).__name__}")
+        return
+    schema_path = SCHEMA_DIR / schema_name
+    if not schema_path.is_file():
+        errors.append(f"{fname}: schema file missing: {schema_name}")
+        return
+    try:
+        schema = json.loads(schema_path.read_text(encoding="utf-8"))
+        for err in Draft202012Validator(schema).iter_errors(data):
+            loc = ".".join(str(p) for p in err.absolute_path) or "$"
+            errors.append(f"{fname}: schema violation at {loc}: {err.message}")
+    except Exception as e:
+        errors.append(f"{fname}: schema load failed for {schema_name}: {e}")
 
 
 def gate_structured(patient_dir: Path, errors: list) -> None:
@@ -253,6 +279,27 @@ def gate_redaction_manifest(patient_dir: Path, errors: list) -> None:
             f"{REDACTION_MANIFEST_NAME}: files[] is empty but {len(rasters)} raster "
             "bucket image(s) await redaction — every PII-bearing image must be queued"
         )
+    elif isinstance(files, list):
+        listed = {
+            item.get("bucket_path")
+            for item in files
+            if isinstance(item, dict) and isinstance(item.get("bucket_path"), str)
+        }
+        missing = []
+        for raster in rasters:
+            try:
+                rel = raster.relative_to(patient_dir).as_posix()
+            except ValueError:
+                rel = raster.as_posix()
+            if rel not in listed:
+                missing.append(rel)
+        if missing:
+            sample = ", ".join(missing[:5])
+            more = "" if len(missing) <= 5 else f", ... +{len(missing) - 5} more"
+            errors.append(
+                f"{REDACTION_MANIFEST_NAME}: missing manifest entry for "
+                f"{len(missing)} raster bucket image(s): {sample}{more}"
+            )
     if HAS_JSONSCHEMA:
         schema_path = SCHEMA_DIR / "redaction_manifest.schema.json"
         if schema_path.is_file():
@@ -266,7 +313,105 @@ def gate_redaction_manifest(patient_dir: Path, errors: list) -> None:
 
 
 # --------------------------------------------------------------------------- #
-# [4] case-summary HTML shape + provenance
+# [4] source inventory + source-file redaction hard gate
+# --------------------------------------------------------------------------- #
+def _read_json_file(patient_dir: Path, fname: str, errors: list):
+    path = patient_dir / fname
+    if not path.is_file():
+        errors.append(f"{fname}: missing — final archive requires source inventory and redaction provenance")
+        return None
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except Exception as e:
+        errors.append(f"{fname}: not parseable JSON: {e}")
+        return None
+
+
+def _file_entries(doc) -> list:
+    if isinstance(doc, dict) and isinstance(doc.get("files"), list):
+        return doc["files"]
+    return []
+
+
+def _entry_id(entry: dict) -> str | None:
+    value = entry.get("source_id", entry.get("id"))
+    return value if isinstance(value, str) else None
+
+
+def _entry_bool(entry: dict, key: str, default: bool) -> bool:
+    value = entry.get(key)
+    if isinstance(value, bool):
+        return value
+    return default
+
+
+def gate_source_inventory_and_redaction(patient_dir: Path, errors: list) -> None:
+    inventory = _read_json_file(patient_dir, SOURCE_INVENTORY_NAME, errors)
+    if inventory is None:
+        return
+    validate_doc_schema(SOURCE_INVENTORY_NAME, inventory, "source_inventory.schema.json", errors)
+
+    inventory_files = _file_entries(inventory)
+    if not inventory_files:
+        errors.append(f"{SOURCE_INVENTORY_NAME}: files[] must list every input source file")
+        return
+
+    persist_required: dict[str, dict] = {}
+    for i, entry in enumerate(inventory_files):
+        if not isinstance(entry, dict):
+            errors.append(f"{SOURCE_INVENTORY_NAME}: files[{i}] must be an object")
+            continue
+        sid = _entry_id(entry)
+        if not sid:
+            errors.append(f"{SOURCE_INVENTORY_NAME}: files[{i}] missing stable source_id/id")
+            continue
+
+        sidecar = entry.get("sidecar_path")
+        if not isinstance(sidecar, str) or not sidecar.endswith(".md"):
+            errors.append(f"{SOURCE_INVENTORY_NAME}: {sid}: sidecar_path must point to a .md sidecar")
+        else:
+            if sidecar.startswith("ocr/"):
+                errors.append(f"{SOURCE_INVENTORY_NAME}: {sid}: final sidecar_path must be bucket-co-located, not ocr/")
+            if not (patient_dir / sidecar).is_file():
+                errors.append(f"{SOURCE_INVENTORY_NAME}: {sid}: sidecar_path not found: {sidecar}")
+
+        if _entry_bool(entry, "persist", True) and _entry_bool(entry, "redaction_required", True):
+            persist_required[sid] = entry
+
+    if not persist_required:
+        return
+
+    status = _read_json_file(patient_dir, SOURCE_REDACTION_STATUS_NAME, errors)
+    if status is None:
+        return
+    validate_doc_schema(SOURCE_REDACTION_STATUS_NAME, status, "source_redaction_status.schema.json", errors)
+    status_entries = {
+        _entry_id(e): e
+        for e in _file_entries(status)
+        if isinstance(e, dict) and _entry_id(e)
+    }
+
+    for sid, inv_entry in sorted(persist_required.items()):
+        st = status_entries.get(sid)
+        if not st:
+            errors.append(f"{SOURCE_REDACTION_STATUS_NAME}: missing redaction status for persisted source {sid}")
+            continue
+        if st.get("status") != "done":
+            errors.append(
+                f"{SOURCE_REDACTION_STATUS_NAME}: {sid}: status must be 'done' before persist, got {st.get('status')!r}"
+            )
+        if st.get("qa_passed") is not True:
+            errors.append(f"{SOURCE_REDACTION_STATUS_NAME}: {sid}: qa_passed must be true before persist")
+        if st.get("original_deleted") is not True:
+            errors.append(f"{SOURCE_REDACTION_STATUS_NAME}: {sid}: original_deleted must be true before persist")
+        redacted_path = st.get("redacted_path") or inv_entry.get("redacted_path")
+        if isinstance(redacted_path, str) and redacted_path:
+            if not (patient_dir / redacted_path).is_file():
+                errors.append(f"{SOURCE_REDACTION_STATUS_NAME}: {sid}: redacted_path not found: {redacted_path}")
+
+
+# --------------------------------------------------------------------------- #
+# [5] case-summary HTML shape + provenance
 # --------------------------------------------------------------------------- #
 def gate_case_summary_html(patient_dir: Path, errors: list) -> None:
     html_path = patient_dir / CASE_SUMMARY_HTML_NAME
@@ -312,6 +457,7 @@ def main() -> int:
     gate_structured(patient_dir, errors)
     gate_pii_rescan(patient_dir, errors)
     gate_redaction_manifest(patient_dir, errors)
+    gate_source_inventory_and_redaction(patient_dir, errors)
     gate_case_summary_html(patient_dir, errors)
 
     if not HAS_JSONSCHEMA:
@@ -329,7 +475,7 @@ def main() -> int:
 
     print(
         f"acceptance gate OK — structured outputs + PII rescan + redaction manifest "
-        f"+ case-summary HTML all pass ({patient_dir})"
+        f"+ source redaction gate + case-summary HTML all pass ({patient_dir})"
     )
     return 0
 

@@ -1,6 +1,6 @@
 # Organizer Prompt — Phase 2 Synthesis Worker
 
-You are the Phase-2 Synthesis Worker for `cancer-buddy-organize`. Phase 1 OCR Workers have already written every per-file sidecar to the **temporary central staging dir** `<patient_dir>/ocr/` and audit-trail copies to `<patient_dir>/10_原始文件/`. Your job is to **read all sidecars, classify into the buckets, move each source file AND its redacted MD into the same bucket subdirectory under a canonical name, then produce the global artifacts**: INDEX.md / timeline.md / case_text.md / profile.json / readiness.json / review_flags / review_summary / **the 6 structured JSON outputs + missing_items.json + update_log.json + redaction_manifest.json + the business-readable alias**.
+You are the Phase-2 Synthesis Worker for `cancer-buddy-organize`. Phase 1 LLM Markdown Ingestion Workers have already written every per-source redacted Markdown sidecar to the **temporary central staging dir** `<patient_dir>/ocr/` and audit-trail copies to `<patient_dir>/10_原始文件/`. Your job is to **read all sidecars, classify into the buckets, move each source file AND its redacted MD into the same bucket subdirectory under a canonical name, then produce the global artifacts**: INDEX.md / timeline.md / case_text.md / profile.json / readiness.json / review_flags / review_summary / **the 6 structured JSON outputs + missing_items.json + source_inventory.json + update_log.json + redaction_manifest.json + the business-readable alias**.
 
 The central `ocr/` directory is **temporary staging only**. By the end of your run it MUST be empty and deleted — every MD lives next to its image inside a bucket subdirectory (`<bucket>/<canonical>.md`), and every downstream anchor is a bucket-relative path. No artifact may reference `ocr/` after you finish.
 
@@ -21,7 +21,7 @@ The full contract (detection, persist/reuse, verbatim policy, bucket-name map) i
 ## Inputs (caller supplies)
 
 - `patient_dir` (required): absolute path to the patient directory. Already has `ocr/` (temporary sidecar staging) and `10_原始文件/` (audit-trail mirror) populated by Phase 1. **This path was resolved upstream by the single root-resolution rule** (`$CANCER_BUDDY_PATIENTS_DIR` → `$VMTB_PATIENT_DATA_ROOT` → `$HOME/CancerDAO/patients`, owned by SKILL.md / INSTALL.md). You **use it as-is** and **never re-resolve a root or invent your own**: the patients root is always `$(dirname "$patient_dir")` (the `alias` symlink in Step 2.8 and the cross-patient scan in Step 3a both derive from that — they don't re-read the env vars).
-- `phase1_summary` (optional): JSON list of per-slice Phase-1 results. Used to validate coverage; if you find sidecars Phase 1 didn't report, that's fine; if Phase 1 reported sidecars you can't find, that's a coverage error to surface.
+- `phase1_summary` (optional): JSON list of per-slice Phase-1 results. Used to validate coverage and adapter provenance; if you find sidecars Phase 1 didn't report, that's fine; if Phase 1 reported sidecars you can't find, that's a coverage error to surface.
 - `run_mode` (optional): `"full"` (default) or `"incremental"`. In incremental mode, only newly added/changed sidecars are reclassified and downstream artifacts are merged rather than rewritten.
 - `caller_default_hospital` (optional): the patient's `treating_hospitals[0]`, used as the level-3 fallback when resolving 出具机构 during canonical naming.
 - `triggered_by` / `reason` (optional, for update_log.json): caller context, free-text.
@@ -123,6 +123,7 @@ After you've judged every file, write the plan to `<patient_dir>/.rename_plan.js
   "files": [
     {
       "id": "f001",
+      "source_id": "s001",
       "mirror_path": "10_原始文件/<original_subdir>/IMG_0001.jpg",
       "ocr_sidecar_old": "ocr/IMG_0001.md",
       "bucket_path": "02_诊断与分期/病理报告",
@@ -130,6 +131,12 @@ After you've judged every file, write the plan to `<patient_dir>/.rename_plan.js
       "ext": "jpg",
       "file_dest": "02_诊断与分期/病理报告/2024-03-15_病理报告_中山六院.jpg",
       "md_dest": "02_诊断与分期/病理报告/2024-03-15_病理报告_中山六院.md",
+      "read_mode": "model_vision",
+      "adapter": "temp_raster",
+      "adapter_provenance": "decode_tool=sips;rotation=0",
+      "persist": true,
+      "redaction_required": true,
+      "redaction_strategy": "paddleocr_image",
       "extracted": {"date": "2024-03-15", "doc_type": "病理报告", "hospital": "中山六院", "page": null},
       "pii_hint": ["patient_name", "admission_id"]
     }
@@ -137,7 +144,7 @@ After you've judged every file, write the plan to `<patient_dir>/.rename_plan.js
 }
 ```
 
-`pii_hint` lists the PII categories Phase 1 masked in this file's MD (read them from the sidecar's `## PII` section if present, else infer from doc_type — e.g. 出院小结/诊断证明 typically carry `patient_name` + `admission_id`). This feeds `redaction_manifest.json` in Step 1f. `mirror_path` is the byte-level original under `10_原始文件/` — the redaction job needs both the bucket copy and the mirror.
+`pii_hint` lists the PII categories Phase 1 masked in this file's MD (read them from the sidecar's `## PII` section if present, else infer from doc_type — e.g. 出院小结/诊断证明 typically carry `patient_name` + `admission_id`). This feeds `redaction_manifest.json` in Step 1f. `read_mode` / `adapter` / `adapter_provenance` come from the sidecar header and are provenance only; adapter output is never a clinical text source. `mirror_path` is the byte-level original under `10_原始文件/` — source-file redaction needs both the bucket copy and the mirror.
 
 ### Step 1c — Materialize each file into its bucket (mechanical bash)
 
@@ -206,7 +213,7 @@ If `ocr_drain_incomplete` fires, add `"ocr_drain_incomplete: <basename>"` for ea
 
 ### Step 1f — Write `redaction_manifest.json`
 
-This is the hand-off contract to 段B (the async PaddleOCR redaction job). It lists every image that still needs PII pixels boxed, with both its bucket copy and its byte-level mirror so the job can replace both. Schema: [redaction_manifest.schema.json](references/schemas/redaction_manifest.schema.json) (`redaction_manifest_v1`, §6.1 of the design spec). Only **raster image** files need pixel redaction — include `jpg/jpeg/png/tif/tiff/webp/bmp` **and `heic/heif`** bucket entries (exactly the extensions the schema's `bucket_path`/`mirror_path` patterns allow); pure-text PDFs/DOCX whose MD is already redacted do NOT go in the manifest (no pixels to box). **HEIC: do NOT pre-stash a JPEG bucket copy.** The bucket keeps the original `.HEIC` (and the `10_原始文件/` mirror keeps `.HEIC` too); list that **`.heic` bucket_path** and the **`.heic` mirror_path** directly — both ends match the schema pattern, which now allows heic/heif. 段B transcodes HEIC internally (PaddleOCR can't read HEIC) before boxing PII and emits a browsable redacted image; that transcode is 段B's concern, not yours. Phase 1 may have produced a `/tmp` JPEG purely for vision OCR — that is ephemeral and **never** enters a bucket; never reference it in the manifest. For scanned-image PDFs (no text layer), rasterize per page is 段B's concern — list the source if it carries an image bucket copy.
+This is the hand-off contract to 段B (the pre-persist PaddleOCR image-redaction job). It lists every image that still needs PII pixels boxed, with both its bucket copy and its byte-level mirror so the job can replace both. Schema: [redaction_manifest.schema.json](references/schemas/redaction_manifest.schema.json) (`redaction_manifest_v1`, §6.1 of the design spec). Only **raster image** files need pixel redaction — include `jpg/jpeg/png/tif/tiff/webp/bmp` **and `heic/heif`** bucket entries (exactly the extensions the schema's `bucket_path`/`mirror_path` patterns allow); pure-text PDFs/DOCX whose MD is already redacted do NOT go in the manifest (no pixels to box). **HEIC: do NOT pre-stash a JPEG bucket copy.** The bucket keeps the original `.HEIC` (and the `10_原始文件/` mirror keeps `.HEIC` too); list that **`.heic` bucket_path** and the **`.heic` mirror_path** directly — both ends match the schema pattern, which now allows heic/heif. 段B transcodes HEIC internally (PaddleOCR can't read HEIC) before boxing PII and emits a browsable redacted image; that transcode is 段B's concern, not yours. Phase 1 may have produced a `/tmp` JPEG purely for LLM vision ingestion — that is ephemeral and **never** enters a bucket; never reference it in the manifest. For scanned-image PDFs (no text layer), body redaction is tracked by `source_redaction_status.json`; do not pretend a missing PDF redactor succeeded.
 
 Build it from `.rename_plan.json` (paths are bucket-relative; if a Step 1c collision bumped a name to `_2`, use the actual on-disk path):
 
@@ -221,6 +228,60 @@ jq --arg pd "$patient_dir" --arg gen "$gen" '
 ```
 
 Validate against the schema before writing (mental validation if no `jsonschema`): every `bucket_path` resolves to an on-disk file and matches the image-extension pattern, every `mirror_path` exists under `10_原始文件/`, `status` is `"pending"`, `pii_hint[]` values ∈ the schema enum (`patient_name`, `patient_id`, `admission_id`, `bed_no`, `phone`, `address`, `id_card`, `birth_date`, `signature_name`, `other`). On failure, surface `"redaction_manifest_invalid: <reason>"` into `readiness.json.warnings`.
+
+### Step 1g — Write `source_inventory.json` and initialize `source_redaction_status.json`
+
+`source_inventory.json` is the run-level proof that every source file/content unit went through LLM Markdown ingestion and records how the final source-file copy will be made safe before persist. Build it from `.rename_plan.json` and the sidecar headers:
+
+```json
+{
+  "schema": "source_inventory_v1",
+  "patient_dir": "/abs/PT-XXXX",
+  "generated_at": "2026-06-09T00:00:00Z",
+  "files": [
+    {
+      "source_id": "s001",
+      "original_path": "IMG_0001.HEIC",
+      "mirror_path": "10_原始文件/<original_subdir>/IMG_0001.HEIC",
+      "bucket_path": "06_检验/生化肝肾功/2024-07-03_生化肝肾功_三环肿瘤医院.jpg",
+      "sidecar_path": "06_检验/生化肝肾功/2024-07-03_生化肝肾功_三环肿瘤医院.md",
+      "read_mode": "model_vision",
+      "adapter": "temp_raster",
+      "adapter_provenance": "decode_tool=sips;rotation=90",
+      "persist": true,
+      "redaction_required": true,
+      "redaction_strategy": "paddleocr_image",
+      "redacted_path": null,
+      "notes": null
+    }
+  ]
+}
+```
+
+Write `source_redaction_status.json` as the pre-persist hard gate skeleton. For image entries, link the `redaction_manifest.json` id and leave them `pending` until `run_redaction_job.py` completes and the platform syncs the done state. For PDF/DOCX/spreadsheet/text entries, if a reliable body redactor is not implemented in the current host, mark them `blocked` with a clear reason. **Blocked source files may still produce MD/JSON/HTML, but they cannot be persisted as source-file artifacts.**
+
+```json
+{
+  "schema": "source_redaction_status_v1",
+  "patient_dir": "/abs/PT-XXXX",
+  "updated_at": "2026-06-09T00:00:00Z",
+  "summary": {"total": 1, "pending": 1, "done": 0, "failed": 0, "blocked": 0, "not_required": 0},
+  "files": [
+    {
+      "source_id": "s001",
+      "status": "pending",
+      "strategy": "paddleocr_image",
+      "redacted_path": null,
+      "qa_passed": null,
+      "original_deleted": null,
+      "reason": null,
+      "linked_redaction_manifest_id": "f001"
+    }
+  ]
+}
+```
+
+Final archive/persist MUST wait until every `persist:true && redaction_required:true` source has `status:"done"`, `qa_passed:true`, and `original_deleted:true`. `validate_structured_outputs.py` enforces this; do not declare an archive-ready run while any source is `pending` / `failed` / `blocked`.
 
 ## Step 2 — Synthesize core artifacts
 
@@ -342,11 +403,21 @@ Validation rule of thumb you can apply mentally without a library (full regex in
 - All `format: date` fields parse as `YYYY-MM-DD`.
 - `patient_code` matches `^PT-[A-F0-9]+(_\d+)?$`.
 
-If a Python environment with `jsonschema>=4.18` is available, prefer:
+For Phase2-only validation, validate each structured JSON against its own schema
+before writing and check anchors as above. Do **not** use the full archive
+acceptance gate as a Phase2 write gate, because source-file redaction may still
+be `pending` / `blocked` immediately after Phase2 and HTML generation is allowed
+from desensitized MD/JSON.
+
+You may run the full archive/persist readiness probe:
 ```bash
 python3 scripts/validate_structured_outputs.py "$patient_dir"
 ```
-If the script doesn't exist or `jsonschema` is missing, fall back to manual mental validation as above.
+If it fails only on `source_redaction_status.json` / source-file redaction rows,
+report `archive_persist_ready:false` and continue to 段D HTML. The same command
+must exit 0 after 段B/source redaction before anything is persisted outside the
+local workspace. If the script doesn't exist or `jsonschema` is missing, fall
+back to manual mental validation for the Phase2 structured JSONs.
 
 ### 2.7 `missing_items.json` (NEW — cancer-checklist diff)
 
@@ -514,7 +585,7 @@ If `review_flags` non-empty → write `review_flags.md` (companion artifact, see
 
 ---
 **生成时间**: <ISO>
-**OCR sidecar 总数**: <count>
+**LLM ingestion sidecar 总数**: <count>
 **整体 readiness**: <grade> (<score>/100)
 **review_flags 总数**: <total> (🔴 <red> | 🟡 <yellow> | 🟢 <green>)
 ```
@@ -583,8 +654,13 @@ Pure JSON, no prose:
     "comorbidities": "/.../comorbidities.json",
     "missing_items": "/.../missing_items.json"
   },
+  "source_inventory_path": "/.../source_inventory.json",
+  "source_redaction_status_path": "/.../source_redaction_status.json",
   "redaction_manifest_path": "/.../redaction_manifest.json",
   "redaction_images_queued": 38,
+  "archive_persist_ready": false,
+  "source_redaction_pending": 38,
+  "source_redaction_blocked": 2,
   "update_log_path": "/.../update_log.json",
   "anchor_coverage": {
     "facts_total": 142,
@@ -604,9 +680,12 @@ Pure JSON, no prose:
 - NEVER write a `case_text.md` containing dangling anchors — surface the gap, don't ship a broken file.
 - NEVER leave the central `ocr/` dir behind: every MD must be moved into its bucket (`<bucket>/<canonical>.md`) and `ocr/` deleted (Step 1e). If an MD can't be drained, surface `ocr_drain_incomplete` and keep `ocr/`, don't strand the file.
 - NEVER emit an anchor (in any artifact, `source_evidence`, or `source_refs[]`) that still uses the `ocr/` or `02_脱敏病历/` prefix — those are retired; all anchors are bucket-relative or `conversation:<ISO8601>`.
-- ALWAYS write `redaction_manifest.json` (Step 1f) before returning — it is the only hand-off to 段B; a missing/invalid manifest blocks in-image PII masking. Surface validation failures into `readiness.json.warnings`, don't ship an invalid manifest.
+- ALWAYS write `source_inventory.json` (Step 1g) before returning — it is the proof that every source file/content unit produced a redacted MD and records the source-file redaction strategy.
+- ALWAYS initialize `source_redaction_status.json` (Step 1g) before returning — it is the archive/persist hard gate. It may contain `pending` image entries after Phase2; that is fine for JSON/HTML generation but means `archive_persist_ready:false`.
+- ALWAYS write `redaction_manifest.json` (Step 1f) before returning — it is the image hand-off to 段B. A missing/invalid manifest blocks in-image PII masking. Surface validation failures into `readiness.json.warnings`, don't ship an invalid manifest.
 - `redaction_manifest.json` lists only raster images (jpg/jpeg/png/tif/tiff/webp/bmp + heic/heif — HEIC stays HEIC in its bucket, 段B transcodes internally; no pre-stashed JPEG bucket copy); text PDFs/DOCX with already-redacted MD are NOT listed.
 - `coverage_complete: false` is acceptable as long as you list the missing files; caller will retry-mini-Phase1 + re-run you.
+- `archive_persist_ready` may be `false` immediately after Phase2 because HTML/JSON generation does not wait for source-file redaction. It becomes true only after every persisted source file has source-redaction status `done`, `qa_passed:true`, and `original_deleted:true`. Never represent a pending/blocked source as persisted.
 - The alias is sticky: never overwrite a previously set `profile.json.alias` on incremental runs.
 - ALWAYS detect+persist `profile.json.locale` (reuse if already set) and render every patient-facing scaffold string (bucket slugs, timeline/case_text/review_summary prose, gap/warning text) in that locale per [`../../../references/i18n.md`](../../../references/i18n.md). NEVER translate a clinical entity (drug/gene/variant/TNM/number/unit) or a `doc_type` — those are verbatim; mistranslation is a P0 safety bug.
 - The `NN_` two-digit bucket prefix is a **language-independent stable key**: localize the slug after it, never the number. Downstream consumers match on `NN_`; keep `bucket_path` / `file_dest` / `md_dest` / anchors using the same localized slug so on-disk path and anchor agree.
@@ -614,13 +693,13 @@ Pure JSON, no prose:
 
 ## Runtime adaptation (binding layer — read [`organize-contract.md`](organize-contract.md) §Phase2)
 
-This prompt is the **Claude Code reference implementation** of the runtime-neutral Phase2 contract (`organize-contract.md` §2). The contract pins the **behavior** — pure function `(全部 sidecar, 源清单, file_id↔原名映射) → canonical 输出集` (11 桶 + `profile.json` + `timeline.*` + `case_text.md` + `readiness.json` + `review_flags.md` + 6 结构化 JSON + `missing_items.json` + `update_log.json` + `redaction_manifest.json` + 桶相对锚点) — and a fixed set of invariants. The **orchestration mechanism below is a CC-specific binding; any host may swap it out** as long as the §2.5 invariants still hold. Nothing in this section changes the产物结构 or schema.
+This prompt is the **Claude Code reference implementation** of the runtime-neutral Phase2 contract (`organize-contract.md` §2). The contract pins the **behavior** — pure function `(全部 sidecar, source_inventory, source_id↔原名映射) → canonical 输出集` (11 桶 + `source_inventory.json` + `profile.json` + `timeline.*` + `case_text.md` + `readiness.json` + `review_flags.md` + 6 结构化 JSON + `missing_items.json` + `update_log.json` + `redaction_manifest.json` + `source_redaction_status.json` + 桶相对锚点) — and a fixed set of invariants. The **orchestration mechanism below is a CC-specific binding; any host may swap it out** as long as the §2.5 invariants still hold. Nothing in this section changes the产物结构 or schema.
 
 | Mechanism in this prompt | Status | Swap for non-CC hosts |
 |---|---|---|
 | `Agent` 扇出 Phase1 + reduce into this single Phase2 worker (SKILL.md Step 2-5) | **reference implementation** — fan-out/reduce is one valid binding of the「编排」接缝 | A headless host may run the whole thing **single-process sequentially** (`organize-contract.md` §2.6 / §6「编排」). 只要 §2.1 inputs 就绪(所有 sidecar 在 Phase2 前就绪)、§2.2/§2.5 成立,顺序与扇出等价. |
 | Semantic naming judgment → `.rename_plan.json` (Step 1a/1b) **vs** mechanical `cp -n` / `mv -n` byte-shuffle (Step 1c–1f) | **split by design** | The LLM 出 `.rename_plan.json`(哪个桶 / 什么 canonical 名 — 必须的语义判断);据此的**机械 mv / co-locate / `_FILENAME_MAPPING` 回填 / 排空暂存区 / 生成 manifest / persist** 是无判断纯搬运,**可由宿主执行** (`organize-contract.md` §2.6 / §6「编排 / 存储」). The contract requires the result land in the §2.2 产物结构, not which primitive moved the bytes. |
-| Agent writes everything into `patient_dir` on local disk | **CC-specific binding** | A headless host may **persist selected files to 对象存储 / 库** instead (`organize-contract.md` §6「存储」). The canonical 输出集 (结构化产物 + 桶 + manifest) is the contract; the storage primitive is the binding. |
+| Agent writes everything into `patient_dir` on local disk | **CC-specific binding** | A headless host may **persist selected redacted files to 对象存储 / 库** instead (`organize-contract.md` §6「存储」). The canonical 输出集 (结构化产物 + 桶 + manifest + inventory/status) is the contract; the storage primitive is the binding. Persist is blocked until source redaction status is done/QA-passed/deleted. |
 | Confirm/disposition gates rendered as inline diff cards (段E / upload-reconciliation) | **CC-specific binding** | **confirm-as-product + 宿主 UI 两轮往返** (headless) is equally compliant (`organize-contract.md` §3 / §6「确认门」) — see `relevance-gate.md` / `upload-reconciliation.md` / `confirm-gate.md`. |
 
-**Logic / invariants do NOT move with the binding.** Regardless of which host drives Phase2: **强制脱敏**保真(sidecar 是唯一明文读取源)、`NN_` 数字前缀作语言无关稳定 key、临床实体 / `doc_type` 永远 verbatim(误译是 P0)、暂存区不残留、`redaction_manifest.json` 必产、未确认不落正式字段 / 不可逆删除非对称(§3 确认门)、schema gate / 锚点 dangling 检查、review_flags 8 类审计与 review_summary 必写 — all stand verbatim. A binding may only change **who runs the mechanism**, never the behavioral contract or the产物结构.
+**Logic / invariants do NOT move with the binding.** Regardless of which host drives Phase2: **强制脱敏**保真(sidecar 是唯一明文读取源)、`NN_` 数字前缀作语言无关稳定 key、临床实体 / `doc_type` 永远 verbatim(误译是 P0)、暂存区不残留、`source_inventory.json` / `redaction_manifest.json` / `source_redaction_status.json` 必产、archive/persist 受 source redaction hard gate 阻塞、未确认不落正式字段 / 不可逆删除非对称(§3 确认门)、schema gate / 锚点 dangling 检查、review_flags 8 类审计与 review_summary 必写 — all stand verbatim. A binding may only change **who runs the mechanism**, never the behavioral contract or the产物结构.

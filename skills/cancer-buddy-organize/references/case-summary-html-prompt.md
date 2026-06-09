@@ -1,6 +1,6 @@
 # 病情简要总结 HTML 生成 prompt（段 D）
 
-organize 完成、Profile Card 之后自动触发。读结构化脱敏 JSON → **只产出一份 `case_summary_data.json` 数据对象** → 跑确定性模板引擎 `scripts/render_html_template.py` 填模板 → 跑 `scripts/validate_case_summary_html.py` 过"形"不变量 → 不过则不出文件 → 落 `<patient_dir>/病情简要总结.html`。
+Phase2 结构化整理完成、Profile Card 之后自动触发;不等待源文件本体脱敏。读结构化脱敏 JSON → **只产出一份 `case_summary_data.json` 数据对象** → 跑确定性模板引擎 `scripts/render_html_template.py` 填模板 → 跑 `scripts/validate_case_summary_html.py` 过"形"不变量 → 不过则不出文件 → 落 `<patient_dir>/病情简要总结.html`。最终 archive/persist 仍由 `source_redaction_status.json` hard gate 阻塞。
 
 ## 红线（违反即非法输出，哪怕临床内容全对）
 

@@ -10,7 +10,7 @@ This silence⇒delete (high-confidence) vs silence⇒hold (borderline) asymmetry
 
 Real upload folders are messy: a phone camera roll mixed in, a WeChat screenshot of a doctor's message (which *is* clinically useful), a photo of a pill bottle (useful), a selfie taken in a hospital ward (not useful), a meal photo (not useful), a receipt for a CT scan (administrative, borderline). No keyword list survives contact with this — "医院" appears in both a discharge summary and a parking receipt; a screenshot can be either a lab result or a chat about dinner.
 
-So relevance is decided by **reading the OCR sidecar content + looking at the image**, the same way a person triaging the folder would. Do NOT pattern-match filenames or run a hardcoded keyword classifier. Judge the file.
+So relevance is decided by **reading the LLM-generated redacted sidecar content + looking at the image/file when ambiguous**, the same way a person triaging the folder would. Do NOT pattern-match filenames or run a hardcoded keyword classifier. Judge the file.
 
 ## Three classes
 

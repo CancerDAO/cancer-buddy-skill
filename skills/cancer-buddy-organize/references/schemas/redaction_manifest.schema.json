@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://cancerdao.org/schemas/cancer-buddy/redaction_manifest.schema.json",
   "title": "RedactionManifest",
-  "description": "Handoff contract from 段A (cloud organize) to 段B (async PaddleOCR redaction job). Lists every bucket image that still needs in-image PII masking, with its bucket-relative path and its 10_原始文件/ mirror path. Produced by phase2-synthesis; consumed by scripts/run_redaction_job.py. Only PII is masked — clinical characters are never altered.",
+  "description": "Handoff contract from 段A (cloud organize) to 段B PaddleOCR image redaction. Lists every bucket image that still needs in-image PII masking, with its bucket-relative path and its 10_原始文件/ mirror path. Produced by phase2-synthesis; consumed by scripts/run_redaction_job.py before archive/persist. Only PII is masked — clinical characters are never altered.",
   "type": "object",
   "required": ["schema", "patient_dir", "generated_at", "files"],
   "additionalProperties": false,

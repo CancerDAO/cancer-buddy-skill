@@ -1,12 +1,12 @@
-# 段B — 异步 PaddleOCR 打码 job
+# 段B — 持久化前 PaddleOCR 打码 job
 
-> 海外站把图内 PII 真正涂黑的那一步。段 A 只做 MD 文本级脱敏(下游唯一读取源已干净);桶里的图片本身仍含明文 PII,由本异步 job 涂黑后回填,并在 QA 通过后删除打码前原件。**删原件不可逆**,所有删除都被 QA 门 gate。
+> 海外站把图内 PII 真正涂黑的那一步。段 A 只做 MD 文本级脱敏(下游唯一读取源已干净);桶里的图片本身在本地工作区内仍可能含明文 PII,由本 job 涂黑后回填,并在 QA 通过后删除打码前原件。**删原件不可逆**,所有删除都被 QA 门 gate。段B 可以由后端 worker 调度、异步于段A/段D文本生成;但最终 archive/persist 必须等待段B完成。
 
 ## 角色与脚本
 
 | 脚本 | 角色 |
 |---|---|
-| `scripts/redact_ocr.py` | 打码引擎(vendored from `cancer-buddy-organize-local-skill`,原样)。`redact_image_ocr()`:PaddleOCR 取字 → 正则+NER 判 PII → 只对 PII 区域画黑框 → 存图。**纯像素打码,不产任何文字**——它读图只为定位 PII 框,不向下游输出 OCR 文本(下游唯一文字源是段A 的脱敏 MD 旁车)。 |
+| `scripts/redact_ocr.py` | 打码引擎(vendored from `cancer-buddy-organize-local-skill`,原样)。`redact_image_ocr()`:PaddleOCR 取字 → 正则+NER 判 PII → 只对 PII 区域画黑框 → 存图。**纯像素打码,不产任何文字**——它读图只为定位 PII 框,不向下游输出识别文本(下游唯一文字源是段A 的脱敏 MD 旁车)。 |
 | `scripts/run_redaction_job.py` | 批处理器。读 manifest → 逐图打码(遇 HEIC 先内部转码,见下) → QA 门 → 回填桶+镜像 → 删原件 → 写 status。幂等可重试。 |
 
 ## 段B 是纯像素打码,不产文字(职责边界)
@@ -27,13 +27,13 @@ manifest 的 `bucket_path` / `mirror_path` 允许 `heic`/`heif`(手机照片档�
 
 ## Runtime adaptation — runtime-neutral 独立步骤
 
-段B 在契约里登记为一个 **runtime-neutral 的独立后续步骤**(见 [`organize-contract.md`](organize-contract.md) §4 段B、§0 步骤4):它读 `redaction_manifest.json` → 打码 → QA 门 → 仅 `qa_passed=true` 才删原件 → 写 `redaction_status.json`,**本就 host-friendly**(纯脚本 + manifest,无 CC 专有原语),不改。由谁触发、何时触发(与主链同步还是异步后端 job)、用哪个解释器拉起,全是宿主生命周期编排——契约只约束「读 manifest → 打码 → QA 门 → 仅 QA 通过删原件 → 写 status」与下面的时序不变量。
+段B 在契约里登记为一个 **runtime-neutral 的独立后续步骤**(见 [`organize-contract.md`](organize-contract.md) §4 段B、§0 步骤4):它读 `redaction_manifest.json` → 打码 → QA 门 → 仅 `qa_passed=true` 才删原件 → 写 `redaction_status.json`,**本就 host-friendly**(纯脚本 + manifest,无 CC 专有原语),不改。由谁触发、何时触发(与段A/段D同步还是由后端 worker 稍后调度)、用哪个解释器拉起,全是宿主生命周期编排——契约只约束「读 manifest → 打码 → QA 门 → 仅 QA 通过删原件 → 写 status」与下面的时序不变量。
 
 **时序不变量(平台关键):段B 须在平台 persist(持久化 / 离开沙箱本地工作区)之前、在沙箱内跑完**,持久化的桶图才是打码版;原图(明文 PII)永不离开沙箱(段B 删前;段B 跑完只留打码版)。headless 平台已表示能把 `run_redaction_job.py` 接进沙箱生命周期的 persist-前阶段——这既满足「可浏览档案库」(原图打码后保留)又满足「at-rest 不留明文」(持久化桶图为打码版)。详见 PRD §9 存储模型对齐。
 
-## 平台异步触发约定
+## 平台触发约定
 
-- **运行模型**:异步后端 job。organize skill(段 A/D)**不阻塞**等打码;段 A 完成即产出 `redaction_manifest.json` 作为工作队列交接。
+- **运行模型**:后端 worker 可在段A/D完成后调度本脚本。段A/D 不需要等待段B才能生成结构化 JSON 或 `病情简要总结.html`;但 **archive/persist hard gate 必须等待段B完成**。任何明文原图只能停留在本地工作区/staging 内,不得持久化。
 - 平台 worker 在 organize 完成后,**用 PaddleOCR venv 解释器**拉起本脚本:
 
   ```bash
@@ -108,5 +108,6 @@ pending ──redact ok──▶ QA pass ──commit──▶ done   (qa_passed
 
 ## 下游衔接
 
-- 段 A 完成 → 产 manifest;段 D HTML 只读脱敏 JSON/MD,不读图,**不依赖**段 B 是否跑完。
-- 段 B 是纯收尾的图内**像素**涂黑 + 镜像收敛(HEIC 顺带转码成可浏览 JPG);跑完后桶里图为打码版,`.md` 旁车(段 A 已文本脱敏)仍是下游唯一读取源。**段 B 不产任何文字**——它读图只为定位 PII 框,不向 sidecar/JSON/HTML 输出 OCR 文本。
+- 段 A 完成 → 产 manifest;段 D HTML 只读脱敏 JSON/MD,不读图,**不依赖**段 B 是否跑完即可生成。
+- 最终 archive/persist → 必须等待段 B 完成,并由 `source_redaction_status.json` 汇总到 source-file 级 hard gate。
+- 段 B 是纯收尾的图内**像素**涂黑 + 镜像收敛(HEIC 顺带转码成可浏览 JPG);跑完后桶里图为打码版,`.md` 旁车(段 A 已文本脱敏)仍是下游唯一读取源。**段 B 不产任何文字**——它读图只为定位 PII 框,不向 sidecar/JSON/HTML 输出识别文本。

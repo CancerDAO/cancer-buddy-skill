@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-run_redaction_job.py — async 段B PaddleOCR redaction batch processor.
+run_redaction_job.py — pre-persist 段B PaddleOCR redaction batch processor.
 
 Reads redaction_manifest.json (produced by 段A phase2-synthesis), redacts each
 bucket image in place using the vendored redact_ocr.redact_image_ocr(), QA-gates
@@ -12,9 +12,10 @@ This is the irreversible step: an original (upload copy + mirror copy) is delete
 ONLY when its file entry reaches qa_passed=true. QA failure keeps the original and
 marks the file 'failed' for manual review.
 
-Run model: async backend job. The organize skill does not block on this; the
-platform worker hands the manifest to this script. Idempotent and retryable —
-files already 'done' are skipped on re-run.
+Run model: a backend worker may schedule this after 段A/段D, but archive/persist
+must wait for it. The platform worker hands the manifest to this script before
+any source file leaves the local workspace. Idempotent and retryable — files
+already 'done' are skipped on re-run.
 
 venv: requires PaddleOCR in ~/.venvs/mtb-ocr. If that venv is missing, every file
 is marked 'blocked' and the status file explains how to provision it. No PaddleOCR
@@ -346,7 +347,7 @@ def run_job(manifest_path: Path) -> int:
 
         entry = process_file(redactor, patient_dir, f)
         entries.append(entry)
-        # write after each file so an async job can be killed/retried safely
+        # write after each file so a worker can be killed/retried safely
         write_status(status_path, patient_dir, entries + _remaining_pending(files, entries))
 
     doc = write_status(status_path, patient_dir, entries)
@@ -389,7 +390,7 @@ def resolve_manifest_path(args) -> Path | None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Async PaddleOCR redaction batch processor (段B).",
+        description="Pre-persist PaddleOCR redaction batch processor (段B).",
     )
     parser.add_argument(
         "patient_dir",

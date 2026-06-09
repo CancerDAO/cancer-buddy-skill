@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""pii_rescan.py — deterministic PII residue gate on Phase-1 OCR sidecars.
+"""pii_rescan.py — deterministic PII residue gate on Phase-1 LLM sidecars.
 
-The Phase-1 OCR worker masks PII into the literal token `[PII_MASKED]` as a
+The Phase-1 LLM Markdown ingestion worker masks PII into the literal token `[PII_MASKED]` as a
 per-line *semantic* judgement (organizer-prompt-phase1-ocr.md §2.4). That LLM
 pass is the primary redactor — but a single LLM pass can miss a phone number on
 a busy lab footer or a 身份证号 buried in a discharge header. The sidecar MD is
 the **single downstream plaintext boundary** (timeline / case_text / profile /
-段D HTML / 段B job all read the MD and NEVER re-read the original image), so any
+段D HTML / 段B job all read the MD and NEVER re-read the original source file), so any
 plaintext PII that survives in an MD leaks all the way through.
 
 This script is the **门** that runs AFTER the worker writes sidecars and BEFORE
