@@ -27,7 +27,9 @@ Written under `patients/<patient_code>/`:
 - `readiness.json` — coverage grade + `review_flags[]` (MTB readiness + suspicious-value audit)
 - `review_flags.md` — auto-generated human-readable rendering of `readiness.json.review_flags[]` (only written when array non-empty)
 - `review_summary.md` — **always written**: 1-page checklist of extracted key fields with verbatim source citations, for user spot-check (catches consistent-but-wrong OCR that review_flags can't)
-- `case_text.md` (consolidated narrative)
+- `case_text.md` (consolidated narrative — raw OCR text organized by section)
+- `case_summary_brief.md` — **always written**: standardized 1-2 page clinical summary (Modules 1-2-6-7 from `../../references/case-summary-template.md`)
+- `case_summary_detailed.md` — **always written**: standardized 8-10 page full clinical summary (all 7 modules)
 - `01_当前状态/`…`11_诊断证明/` (raw file buckets)
 - `ocr/` (OCR sidecars with SOURCE/CONFIDENCE headers)
 
