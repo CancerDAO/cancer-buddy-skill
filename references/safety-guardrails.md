@@ -72,28 +72,21 @@ This lets a clinician audit what the patient has been reading.
 
 ## Original-file retention
 
-### Default redline (non-platform scenarios)
+### Redline: originals are kept verbatim in `raw/`, never pixel-redacted
 
-In every non-platform `cancer-buddy-organize` run, `90_原始文件镜像/` is a byte-level audit mirror that is **never deleted, overwritten, or redacted**. The uploaded originals stay intact so any downstream re-OCR / dispute / clinician audit traces back to the exact bytes the patient handed over. This redline remains in force outside the platform-redaction path below.
+In every `cancer-buddy-organize` run, `raw/` is the vault of uploaded originals: it is **never deleted, overwritten, or pixel-redacted**. The originals stay byte-intact so any downstream re-OCR / dispute / clinician audit / frontend "view original" traces back to the exact bytes the patient handed over.
 
-### Platform-version controlled exemption (post-redaction original deletion)
+**Desensitization is text-only, at the sidecar layer.** Phase 1 masks PII in the `.md` sidecar body (`organizer-prompt-phase1-ocr.md §2.4`) and `pii_rescan.py` rescans it; the sidecar is the only downstream-read source, so every structured JSON and patient-facing answer built from it is de-identified. The **image-level redaction job (段B) is removed** — there is no redact-then-delete of originals, no `redaction_manifest`/`redaction_status`/`source_redaction_status`. The original in `raw/` keeps plaintext PII **by design** (the patient owns their own raw record); only the derived text artifacts are masked.
 
-The cancerdao-platform overseas-station pipeline runs an async LLM-region redaction job (段 B) that masks/replaces PII directly on persisted source copies before archive/persist. For that pipeline only, the "90_原始文件镜像 never deleted" redline is **relaxed under a coverage + LLM QA gate** — this is a controlled, platform-scoped exemption, not a general loosening:
+> This is a deliberate scope: full PII fidelity in the patient-held `raw/` vault, full de-identification in everything downstream. If a future cross-border/persist path needs redacted originals, that is a separate, explicitly-gated job — it is **not** in this pipeline.
 
-- **Delete pre-redaction originals only when** the file's entry in `redaction_status.json` has `coverage_passed: true`, `llm_qa_passed: true`, and `qa_passed: true`. The QA gate is mandatory and non-skippable, because deletion is irreversible.
-- On coverage + LLM QA pass: replace both the bucket-internal source copy and the `90_原始文件镜像/` mirror copy with the **redacted version**, then delete the pre-redaction originals by replacement. The mirror keeps the redacted version only — the audit chain itself is now de-identified, so it stays auditable without holding plaintext PII.
-- **QA fail → keep the original, do not delete, mark `status: failed`** in `redaction_status.json` (`original_deleted: false`) and leave it for human review. Never delete on a failed or absent QA result.
-- This exemption is scoped to the platform redaction path. In all other (non-platform) scenarios the default redline above still governs: `90_原始文件镜像/` is never deleted.
+### Controlled exemption — 段E non-medical file deletion (privacy floor)
 
-Mirror replacement still preserves the audit mirror's purpose (a clinician can trace from the de-identified mirror); it only removes plaintext PII, never clinical characters (redaction masks/replaces PII only — see "Never fabricate" / anti-anchoring rules).
-
-### Platform-version controlled exemption #2 — 段E non-medical file deletion (privacy floor)
-
-This is the **second** controlled, irreversible-deletion carve-out (after the 段B redact-then-delete exemption above), introduced for the same cancerdao-platform overseas-station pipeline. The 段A Phase 2 relevance gate (段E, `skills/cancer-buddy-organize/references/relevance-gate.md`) triages every uploaded file as **medical** (→ 11 buckets, governed by the 段B carve-out, not this one), **non-medical high-confidence**, or **borderline**. The privacy floor is: **we do not retain a patient's raw unrelated files.**
+This is the **only** controlled, irreversible-deletion carve-out in the pipeline (image-level 段B redaction has been removed). The 段A Phase 2 relevance gate (段E, `skills/cancer-buddy-organize/references/relevance-gate.md`) triages every uploaded file as **medical** (→ 14 clinical buckets + a verbatim copy in `raw/`), **non-medical high-confidence**, or **borderline**. The privacy floor is: **we do not retain a patient's raw unrelated files.**
 
 - **High-confidence non-medical → auto-delete on no-confirm.** A file the gate confidently judges non-medical (风景照 / 自拍 / 餐食 / 无关聊天截图 / 广告 / 纯生活收据 / 误拍…) is isolated to `99_无关文件/high_confidence/` (never into the 14 clinical buckets, never OCR'd to MD, never anchored). When the user confirms it's unrelated **OR does not respond / defers / 随便 / closes the chat**, that file is **deleted, and no original is retained**. Silence ⇒ delete is **by design** (privacy floor), not a bug. The user MUST be told *before* any deletion — via the mandatory disposition-notice sentence "我们不保存你的原始无关文件 —— 你不确认，我也会自动删除" — that silence means deletion. The `99_无关文件/` copy is the only copy (the file was never bucketed or mirrored), so nothing else is touched.
 - **Borderline (`relevance_uncertain`) → never auto-deleted, requires explicit confirmation.** A file the gate cannot confidently call medical-or-not is isolated to `99_无关文件/uncertain/` with a `relevance_uncertain` review_flag and is **held**. Silence does **NOT** delete a borderline file. It is deleted only when the user *explicitly* says 删/无关, and reclassified into the archive when the user says 留/这是病历. Deleting something that might be a real medical record is the worse error — so the borderline batch is the explicit exception to the silence-deletes rule.
-- **Difference from the 段B carve-out:** 段B deletes the *pre-redaction original of a medical image* after a QA gate; 段E deletes an *unrelated file that was never archived*. Both are irreversible and platform-scoped; neither loosens the default "90_原始文件镜像/ never deleted" red-line for medical originals in non-platform runs.
+- **Scope:** 段E deletes only an *unrelated file that was never archived* (its sole copy sat in `99_无关文件/`). It never touches a medical original — those are kept verbatim in `raw/` (see the redline above), never deleted.
 - Every relevance deletion / reclassify / hold is recorded in `update_log.json.relevance` (the `auto_deleted[]` array is the irreversible-action ledger).
 
 The "silence⇒delete (high-confidence) vs silence⇒hold (borderline)" asymmetry, and the broader "no companion writes a formal field or deletes a file without an explicit diff-card confirmation" floor, are the shared confirm-gate — [`confirm-gate.md`](confirm-gate.md). That gate is the protective mechanism by which a companion sub-skill never oversteps into silent writes/deletes on a patient's record; this carve-out is the red-line it cites for the irreversible-delete branch.

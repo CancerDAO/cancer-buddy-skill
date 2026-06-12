@@ -18,7 +18,7 @@ patients/<patient_code>/
 ├── 01_身份与基础信息/ 02_既往史与家族史/ 03_病程与叙事文书/ 04_诊断与分期/ 05_影像/
 ├── 06_分子与组学/ 07_检验/ 08_治疗/ 09_手术与操作/ 10_随访与监测/
 ├── 11_会诊与转诊/ 12_心理社会与支持/ 13_行政与财务/ 14_患者自管补充/
-├── 90_原始文件镜像/           # byte-level audit mirror (hidden, never anchored)
+├── raw/                      # verbatim vault of every uploaded original (hidden, never anchored, never pixel-redacted)
 ├── 99_无关文件/               # relevance quarantine (high_confidence/ uncertain/)
 ├── ocr/                      # OCR sidecars (per-file text extracts)
 └── reports/
@@ -119,7 +119,7 @@ Fields are left `null` when truly unknown — the organizer never fabricates.
       "field_path": "stage",
       "current_value": "rpT4aN2aM1 IV期",
       "issue": "AJCC 8th 标准前缀只有 c/p/yp/r/a, 'rp' 不在其中",
-      "source_evidence": ["90_原始文件镜像/出院诊断证明_2024-07-05.jpg"],
+      "source_evidence": ["04_诊断与分期/诊断证明/2024-07-05_出院诊断证明_unknown-org.md"],
       "suggested_value": "pT4aN2aM1 IV期",
       "suggested_action": "改写为 pT4aN2aM1; 在 data_sources 注明源文件统一写作 rpT4aN2aM1 (推断为医院习惯)",
       "user_confirmed": false,
@@ -145,8 +145,9 @@ Detection categories (organizer must check all five before returning):
 | `clinical_logic_anomaly` | Term used in semantically wrong context (adjuvant chemo + RECIST PR; "新辅助" in upfront-resection patient; ECOG 0 + KPS 50). |
 | `unverified_critical_field` | Field is critical for downstream (molecular driver / stage / line of therapy) but only sourced from progress narrative, no primary report. |
 | `value_trend_anomaly` | Lab/biomarker shows non-physiologic jump or unit-suspect change (TSH 6.49 → 0.80 in 8 weeks unexplained; CEA dropping 100× in one cycle). |
+| `filename_content_mismatch` | The canonical `doc_type` / bucket assigned to a file did not match its sidecar content on the second-check re-read (e.g. a file named `肿瘤标志物` whose content is a 生化 panel). `field_path` = the content unit's `file_id`. |
 
-Each entry MUST contain: `id` (`RF-NNN`), `severity` ∈ {red, yellow, green}, `category` (from table), `field_path` (dot path into profile.json), `current_value`, `issue` (≤80 chars Chinese summary), `source_evidence[]` (paths to OCR sidecars or 90_原始文件镜像 entries that support `current_value`), `suggested_action`, `user_confirmed: false` on first write.
+Each entry MUST contain: `id` (`RF-NNN`), `severity` ∈ {red, yellow, green}, `category` (from table), `field_path` (dot path into profile.json), `current_value`, `issue` (≤80 chars Chinese summary), `source_evidence[]` (bucket-relative paths to text-masked MD sidecars that support `current_value`), `suggested_action`, `user_confirmed: false` on first write.
 
 May contain: `suggested_value` (concrete proposal), `rationale_for_suggestion`.
 

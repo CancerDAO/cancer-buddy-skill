@@ -58,16 +58,17 @@ slug (see `i18n.md §6`). The `zh` slug is the on-disk folder name for `locale=z
 
 ### 1.2 Infrastructure buckets (hidden, never anchored)
 
-| NN_ | `zh` slug | `en` slug | visible? | anchored? | role |
+| key | `zh` slug | `en` slug | visible? | anchored? | role |
 |---|---|---|---|---|---|
-| `90_` | `90_原始文件镜像` | `90_original_mirror` | **no (HIDDEN)** | never | byte-level audit mirror of every upload; redaction job replaces images here. `<原始子目录>/` preserved. |
+| `raw/` | `raw` | `raw` | **no (HIDDEN)** | never | **un-redacted vault of every uploaded original**, one copy per upload, named `<source_id>__<original-basename>`. The frontend deep-links a sidecar back to its original here (see §4). `<原始子目录>/` structure preserved. **Never pixel-redacted** (image-level 段B redaction is removed — see §5). |
 | `99_` | `99_无关文件` | `99_unrelated` | **no (quarantine)** | never | `high_confidence/ uncertain/` relevance quarantine, outside the clinical scheme. |
 
-`90_` and `99_` are **never patient-visible** and **never anchor targets** (the redaction manifest
-excludes `90_`; downstream never reads `99_`). The mirror moved `10_→90_` to vacate the clinical
-`01…14` band for real domains and to signal "this is infrastructure, not a clinical domain". Because
-the mirror is never anchored, the renumber costs only prose edits — **no patient anchor migrates for
-the `90_` move itself** (only its hardcoded mentions in prompts/scripts change).
+`raw/` and `99_` are **never patient-visible scaffold** and **never anchor targets** (anchors point
+only at the bucket `.md` sidecars; downstream never reads `99_`). `raw/` is the single store of
+originals **as uploaded** — it replaces the former `90_原始文件镜像` byte mirror. Because the originals
+are no longer pixel-redacted, there is no separate "redacted vs mirror" copy: `raw/` holds the
+verbatim upload, and each clinical-domain `.md` sidecar links back to it via
+`source_inventory.json.raw_path` (+ `page_range` for a multi-document source).
 
 > Subdir rule: under any bucket the parent `NN_` prefix is stable; the localized slug is the
 > locale's rendering of the subdir's canonical meaning. `high_confidence` / `uncertain` /
@@ -117,7 +118,45 @@ longitudinal_observations[] := {
 This is the substrate for **单时间点 → 多时间点 → 纵向曲线 → 治疗反应轨迹**. `profile.json` keeps a
 `latest_status` snapshot AND points consumers at `longitudinal_observations.json` for the trajectory.
 
-## 4. Clean replacement — no backward compatibility
+## 4. Source ↔ sidecar mapping (frontend deep-link)
+
+Every uploaded original lives once under `raw/`, preserving its original sub-folder structure and
+basename (`raw/<original_subdir>/<original-name>`). Every clinical `.md` sidecar is one **content unit**
+(one document type extracted from a source). The 1:1 code is `file_id`; the link between a sidecar and
+its original is carried in `source_inventory.json` (one row per content unit) and surfaced in `INDEX.md`:
+
+```
+content unit := {
+  file_id:    "<stable id, 1:1 with this sidecar>",   # e.g. f001
+  source_id:  "<id of the upload it came from>",        # e.g. s001  (N content units may share one source_id)
+  md_path:    "04_诊断与分期/病理报告/2024-03-15_病理报告_中山六院.md",
+  raw_path:   "raw/2024-Q1/discharge_2024-03-15.pdf",   # the un-redacted original in raw/, original name kept
+  page_range: "3-5"                                      # which pages of a multi-document source; null if whole file
+}
+```
+
+- **One upload → many content units** (a PDF that is discharge summary + labs + pathology): one
+  `raw/` file, **multiple sidecars** each with its own `file_id`, all sharing `source_id`, each with a
+  distinct `page_range`. The frontend renders the `.md` and offers a "view original" button →
+  `raw_path` (deep-linked to `page_range` when present).
+- `file_id` is 1:1 with a sidecar; `source_id` is 1:1 with an upload. `_FILENAME_MAPPING.md` (under
+  `raw/`) is the human-readable reverse lookup; `source_inventory.json` is the machine-readable one.
+
+## 5. Redaction policy (image-level 段B removed)
+
+- **Originals in `raw/` are kept verbatim and are never pixel-redacted.** The image-level redaction job
+  (段B: `redaction_manifest`/`redaction_status`/`source_redaction_status` + `run_redaction_job.py` +
+  `redaction-job.md`) is **removed** — there is no redact-then-delete of originals.
+- **Sidecar text PII masking stays.** Phase 1 still masks PII in the `.md` sidecar body
+  (`phase1-ocr.md §2.4`) and `pii_rescan.py` still rescans the text — the sidecar remains the
+  downstream-only read source with no plaintext PII, so structured JSONs and patient-facing answers
+  stay de-identified.
+- **段E (unrelated-file deletion) is unchanged** — high-confidence non-medical files are still
+  auto-deleted on no-confirm; that privacy floor is independent of 段B.
+- Net: the patient keeps every original as uploaded (frontend can show it), while downstream artifacts
+  built from the text sidecars remain desensitized.
+
+## 6. Clean replacement — no backward compatibility
 
 v3 **fully replaces** the prior scheme. There is **no migration of existing patient directories** and
 **no compatibility layer**: old `NN_` prefixes are not aliased, old anchors are not rewritten in

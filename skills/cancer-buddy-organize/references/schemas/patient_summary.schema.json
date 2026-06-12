@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://cancerdao.org/schemas/cancer-buddy/patient_summary.schema.json",
   "title": "PatientSummary",
-  "description": "Patient-level rollup. One per patient. Consumed by vMTB and MTB-lite as the primary input. Every factual field carries source_refs that point into the bucket-co-located redacted MD sidecar set.",
+  "description": "Patient-level rollup. One per patient. Consumed by vMTB and MTB-lite as the primary input. Every factual field carries source_refs that point into the bucket-co-located text-masked MD sidecar set.",
   "type": "object",
   "required": ["patient_code", "schema_version", "generated_at"],
   "additionalProperties": false,
@@ -94,7 +94,7 @@
       "items": {
         "type": "string",
         "pattern": "^(([0-9]{2}_[^\\s/]+(/[^\\s/]+)*\\.md(#L\\d+(-L\\d+)?|#[A-Za-z0-9_-]+)?)|(conversation:\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})?))$",
-        "description": "Anchor token normalized to the path-only string. File anchors begin with an NN_ clinical-domain bucket prefix (01_…14_) and point to a redacted MD sidecar inside its bucket; conversation anchors are the literal 'conversation:<ISO8601>'. The infrastructure mirror 90_原始文件镜像/ and quarantine 99_无关文件/ are never anchor targets, and the retired ocr/ / 02_脱敏病历/ prefixes are rejected. Optional fragment is #L<start>-L<end> or #section-anchor."
+        "description": "Anchor token normalized to the path-only string. File anchors begin with an NN_ clinical-domain bucket prefix (01_…14_) and point to a text-masked MD sidecar inside its bucket; conversation anchors are the literal 'conversation:<ISO8601>'. The infrastructure vault raw/ and quarantine 99_无关文件/ are never anchor targets, and the retired ocr/ / 02_脱敏病历/ prefixes are rejected. Optional fragment is #L<start>-L<end> or #section-anchor."
       }
     }
   }

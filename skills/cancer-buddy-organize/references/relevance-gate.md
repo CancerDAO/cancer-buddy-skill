@@ -10,7 +10,7 @@ This silence⇒delete (high-confidence) vs silence⇒hold (borderline) asymmetry
 
 Real upload folders are messy: a phone camera roll mixed in, a WeChat screenshot of a doctor's message (which *is* clinically useful), a photo of a pill bottle (useful), a selfie taken in a hospital ward (not useful), a meal photo (not useful), a receipt for a CT scan (administrative, borderline). No keyword list survives contact with this — "医院" appears in both a discharge summary and a parking receipt; a screenshot can be either a lab result or a chat about dinner.
 
-So relevance is decided by **reading the LLM-generated redacted sidecar content + looking at the image/file when ambiguous**, the same way a person triaging the folder would. Do NOT pattern-match filenames or run a hardcoded keyword classifier. Judge the file.
+So relevance is decided by **reading the LLM-generated text-masked sidecar content + looking at the image/file when ambiguous**, the same way a person triaging the folder would. Do NOT pattern-match filenames or run a hardcoded keyword classifier. Judge the file.
 
 ## Three classes
 
@@ -119,7 +119,7 @@ Applies when the user says a specific isolated file actually matters.
 
 → **Reclassify**: move the file out of `99_无关文件/` into its correct typed bucket, then run the *normal* path it should have had — OCR → 脱敏 MD → canonical rename → co-locate MD → add to INDEX/timeline/case_text/structured JSONs as a late-arriving medical record. This is the error-correction path: a file the gate wrongly judged non-medical is recovered into the formal archive. After reclassify it is a normal clinical record with full anchors; it is no longer in `99_无关文件/`.
 
-A reclassified file follows the same Step 1 classify+rename+MD-colocate mechanics as any medical file (it just enters late). If it's a raster image it also gets appended to `redaction_manifest.json` so 段B redacts its PII pixels.
+A reclassified file follows the same Step 1 classify+rename+MD-colocate mechanics as any medical file (it just enters late); its verbatim original is kept in `raw/`.
 
 ### 3. Hold (borderline default — the one exception)
 
@@ -138,7 +138,7 @@ These are the load-bearing rules; the rest of the doc explains them. They are th
 
 1. **High-confidence non-medical, no confirmation ⇒ delete.** Silence/deferral counts as no-confirm and the file is deleted. This is by design (we do not retain raw unrelated files), not a bug.
 2. **Borderline (`relevance_uncertain`) ⇒ never auto-deleted.** It is held in `99_无关文件/uncertain/` until the user *explicitly* chooses 删/留. Silence does NOT delete a borderline file.
-3. **medical files are never touched by this gate's deletion** — they're in the 14 clinical domains with the normal "redact-then-delete" carve-out (段B), not the relevance carve-out.
+3. **medical files are never touched by this gate's deletion** — they're kept in the 14 clinical domains, and their verbatim originals are kept in `raw/` (never pixel-redacted). The only desensitization applied to a medical file is the sidecar text masking; medical originals are never pixel-redacted and never deleted after redaction.
 4. The user must be told, before any deletion, that we don't keep raw unrelated files and that silence ⇒ delete (mandatory disposition-notice sentence above).
 
 ## update_log.json — record every relevance action
@@ -167,4 +167,4 @@ Each organize run that touched the gate appends relevance actions to `update_log
 
 - Runs **inside Phase 2 Step 1, before** classify+rename — see `organizer-prompt-phase2-synthesis.md` Step 1 (triage step). A file judged non-medical never reaches the bucket scheme.
 - The deletion carve-out it relies on is the 段E entry in `../../references/safety-guardrails.md` (high-confidence auto-delete on no-confirm; borderline never auto-deleted). That guardrail is the authoritative red-line; this doc is the operational logic.
-- It does NOT touch the 段B redaction carve-out (different deletion: 段B deletes the *pre-redaction* original of a *medical* image after QA; 段E deletes an *unrelated* file we never archived).
+- 段E deletion (auto-delete of high-confidence *unrelated* files on no-confirm) is the **only** deletion this gate performs. Medical files and their `raw/` verbatim originals are never deleted by any redaction step — the originals are kept as uploaded, and the only desensitization is the sidecar text masking.

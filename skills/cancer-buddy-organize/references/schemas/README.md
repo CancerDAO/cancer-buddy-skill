@@ -11,13 +11,12 @@ These JSON Schemas define the structured outputs `cancer-buddy-organize` produce
 | `labs.json` | [labs.schema.json](labs.schema.json) | Lab panels with serial values |
 | `comorbidities.json` | [comorbidities.schema.json](comorbidities.schema.json) | Conditions + long-term meds + allergies |
 | `missing_items.json` | [missing_items.schema.json](missing_items.schema.json) | Cancer-checklist diff |
-| `source_inventory.json` | [source_inventory.schema.json](source_inventory.schema.json) | Per-source LLM ingestion provenance, sidecar path, and persist/redaction intent |
-| `source_redaction_status.json` | [source_redaction_status.schema.json](source_redaction_status.schema.json) | Pre-persist source-file redaction gate for images/PDF/DOCX/other source files |
+| `source_inventory.json` | [source_inventory.schema.json](source_inventory.schema.json) | Per-content-unit LLM ingestion provenance, sidecar path, and the `raw_path` deep-link back to the verbatim original in `raw/` |
 | `longitudinal_observations.json` | [longitudinal_observations.schema.json](longitudinal_observations.schema.json) | Longitudinal stream store (vital/lab/symptom/pro/adherence/activity) beside profile.json — the 单时间点→纵向曲线 trajectory; see bucket-taxonomy.md §3 |
 
 ## Anchor token contract
 
-Every factual field that originates from a redacted MD sidecar MUST carry a `source_refs[]` array. Each entry is either a bucket-relative path (file anchor) or a `conversation:<ISO8601>` reference (段C conversation anchor), with an optional fragment:
+Every factual field that originates from a text-masked MD sidecar MUST carry a `source_refs[]` array. Each entry is either a bucket-relative path (file anchor) or a `conversation:<ISO8601>` reference (段C conversation anchor), with an optional fragment:
 
 ```
 <NN_bucket>/<…>/<file>.md[#L<start>-L<end>]
@@ -25,7 +24,7 @@ Every factual field that originates from a redacted MD sidecar MUST carry a `sou
 conversation:<ISO8601>
 ```
 
-File-anchor paths MUST begin with an `NN_` clinical-domain bucket prefix (`01_…` … `14_`, scheme_version 3) — the infrastructure mirror `90_原始文件镜像/` and quarantine `99_无关文件/` are never anchor targets, and the central `ocr/` directory plus the legacy `02_脱敏病历/` prefix are **retired and rejected**. Sidecars now live next to their image inside the clinical-domain bucket subdirectory. The full contract (regex included) is in [anchor-contract.md](anchor-contract.md).
+File-anchor paths MUST begin with an `NN_` clinical-domain bucket prefix (`01_…` … `14_`, scheme_version 3) — the infrastructure vault `raw/` and quarantine `99_无关文件/` are never anchor targets, and the central `ocr/` directory plus the legacy `02_脱敏病历/` prefix are **retired and rejected**. Sidecars now live next to their image inside the clinical-domain bucket subdirectory. The full contract (regex included) is in [anchor-contract.md](anchor-contract.md).
 
 In narrative artifacts (`case_text.md`, the human-readable patient summary), the same anchors appear in `[[src:...]]` syntax — see [anchor-contract.md](anchor-contract.md).
 
@@ -36,9 +35,7 @@ The synthesis worker validates each JSON it writes against its schema before sav
 A minimal validator is shipped in `scripts/validate_structured_outputs.py` (consumes `jsonschema>=4.18`).
 
 The validator is also the archive hard gate. A final archive must include
-`source_inventory.json`, every inventory item must point to a redacted MD sidecar,
-and every source file selected for persist must have a matching
-`source_redaction_status.json` entry with `status="done"`,
-`qa_passed=true`, and `original_deleted=true`. PDF/DOCX or other source files
-without a reliable body redactor must be marked `blocked`; blocked files cannot be
-persisted as plaintext.
+`source_inventory.json`; every content unit must point to a text-masked MD sidecar
+and carry a `raw_path` back to its verbatim original in `raw/`. Originals in `raw/`
+are kept verbatim and are never pixel-redacted — the only desensitization is the
+sidecar text masking (re-scanned by `pii_rescan.py`).

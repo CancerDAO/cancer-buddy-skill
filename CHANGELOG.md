@@ -6,6 +6,38 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Changed — `feat/generalized-data-taxonomy` (organize iteration: raw vault, citations, classification correctness)
+
+A 7-item iteration on top of the v3 taxonomy. Originals are now kept verbatim, the patient-facing Q&A
+cites its sources, and classification is double-checked.
+
+- **Image-level redaction (段B) removed; `raw/` vault added.** The pixel-redaction subsystem is gone
+  (`redaction-job.md`, `run_redaction_job.py`, and the `redaction_manifest`/`redaction_status`/
+  `source_redaction_status` schemas + their unit tests were deleted). Uploaded originals are now kept
+  **verbatim** in `raw/` (renamed from `90_原始文件镜像`), never pixel-redacted, never deleted.
+  **Sidecar text PII masking stays** (`phase1-ocr.md §2.4` + `pii_rescan.py`) — desensitization is
+  text-only, so every downstream JSON / patient answer remains de-identified while the patient keeps
+  their raw record. `safety-guardrails.md` rewritten accordingly; 段E unrelated-file deletion unchanged.
+- **Source ↔ sidecar deep-link mapping.** `source_inventory.json` now carries `file_id` (1:1 with a
+  sidecar), `raw_path` (→ the verbatim original in `raw/`), and `page_range`; `INDEX.md` gains
+  `file_id` / `Raw Original` / `Pages` columns. A multi-document upload (one PDF = discharge + labs +
+  pathology) becomes several sidecars sharing one `raw_path` with distinct `file_id` + `page_range`,
+  so a frontend can render a `.md` and deep-link "view original" to the right pages.
+- **Patient supplements route to the real domain.** Conversation-incremental notes now file into the
+  corresponding clinical domain's `conversation_notes/` (e.g. a lab value → `07_检验/`), not always
+  `14_患者自管补充/` (now the no-domain fallback).
+- **filename↔content second-check (9th review_flag).** New mandatory Phase-2 Step 1b·5 re-reads each
+  `.rename_plan.json` entry against its sidecar content and corrects/ flags a wrong `doc_type`/bucket
+  (the "肿瘤标志物 file that isn't tumor-marker content" bug) → `filename_content_mismatch`.
+- **Patient-facing source citations.** `cancer-buddy` answers that draw on the archive now append
+  `<sup>[n]</sup>` markers + a footnote list (date · doc_type · hospital — bucket-relative path) reusing
+  each fact's `source_refs[]`. A documented **Archive Read Protocol** (profile → readiness → INDEX →
+  targeted JSON → anchored md; selective, never whole-folder, never `raw/`).
+- **Case-summary freshness gate.** Incremental / upload / conversation runs that change a summary-source
+  field now detect staleness and **prompt** the user to regenerate `病情简要总结.html` (rendered per
+  `profile.json.locale` — the summary template is already fully localized), instead of silently
+  re-rendering or going stale.
+
 ### Changed — `feat/generalized-data-taxonomy` (bucket taxonomy v3: longitudinal multi-modal data layer)
 
 Generalizes the organize bucket scheme from a tumor-document-centric layout into a longitudinal,

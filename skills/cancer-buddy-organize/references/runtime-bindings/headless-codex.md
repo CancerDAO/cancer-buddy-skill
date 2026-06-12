@@ -1,6 +1,6 @@
 # Runtime Binding — headless codex
 
-> `cancer-buddy-organize` 在 headless Codex 单进程/平台 worker 上的绑定。目标是让平台用 Codex 驱动同一份 runtime-neutral 契约:LLM-first redacted MD ingestion, Phase2 synthesis, 段D HTML, then pre-persist source-file redaction hard gate.
+> `cancer-buddy-organize` 在 headless Codex 单进程/平台 worker 上的绑定。目标是让平台用 Codex 驱动同一份 runtime-neutral 契约:LLM-first text-masked MD ingestion, Phase2 synthesis, 段D HTML;原始件逐字保存进 `raw/` vault。
 
 ## 0. 绑定总览
 
@@ -10,7 +10,7 @@
 | LLM 输入源 | sidecar 正文和 PII locator 由 LLM 输出;纯 OCR/parser 非正文或 PII 判断来源 | `codex exec -i <raster>` 视觉或 Codex file-context/payload prompt |
 | 格式适配 | 只把源文件变成 LLM-readable input | `heif-convert`/ImageMagick/pdftoppm/document payload builder |
 | 确认门 | 未确认不写正式字段/不可逆删除 | confirm-as-product JSON + 平台 UI + 第二轮回灌 |
-| 存储+本体脱敏 | canonical 输出集;persist 前源文件本体脱敏通过 | 沙箱内生成 patient_dir;source redaction 完成后仅 persist 脱敏文件/MD/JSON/HTML |
+| 存储 | canonical 输出集 | 沙箱内生成 patient_dir;原始件逐字保存进 `raw/` vault |
 
 ## 1. 编排
 
@@ -19,11 +19,10 @@
 ```text
 for src in source_inventory:
   source_id = stable_id(src)
-  mirror original into patient_dir/90_原始文件镜像/
+  copy original verbatim into patient_dir/raw/
   adapter_input = adapt_for_llm(src)
-  sidecar, pii_regions = codex_llm_ingest(source_id, adapter_input)
-  write patient_dir/ocr/<source_id>.md
-  write patient_dir/ocr/<source_id>.pii_regions.json
+  sidecar = codex_llm_ingest(source_id, adapter_input)
+  write patient_dir/ocr/<source_id>.md            # text-masked MD sidecar (only desensitization)
 run single Phase2 synthesis over all sidecars
 ```
 
@@ -31,16 +30,16 @@ Codex `-i` 喂的是匿名图像字节时,平台必须维护 `source_id ↔ 原�
 
 ## 2. LLM 输入源
 
-- 图片/扫描件: `codex exec -i <adapted-raster>` 让 Codex 视觉直接读,输出 redacted MD。
-- PDF/DOCX/spreadsheet/text:平台可构造 LLM-readable file context 或 payload,再让 Codex 输出 redacted MD 和 PII locator metadata。
+- 图片/扫描件: `codex exec -i <adapted-raster>` 让 Codex 视觉直接读,输出文本脱敏 MD。
+- PDF/DOCX/spreadsheet/text:平台可构造 LLM-readable file context 或 payload,再让 Codex 输出文本脱敏 MD 和 PII locator metadata。
 - 纯 OCR/parser 字符流不能直接写 sidecar 临床正文,也不能替代 Codex 做 PII locator 判断。它们只允许做 adapter 或机械文件处理。
-- sidecar header 必须含 `READ_MODE`, `ADAPTER`, `ADAPTER_PROVENANCE`, `ORIGINAL`。`ORIGINAL` 指向原始 staging mirror,不是临时 adapter 文件。
+- sidecar header 必须含 `READ_MODE`, `ADAPTER`, `ADAPTER_PROVENANCE`, `ORIGINAL`。`ORIGINAL`/`raw_path` 指向 `raw/` 下的逐字原件,不是临时 adapter 文件。
 
 ## 3. 格式适配
 
 - HEIC/HEIF: `heif-convert` 或 ImageMagick 转临时 JPG/PNG 给 Codex 视觉。
 - Scanned PDF: `pdftoppm`/ImageMagick 渲染页给 Codex 视觉。
-- Born-digital PDF/DOCX/spreadsheet/text:可展开成 LLM-readable payload。payload 只是输入适配,不是 sidecar 正文来源。
+- Born-digital PDF/DOCX/spreadsheet/text:可展开成 LLM-readable payload。payload 只是输入适配,不是 sidecar 正文来源。原件仍逐字保存进 `raw/`。
 - Archive:平台解包后递归创建 source entries。
 - 不支持/损坏:Codex 生成 stub sidecar + `[INGESTION_BLOCKED]`;不得跳过。
 
@@ -54,30 +53,25 @@ headless 没有 inline 往返,所以确认门产物化:
 
 未确认不写正式字段。高置信非医疗 no-confirm 可删除; borderline no-confirm 保留。
 
-## 5. 存储+本体脱敏
+## 5. 存储
 
 Phase2 产:
 
-- 14 clinical domains + co-located redacted MD
-- `source_inventory.json`
+- 14 clinical domains + co-located text-masked MD
+- `source_inventory.json`(每条 content unit 带 `raw_path` deep-link + `file_id` + `page_range`,无 redaction 字段)
 - structured JSON / timeline / case_text / readiness / review outputs
-- full-format `redaction_manifest.json` for every persisted redaction-required source
-- `source_redaction_status.json` skeleton
-- `病情简要总结.html` from redacted JSON/MD
+- `病情简要总结.html` from text-masked JSON/MD
 
-Persist model:
+Storage model:
 
-- `病情简要总结.html` may be generated before source-file redaction finishes because it reads only redacted MD/JSON.
-- A headless run may stop at text/HTML artifacts only, but then it must report `archive_persist_ready:false`; it must not call the full archive/persist validator OK or tell the user "整理完成" as a final archive.
-- Any source sidecar cited by `timeline.md`, `case_text.md`, review outputs, or structured JSON `source_refs[]` is a formal medical source and must stay `persist:true`. `persist:false` is reserved for isolated unrelated/non-persisted files and must not be used to skip source redaction.
-- Platform MUST NOT persist source files until `source_redaction_status.json` says every persisted source has `status=done`, `coverage_passed=true`, `llm_qa_passed=true`, `qa_passed=true`, `original_deleted=true`.
-- Images use `run_redaction_job.py` from `redaction_manifest.json`, then sync image rows into `source_redaction_status.json`.
-- PDF/DOCX/spreadsheet/text require reliable source-file redactors. If missing, write `blocked` with reason and do not persist the source file.
-- Persist only: redacted bucket files, co-located redacted MD, JSON/HTML/logs/status. Plaintext originals never leave the sandbox/local workspace.
+- `raw/` 是每个上传原件的逐字 vault,按上传原样保存,永不像素脱敏、永不删除。每条 content unit 通过 `source_inventory.json.raw_path` deep-link 回到 `raw/`(多文档源带 `page_range`)。
+- `病情简要总结.html` 从文本脱敏 JSON/MD 生成。
+- 文本脱敏发生在 sidecar 正文(`pii_rescan.py` 重扫),sidecar 因此是下游唯一读取源、无明文 PII。
+- Persist:text-masked bucket files、co-located text-masked MD、`raw/` 逐字原件、JSON/HTML/logs。
 
 ## 6. 段D HTML
 
-Codex reads only redacted JSON/MD and produces `case_summary_data.json` + narrative. Host runs:
+Codex reads only text-masked JSON/MD and produces `case_summary_data.json` + narrative. Host runs:
 
 ```bash
 python3 skills/cancer-buddy-organize/scripts/render_html_template.py \
@@ -94,8 +88,6 @@ Codex never hand-writes HTML.
 
 ## 7. 验收
 
-- `validate_structured_outputs.py <patient_dir>` passes only when structured JSON/anchors/PII rescan/redaction manifest/source inventory/source redaction status/HTML shape pass.
-- If `validate_structured_outputs.py` fails because a formally cited source is `persist:false`, fix the inventory/status to `persist:true` + `pending`/`blocked`; do not hide cited sources from the redaction gate.
-- `source_redaction_status.blocked` is a valid intermediate state but not archive-ready.
-- `source_inventory.json` must cover every input source.
+- `validate_structured_outputs.py <patient_dir>` passes only when structured JSON/anchors + PII rescan of text sidecars + source_inventory (every content unit has `raw_path` + text-masked sidecar) + HTML shape pass. 它不再检查任何 source/image redaction 状态。
+- `source_inventory.json` must cover every input source, and every content unit must carry a `raw_path` deep-link into `raw/` plus a text-masked sidecar.
 - Local OCR is never a sidecar text-source option in this binding.

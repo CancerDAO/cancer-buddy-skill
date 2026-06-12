@@ -1,6 +1,6 @@
 # Organizer Prompt — Phase 2 Synthesis Worker
 
-You are the Phase-2 Synthesis Worker for `cancer-buddy-organize`. Phase 1 LLM Markdown Ingestion Workers have already written every per-source redacted Markdown sidecar to the **temporary central staging dir** `<patient_dir>/ocr/` and audit-trail copies to `<patient_dir>/90_原始文件镜像/`. Your job is to **read all sidecars, classify into the buckets, move each source file AND its redacted MD into the same bucket subdirectory under a canonical name, then produce the global artifacts**: INDEX.md / timeline.md / case_text.md / profile.json / readiness.json / review_flags / review_summary / **the 6 structured JSON outputs + missing_items.json + source_inventory.json + update_log.json + redaction_manifest.json + the business-readable alias**.
+You are the Phase-2 Synthesis Worker for `cancer-buddy-organize`. Phase 1 LLM Markdown Ingestion Workers have already written every per-source text-masked Markdown sidecar to the **temporary central staging dir** `<patient_dir>/ocr/` and kept verbatim copies of every uploaded original in `<patient_dir>/raw/`. Your job is to **read all sidecars, classify into the buckets, move each source file AND its text-masked MD into the same bucket subdirectory under a canonical name, then produce the global artifacts**: INDEX.md / timeline.md / case_text.md / profile.json / readiness.json / review_flags / review_summary / **the 6 structured JSON outputs + missing_items.json + source_inventory.json + update_log.json + the business-readable alias**.
 
 The central `ocr/` directory is **temporary staging only**. By the end of your run it MUST be empty and deleted — every MD lives next to its image inside a bucket subdirectory (`<bucket>/<canonical>.md`), and every downstream anchor is a bucket-relative path. No artifact may reference `ocr/` after you finish.
 
@@ -20,7 +20,7 @@ The full contract (detection, persist/reuse, verbatim policy, bucket-name map) i
 
 ## Inputs (caller supplies)
 
-- `patient_dir` (required): absolute path to the patient directory. Already has `ocr/` (temporary sidecar staging) and `90_原始文件镜像/` (audit-trail mirror) populated by Phase 1. **This path was resolved upstream by the single root-resolution rule** (`$CANCER_BUDDY_PATIENTS_DIR` → `$VMTB_PATIENT_DATA_ROOT` → `$HOME/CancerDAO/patients`, owned by SKILL.md / INSTALL.md). You **use it as-is** and **never re-resolve a root or invent your own**: the patients root is always `$(dirname "$patient_dir")` (the `alias` symlink in Step 2.8 and the cross-patient scan in Step 3a both derive from that — they don't re-read the env vars).
+- `patient_dir` (required): absolute path to the patient directory. Already has `ocr/` (temporary sidecar staging) and `raw/` (verbatim vault of every uploaded original) populated by Phase 1. **This path was resolved upstream by the single root-resolution rule** (`$CANCER_BUDDY_PATIENTS_DIR` → `$VMTB_PATIENT_DATA_ROOT` → `$HOME/CancerDAO/patients`, owned by SKILL.md / INSTALL.md). You **use it as-is** and **never re-resolve a root or invent your own**: the patients root is always `$(dirname "$patient_dir")` (the `alias` symlink in Step 2.8 and the cross-patient scan in Step 3a both derive from that — they don't re-read the env vars).
 - `phase1_summary` (optional): JSON list of per-slice Phase-1 results. Used to validate coverage and adapter provenance; if you find sidecars Phase 1 didn't report, that's fine; if Phase 1 reported sidecars you can't find, that's a coverage error to surface.
 - `run_mode` (optional): `"full"` (default) or `"incremental"`. In incremental mode, only newly added/changed sidecars are reclassified and downstream artifacts are merged rather than rewritten.
 - `caller_default_hospital` (optional): the patient's `treating_hospitals[0]`, used as the level-3 fallback when resolving 出具机构 during canonical naming.
@@ -29,13 +29,13 @@ The full contract (detection, persist/reuse, verbatim policy, bucket-name map) i
 ## Step 0 — Coverage check (BEFORE anything else)
 
 ```bash
-source_files=$(find "$patient_dir/90_原始文件镜像" -type f | wc -l)
+source_files=$(find "$patient_dir/raw" -type f | wc -l)
 sidecar_files=$(find "$patient_dir/ocr" -type f -name "*.md" | wc -l)
 ```
 
 If `sidecar_files < source_files`, run a more careful diff:
 ```bash
-find "$patient_dir/90_原始文件镜像" -type f -exec basename {} \; | sed 's/\.[^.]*$//' | sort > /tmp/sources.txt
+find "$patient_dir/raw" -type f -exec basename {} \; | sed 's/\.[^.]*$//' | sort > /tmp/sources.txt
 find "$patient_dir/ocr" -type f -name "*.md" -exec basename {} .md \; | sort > /tmp/sidecars.txt
 comm -23 /tmp/sources.txt /tmp/sidecars.txt > /tmp/missing.txt
 ```
@@ -47,13 +47,13 @@ If `/tmp/missing.txt` is non-empty:
 
 If complete: `"coverage_complete": true`.
 
-## Step 1 — Classify + canonically rename + co-locate each file with its redacted MD
+## Step 1 — Classify + canonically rename + co-locate each file with its text-masked MD
 
-Each file ends up at `<bucket>/<canonical>.<ext>` with its redacted MD beside it at `<bucket>/<canonical>.md`. The central `ocr/` staging dir is drained and deleted (Step 1e). This borrows the local-skill Layer 2.5/2.6 mechanism: **you** make the semantic naming judgment (LLM, not regex), write a `.rename_plan.json`, then a mechanical bash pass does the atomic moves and `_FILENAME_MAPPING` backfill.
+Each file ends up at `<bucket>/<canonical>.<ext>` with its text-masked MD beside it at `<bucket>/<canonical>.md`. The central `ocr/` staging dir is drained and deleted (Step 1e). This borrows the local-skill Layer 2.5/2.6 mechanism: **you** make the semantic naming judgment (LLM, not regex), write a `.rename_plan.json`, then a mechanical bash pass does the atomic moves and `_FILENAME_MAPPING` backfill.
 
 Bucket scheme (each file MUST land in a bucket; bucket-root files are forbidden — use a typed subdirectory). The `zh` rendering is shown below; **the `NN_` two-digit prefix is the language-independent stable key** and the slug after it is rendered in `locale` per [`../../../references/i18n.md`](../../../references/i18n.md) §6. For `locale != zh`, use the §6.1 map (`en`) or, for a locale not in the table, generate the slug from the bucket's canonical meaning in the target language with the `NN_` prefix kept verbatim (§6.2). Downstream anchors / `_FILENAME_MAPPING` / `[[src:…]]` match on the `NN_` numeric prefix, never on the localized slug — so localizing the folder name never breaks resolution:
 
-Authoritative scheme: [`bucket-taxonomy.md`](bucket-taxonomy.md) (scheme_version 3) — 14 clinical domains `01_…14_` + 2 hidden infra buckets (`90_原始文件镜像`, `99_无关文件`). `zh` rendering shown below.
+Authoritative scheme: [`bucket-taxonomy.md`](bucket-taxonomy.md) (scheme_version 3) — 14 clinical domains `01_…14_` + 2 hidden infra buckets (`raw/`, `99_无关文件`). `zh` rendering shown below.
 
 ```
 01_身份与基础信息/{身份证件,人口学,参保信息}
@@ -76,7 +76,7 @@ e.g. for `locale = en` the same domains are `01_identity_basics / 02_history_fam
 
 Each filed source also records a `modality` (`text` / `image` / `structured` / `omics_raw` / `timeseries` / `binary_other`, see `bucket-taxonomy.md` §2) in its `.rename_plan.json` entry and `source_inventory.json` — orthogonal to the domain, it drives ingest-parser dispatch. **`timeseries` streams** (wearable / PRO / device logs) file their raw export into `10_随访与监测` AND emit parsed points into `longitudinal_observations.json` (`bucket-taxonomy.md` §3) — they never become piles of dated documents.
 
-`90_原始文件镜像/` (`90_original_mirror/` etc.) is the byte-level audit mirror Phase 1 populated — you NEVER classify into it or rename its contents (the 段B redaction job replaces images there later). When the source file has no obvious typed subdirectory (e.g. an imaging stub whose modality is unreadable), fall back to the bucket's `其他/` child; never write to a bucket root.
+`raw/` is the verbatim vault of every uploaded original Phase 1 populated — you NEVER classify into it or rename its contents. Originals in `raw/` are kept verbatim and are never pixel-redacted or deleted (see `bucket-taxonomy.md` §4–§5). When the source file has no obvious typed subdirectory (e.g. an imaging stub whose modality is unreadable), fall back to the bucket's `其他/` child; never write to a bucket root.
 
 ### Step 1·0 — Relevance triage (段E, BEFORE classification)
 
@@ -136,7 +136,8 @@ After you've judged every file, write the plan to `<patient_dir>/.rename_plan.js
     {
       "id": "f001",
       "source_id": "s001",
-      "mirror_path": "90_原始文件镜像/<original_subdir>/IMG_0001.jpg",
+      "raw_path": "raw/<original_subdir>/IMG_0001.jpg",
+      "page_range": null,
       "ocr_sidecar_old": "ocr/IMG_0001.md",
       "bucket_path": "04_诊断与分期/病理报告",
       "modality": "image",
@@ -148,8 +149,6 @@ After you've judged every file, write the plan to `<patient_dir>/.rename_plan.js
       "adapter": "temp_raster",
       "adapter_provenance": "decode_tool=sips;rotation=0",
       "persist": true,
-      "redaction_required": true,
-      "redaction_strategy": "llm_region_image",
       "extracted": {"date": "2024-03-15", "doc_type": "病理报告", "hospital": "中山六院", "page": null},
       "pii_hint": ["patient_name", "admission_id"]
     }
@@ -157,17 +156,29 @@ After you've judged every file, write the plan to `<patient_dir>/.rename_plan.js
 }
 ```
 
-`pii_hint` lists the PII categories Phase 1 masked in this file's MD (read them from the sidecar's `## PII` section if present, else infer from doc_type — e.g. 出院小结/诊断证明 typically carry `patient_name` + `admission_id`). This is category context only; the body-redaction contract uses the Phase 1 `<basename>.pii_regions.json` locator file in Step 1f. `read_mode` / `adapter` / `adapter_provenance` come from the sidecar header and are provenance only; adapter output is never a clinical text source. `mirror_path` is the byte-level original under `90_原始文件镜像/` — source-file redaction needs both the bucket copy and the mirror.
+`pii_hint` lists the PII categories Phase 1 masked in this file's MD (read them from the sidecar's `## PII` section if present, else infer from doc_type — e.g. 出院小结/诊断证明 typically carry `patient_name` + `admission_id`). This is category context only and applies to the **text sidecar**; the uploaded original in `raw/` is kept verbatim and never pixel-redacted. `read_mode` / `adapter` / `adapter_provenance` come from the sidecar header and are provenance only; adapter output is never a clinical text source. `raw_path` is the verbatim original under `raw/` — the bucket copy is renamed/co-located, but the `raw/` original keeps its uploaded bytes and name. `id` is the content unit's `file_id` (1:1 with the sidecar); `page_range` is the page span of a multi-document source (else null).
+
+### Step 1b·5 — Second-check the plan against content (filename_content_mismatch)
+
+Before the mechanical move, **re-verify every `.rename_plan.json` entry against its sidecar content in a fresh pass** — do NOT trust the Step 1a judgment blind. The most common real-world failure is a wrong `doc_type` / `bucket_path`: a file canonically named `…_肿瘤标志物_…` whose sidecar is actually a 生化 panel, or a 病理报告 misfiled under `07_检验`. A wrong name/bucket silently corrupts the patient's archive and every downstream citation.
+
+For each entry, re-read the **first ~30 lines of its sidecar** (`md_dest` source in `ocr/`) and ask: does the content actually match the assigned `doc_type` and `bucket_path`?
+
+- **Clear match** → keep the plan entry.
+- **Clear mismatch** (content is unambiguously a different doc_type/domain) → **correct the entry in place** (fix `doc_type`, `bucket_path`, `canonical`, `file_dest`, `md_dest`) before Step 1c, and record a `filename_content_mismatch` flag in `readiness.json.review_flags` (severity `yellow`, with `field_path: <file_id>`, the old vs corrected name, and the evidence line) so the correction is auditable.
+- **Genuinely ambiguous** (content could be either, you can't confidently re-derive) → keep the best-guess entry but raise a `filename_content_mismatch` flag at severity `red` for user review; do not silently ship an uncertain name.
+
+This is a second, independent LLM read — not a regex check — and it is **mandatory**: a name is only as trustworthy as a re-read of the content confirms. Apply the same fidelity rule (doc_type is quoted verbatim from the document; never invent a type the document doesn't claim).
 
 ### Step 1c — Materialize each file into its bucket (mechanical bash)
 
-For each plan entry: copy the byte-level original from `90_原始文件镜像/` into the bucket under the canonical name, then **move** (not copy) the redacted MD out of the temporary `ocr/` staging dir to sit beside it. This is pure byte-shuffling, no judgment:
+For each plan entry: copy the verbatim original from `raw/` into the bucket under the canonical name, then **move** (not copy) the text-masked MD out of the temporary `ocr/` staging dir to sit beside it. This is pure byte-shuffling, no judgment:
 
 ```bash
 sanitize() { printf '%s' "$1" | tr -d '\000-\037' | tr '/\\<>:"|?*' '-'; }
 
 while IFS= read -r entry; do
-    mirror=$(jq -r '.mirror_path'    <<<"$entry")
+    raw=$(jq -r '.raw_path'       <<<"$entry")
     sc_old=$(jq -r '.ocr_sidecar_old' <<<"$entry")
     fdest=$(jq -r '.file_dest'        <<<"$entry")
     mdest=$(jq -r '.md_dest'          <<<"$entry")
@@ -183,28 +194,28 @@ while IFS= read -r entry; do
         fabs="$patient_dir/${stem}_${i}.${ext}"; mabs="$patient_dir/${stem}_${i}.md"
     fi
 
-    cp -n "$patient_dir/$mirror" "$fabs"          # source image/PDF into bucket
+    cp -n "$patient_dir/$raw" "$fabs"          # source image/PDF into bucket
     [ -f "$patient_dir/$sc_old" ] && mv -n "$patient_dir/$sc_old" "$mabs"   # MD co-located, drained from ocr/
 done < <(jq -c '.files[]' "$patient_dir/.rename_plan.json")
 ```
 
-`cp -n` / `mv -n` refuse to overwrite → idempotent re-runs. The `90_原始文件镜像/` mirror keeps its original basenames (byte-level audit principle) — never renamed here.
+`cp -n` / `mv -n` refuse to overwrite → idempotent re-runs. The `raw/` vault keeps its original basenames and verbatim bytes — never renamed or pixel-redacted here.
 
 ### Step 1d — `_FILENAME_MAPPING.md` backfill
 
-Write `<patient_dir>/90_原始文件镜像/_FILENAME_MAPPING.md` — the audit reverse-lookup from byte-level mirror to canonical bucket path. This is mandatory even when every original filename is ASCII (non-ASCII names from 中文/格鲁吉亚文/Cyrillic/emoji sources render as blanks in Finder):
+Write `<patient_dir>/raw/_FILENAME_MAPPING.md` — the audit reverse-lookup from the `raw/` original to its canonical bucket path. This is mandatory even when every original filename is ASCII (non-ASCII names from 中文/格鲁吉亚文/Cyrillic/emoji sources render as blanks in Finder):
 
 ```bash
 {
-  echo "# Filename Mapping — 90_原始文件镜像 mirror ↔ canonical bucket"
+  echo "# Filename Mapping — raw/ original ↔ canonical bucket"
   echo ""
-  echo "> 原始 basename 保留作字节级审计追溯;Finder 渲染异常或非 ASCII 字符可能显示为空 — 用本表反查。"
+  echo "> 原始 basename 保留作审计追溯;Finder 渲染异常或非 ASCII 字符可能显示为空 — 用本表反查。"
   echo ""
-  echo "| 原始文件 (mirror) | 规范化文件 | 所在桶 |"
+  echo "| 原始文件 (raw/) | 规范化文件 | 所在桶 |"
   echo "|---|---|---|"
-  jq -r '.files[] | "| `\(.mirror_path)` | `\(.canonical).\(.ext)` | `\(.bucket_path)/` |"' \
+  jq -r '.files[] | "| `\(.raw_path)` | `\(.canonical).\(.ext)` | `\(.bucket_path)/` |"' \
      "$patient_dir/.rename_plan.json"
-} > "$patient_dir/90_原始文件镜像/_FILENAME_MAPPING.md"
+} > "$patient_dir/raw/_FILENAME_MAPPING.md"
 ```
 
 ### Step 1e — Delete the central `ocr/` staging dir
@@ -224,90 +235,13 @@ fi
 
 If `ocr_drain_incomplete` fires, add `"ocr_drain_incomplete: <basename>"` for each leftover into `readiness.json.warnings` and do NOT delete `ocr/` — a leftover means a sidecar wasn't planned. Fix the plan and re-run; never strand an MD.
 
-### Step 1f — Write `redaction_manifest.json`
+### Step 1f — Write `source_inventory.json`
 
-This is the full-format hand-off contract to 段B. It lists every `persist:true && redaction_required:true` source file, not just images. Phase 1 produced the redacted MD sidecar and a sibling `<basename>.pii_regions.json`; you now bind that locator metadata to the canonical bucket path and mirror path. Schema: [redaction_manifest.schema.json](references/schemas/redaction_manifest.schema.json) (`redaction_manifest_v2`).
+`source_inventory.json` is the run-level proof that every source file/content unit went through LLM Markdown ingestion, and the machine-readable deep-link from each sidecar (content unit) back to its verbatim original in `raw/`. Build it from `.rename_plan.json` and the sidecar headers. Schema: [source_inventory.schema.json](references/schemas/source_inventory.schema.json) (`source_inventory_v1`).
 
-The manifest must never store plaintext PII. Each `regions[]` item stores only category + locator:
+**`raw_path` always deep-links to the verbatim original under `raw/`.** Uploaded originals are kept verbatim and are never pixel-redacted (see `bucket-taxonomy.md` §4–§5) — the only desensitization is the text masking in the `.md` sidecar. One upload may yield several content units (e.g. a PDF that is discharge summary + labs): each gets its own `file_id` + `page_range`, all sharing the same `source_id` and `raw_path`.
 
-- `llm_region_image`: raster/HEIC image regions, bound to the canonical raster adapter frame after EXIF/rotation correction.
-- `llm_region_pdf`: PDF page regions, bound to fixed-DPI rendered pages.
-- `llm_structured_docx`: DOCX XML/paragraph/run/table/header/footer locators, or a redacted payload if structure is not safely addressable.
-- `llm_structured_sheet`: XLSX cell/comment/property locators.
-- `llm_text_rewrite`: CSV/TXT/HTML/MD line/span locators or redacted payload.
-- `archive_rebuild`: original archive is never persisted; only redacted children are rebuilt into a new archive.
-- `blocked_unsupported`: unknown or unlocatable binary format. These sources can produce desensitized MD/JSON/HTML, but cannot enter the final package.
-
-For each plan entry, load the matching Phase 1 region metadata from the old sidecar stem before Step 1c moved it (same basename, `.pii_regions.json`). If the region metadata is missing while `redaction_required:true`, write a manifest entry with `status:"blocked"` and set the source strategy to `blocked_unsupported`; do not silently persist the source. If the file has `redaction_required:false`, omit it from the manifest and mark `not_required` in source status.
-
-Build it from `.rename_plan.json` plus the region metadata (paths are bucket-relative; if a Step 1c collision bumped a name to `_2`, use the actual on-disk path):
-
-```bash
-gen=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-PATIENT_DIR="$patient_dir" python3 - <<'PY'
-import json, os, pathlib, datetime
-
-pd = pathlib.Path(os.environ["PATIENT_DIR"])
-plan = json.loads((pd / ".rename_plan.json").read_text(encoding="utf-8"))
-
-def kind_and_strategy(ext):
-    e = ext.lower()
-    if e in {"jpg", "jpeg", "png", "tif", "tiff", "webp", "bmp", "heic", "heif"}:
-        return "image", "llm_region_image"
-    if e == "pdf":
-        return "pdf", "llm_region_pdf"
-    if e in {"docx", "docm"}:
-        return "docx", "llm_structured_docx"
-    if e in {"xlsx", "xlsm", "csv"}:
-        return ("csv" if e == "csv" else "xlsx"), ("llm_text_rewrite" if e == "csv" else "llm_structured_sheet")
-    if e in {"txt", "html", "htm", "md"}:
-        return ("html" if e in {"html", "htm"} else e), "llm_text_rewrite"
-    if e in {"zip", "rar", "7z", "tar", "gz", "tgz"}:
-        return "archive", "archive_rebuild"
-    return "other", "blocked_unsupported"
-
-files = []
-for item in plan["files"]:
-    if not item.get("persist", True) or not item.get("redaction_required", True):
-        continue
-    source_kind, strategy = kind_and_strategy(item.get("ext", ""))
-    old_sidecar = pathlib.Path(item["ocr_sidecar_old"])
-    region_path = pd / old_sidecar.with_suffix(".pii_regions.json")
-    region_doc = {}
-    if region_path.exists():
-        region_doc = json.loads(region_path.read_text(encoding="utf-8"))
-    elif strategy != "blocked_unsupported":
-        strategy = "blocked_unsupported"
-        source_kind = "other"
-    files.append({
-        "id": item["id"],
-        "source_id": item["source_id"],
-        "source_kind": source_kind,
-        "bucket_path": item["file_dest"],
-        "mirror_path": item["mirror_path"],
-        "redacted_candidate_path": f".redaction_candidates/{item['id']}_{pathlib.Path(item['file_dest']).name}",
-        "redacted_payload_path": region_doc.get("redacted_payload_path"),
-        "adapter_frame": region_doc.get("adapter_frame", {"frame_kind": "none", "coordinate_space": "none"}),
-        "regions": region_doc.get("regions", []),
-        "status": "blocked" if strategy == "blocked_unsupported" else "pending"
-    })
-
-(pd / "redaction_manifest.json").write_text(json.dumps({
-    "schema": "redaction_manifest_v2",
-    "patient_dir": str(pd),
-    "generated_at": datetime.datetime.utcnow().replace(microsecond=0).isoformat() + "Z",
-    "files": files
-}, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-PY
-```
-
-Validate against the schema before writing (mental validation if no `jsonschema`): every manifest entry has `source_id`, `source_kind`, `bucket_path`, `mirror_path`, `redacted_candidate_path`, `adapter_frame`, and `regions[]`; every `bucket_path` and `mirror_path` resolves to an on-disk file; coordinates are normalized or page-bound as declared; no region contains plaintext PII; unsupported/unlocatable sources are `blocked`. On failure, surface `"redaction_manifest_invalid: <reason>"` into `readiness.json.warnings`.
-
-### Step 1g — Write `source_inventory.json` and initialize `source_redaction_status.json`
-
-`source_inventory.json` is the run-level proof that every source file/content unit went through LLM Markdown ingestion and records how the final source-file copy will be made safe before persist. Build it from `.rename_plan.json` and the sidecar headers:
-
-**Do not use `persist:false` as a shortcut around source-file redaction.** Any medical source whose sidecar is referenced by `timeline.md`, `case_text.md`, `review_summary.md`, `review_flags.md`, or any structured JSON `source_refs[]` is part of the formal archive and MUST remain `persist:true`. If body redaction cannot be completed in this Phase2 run, keep `persist:true`, keep `redaction_required:true`, set the appropriate strategy (or `blocked_unsupported`), and leave `source_redaction_status.json` as `pending` / `blocked` so the final archive/persist validator fails until 段B finishes. `persist:false` is reserved only for isolated unrelated sources that are not cited by formal outputs.
+**Do not use `persist:false` as a shortcut.** Any medical source whose sidecar is referenced by `timeline.md`, `case_text.md`, `review_summary.md`, `review_flags.md`, or any structured JSON `source_refs[]` is part of the formal archive and MUST remain `persist:true`. `persist:false` is reserved only for isolated unrelated sources that are not cited by formal outputs.
 
 ```json
 {
@@ -316,61 +250,35 @@ Validate against the schema before writing (mental validation if no `jsonschema`
   "generated_at": "2026-06-09T00:00:00Z",
   "files": [
     {
+      "file_id": "f001",
       "source_id": "s001",
       "original_path": "IMG_0001.HEIC",
-      "mirror_path": "90_原始文件镜像/<original_subdir>/IMG_0001.HEIC",
+      "raw_path": "raw/<original_subdir>/IMG_0001.HEIC",
+      "page_range": null,
       "bucket_path": "07_检验/生化肝肾功/2024-07-03_生化肝肾功_三环肿瘤医院.jpg",
       "sidecar_path": "07_检验/生化肝肾功/2024-07-03_生化肝肾功_三环肿瘤医院.md",
+      "modality": "image",
       "read_mode": "model_vision",
       "adapter": "temp_raster",
       "adapter_provenance": "decode_tool=sips;rotation=90",
       "persist": true,
-      "redaction_required": true,
-      "redaction_strategy": "llm_region_image",
-      "redacted_path": null,
       "notes": null
     }
   ]
 }
 ```
 
-Write `source_redaction_status.json` as the pre-persist hard gate skeleton. Link each redaction-required entry to the `redaction_manifest.json` id and leave it `pending` until `run_redaction_job.py prepare` creates a candidate, LLM QA passes, and `commit` syncs the done state. Unknown or unlocatable binary entries use `blocked_unsupported` and `blocked` with a clear reason. **Blocked source files may still produce MD/JSON/HTML, but they cannot be persisted as source-file artifacts.**
-
-```json
-{
-  "schema": "source_redaction_status_v1",
-  "patient_dir": "/abs/PT-XXXX",
-  "updated_at": "2026-06-09T00:00:00Z",
-  "summary": {"total": 1, "pending": 1, "done": 0, "failed": 0, "blocked": 0, "not_required": 0},
-  "files": [
-    {
-      "source_id": "s001",
-      "status": "pending",
-      "strategy": "llm_region_image",
-      "redacted_path": null,
-      "coverage_passed": null,
-      "llm_qa_passed": null,
-      "qa_passed": null,
-      "original_deleted": null,
-      "qa_report_id": null,
-      "reason": null,
-      "linked_redaction_manifest_id": "f001"
-    }
-  ]
-}
-```
-
-Final archive/persist MUST wait until every `persist:true && redaction_required:true` source has `status:"done"`, `coverage_passed:true`, `llm_qa_passed:true`, `qa_passed:true`, and `original_deleted:true`. `validate_structured_outputs.py` enforces this; do not declare an archive-ready run while any source is `pending` / `failed` / `blocked`.
+Validate against the schema before writing (mental validation if no `jsonschema`): every entry has `file_id`, `source_id`, `raw_path` (starting `raw/`), `sidecar_path` (a bucket-relative `.md`), `modality`, `read_mode`, `adapter`, and `persist`; every `raw_path` and `sidecar_path` resolves to an on-disk file. On failure, surface `"source_inventory_invalid: <reason>"` into `readiness.json.warnings`.
 
 ## Step 2 — Synthesize core artifacts
 
 ### 2.1 `INDEX.md`
 First line: `# patient_code: <patient_code>`. Then a table:
 
-| Bucket | Doc Type | Date | Hospital | Confidence | Canonical File | MD Sidecar |
-|---|---|---|---|---|---|---|
+| file_id | Bucket | Doc Type | Date | Hospital | Confidence | MD Sidecar | Raw Original | Pages |
+|---|---|---|---|---|---|---|---|---|
 
-One row per classified file. Both `Canonical File` and `MD Sidecar` are the bucket-relative co-located paths (`<bucket>/<canonical>.<ext>` and `<bucket>/<canonical>.md`) — there is no central `ocr/` column anymore. Sorted by date ascending.
+One row per content unit. `file_id` is the stable 1:1 id (matches `source_inventory.json`). `MD Sidecar` is the bucket-relative co-located `.md` (`<bucket>/<canonical>.md`); `Raw Original` is the `raw_path` deep-link to the verbatim upload under `raw/`; `Pages` is the `page_range` (or `—` when the whole file is one unit). The frontend renders the `.md` and links the "view original" button to `Raw Original` (at `Pages` when present). A multi-document upload appears as several rows sharing one `Raw Original` with distinct `file_id` + `Pages`. Sorted by date ascending.
 
 ### 2.2 `timeline.md`
 Chronological event list, one line per event. **Every line ends with at least one bucket-relative anchor**:
@@ -483,23 +391,18 @@ Validation rule of thumb you can apply mentally without a library (full regex in
 - `patient_code` matches `^PT-[A-F0-9]+(_\d+)?$`.
 
 For Phase2-only validation, validate each structured JSON against its own schema
-before writing and check anchors as above. Do **not** use the full archive
-acceptance gate as a Phase2 write gate, because source-file redaction may still
-be `pending` / `blocked` immediately after Phase2 and HTML generation is allowed
-from desensitized MD/JSON.
+before writing and check anchors as above.
 
-You may run the full archive/persist readiness probe:
+You may run the acceptance gate:
 ```bash
 python3 scripts/validate_structured_outputs.py "$patient_dir"
 ```
-If it fails only on `source_redaction_status.json` / source-file redaction rows,
-report `archive_persist_ready:false` and continue to 段D HTML. The same command
-must exit 0 after 段B/source redaction before anything is persisted outside the
-local workspace. If it fails because a formally cited source is `persist:false`,
-that is a Phase2 bug: restore the source to `persist:true` and report
-`archive_persist_ready:false` instead of hiding the source from the redaction
-gate. If the script doesn't exist or `jsonschema` is missing, fall back to
-manual mental validation for the Phase2 structured JSONs.
+It checks the structured JSONs + anchors, PII residue rescan of the text sidecars,
+`source_inventory.json` (every content unit carries a `raw_path` + a text-masked
+sidecar), and the case-summary HTML shape. If it fails because a formally cited
+source is `persist:false`, that is a Phase2 bug: restore the source to
+`persist:true`. If the script doesn't exist or `jsonschema` is missing, fall back
+to manual mental validation for the Phase2 structured JSONs.
 
 ### 2.7 `missing_items.json` (NEW — cancer-checklist diff)
 
@@ -544,7 +447,7 @@ The internal `PT-<hex>` identity is preserved as the authoritative directory nam
 
 This is **the cross-doc audit you can do that Phase 1 cannot** — because Phase 1 only saw its slice. You see all sidecars at once **AND** you can see sibling patient directories under the patients root for cross-patient checks.
 
-For every field in profile.json (especially `stage`, `histology`, `molecular_drivers_known`, `treatment_history[]`, `current_therapy`, `ecog`, key labs, `demographics.name`), run these 8 checks:
+For every field in profile.json (especially `stage`, `histology`, `molecular_drivers_known`, `treatment_history[]`, `current_therapy`, `ecog`, key labs, `demographics.name`), run these 9 checks:
 
 | # | category | check |
 |---|---|---|
@@ -556,6 +459,7 @@ For every field in profile.json (especially `stage`, `histology`, `molecular_dri
 | 6 | `cross_patient_name_collision` (**P0 per PRD**) | `demographics.name` + birth year match another patient under `patients_root`. See Step 3a below. |
 | 7 | `anchor_coverage_gap` | A factual section of `case_text.md` or a row of `patient_summary.json` / `molecular.json` / etc has missing or dangling anchors |
 | 8 | `relevance_uncertain` (**段E**) | A file the Step 1·0 relevance triage couldn't confidently classify as medical-or-not — isolated to `99_无关文件/uncertain/`, NOT auto-deleted, awaiting the user's explicit 删/留. See Step 3b below. |
+| 9 | `filename_content_mismatch` | A `.rename_plan.json` entry's assigned `doc_type` / `bucket_path` did not match the sidecar content on the Step 1b·5 re-read (e.g. a file canonically named `肿瘤标志物` whose sidecar is a 生化 panel). `yellow` when auto-corrected in place, `red` when left ambiguous for the user. `field_path` = the content unit's `file_id`. See Step 1b·5. |
 
 ### Step 3a — cross_patient_name_collision (P0 per PRD §5.4)
 
@@ -737,12 +641,6 @@ Pure JSON, no prose:
     "missing_items": "/.../missing_items.json"
   },
   "source_inventory_path": "/.../source_inventory.json",
-  "source_redaction_status_path": "/.../source_redaction_status.json",
-  "redaction_manifest_path": "/.../redaction_manifest.json",
-  "redaction_images_queued": 38,
-  "archive_persist_ready": false,
-  "source_redaction_pending": 38,
-  "source_redaction_blocked": 2,
   "update_log_path": "/.../update_log.json",
   "anchor_coverage": {
     "facts_total": 142,
@@ -762,13 +660,10 @@ Pure JSON, no prose:
 - NEVER write a `case_text.md` containing dangling anchors — surface the gap, don't ship a broken file.
 - NEVER leave the central `ocr/` dir behind: every MD must be moved into its bucket (`<bucket>/<canonical>.md`) and `ocr/` deleted (Step 1e). If an MD can't be drained, surface `ocr_drain_incomplete` and keep `ocr/`, don't strand the file.
 - NEVER emit an anchor (in any artifact, `source_evidence`, or `source_refs[]`) that still uses the `ocr/` or `02_脱敏病历/` prefix — those are retired; all anchors are bucket-relative or `conversation:<ISO8601>`.
-- NEVER mark a formally cited medical source `persist:false` to make validation pass. If `timeline.md` / `case_text.md` / review outputs / structured JSON cite a sidecar, that source is archive-selected and must stay `persist:true` until 段B redaction reaches `done`; pending/blocked status must surface as `archive_persist_ready:false`.
-- ALWAYS write `source_inventory.json` (Step 1g) before returning — it is the proof that every source file/content unit produced a redacted MD and records the source-file redaction strategy.
-- ALWAYS initialize `source_redaction_status.json` (Step 1g) before returning — it is the archive/persist hard gate. It may contain `pending` image entries after Phase2; that is fine for JSON/HTML generation but means `archive_persist_ready:false`.
-- ALWAYS write `redaction_manifest.json` (Step 1f) before returning — it is the full-format source-file hand-off to 段B. A missing/invalid manifest blocks source-file PII masking. Surface validation failures into `readiness.json.warnings`, don't ship an invalid manifest.
-- `redaction_manifest.json` lists every `persist:true && redaction_required:true` source file, not just raster images. Text PDFs/DOCX/spreadsheets/text may have already-redacted MD, but the source file itself still needs a supported redaction strategy or a `blocked_unsupported` status before archive/persist.
+- NEVER mark a formally cited medical source `persist:false` to make validation pass. If `timeline.md` / `case_text.md` / review outputs / structured JSON cite a sidecar, that source is archive-selected and must stay `persist:true`.
+- NEVER pixel-redact or delete an uploaded original in `raw/` — originals are kept verbatim; the only desensitization is the text masking in the `.md` sidecar (Phase 1) re-scanned by `pii_rescan.py`.
+- ALWAYS write `source_inventory.json` (Step 1f) before returning — it is the proof that every content unit produced a text-masked MD and the deep-link (`raw_path` + `page_range`) back to its verbatim original in `raw/`.
 - `coverage_complete: false` is acceptable as long as you list the missing files; caller will retry-mini-Phase1 + re-run you.
-- `archive_persist_ready` may be `false` immediately after Phase2 because HTML/JSON generation does not wait for source-file redaction. It becomes true only after every persisted source file has source-redaction status `done`, `qa_passed:true`, and `original_deleted:true`. Never represent a pending/blocked source as persisted.
 - The alias is sticky: never overwrite a previously set `profile.json.alias` on incremental runs.
 - ALWAYS detect+persist `profile.json.locale` (reuse if already set) and render every patient-facing scaffold string (bucket slugs, timeline/case_text/review_summary prose, gap/warning text) in that locale per [`../../../references/i18n.md`](../../../references/i18n.md). NEVER translate a clinical entity (drug/gene/variant/TNM/number/unit) or a `doc_type` — those are verbatim; mistranslation is a P0 safety bug.
 - The `NN_` two-digit bucket prefix is a **language-independent stable key**: localize the slug after it, never the number. Downstream consumers match on `NN_`; keep `bucket_path` / `file_dest` / `md_dest` / anchors using the same localized slug so on-disk path and anchor agree.
@@ -776,13 +671,13 @@ Pure JSON, no prose:
 
 ## Runtime adaptation (binding layer — read [`organize-contract.md`](organize-contract.md) §Phase2)
 
-This prompt is the **Claude Code reference implementation** of the runtime-neutral Phase2 contract (`organize-contract.md` §2). The contract pins the **behavior** — pure function `(全部 sidecar, source_inventory, source_id↔原名映射) → canonical 输出集` (11 桶 + `source_inventory.json` + `profile.json` + `timeline.*` + `case_text.md` + `readiness.json` + `review_flags.md` + 6 结构化 JSON + `missing_items.json` + `update_log.json` + `redaction_manifest.json` + `source_redaction_status.json` + 桶相对锚点) — and a fixed set of invariants. The **orchestration mechanism below is a CC-specific binding; any host may swap it out** as long as the §2.5 invariants still hold. Nothing in this section changes the产物结构 or schema.
+This prompt is the **Claude Code reference implementation** of the runtime-neutral Phase2 contract (`organize-contract.md` §2). The contract pins the **behavior** — pure function `(全部 sidecar, source_inventory, source_id↔原名映射) → canonical 输出集` (14 桶 + `raw/` 逐字原件 + `source_inventory.json` + `profile.json` + `timeline.*` + `case_text.md` + `readiness.json` + `review_flags.md` + 6 结构化 JSON + `missing_items.json` + `update_log.json` + 桶相对锚点) — and a fixed set of invariants. The **orchestration mechanism below is a CC-specific binding; any host may swap it out** as long as the §2.5 invariants still hold. Nothing in this section changes the产物结构 or schema.
 
 | Mechanism in this prompt | Status | Swap for non-CC hosts |
 |---|---|---|
 | `Agent` 扇出 Phase1 + reduce into this single Phase2 worker (SKILL.md Step 2-5) | **reference implementation** — fan-out/reduce is one valid binding of the「编排」接缝 | A headless host may run the whole thing **single-process sequentially** (`organize-contract.md` §2.6 / §6「编排」). 只要 §2.1 inputs 就绪(所有 sidecar 在 Phase2 前就绪)、§2.2/§2.5 成立,顺序与扇出等价. |
-| Semantic naming judgment → `.rename_plan.json` (Step 1a/1b) **vs** mechanical `cp -n` / `mv -n` byte-shuffle (Step 1c–1f) | **split by design** | The LLM 出 `.rename_plan.json`(哪个桶 / 什么 canonical 名 — 必须的语义判断);据此的**机械 mv / co-locate / `_FILENAME_MAPPING` 回填 / 排空暂存区 / 生成 manifest / persist** 是无判断纯搬运,**可由宿主执行** (`organize-contract.md` §2.6 / §6「编排 / 存储」). The contract requires the result land in the §2.2 产物结构, not which primitive moved the bytes. |
-| Agent writes everything into `patient_dir` on local disk | **CC-specific binding** | A headless host may **persist selected redacted files to 对象存储 / 库** instead (`organize-contract.md` §6「存储」). The canonical 输出集 (结构化产物 + 桶 + manifest + inventory/status) is the contract; the storage primitive is the binding. Persist is blocked until source redaction status is done/QA-passed/deleted. |
+| Semantic naming judgment → `.rename_plan.json` (Step 1a/1b) **vs** mechanical `cp -n` / `mv -n` byte-shuffle (Step 1c–1f) | **split by design** | The LLM 出 `.rename_plan.json`(哪个桶 / 什么 canonical 名 — 必须的语义判断);据此的**机械 mv / co-locate / `_FILENAME_MAPPING` 回填 / 排空暂存区 / 存 `raw/` 原件** 是无判断纯搬运,**可由宿主执行** (`organize-contract.md` §2.6 / §6「编排 / 存储」). The contract requires the result land in the §2.2 产物结构, not which primitive moved the bytes. |
+| Agent writes everything into `patient_dir` on local disk | **CC-specific binding** | A headless host may **persist selected files to 对象存储 / 库** instead (`organize-contract.md` §6「存储」). The canonical 输出集 (结构化产物 + 桶 + `raw/` 逐字原件 + `source_inventory.json`) is the contract; the storage primitive is the binding. |
 | Confirm/disposition gates rendered as inline diff cards (段E / upload-reconciliation) | **CC-specific binding** | **confirm-as-product + 宿主 UI 两轮往返** (headless) is equally compliant (`organize-contract.md` §3 / §6「确认门」) — see `relevance-gate.md` / `upload-reconciliation.md` / `confirm-gate.md`. |
 
-**Logic / invariants do NOT move with the binding.** Regardless of which host drives Phase2: **强制脱敏**保真(sidecar 是唯一明文读取源)、`NN_` 数字前缀作语言无关稳定 key、临床实体 / `doc_type` 永远 verbatim(误译是 P0)、暂存区不残留、`source_inventory.json` / `redaction_manifest.json` / `source_redaction_status.json` 必产、archive/persist 受 source redaction hard gate 阻塞、未确认不落正式字段 / 不可逆删除非对称(§3 确认门)、schema gate / 锚点 dangling 检查、review_flags 8 类审计与 review_summary 必写 — all stand verbatim. A binding may only change **who runs the mechanism**, never the behavioral contract or the产物结构.
+**Logic / invariants do NOT move with the binding.** Regardless of which host drives Phase2: **文本脱敏**保真(sidecar 是唯一明文读取源)、`raw/` 原件逐字保存永不打码、`NN_` 数字前缀作语言无关稳定 key、临床实体 / `doc_type` 永远 verbatim(误译是 P0)、暂存区不残留、`source_inventory.json` 必产(每 content unit 带 `raw_path` 回链)、未确认不落正式字段 / 不可逆删除非对称(§3 确认门)、schema gate / 锚点 dangling 检查、review_flags 9 类审计与 review_summary 必写 — all stand verbatim. A binding may only change **who runs the mechanism**, never the behavioral contract or the产物结构.
