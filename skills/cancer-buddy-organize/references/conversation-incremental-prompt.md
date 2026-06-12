@@ -12,7 +12,7 @@ That gate is **not redefined here** — it is the shared confirm-gate. The "unco
 - A turn in that chat contains a candidate archivable fact (see below).
 - Caller passes `run_mode: "conversation_incremental"` plus `patient_dir`.
 
-This mode does NOT re-OCR files, does NOT re-run Phase-1/Phase-2 synthesis, and does NOT touch buckets other than `14_患者自管补充/`. For new *files*, use full or incremental mode instead.
+This mode does NOT re-OCR files and does NOT re-run Phase-1/Phase-2 synthesis. It writes only the archived conversation note (into the fact's corresponding clinical domain's `conversation_notes/` subdir, or `14_患者自管补充/conversation_notes/` as fallback — see Step 4a) plus the confirmed `profile.json` field / `timeline` row. For new *files*, use full or incremental mode instead.
 
 ## Inputs (caller supplies these)
 
@@ -92,16 +92,30 @@ Rules for the card:
 
 Only write the candidates the user confirms (`确认`). For `改一下` use the user's corrected value, then write. For `先不写` / silence / deferral, write nothing for that candidate.
 
-**4a. Archive the note (always, for every confirmed candidate):**
+**4a. Archive the note (always, for every confirmed candidate) — routed to its clinical domain:**
 
-Append to a dated note under `14_患者自管补充/conversation_notes/`:
+First, decide **which clinical domain** the confirmed fact belongs to, then file the note into THAT domain's `conversation_notes/` subdir — not unconditionally into `14_`. Use the **same Step-1a-style LLM domain judgment the synthesis worker uses**: read the confirmed fact in the context of the existing `profile.json` and pick the matching domain from the 14 clinical domains in [`bucket-taxonomy.md`](bucket-taxonomy.md) §1.1. This is **LLM judgment — do NOT use a hardcoded keyword→domain map** (per the skill's no-hardcode rule). Typical mappings (illustrative, not exhaustive — decide per fact):
+
+- a new lab value → `07_检验`
+- a newly stated pathology / diagnosis / staging → `04_诊断与分期`
+- a treatment change → `08_治疗`
+- an imaging finding → `05_影像`
+- a molecular / NGS result → `06_分子与组学`
+- a symptom / PRO / ECOG / follow-up observation → `10_随访与监测`
+
+Only when the fact fits **no clinical domain** (a general life note, an undirected remark) does it fall back to `14_患者自管补充/conversation_notes/`.
+
+Append to a dated note under the chosen domain's `conversation_notes/` subdir, creating it if needed:
 
 ```bash
-mkdir -p "$patient_dir/14_患者自管补充/conversation_notes"
-# write to 14_患者自管补充/conversation_notes/<turn_timestamp-date>.md
+# $domain_dir = the NN_ domain chosen by LLM judgment above
+#   (e.g. 07_检验 for a lab value), or 14_患者自管补充 only as the no-domain fallback
+mkdir -p "$patient_dir/$domain_dir/conversation_notes"
+# write to <domain_dir>/conversation_notes/<turn_timestamp-date>.md
+# e.g. 07_检验/conversation_notes/2026-06-07.md
 ```
 
-The note file carries a `tags: [patient_curated]` front-matter marker and the verbatim user quote + the confirmed structured value. This file is the **archive**, not the citation target — facts cite the conversation anchor, not this file (see anchor-contract §1b).
+The note file carries a `tags: [patient_curated]` front-matter marker and the verbatim user quote + the confirmed structured value. This file is the **archive**, not the citation target — facts cite the conversation anchor, not this file (see anchor-contract §1b). The note still carries the **conversation** anchor, never a file anchor, because the source is the dialogue turn — domain routing only chooses where the archive lands, it does not change the provenance class.
 
 **4b. Update the formal field / timeline (only after confirm):**
 
@@ -151,7 +165,7 @@ Final message MUST be pure JSON, no prose:
   "candidates_deferred": 0,
   "profile_fields_written": ["stage"],
   "timeline_rows_added": 1,
-  "conversation_note_path": "14_患者自管补充/conversation_notes/2026-06-07.md",
+  "conversation_note_path": "07_检验/conversation_notes/2026-06-07.md",
   "conversation_anchor": "conversation:2026-06-07T14:32:05Z",
   "run_logged": true
 }
@@ -161,6 +175,7 @@ Final message MUST be pure JSON, no prose:
 
 The gate rules (unconfirmed → no formal write; silence = no-confirm; never fabricate; critical-field never a fait accompli; never silently overwrite a contradicting value; LLM judgment not a keyword list; `alias` sticky / no broad rewrite) are the shared floor in [`../../../references/confirm-gate.md`](../../../references/confirm-gate.md) — that doc is authoritative; do not fork them here. Conversation-mode specializations on top of that floor:
 
-- **Never use a file anchor for a conversation fact.** Conversation provenance is `[[src:conversation:<ISO8601>]]` only.
+- **Never use a file anchor for a conversation fact.** Conversation provenance is `[[src:conversation:<ISO8601>]]` only — domain routing of the archive note (Step 4a) does not change this; the source is still the dialogue turn.
+- **Route the archived conversation note to its corresponding clinical domain's `conversation_notes/` subdir**, not unconditionally into `14_患者自管补充/`. Pick the domain with the same Step-1a-style LLM domain judgment the synthesis worker uses (read the confirmed fact + existing profile context against the 14 domains in `bucket-taxonomy.md` §1.1) — e.g. a lab value → `07_检验/conversation_notes/`, a staging change → `04_诊断与分期/conversation_notes/`, a treatment change → `08_治疗/conversation_notes/`. `14_患者自管补充/conversation_notes/` is the **fallback only**, used when the fact fits no clinical domain. This is LLM judgment, **not a hardcoded keyword→domain map**.
 - Detecting and classifying the 5 archivable-fact categories is an LLM judgment task — read each turn in context, do not run a hardcoded keyword list.
 - Tag every conversation-sourced field/row `patient_curated`; never let a spoken value masquerade as a confirmed report value.

@@ -76,13 +76,13 @@ headless 宿主(无 inline 回合)用 **confirm-as-product** 满足同一门:把
 
 旧文档不是删,是**归档留底**:
 - 把被取代的旧桶内文件(图 + 其 `.md` 旁车)**移到** `_superseded_<ts>/`(`<ts>` = 本次重传的 ISO8601,如 `_superseded_2026-06-07T14:32:05Z/`,保留原桶相对子路径),**或**原地标 `superseded`(在旧 `.md` front-matter 加 `superseded_by: <新文件路径>` + `superseded_at`)。二选一,默认移到 `_superseded_<ts>/` 以保桶内整洁。
-- 新图纳入正确的桶(canonical 重命名 + OCR → 文本脱敏 MD,走 phase2 既有机制),并入 `redaction_manifest.json` 待段B 打码。
+- 新图纳入正确的桶(canonical 重命名 + OCR → 文本脱敏 MD,走 phase2 既有机制);其原图原样保留在 `raw/`。
 - **锚点更新**:所有指向旧文件的 `[[src:<旧桶相对路径>.md#L..]]` 迁到新文件路径;若旧文件被移到 `_superseded_<ts>/`,旧路径锚点视为 dangling,按 [`schemas/anchor-contract.md`](schemas/anchor-contract.md) §3 处理 —— 迁移到新锚点,不留悬空。
 - 涉及的结构化字段经 diff 卡确认后更新,provenance 用新文件的 file anchor。
 
 ### 3b. 并存(两份都留)
 
-- **两份都保留**:旧文件原位不动,新文件也正常纳入对应桶(canonical 重命名,新日期/新副本名避免撞名,如 `..._v2` 或带页码区分),也并入 `redaction_manifest.json`。
+- **两份都保留**:旧文件原位不动,新文件也正常纳入对应桶(canonical 重命名,新日期/新副本名避免撞名,如 `..._v2` 或带页码区分);其原图原样保留在 `raw/`。
 - **timeline 体现两次**:在 `timeline.md` / `timeline.json` 各记一行,让两次检查/两份报告都在时间线上可见(适用于「不是取代,是同主题的两次独立记录」的情况)。
 - 不删任何一份,不强行调和矛盾 —— conflict 选并存时,两份事实都留在档案里,留待医生裁决。
 

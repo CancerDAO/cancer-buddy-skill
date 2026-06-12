@@ -175,6 +175,46 @@ ls ~/.claude/plugins/vmtb-skill/SKILL.md \
 - 安全红线：`../../references/safety-guardrails.md`（含危机处理、角色安全规则）
 - 披露状态：`../../references/disclosure-behavior.md`（当 `disclosure_state=suppressed` 且身份=患者时每个子技能怎么变形）
 
+## 档案读取协议（Archive Read Protocol）
+
+回答任何依赖患者档案的问题时，按下面这个**固定顺序**读 `patients/<patient_code>/`，**选择性读取、不通读整个文件夹**。这一节是内部指令（决定读什么、按什么顺序）；其中**面向用户输出的部分按 `profile.json.locale` 渲染**，协议本身不渲染。
+
+1. **`profile.json`** —— 身份 + `locale`（**永远第一**，最便宜的"这是谁"）。先拿到 locale 再决定所有后续话术语言。
+2. **`readiness.json`** —— grade + `blocking_gaps` + `review_flags`（**诚实闸门**）。如果用户问到的领域正落在某个 `blocking_gap` 上，就**如实说缺什么、不要编**——"这部分档案里还没有，建议你下次复诊补上"，而不是凭空合成一个答案。
+3. **`INDEX.md`** —— 文件清单（每文件一行：桶/类型/日期/机构/置信/canonical/MD 路径）。读它是为了知道**到底有哪些源文件存在**，并能把"事实 → 文件名"映射起来用于引用（见下一节）。
+4. **按问题定向读结构化 JSON** —— 只读这次问题需要的那个：`molecular.json` / `labs.json` / `treatment_lines.json` / `timeline.json` / `comorbidities.json`（含 `patient_summary.json`）。**不要一次性把所有 JSON 全读、更不要通读整个文件夹**。每条事实带着自己的 `source_refs[]`。
+5. **要引用/逐字引述时，才读 `source_refs[]` 里点名的那个源文件** —— 锚定的 `case_text.md` 或对应桶里的 `.md` sidecar（如 `04_诊断与分期/病理报告/…md#L4-L8`）。读到能覆盖被引用事实即可。
+
+硬规则：
+
+- **选择性，不通读**：能用 profile + readiness + 一个定向 JSON 回答的，就不要去翻 sidecar；能用结构化 JSON 字段回答的，就不要去翻 `case_text.md`。
+- **永不读原始件**：绝不读基础设施桶 `raw/`（逐字原件保险库）/ `99_无关文件`——这些不是锚定目标，也从不面向患者。
+- **临床实体逐字保留**：从档案里取出的药名/基因/变异/TNM/数值+单位/biomarker 一律按原文呈现，不翻译、不改写（locale 只渲染脚手架，见上文"语言"节与 `../../references/safety-guardrails.md`）。
+
+## 来源引用（Source citation in answers）
+
+当搭子用**档案里的事实**回答问题时，给每条事实加一个引用角标 + 末尾列脚注。纯情绪支持 / 一般科普类、**不取用档案**的回答不需要角标。
+
+**行内角标**：在事实后面加一个 HTML 上标，从 `[1]` 起按出现顺序编号：
+
+```
+你目前的主要诊断是乙状结肠癌 (cT4N1M1)<sup>[1]</sup>，NGS 查到 KRAS G12C 突变 (VAF 0.32)<sup>[2]</sup>。
+```
+
+**脚注列表**：回答末尾给一个编号列表，把 `[n]` 映射到源文件。映射用的就是这条事实在结构化 JSON 里携带的 `source_refs[]`（**复用它，不要另造一套溯源系统**）；脚注 label 用 INDEX.md 里该文件的 `日期 + doc_type + 机构`，路径保留**桶相对路径**，方便前端深链跳转：
+
+```
+[1] 2024-03-15 · 病理报告 · 中山六院 — 04_诊断与分期/病理报告/2024-03-15_病理报告_中山六院.md#L4-L8
+[2] 2024-03-15 · NGS报告 · 华大基因 — 06_分子与组学/NGS报告/2024-03-15_NGS_华大基因.md#L22-L29
+```
+
+规则：
+
+- 角标 `[n]` **指向的源 = 那条事实底层结构化 JSON 字段的 `source_refs[]`**。一条事实有多个 `source_refs[]` 就并列多个角标（`<sup>[1][2]</sup>`），不同事实指向同一文件可复用同一编号。
+- 脚注路径是 `source_refs[]` 原样的桶相对路径（保留 `#L..` fragment）。**会话锚**（`conversation:<ISO8601>`）的事实，脚注 label 写成 `<日期> · 患者口述`，无文件路径。
+- label 字段（日期 / doc_type / 机构）从 INDEX.md 对应行取；INDEX.md 里查不到机构就省略机构段，**绝不编造机构名**。
+- 脚注里出现的临床实体同样逐字保留；label 脚手架（如"病理报告""患者口述"）按 `profile.json.locale` 渲染。
+
 ## 聊完一段
 
 （按 `profile.json.locale` 出；下面是 `zh` 样例，其它 locale 用对应语言出同结构）
