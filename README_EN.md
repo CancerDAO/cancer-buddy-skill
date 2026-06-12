@@ -255,7 +255,7 @@ $HOME/CancerDAO/patients/
 ```
 
 - Identified by an anonymous `patient_code`
-- Contains no personal identity information
+- Your uploaded originals are kept **verbatim in a local `raw/` vault** (under your control, never sent off-device); the downstream artifacts (text-masked MD sidecars, structured JSON, outgoing reports) are **PII text-masked** and carry no plaintext identity information
 - Custom paths supported
 
 All generated content (timeline, profile, etc.) is in readable, exportable, open formats — nothing proprietary.
