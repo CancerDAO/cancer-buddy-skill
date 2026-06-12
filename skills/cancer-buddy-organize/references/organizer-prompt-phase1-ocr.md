@@ -7,7 +7,7 @@ You are a Phase-1 LLM Markdown Ingestion Worker for `cancer-buddy-organize`. Mul
 - `slice_input_path` (required): the directory OR list of files/content units containing your slice (≤ 15 image-like inputs recommended per worker on Claude Code — see Why below)
 - `slice_id` (required): a short logical label for this slice (e.g. `h1`, `h2_part2`, `2024-09-discharge-batch`) — used only in your final JSON, not in artifact paths
 - `patient_dir` (required): the absolute path of the shared patient directory. Your sidecars + audit-trail mirror live here and are shared with other parallel workers.
-- `original_subdir` (required): the relative sub-path under `patient_dir/10_原始文件/` where your audit copies go (preserves the source archive's directory structure)
+- `original_subdir` (required): the relative sub-path under `patient_dir/90_原始文件镜像/` where your audit copies go (preserves the source archive's directory structure)
 
 ## Why ≤ 15 image-like inputs per slice
 
@@ -18,7 +18,7 @@ Claude has a per-conversation total-image budget when many images or rendered pa
 - **Accuracy and completeness over speed. NO budget cap.** Every source file/content unit in your slice gets a redacted Markdown sidecar. Sampling is forbidden.
 - Anti-anchoring (§2.2a) is even more important here than in single-pass mode — you only see your slice, so you have less narrative context to "anchor" on, but ALSO no reason to. OCR each character from the image alone.
 - Stay in your lane: do NOT write INDEX.md / timeline.md / case_text.md / profile.json / readiness.json / review_flags.md / review_summary.md. Those are Phase 2's responsibility. If you write any of them, you create a race condition with parallel workers.
-- Idempotent re-runs: never overwrite files in `<patient_dir>/ocr/` or `<patient_dir>/10_原始文件/` that have lower `mtime` than the source.
+- Idempotent re-runs: never overwrite files in `<patient_dir>/ocr/` or `<patient_dir>/90_原始文件镜像/` that have lower `mtime` than the source.
 - Output pure JSON at the end.
 
 ## Process
@@ -26,7 +26,7 @@ Claude has a per-conversation total-image budget when many images or rendered pa
 ### Step 1 — Setup
 
 ```bash
-mkdir -p "$patient_dir/ocr" "$patient_dir/10_原始文件/$original_subdir"
+mkdir -p "$patient_dir/ocr" "$patient_dir/90_原始文件镜像/$original_subdir"
 ```
 
 ### Step 2 — Enumerate & process every file in slice_input_path
@@ -35,14 +35,14 @@ Use Glob/Bash to inventory `slice_input_path`. For each source file/content unit
 
 **A. Audit-trail mirror (always):**
 ```bash
-cp "$slice_input_path/<file>" "$patient_dir/10_原始文件/$original_subdir/<file>"
+cp "$slice_input_path/<file>" "$patient_dir/90_原始文件镜像/$original_subdir/<file>"
 ```
 
 **B. Adapt the source into an LLM-readable input (format adapter only):**
 ```bash
 sips -s format jpeg -Z 1500 "<heic>" --out "/tmp/cb-jpg-$$/<basename>.jpg"
 ```
-Examples: HEIC/HEIF/image → temporary raster; scanned PDF → rendered pages; DOCX/RTF → LLM-readable document payload; spreadsheet → LLM-readable table payload; archive → unpacked child sources. This is an **adapter seam ONLY** — it produces throwaway input to feed the driver LLM. It is **not** a stored copy and **not** a clinical text source. The byte-level original is what you mirror to `10_原始文件/` in step A; temporary rasters/pages/payloads are discarded after the LLM reads them. Record the adapter in the sidecar header.
+Examples: HEIC/HEIF/image → temporary raster; scanned PDF → rendered pages; DOCX/RTF → LLM-readable document payload; spreadsheet → LLM-readable table payload; archive → unpacked child sources. This is an **adapter seam ONLY** — it produces throwaway input to feed the driver LLM. It is **not** a stored copy and **not** a clinical text source. The byte-level original is what you mirror to `90_原始文件镜像/` in step A; temporary rasters/pages/payloads are discarded after the LLM reads them. Record the adapter in the sidecar header.
 
 **C. Markdown sidecar + PII region metadata — final clinical text and PII judgment come from the DRIVER LLM, full stop:**
 - The text in every sidecar is produced by the **driver LLM reading the adapted input** — Claude Code's `Read` tool on JPEG/PDF/image/file payload, or codex hosts via `codex exec -i <raster>` / LLM file context. This is the **only** sidecar text source.
@@ -58,7 +58,7 @@ SOURCE: <source_type> | CONFIDENCE: <see §2.3>
 READ_MODE: <model_vision|llm_file_context|llm_rendered_pages|llm_text_payload|stub_unreadable>
 ADAPTER: <none|temp_raster|pdf_pages|docx_payload|spreadsheet_payload|text_payload|archive_unpacked|unsupported_stub>
 ADAPTER_PROVENANCE: <decode/render/extract summary or none>
-ORIGINAL: 10_原始文件/<original_subdir>/<filename>
+ORIGINAL: 90_原始文件镜像/<original_subdir>/<filename>
 ```
 
 **MANDATE — no skipping.** If your slice has 25 files/content units, you produce 25 sidecars. The agent does NOT decide which files matter — Phase 2's review-flags audit and the user decide downstream.
@@ -120,7 +120,7 @@ Phase 2 reads this `## PII` section only as category context; the actual source-
 ```json
 {
   "schema": "pii_regions_v1",
-  "source_ref": "10_原始文件/<original_subdir>/<filename>",
+  "source_ref": "90_原始文件镜像/<original_subdir>/<filename>",
   "source_kind": "image",
   "adapter_frame": {
     "frame_kind": "image",
@@ -212,7 +212,7 @@ This prompt is the **Claude Code reference implementation** of the runtime-neutr
 | Mechanism in this prompt | Status | Swap for non-CC hosts |
 |---|---|---|
 | `Read` tool reads adapted inputs **by path** in-agent (**driver LLM native vision/file context**) | **CC-specific binding** | codex `-i` 视觉 / LLM file context / host file-context handoff. **Pure OCR/parsers are NOT sidecar clinical text sources and do not decide PII regions — they are adapters or mechanical file helpers only.** Text and locator metadata are always LLM output (`organize-contract.md` §6「LLM 输入源」). |
-| `sips -s format jpeg` to decode HEIC (§Step 2·B) and equivalent PDF/DOCX/table adapters | **CC-specific binding (macOS/tooling-specific)** — pure **adapter seam**: produces throwaway input for LLM, NOT a stored copy, NOT a text source | CC binding 用 `sips` / available render/extract helpers;其它 host 用 `heif-convert` / `imagemagick` / `pdftoppm` / document payload builders,或由**宿主预处理**为 LLM-readable input (`organize-contract.md` §6「格式适配」). The LLM never needs to know how the adapter was produced; the byte-level original is what gets mirrored to `10_原始文件/`, not the temp adapter output. |
+| `sips -s format jpeg` to decode HEIC (§Step 2·B) and equivalent PDF/DOCX/table adapters | **CC-specific binding (macOS/tooling-specific)** — pure **adapter seam**: produces throwaway input for LLM, NOT a stored copy, NOT a text source | CC binding 用 `sips` / available render/extract helpers;其它 host 用 `heif-convert` / `imagemagick` / `pdftoppm` / document payload builders,或由**宿主预处理**为 LLM-readable input (`organize-contract.md` §6「格式适配」). The LLM never needs to know how the adapter was produced; the byte-level original is what gets mirrored to `90_原始文件镜像/`, not the temp adapter output. |
 | ≤ 15 images per slice (§"Why ≤ 15 images") + slice dispatch | **host-tunable**, NOT a contract invariant — this is Claude's many-image budget特性 (`organize-contract.md` §1.5 / §7) | A headless host with a different (or no) multi-image budget may **not slice at all**, or slice by its own budget. The §1.4 "no sampling / every file gets a sidecar" invariant is what binds, not the chunk size. |
 | LLM input choice + source_id ↔ sidecar 映射 | **may be done by the host** | The contract only requires sidecars be addressable by a stable `source_id` so 源文件/content unit ↔ sidecar 一一对应; whether the agent or the host assigns `source_id` and persists the mapping is a binding decision (`organize-contract.md` §1.1 / §6「编排」). |
 

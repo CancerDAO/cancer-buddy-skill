@@ -13,7 +13,7 @@ organize 是 5 个纯函数步骤的有序组合。每步以 inputs → outputs(
 | # | 步骤 | 纯函数语义 | 主要产物 |
 |---|---|---|---|
 | 1 | Phase1 — LLM Markdown ingestion | `(一个源文件或 content unit, 稳定 source_id, LLM-readable adapter input) → 一个脱敏 sidecar MD` | `<source>` 的脱敏 MD(`SOURCE/READ_MODE/ADAPTER/CONFIDENCE` 头 + LLM 脱敏正文 + `## PII` trailer) |
-| 2 | Phase2 — 综合 | `(全部 sidecar, source_inventory, source_id↔原名映射) → canonical 输出集` | 11 桶 + `source_inventory.json` + `profile.json` + `timeline.*` + `case_text.md` + `readiness.json` + `review_flags.md` + 6 结构化 JSON + `missing_items.json` + `update_log.json` + `redaction_manifest.json` + 桶相对锚点 |
+| 2 | Phase2 — 综合 | `(全部 sidecar, source_inventory, source_id↔原名映射) → canonical 输出集` | 14 临床域桶(`01_…14_`)+ 2 infra 桶(`90_`/`99_`)+ `source_inventory.json`(含 `modality`)+ `profile.json` + `longitudinal_observations.json` + `timeline.*` + `case_text.md` + `readiness.json` + `review_flags.md` + 6 结构化 JSON + `missing_items.json` + `update_log.json` + `redaction_manifest.json` + 桶相对锚点 |
 | 3 | 确认门(产物化) | `(待写正式字段/待删文件) → 待确认项数据;经确认 → 写/删` | 待确认项数据(候选结构);确认后才落正式字段或不可逆删除 |
 | 4 | 段D — HTML 渲染 | `(脱敏 JSON/MD) → case_summary_data.json → 病情简要总结.html` | 模板脚本渲染的 HTML;不读原始文件 |
 | 5 | 段B/source redaction — 持久化前本体脱敏 | `(redaction_manifest.json, source_inventory.json, patient_dir) → 打码/脱敏后源文件 + status` | 图片 `redaction_status.json` + 全源文件 `source_redaction_status.json`;QA 通过才删明文原件 |
@@ -101,8 +101,9 @@ sidecar 的脱敏 Markdown 正文**必须由驱动 LLM(Claude / codex / OpenClaw
 
 | 产物 | 内容 | 关键约束 |
 |---|---|---|
-| 11 桶 | 每文件落 `<bucket>/<canonical>.<ext>` + co-located `<bucket>/<canonical>.md` | 禁止桶根裸文件;无明确子类落该桶 `其他/`。 |
-| `source_inventory.json` | 每个源文件/content unit 的 LLM ingestion provenance + sidecar + persist/redaction intent | `source_inventory_v1`;每个要持久化的源文件必须能 join 到 `source_redaction_status.json`。 |
+| 14 临床域桶(`01_…14_`)| 每文件落 `<bucket>/<canonical>.<ext>` + co-located `<bucket>/<canonical>.md`;域定义见 [`bucket-taxonomy.md`](bucket-taxonomy.md)(权威,scheme_version 3)| 禁止桶根裸文件;无明确子类落该桶 `其他/`。 |
+| `source_inventory.json` | 每个源文件/content unit 的 LLM ingestion provenance + sidecar + `modality` + persist/redaction intent | `source_inventory_v1`;`modality` ∈ {text,image,structured,omics_raw,timeseries,binary_other};每个要持久化的源文件必须能 join 到 `source_redaction_status.json`。 |
+| `longitudinal_observations.json` | `timeseries`/趋势 `structured` 源解析出的纵向观测序列(可穿戴/PRO/检验趋势)| `longitudinal_observations_v1`;原始导出文件归 `10_随访与监测`,每观测带 `source_ref` 锚点;见 `bucket-taxonomy.md` §3。 |
 | canonical 命名 | `<YYYY-MM-DD>_<doc_type>_<hospital>[_p<page>].<ext>` | doc_type/hospital/date 由 sidecar 语义判定(LLM,非正则);hospital 走 4 级回退;缺值 `unknown-date`/`unknown-org`。 |
 | `INDEX.md` | 每文件一行(桶/类型/日期/机构/置信/canonical/MD),按日期升序 | 路径全为桶相对 co-located 路径。 |
 | `timeline.md` / `timeline.json` | 时间序事件 + 机器可读镜像 | 每事件行 ≥1 个桶相对 `[[src:...]]` 锚点。 |

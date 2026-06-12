@@ -8,7 +8,7 @@
 |---|---|
 | `scripts/run_redaction_job.py prepare <patient_dir>` | 读取 `redaction_manifest_v2`，按 LLM 提供的 bbox/quad/XML/cell/line/payload locator 生成 redacted candidate，写 `redacted_pending_qa`。不覆盖桶文件，不删除明文原件。 |
 | LLM QA worker | 只看 redacted preview/payload，输出 `llm_redaction_qa.json`：file id、pass/fail、类别、reason code。不得回写或打印明文 PII。 |
-| `scripts/run_redaction_job.py commit <patient_dir> --qa-report <qa.json>` | 只有 `coverage_passed:true && llm_qa_passed:true` 才替换 bucket + `10_原始文件/` mirror，并用脱敏版覆盖明文原件。 |
+| `scripts/run_redaction_job.py commit <patient_dir> --qa-report <qa.json>` | 只有 `coverage_passed:true && llm_qa_passed:true` 才替换 bucket + `90_原始文件镜像/` mirror，并用脱敏版覆盖明文原件。 |
 
 ## Manifest / Status 契约
 
@@ -83,7 +83,7 @@ QA report 不得包含原始姓名、证件号、住院号、电话、地址、�
 
 1. `prepare` 只写 candidate，不覆盖原件。
 2. QA pass 后，`commit` 使用 `os.replace` 原子替换 bucket copy。
-3. 同步覆盖 `10_原始文件/` mirror，使 audit mirror 自身也脱敏。
+3. 同步覆盖 `90_原始文件镜像/` mirror，使 audit mirror 自身也脱敏。
 4. 标 `status:"done"`, `coverage_passed:true`, `llm_qa_passed:true`, `qa_passed:true`, `original_deleted:true`。
 5. QA fail / candidate 缺失 / IO 错误 → 保留原件，标 `failed` 或 `blocked`，不得持久化。
 

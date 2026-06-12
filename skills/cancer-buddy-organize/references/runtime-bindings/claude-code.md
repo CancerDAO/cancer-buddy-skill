@@ -15,7 +15,7 @@
 ## 1. 编排
 
 - SKILL.md Step 2 按目录/文件数切片;Step 3 并发 Phase1 LLM Markdown Ingestion Workers;Step 4 continuation loop;Step 5 单 Phase2 worker reduce。
-- Phase1 只写 `<patient_dir>/ocr/` redacted MD sidecars + `10_原始文件/` staging mirror。它不写 INDEX/timeline/profile 等全局产物。
+- Phase1 只写 `<patient_dir>/ocr/` redacted MD sidecars + `90_原始文件镜像/` staging mirror。它不写 INDEX/timeline/profile 等全局产物。
 - 切片大小是 Claude Code 图像上下文预算,不是契约。其它 host 可顺序运行。
 
 ## 2. LLM 输入源
@@ -26,7 +26,7 @@
 
 ## 3. 格式适配
 
-- HEIC/HEIF: `sips` 生成临时 JPG/PNG 给 `Read`;原始 HEIC 仍镜像到 `10_原始文件/`,sidecar `ORIGINAL` 指向原始镜像,临时图只写入 `ADAPTER_PROVENANCE`。
+- HEIC/HEIF: `sips` 生成临时 JPG/PNG 给 `Read`;原始 HEIC 仍镜像到 `90_原始文件镜像/`,sidecar `ORIGINAL` 指向原始镜像,临时图只写入 `ADAPTER_PROVENANCE`。
 - PDF: 可渲染页或准备文件上下文给 LLM。渲染页不是证据源。
 - DOCX/表格/文本: 可展开为 LLM-readable payload。payload 不是临床正文来源。
 - 不支持/损坏文件: Phase1 产 stub sidecar + `[INGESTION_BLOCKED]`,不能静默跳过。
@@ -39,7 +39,7 @@
 
 ## 5. 存储与持久化前脱敏
 
-- Phase2 写 canonical `patient_dir`: 11 buckets, co-located redacted MD, `source_inventory.json`, structured JSON, `redaction_manifest.json`, `source_redaction_status.json`, HTML 等。
+- Phase2 写 canonical `patient_dir`: 14 clinical domains, co-located redacted MD, `source_inventory.json`, structured JSON, `redaction_manifest.json`, `source_redaction_status.json`, HTML 等。
 - `病情简要总结.html` 可在脱敏 MD/JSON 后生成,不等待源文件本体脱敏。
 - 最终 archive/persist 必须等待 `source_redaction_status.json`:每个 `persist:true && redaction_required:true` 源文件都必须 `status=done`, `coverage_passed=true`, `llm_qa_passed=true`, `qa_passed=true`, `original_deleted=true`。
 - 本体脱敏复用 `run_redaction_job.py prepare` + LLM QA + `commit`;不支持格式必须 `blocked`,不得持久化明文。

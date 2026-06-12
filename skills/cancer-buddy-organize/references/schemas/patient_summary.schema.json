@@ -53,6 +53,22 @@
         "source_refs": { "$ref": "#/$defs/source_refs" }
       }
     },
+    "latest_status": {
+      "type": "object",
+      "description": "Single-time-point snapshot of the patient's most recent status. Per bucket-taxonomy.md §3 this snapshot lives here while the full trajectory lives in longitudinal_observations.json (see longitudinal_observations_ref).",
+      "additionalProperties": false,
+      "properties": {
+        "regimen": { "type": ["string", "null"], "description": "Flat human-readable verbatim string of the most recent regimen." },
+        "response": { "type": ["string", "null"], "enum": ["CR", "PR", "SD", "PD", "NE", null] },
+        "ecog": { "type": ["integer", "null"], "minimum": 0, "maximum": 5 },
+        "as_of": { "type": ["string", "null"], "format": "date" },
+        "source_refs": { "$ref": "#/$defs/source_refs" }
+      }
+    },
+    "longitudinal_observations_ref": {
+      "type": ["string", "null"],
+      "description": "Optional patient-dir-relative path to longitudinal_observations.json (the multi-time-point trajectory store, schema longitudinal_observations_v1). Typically 'longitudinal_observations.json' beside profile.json. Consumers read latest_status for the snapshot and follow this ref for the full 单时间点→纵向曲线→治疗反应轨迹 series. See bucket-taxonomy.md §3."
+    },
     "treating_hospitals": { "type": "array", "items": { "type": "string" } },
     "patient_location_hint": { "type": ["string", "null"] },
     "caregivers": {
@@ -78,7 +94,7 @@
       "items": {
         "type": "string",
         "pattern": "^(([0-9]{2}_[^\\s/]+(/[^\\s/]+)*\\.md(#L\\d+(-L\\d+)?|#[A-Za-z0-9_-]+)?)|(conversation:\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})?))$",
-        "description": "Anchor token normalized to the path-only string. File anchors begin with an NN_ bucket prefix (00_…10_) and point to a redacted MD sidecar inside its bucket; conversation anchors are the literal 'conversation:<ISO8601>'. The retired ocr/ and 02_脱敏病历/ prefixes are rejected. Optional fragment is #L<start>-L<end> or #section-anchor."
+        "description": "Anchor token normalized to the path-only string. File anchors begin with an NN_ clinical-domain bucket prefix (01_…14_) and point to a redacted MD sidecar inside its bucket; conversation anchors are the literal 'conversation:<ISO8601>'. The infrastructure mirror 90_原始文件镜像/ and quarantine 99_无关文件/ are never anchor targets, and the retired ocr/ / 02_脱敏病历/ prefixes are rejected. Optional fragment is #L<start>-L<end> or #section-anchor."
       }
     }
   }

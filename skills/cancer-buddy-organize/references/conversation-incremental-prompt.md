@@ -12,7 +12,7 @@ That gate is **not redefined here** — it is the shared confirm-gate. The "unco
 - A turn in that chat contains a candidate archivable fact (see below).
 - Caller passes `run_mode: "conversation_incremental"` plus `patient_dir`.
 
-This mode does NOT re-OCR files, does NOT re-run Phase-1/Phase-2 synthesis, and does NOT touch buckets other than `09_患者补充/`. For new *files*, use full or incremental mode instead.
+This mode does NOT re-OCR files, does NOT re-run Phase-1/Phase-2 synthesis, and does NOT touch buckets other than `14_患者自管补充/`. For new *files*, use full or incremental mode instead.
 
 ## Inputs (caller supplies these)
 
@@ -94,11 +94,11 @@ Only write the candidates the user confirms (`确认`). For `改一下` use the 
 
 **4a. Archive the note (always, for every confirmed candidate):**
 
-Append to a dated note under `09_患者补充/conversation_notes/`:
+Append to a dated note under `14_患者自管补充/conversation_notes/`:
 
 ```bash
-mkdir -p "$patient_dir/09_患者补充/conversation_notes"
-# write to 09_患者补充/conversation_notes/<turn_timestamp-date>.md
+mkdir -p "$patient_dir/14_患者自管补充/conversation_notes"
+# write to 14_患者自管补充/conversation_notes/<turn_timestamp-date>.md
 ```
 
 The note file carries a `tags: [patient_curated]` front-matter marker and the verbatim user quote + the confirmed structured value. This file is the **archive**, not the citation target — facts cite the conversation anchor, not this file (see anchor-contract §1b).
@@ -151,7 +151,7 @@ Final message MUST be pure JSON, no prose:
   "candidates_deferred": 0,
   "profile_fields_written": ["stage"],
   "timeline_rows_added": 1,
-  "conversation_note_path": "09_患者补充/conversation_notes/2026-06-07.md",
+  "conversation_note_path": "14_患者自管补充/conversation_notes/2026-06-07.md",
   "conversation_anchor": "conversation:2026-06-07T14:32:05Z",
   "run_logged": true
 }

@@ -36,10 +36,11 @@ done
 # encoded as a code-level dict/list entry (": " or "=>" or "->" with quotes).
 # The only allowed fixed map is the bucket-name table (i18n.md §6), which keys
 # on NN_ prefixes and lives in references/i18n.md, not in skill code.
+# v3 scheme: clinical domains 01_..14_ plus infrastructure 90_ / 99_.
 suspect=$(grep -rniE \
   '("|'\'')(osimertinib|奥希替尼|gefitinib|EGFR|KRAS|ALK|PD-L1)("|'\'')[[:space:]]*(:|=>|->)[[:space:]]*("|'\'')' \
   "$SKILLS_DIR" --include='*.py' --include='*.json' --include='*.js' 2>/dev/null \
-  | grep -viE 'bucket|NN_|schema|0[0-9]_|1[01]_|99_' || true)
+  | grep -viE 'bucket|NN_|schema|0[1-9]_|1[0-4]_|90_|99_' || true)
 if [[ -n "$suspect" ]]; then
   while IFS= read -r line; do
     fail "hardcoded clinical-entity translation map suspected: $line"

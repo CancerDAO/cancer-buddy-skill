@@ -36,7 +36,7 @@ Usage:
 
 If given a directory, every `*.md` under `<dir>/ocr/` is scanned (the Phase-1
 central staging dir); if `<dir>/ocr/` does not exist, every `*.md` under the
-buckets `01_…11_` is scanned (post-Phase-2 co-located sidecars). A direct path
+buckets `01_…14_` is scanned (post-Phase-2 co-located sidecars). A direct path
 to a single `.md` file scans just that file.
 
 OCR frequently splits a PII label and its value across two adjacent lines (the

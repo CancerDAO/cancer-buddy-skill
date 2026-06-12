@@ -1,6 +1,6 @@
 # Medical Relevance Gate — 段E
 
-Before any file enters the 11-bucket clinical archive, it passes a **relevance triage**: is this file a medical record, or is it an unrelated photo / screenshot / receipt that slipped into the upload folder? This gate runs inside Phase 2 (`organizer-prompt-phase2-synthesis.md` Step 1, before classification) and decides three things: which files become formal clinical records, which are isolated as 无关, and which are too uncertain to delete without asking.
+Before any file enters the 14-clinical-domain archive, it passes a **relevance triage**: is this file a medical record, or is it an unrelated photo / screenshot / receipt that slipped into the upload folder? This gate runs inside Phase 2 (`organizer-prompt-phase2-synthesis.md` Step 1, before classification) and decides three things: which files become formal clinical records, which are isolated as 无关, and which are too uncertain to delete without asking.
 
 The hard rule of this gate (privacy floor): **we do not keep a patient's raw unrelated files.** A high-confidence non-medical file the patient does not claim back is deleted — silence means delete. The only file we never auto-delete is one we are *not sure* about, because deleting a real medical record is worse than keeping a stray screenshot.
 
@@ -18,8 +18,8 @@ For every file, after reading its sidecar (and, when ambiguous, the image itself
 
 | class | what it looks like | landing place |
 |---|---|---|
-| **medical** | Any record carrying clinical content: 检查单 / 化验报告 / 病理报告 / 影像（含影像截图）/ 基因报告 / 出院小结 / 处方 / 医嘱 / 知情同意书 / 医生发来的诊疗信息截图 / 用药照片（药盒/药瓶可辨）/ 手术记录 / 会诊意见. When in real doubt but it *plausibly* carries clinical value, lean **medical**, not borderline — a record wrongly dropped is the costly error. | normal → into the 11 buckets, full OCR→脱敏 MD→classify flow |
-| **non-medical, high-confidence** | Clearly unrelated to the patient's care: 风景照 / 自拍 / 宠物 / 餐食 / 旅游 / 无关聊天截图 / 广告 / 纯生活收据 / app 界面截图 / 重复的空白页 / 误拍的桌面. You would bet money it has no clinical value. | isolate → `99_无关文件/`, NOT into the 11 buckets; eligible for auto-delete on no-confirm |
+| **medical** | Any record carrying clinical content: 检查单 / 化验报告 / 病理报告 / 影像（含影像截图）/ 基因报告 / 出院小结 / 处方 / 医嘱 / 知情同意书 / 医生发来的诊疗信息截图 / 用药照片（药盒/药瓶可辨）/ 手术记录 / 会诊意见. When in real doubt but it *plausibly* carries clinical value, lean **medical**, not borderline — a record wrongly dropped is the costly error. | normal → into the 14 clinical domains, full OCR→脱敏 MD→classify flow |
+| **non-medical, high-confidence** | Clearly unrelated to the patient's care: 风景照 / 自拍 / 宠物 / 餐食 / 旅游 / 无关聊天截图 / 广告 / 纯生活收据 / app 界面截图 / 重复的空白页 / 误拍的桌面. You would bet money it has no clinical value. | isolate → `99_无关文件/`, NOT into the 14 clinical domains; eligible for auto-delete on no-confirm |
 | **borderline / 拿不准** | Could go either way and you genuinely cannot tell: a blurry photo that *might* be a report, a receipt that might encode which scan was done, a screenshot whose text is unreadable, a partial document. | isolate → `99_无关文件/` **but flag** `relevance_uncertain`; **never** auto-deleted — waits for the user to decide 删/留 |
 
 Calibration: the bar for **non-medical high-confidence** is "I would bet money this has no clinical value." If you are not at that bar, it is **borderline**, not high-confidence non-medical — because the high-confidence bucket is the one that gets auto-deleted on silence, and that deletion is irreversible.
@@ -32,7 +32,7 @@ Calibration: the bar for **non-medical high-confidence** is "I would bet money t
 - NOT mirrored as a permanent record — they are explicitly the files we intend not to keep.
 - Held only long enough for the user to claim any back ("X 其实有用") before the high-confidence ones are deleted.
 
-It is deliberately the last-numbered bucket and sits outside the `00_…11_` clinical scheme so downstream sub-skills never read it. A file in `99_无关文件/` has, by definition, not entered the patient's clinical record.
+It is deliberately the last-numbered bucket and sits outside the `01_…14_` (clinical) plus `90_/99_` (infra) scheme so downstream sub-skills never read it. A file in `99_无关文件/` has, by definition, not entered the patient's clinical record.
 
 Inside `99_无关文件/`, separate the two non-medical sub-classes so the delete/keep logic is unambiguous:
 
@@ -111,7 +111,7 @@ Applies to **high-confidence non-medical files** in two situations:
 - the user confirms they're unrelated, **OR**
 - the user does not respond / does not claim any back (silence, deferral, "随便", closing the chat).
 
-→ **Delete** the file from `99_无关文件/high_confidence/`. This is irreversible and intended (privacy floor). Record it in `update_log.json` (see below). Do NOT delete the originals from anywhere else — high-confidence non-medical files were never copied into the 11 buckets or anchored, so the `99_无关文件/` copy is the only copy and deleting it is the whole point.
+→ **Delete** the file from `99_无关文件/high_confidence/`. This is irreversible and intended (privacy floor). Record it in `update_log.json` (see below). Do NOT delete the originals from anywhere else — high-confidence non-medical files were never copied into the 14 clinical domains or anchored, so the `99_无关文件/` copy is the only copy and deleting it is the whole point.
 
 ### 2. Keep / reclassify (回收 — "X 其实有用")
 
@@ -138,7 +138,7 @@ These are the load-bearing rules; the rest of the doc explains them. They are th
 
 1. **High-confidence non-medical, no confirmation ⇒ delete.** Silence/deferral counts as no-confirm and the file is deleted. This is by design (we do not retain raw unrelated files), not a bug.
 2. **Borderline (`relevance_uncertain`) ⇒ never auto-deleted.** It is held in `99_无关文件/uncertain/` until the user *explicitly* chooses 删/留. Silence does NOT delete a borderline file.
-3. **medical files are never touched by this gate's deletion** — they're in the 11 buckets with the normal "redact-then-delete" carve-out (段B), not the relevance carve-out.
+3. **medical files are never touched by this gate's deletion** — they're in the 14 clinical domains with the normal "redact-then-delete" carve-out (段B), not the relevance carve-out.
 4. The user must be told, before any deletion, that we don't keep raw unrelated files and that silence ⇒ delete (mandatory disposition-notice sentence above).
 
 ## update_log.json — record every relevance action
@@ -154,7 +154,7 @@ Each organize run that touched the gate appends relevance actions to `update_log
     "auto_deleted": ["99_无关文件/high_confidence/IMG_0042.jpg"],
     "reclassified": [
       {"from": "99_无关文件/high_confidence/IMG_0051.jpg",
-       "to": "07_治疗记录/化疗/2024-05-02_临时医嘱_中山六院.jpg"}
+       "to": "08_治疗/化疗/2024-05-02_临时医嘱_中山六院.jpg"}
     ],
     "held_uncertain": ["99_无关文件/uncertain/IMG_0077.jpg"]
   }
