@@ -20,7 +20,7 @@ patients/<patient_code>/
 ├── 11_会诊与转诊/ 12_心理社会与支持/ 13_行政与财务/ 14_患者自管补充/
 ├── raw/                      # verbatim vault of every uploaded original (hidden, never anchored, never pixel-redacted)
 ├── 99_无关文件/               # relevance quarantine (high_confidence/ uncertain/)
-├── ocr/                      # OCR sidecars (per-file text extracts)
+├── ocr/                      # transient Phase-1 staging — OCR sidecars (per-file text extracts) drained into buckets & deleted by Phase-2; a completed run has no ocr/
 └── reports/
     ├── mtb-lite/             # cancer-buddy-mtb-lite
     ├── mtb-full/             # vmtb-skill cancerdao-vmtb
@@ -136,7 +136,7 @@ Fields are left `null` when truly unknown — the organizer never fabricates.
 
 Items where the organizer **successfully extracted a value but the value or its writing is suspicious**. Distinct from `blocking_gaps` (which is about coverage) — `review_flags` is about **trustworthiness of what was extracted**.
 
-Detection categories (organizer must check all five before returning):
+Detection categories (organizer must check all nine before returning):
 
 | category | trigger |
 |---|---|
@@ -147,6 +147,8 @@ Detection categories (organizer must check all five before returning):
 | `value_trend_anomaly` | Lab/biomarker shows non-physiologic jump or unit-suspect change (TSH 6.49 → 0.80 in 8 weeks unexplained; CEA dropping 100× in one cycle). |
 | `filename_content_mismatch` | The canonical `doc_type` / bucket assigned to a file did not match its sidecar content on the second-check re-read (e.g. a file named `肿瘤标志物` whose content is a 生化 panel). `field_path` = the content unit's `file_id`. |
 
+This file lists the value-suspicion subset; the full 9-category roster (adding cross_patient_name_collision / anchor_coverage_gap / relevance_uncertain) is authoritative in organizer-prompt-phase2-synthesis.md Step 3.
+
 Each entry MUST contain: `id` (`RF-NNN`), `severity` ∈ {red, yellow, green}, `category` (from table), `field_path` (dot path into profile.json), `current_value`, `issue` (≤80 chars Chinese summary), `source_evidence[]` (bucket-relative paths to text-masked MD sidecars that support `current_value`), `suggested_action`, `user_confirmed: false` on first write.
 
 May contain: `suggested_value` (concrete proposal), `rationale_for_suggestion`.
@@ -156,7 +158,7 @@ May contain: `suggested_value` (concrete proposal), `rationale_for_suggestion`.
 - 🟡 `yellow` — should be reviewed but won't break downstream (cycle numbering, term-misuse, value-trend without explanation)
 - 🟢 `green` — informational hint (substage precision optional, supporting data desirable)
 
-**Empty-array semantics:** organizer found no suspicious extracted values. Empty ≠ skipped — organizer must always run the five checks and surface intermediate findings even when none reach severity threshold.
+**Empty-array semantics:** organizer found no suspicious extracted values. Empty ≠ skipped — organizer must always run the nine checks and surface intermediate findings even when none reach severity threshold.
 
 **Companion artifact `review_flags.md`** — auto-generated human-readable rendering of the array, written to `patients/<patient_code>/review_flags.md` for direct user reading. Source of truth is the JSON; the .md is regenerated on every organize.
 

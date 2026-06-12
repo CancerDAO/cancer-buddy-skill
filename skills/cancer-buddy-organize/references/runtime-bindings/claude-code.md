@@ -20,9 +20,9 @@
 
 ## 2. LLM 输入源
 
-- sidecar 正文和 PII locator 必须由 Claude/driver LLM 读取 adapted input 后写出(文本脱敏 MD)。
-- 图片/扫描件: `Read` 视觉。PDF/DOCX/表格/文本: 可先转成模型可读输入,但最终 Markdown 正文、PII 判断、PII locator、表格转写仍由 LLM 输出。
-- 纯 OCR/parser 字符流不能直接写 sidecar 临床正文,也不能替代 LLM 做 PII locator 判断。它们只能做格式适配或机械文件处理。
+- sidecar 正文必须由 Claude/driver LLM 读取 adapted input 后写出(文本脱敏 MD: inline `[PII_MASKED]` + `## PII` trailer)。
+- 图片/扫描件: `Read` 视觉。PDF/DOCX/表格/文本: 可先转成模型可读输入,但最终 Markdown 正文、PII 判断 (inline `[PII_MASKED]` + `## PII` trailer)、表格转写仍由 LLM 输出。
+- 纯 OCR/parser 字符流不能直接写 sidecar 临床正文,也不能替代 LLM 做 PII 判断。它们只能做格式适配或机械文件处理。
 
 ## 3. 格式适配
 
@@ -49,4 +49,4 @@
 - sidecar(文本脱敏 MD)是下游唯一读取源;Phase2/段D 不读明文原文件。
 - 临床实体 verbatim,不翻译/规范化/平滑。
 - `source_inventory.json` 覆盖每个输入源,每条 content unit 带 `raw_path` + 文本脱敏 sidecar。
-- LLM 可生成 MD/JSON/HTML 前置数据和 PII locators;确定性 HTML 渲染、PII rescan 由脚本执行。
+- LLM 可生成 MD/JSON/HTML 前置数据 (含 sidecar 正文 inline `[PII_MASKED]` + `## PII` trailer);确定性 HTML 渲染、PII rescan 由脚本执行。

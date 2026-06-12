@@ -7,7 +7,7 @@
 | 接缝 | 契约要求(不变) | headless codex 填法 |
 |---|---|---|
 | 编排 | Phase2 前所有 sidecar 就绪 | 单进程顺序遍历 source inventory,逐源调用 Codex |
-| LLM 输入源 | sidecar 正文和 PII locator 由 LLM 输出;纯 OCR/parser 非正文或 PII 判断来源 | `codex exec -i <raster>` 视觉或 Codex file-context/payload prompt |
+| LLM 输入源 | sidecar 正文 (含 inline `[PII_MASKED]` + `## PII` trailer) 由 LLM 输出;纯 OCR/parser 非正文或 PII 判断来源 | `codex exec -i <raster>` 视觉或 Codex file-context/payload prompt |
 | 格式适配 | 只把源文件变成 LLM-readable input | `heif-convert`/ImageMagick/pdftoppm/document payload builder |
 | 确认门 | 未确认不写正式字段/不可逆删除 | confirm-as-product JSON + 平台 UI + 第二轮回灌 |
 | 存储 | canonical 输出集 | 沙箱内生成 patient_dir;原始件逐字保存进 `raw/` vault |
@@ -31,8 +31,8 @@ Codex `-i` 喂的是匿名图像字节时,平台必须维护 `source_id ↔ 原�
 ## 2. LLM 输入源
 
 - 图片/扫描件: `codex exec -i <adapted-raster>` 让 Codex 视觉直接读,输出文本脱敏 MD。
-- PDF/DOCX/spreadsheet/text:平台可构造 LLM-readable file context 或 payload,再让 Codex 输出文本脱敏 MD 和 PII locator metadata。
-- 纯 OCR/parser 字符流不能直接写 sidecar 临床正文,也不能替代 Codex 做 PII locator 判断。它们只允许做 adapter 或机械文件处理。
+- PDF/DOCX/spreadsheet/text:平台可构造 LLM-readable file context 或 payload,再让 Codex 输出文本脱敏 MD (inline `[PII_MASKED]` + `## PII` trailer)。
+- 纯 OCR/parser 字符流不能直接写 sidecar 临床正文,也不能替代 Codex 做 PII 判断。它们只允许做 adapter 或机械文件处理。
 - sidecar header 必须含 `READ_MODE`, `ADAPTER`, `ADAPTER_PROVENANCE`, `ORIGINAL`。`ORIGINAL`/`raw_path` 指向 `raw/` 下的逐字原件,不是临时 adapter 文件。
 
 ## 3. 格式适配

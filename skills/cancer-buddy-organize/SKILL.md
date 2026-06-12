@@ -88,7 +88,7 @@ This skill follows the shared locale contract in [`../../references/i18n.md`](..
 
    Each Phase 1 worker writes ONLY to `<patient_dir>/ocr/` (text-masked MD sidecars) and `<patient_dir>/raw/<original_subdir>/` (verbatim originals, kept as uploaded). It may create temporary adapter outputs (HEIC raster, PDF rendered pages, DOCX/table payloads) only to feed the driver LLM; those adapter outputs are not stored, not anchors, and not clinical text sources. Workers do NOT touch INDEX.md / timeline.md / profile.json / etc — those are Phase 2's job. Workers don't share context, so anti-anchoring is structurally enforced.
 
-   Each worker returns: `{slice_id, files_processed, sidecars_written, pii_region_files_written, stub_sidecars, full_ingestion_sidecars, ingestion_uncertain_files, candidates_files, ingestion_blocked_files, continuation_needed, continuation_resume_from}`.
+   Each worker returns: `{slice_id, files_processed, sidecars_written, stub_sidecars, full_ingestion_sidecars, ingestion_uncertain_files, candidates_files, ingestion_blocked_files, continuation_needed, continuation_resume_from}`.
 
 4. **Phase 1 continuation loop** — for each worker that returned `continuation_needed: true`, dispatch a continuation worker for that slice:
 
@@ -116,14 +116,14 @@ This skill follows the shared locale contract in [`../../references/i18n.md`](..
 
 9. **Display review_summary.md (MANDATORY, ALWAYS)** — read the file at `review_summary_path` and display its full content to the user. This is the **first** thing the user sees after organize — before profile card, before review_flags. It is a 1-page spot-check of extracted key fields with verbatim source citations.
 
-   Why this is the first display: many real ingestion/transcription errors produce **internally consistent wrong values** (e.g. all 7 documents in one hospitalization copied the same wrong drug name). The 5-check `review_flags` audit cannot detect those — but a human reading `review_summary.md` can spot a wrong character in 30 seconds.
+   Why this is the first display: many real ingestion/transcription errors produce **internally consistent wrong values** (e.g. all 7 documents in one hospitalization copied the same wrong drug name). The 9-check `review_flags` audit cannot detect those — but a human reading `review_summary.md` can spot a wrong character in 30 seconds.
 
    After displaying, prompt the user: "请核对上面 5 个检查要点。任何字段需要修正,直接告诉我哪个字段 + 正确值,我会更新 profile.json 并重新生成清单。"
 
 10. **Surface review_flags (MANDATORY)** — if `review_flags_total > 0`, read `review_flags.md` and display its content to the user immediately after `review_summary.md`. This is a hard gate, not optional polish:
     - **If any 🔴 red flag present**: tell the user "进入下游 skill 之前请先逐条确认或 override 这些 🔴 项 — 它们会直接影响 trial-match / mtb-lite / vmtb 的推荐"
     - **If only 🟡/🟢 flags**: present them as "建议核对", do not block downstream routing
-    - **If `review_flags_total: 0`**: still tell the user "所有提取字段已通过 5 项可疑值检查 (格式/跨文档矛盾/临床逻辑/原始证据/数值趋势), 无待确认项 — 但仍请核对上面的 review_summary.md 速查清单"
+    - **If `review_flags_total: 0`**: still tell the user "所有提取字段已通过 9 项可疑值检查 (格式/跨文档矛盾/临床逻辑/原始证据/数值趋势), 无待确认项 — 但仍请核对上面的 review_summary.md 速查清单"
     - The user's resolution per flag (`accept_suggestion` / `keep_original` / `custom_value` / `defer`) is logged back into `readiness.json.review_flags[i].user_confirmed = true` plus a `resolution` sub-object.
 
 11. **Output profile card** — display the Patient Profile Card ([references/profile-card.md](references/profile-card.md)) to the patient using the `terminology.md` format rules (中英 + 通俗解释). The card's "🔍 待人工确认" section pulls from `readiness.json.review_flags[]`.
@@ -135,7 +135,7 @@ This skill follows the shared locale contract in [`../../references/i18n.md`](..
     ```bash
     python3 scripts/render_html_template.py \
       --template references/templates/case-summary.template.html \
-      --data <patient_dir>/.case_summary_data.json \
+      --data <patient_dir>/case_summary_data.json \
       --out  <patient_dir>/病情简要总结.html
     ```
 

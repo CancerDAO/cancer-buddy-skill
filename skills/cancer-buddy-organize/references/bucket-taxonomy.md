@@ -129,7 +129,7 @@ its original is carried in `source_inventory.json` (one row per content unit) an
 content unit := {
   file_id:    "<stable id, 1:1 with this sidecar>",   # e.g. f001
   source_id:  "<id of the upload it came from>",        # e.g. s001  (N content units may share one source_id)
-  md_path:    "04_诊断与分期/病理报告/2024-03-15_病理报告_中山六院.md",
+  sidecar_path: "04_诊断与分期/病理报告/2024-03-15_病理报告_中山六院.md",
   raw_path:   "raw/2024-Q1/discharge_2024-03-15.pdf",   # the un-redacted original in raw/, original name kept
   page_range: "3-5"                                      # which pages of a multi-document source; null if whole file
 }

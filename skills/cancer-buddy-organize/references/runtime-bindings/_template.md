@@ -7,7 +7,7 @@
 | 接缝 | 契约要求(不变) | `<HOST_NAME>` 填法 |
 |---|---|---|
 | 编排 | Phase2 前所有 text-masked MD sidecars 就绪 | `<填法: 扇出 / 单进程顺序 / job 队列>` |
-| LLM 输入源 | sidecar 正文和 PII locator 由 LLM 输出;纯 OCR/parser 不是临床正文或 PII 判断来源 | `<填法: 多模态视觉 / LLM file context / host file handoff>` |
+| LLM 输入源 | sidecar 正文 (含 inline `[PII_MASKED]` + `## PII` trailer) 由 LLM 输出;纯 OCR/parser 不是临床正文或 PII 判断来源 | `<填法: 多模态视觉 / LLM file context / host file handoff>` |
 | 格式适配 | 只把源文件变成 LLM-readable input | `<填法: HEIC/PDF/DOCX/表格/archive 如何适配>` |
 | 确认门 | 未确认不写正式字段/不可逆删除 | `<填法: inline 往返 / confirm-as-product 两轮>` |
 | 存储 | canonical 输出集;原始件逐字保存进 `raw/` vault | `<填法: 写哪、`raw/` 如何保存、persist 到哪>` |
@@ -20,9 +20,9 @@
 
 ## 2. LLM 输入源
 
-- **契约要求**:最终 sidecar Markdown 正文和 PII locator 必须由 LLM 生成。图片/扫描件由 LLM 视觉读;PDF/DOCX/表格/文本可先适配,但 LLM 负责最终转写、PII 判断、locator 和 Markdown 结构。
+- **契约要求**:最终 sidecar Markdown 正文必须由 LLM 生成 (文本脱敏 MD: inline `[PII_MASKED]` + `## PII` trailer)。图片/扫描件由 LLM 视觉读;PDF/DOCX/表格/文本可先适配,但 LLM 负责最终转写、PII 判断和 Markdown 结构。
 - **填法**:`<描述如何把 adapted input 交给 LLM,例如 codex -i、host file context、OpenClaw file tool>`。
-- **禁止**:不得把纯 OCR/parser 的字符输出直接写成临床正文,也不得用它替代 LLM 做 PII locator 判断。它们只能做 adapter 或机械文件处理。
+- **禁止**:不得把纯 OCR/parser 的字符输出直接写成临床正文,也不得用它替代 LLM 做 PII 判断。它们只能做 adapter 或机械文件处理。
 
 ## 3. 格式适配
 
