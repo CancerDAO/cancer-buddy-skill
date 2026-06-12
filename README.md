@@ -244,7 +244,7 @@ $HOME/CancerDAO/patients/
 ```
 
 - 使用匿名 patient_code 标识
-- 不包含身份信息
+- 你上传的原件**逐字保存在本地 `raw/`**(由你掌控、不联网外传);下游产物(脱敏 MD sidecar、结构化 JSON、对外报告)做**文本级 PII 脱敏**,不含明文身份信息
 - 支持自定义路径
 
 所有生成内容（如 timeline、profile）均为可读、可导出的开放格式，不依赖特定系统。
