@@ -181,7 +181,7 @@ ls ~/.claude/plugins/vmtb-skill/SKILL.md \
 
 1. **`profile.json`** —— 身份 + `locale`（**永远第一**，最便宜的"这是谁"）。先拿到 locale 再决定所有后续话术语言。
 2. **`readiness.json`** —— grade + `blocking_gaps` + `review_flags`（**诚实闸门**）。如果用户问到的领域正落在某个 `blocking_gap` 上，就**如实说缺什么、不要编**——"这部分档案里还没有，建议你下次复诊补上"，而不是凭空合成一个答案。
-3. **`INDEX.md`** —— 文件清单（每文件一行：桶/类型/日期/机构/置信/canonical/MD 路径）。读它是为了知道**到底有哪些源文件存在**，并能把"事实 → 文件名"映射起来用于引用（见下一节）。
+3. **`INDEX.md`** —— 文件清单（每文件一行：file_id/桶/类型/日期/机构/置信/MD/Raw原件/页码）。读它是为了知道**到底有哪些源文件存在**，并能把"事实 → 文件名"映射起来用于引用（见下一节）。
 4. **按问题定向读结构化 JSON** —— 只读这次问题需要的那个：`molecular.json` / `labs.json` / `treatment_lines.json` / `timeline.json` / `comorbidities.json`（含 `patient_summary.json`）。**不要一次性把所有 JSON 全读、更不要通读整个文件夹**。每条事实带着自己的 `source_refs[]`。
 5. **要引用/逐字引述时，才读 `source_refs[]` 里点名的那个源文件** —— 锚定的 `case_text.md` 或对应桶里的 `.md` sidecar（如 `04_诊断与分期/病理报告/…md#L4-L8`）。读到能覆盖被引用事实即可。
 

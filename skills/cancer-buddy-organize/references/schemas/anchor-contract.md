@@ -19,7 +19,7 @@ There are two anchor kinds:
 
 ### 1a. File anchor
 
-- `<bucket-relative-path>` is a path to a `.md` sidecar **relative to `<patient_dir>`**, beginning with one of the clinical-domain prefixes (`01_…` … `14_…`; infra `90_`/`99_` are never anchored), e.g. `04_诊断与分期/病理报告/2024-03-15_病理报告_x.md`.
+- `<bucket-relative-path>` is a path to a `.md` sidecar **relative to `<patient_dir>`**, beginning with one of the clinical-domain prefixes (`01_…` … `14_…`; infra `raw/`/`99_` are never anchored), e.g. `04_诊断与分期/病理报告/2024-03-15_病理报告_x.md`.
 - The legacy `ocr/` prefix is **deprecated and rejected** — the central `ocr/` directory no longer exists; MD sidecars live only inside their bucket alongside the image they were extracted from.
 - The historical `02_脱敏病历/` prefix is likewise retired in favor of bucket-relative paths.
 - `<fragment>` is optional. Two forms accepted:
@@ -32,7 +32,7 @@ There are two anchor kinds:
 
 - Form: `[[src:conversation:<ISO8601>]]` where `<ISO8601>` is the timestamp of the chat turn the fact was confirmed in, e.g. `[[src:conversation:2026-06-07T14:32:05Z]]`.
 - Emitted only by the `conversation-incremental` run mode (段C), and only for facts the user has explicitly confirmed via the diff card. Unconfirmed candidates are never written to formal fields and never carry an anchor.
-- A conversation anchor has **no path and no `#fragment`** — the dialogue turn is the source. The underlying note is archived under `14_患者自管补充/conversation_notes/` with a `patient_curated` tag, but that file is the archive, not the citation target.
+- A conversation anchor has **no path and no `#fragment`** — the dialogue turn is the source. The underlying note is archived under the fact's CORRESPONDING clinical-domain `conversation_notes/` subdir (e.g. a lab value → `07_检验/conversation_notes/`), falling back to `14_患者自管补充/conversation_notes/` only when the fact fits no clinical domain, with a `patient_curated` tag, but that file is the archive, not the citation target.
 
 ## 2. Coverage rule
 

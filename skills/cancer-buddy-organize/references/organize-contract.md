@@ -104,12 +104,12 @@ sidecar 的脱敏 Markdown 正文**必须由驱动 LLM(Claude / codex / OpenClaw
 | `source_inventory.json` | 每个 content unit 的 LLM ingestion provenance + sidecar + `modality` + `file_id`/`source_id` + `raw_path`(回链 `raw/` 逐字原件)+ `page_range` | `source_inventory_v1`;`modality` ∈ {text,image,structured,omics_raw,timeseries,binary_other};`raw_path` 以 `raw/` 开头,指向永不打码的逐字原件(见 `bucket-taxonomy.md` §4)。 |
 | `longitudinal_observations.json` | `timeseries`/趋势 `structured` 源解析出的纵向观测序列(可穿戴/PRO/检验趋势)| `longitudinal_observations_v1`;原始导出文件归 `10_随访与监测`,每观测带 `source_ref` 锚点;见 `bucket-taxonomy.md` §3。 |
 | canonical 命名 | `<YYYY-MM-DD>_<doc_type>_<hospital>[_p<page>].<ext>` | doc_type/hospital/date 由 sidecar 语义判定(LLM,非正则);hospital 走 4 级回退;缺值 `unknown-date`/`unknown-org`。 |
-| `INDEX.md` | 每文件一行(桶/类型/日期/机构/置信/canonical/MD),按日期升序 | 路径全为桶相对 co-located 路径。 |
+| `INDEX.md` | 每文件一行(file_id/桶/类型/日期/机构/置信/MD/Raw原件/页码),按日期升序 | 路径全为桶相对 co-located 路径。 |
 | `timeline.md` / `timeline.json` | 时间序事件 + 机器可读镜像 | 每事件行 ≥1 个桶相对 `[[src:...]]` 锚点。 |
 | `case_text.md` | 分节叙述,每事实句带锚点 | 锚点契约见 2.3;dangling 锚点 → 不写文件、记 `anchor_dangling`。 |
 | `profile.json` | canonical schema(含 `locale`、`alias`,字段不变) | `current_therapy` 为 STRING 取最新;`alias` sticky 不覆写。 |
 | `readiness.json` | 8 域评分 + grade + `blocking_gaps` + `warnings` + `review_flags` | grade 阈值:A≥.90 B≥.75 C≥.60 D≥.40 F<.40。 |
-| `review_flags.md` | 非空时写(8 类审查) | 见 2.4。 |
+| `review_flags.md` | 非空时写(9 类审查) | 见 2.4。 |
 | 6 结构化 JSON | `patient_summary/timeline/molecular/treatment_lines/labs/comorbidities` | 每事实字段带 `source_refs`;过 schema gate 才写,失败记 `schema_validation_failed`。 |
 | `missing_items.json` | 癌种 checklist diff(stage-context) | 映射不明 → `cancer_type:null`+`checklist_unmapped`。 |
 | `update_log.json` | 本次 run 审计条目 | full=全量条目;incremental=delta。 |
@@ -127,7 +127,7 @@ sidecar 的脱敏 Markdown 正文**必须由驱动 LLM(Claude / codex / OpenClaw
 
 ### 2.4 review_flags 审查(必跑,可空)
 
-Phase2 的跨文档审计(Phase1 做不到,因 Phase1 只见自己那片;Phase2 还能横看 patients root 下兄弟目录做跨患者检查)。对 profile 关键字段跑 8 类检查:`format_violation` / `cross_doc_contradiction` / `clinical_logic_anomaly` / `unverified_critical_field` / `value_trend_anomaly` / `cross_patient_name_collision`(**P0**:同名+同生年撞另一患者→`red`) / `anchor_coverage_gap` / `relevance_uncertain`(段E borderline,见 §3)。flag 形态、严重度校准(red 改下游 rec 或隐私/安全关键;yellow 应复核不阻断;green 信息性)见 phase2-synthesis.md §3。`review_summary.md` 每次必写(即便 grade A、flags 空)。
+Phase2 的跨文档审计(Phase1 做不到,因 Phase1 只见自己那片;Phase2 还能横看 patients root 下兄弟目录做跨患者检查)。对 profile 关键字段跑 9 类检查:`format_violation` / `cross_doc_contradiction` / `clinical_logic_anomaly` / `unverified_critical_field` / `value_trend_anomaly` / `cross_patient_name_collision`(**P0**:同名+同生年撞另一患者→`red`) / `anchor_coverage_gap` / `relevance_uncertain`(段E borderline,见 §3) / `filename_content_mismatch`。flag 形态、严重度校准(red 改下游 rec 或隐私/安全关键;yellow 应复核不阻断;green 信息性)见 phase2-synthesis.md §3。`review_summary.md` 每次必写(即便 grade A、flags 空)。
 
 ### 2.5 不变量
 

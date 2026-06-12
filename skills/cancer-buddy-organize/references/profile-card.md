@@ -67,6 +67,6 @@
 ## Display rules
 
 - "信息缺口" 是覆盖度（缺什么），"待人工确认" 是可信度（写得对不对）—— 两个是不同失败模式，必须分开展示
-- 当 `readiness.json.review_flags[]` 为空数组 → 显示 "✅ 所有提取字段已通过 5 项可疑值检查"
+- 当 `readiness.json.review_flags[]` 为空数组 → 显示 "✅ 所有提取字段已通过 9 项可疑值检查"
 - 当存在 🔴 项 → 在 Card 末尾追加: "进入下游 skill 之前请先逐条确认 🔴 项, 它们会直接影响推荐结果"
 - 用户的逐项决定 (accept_suggestion / keep_original / custom_value / defer) 写回 `review_flags[i].user_confirmed`

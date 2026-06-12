@@ -32,7 +32,7 @@ Calibration: the bar for **non-medical high-confidence** is "I would bet money t
 - NOT mirrored as a permanent record — they are explicitly the files we intend not to keep.
 - Held only long enough for the user to claim any back ("X 其实有用") before the high-confidence ones are deleted.
 
-It is deliberately the last-numbered bucket and sits outside the `01_…14_` (clinical) plus `90_/99_` (infra) scheme so downstream sub-skills never read it. A file in `99_无关文件/` has, by definition, not entered the patient's clinical record.
+It is deliberately the last-numbered bucket and sits outside the `01_…14_` (clinical) plus `raw/`/`99_` (infra) scheme so downstream sub-skills never read it. A file in `99_无关文件/` has, by definition, not entered the patient's clinical record.
 
 Inside `99_无关文件/`, separate the two non-medical sub-classes so the delete/keep logic is unambiguous:
 
@@ -61,7 +61,7 @@ Every borderline file produces one review_flag so the uncertainty is surfaced to
 ```
 
 - `severity: yellow` — it should be reviewed, but it does not break any downstream record (the file is not in the archive). It is NOT `red`: it gates no eligibility/dosing decision.
-- `category: relevance_uncertain` — this is the **8th** review_flag category, added to the 7-check audit set (`format_violation`, `cross_doc_contradiction`, `clinical_logic_anomaly`, `unverified_critical_field`, `value_trend_anomaly`, `cross_patient_name_collision`, `anchor_coverage_gap`, **`relevance_uncertain`**).
+- `category: relevance_uncertain` — this is one category in the `review_flags` audit (which has 9 categories total, enumerated in `organizer-prompt-phase2-synthesis.md` Step 3); it is category #8 of 9 (`format_violation`, `cross_doc_contradiction`, `clinical_logic_anomaly`, `unverified_critical_field`, `value_trend_anomaly`, `cross_patient_name_collision`, `anchor_coverage_gap`, **`relevance_uncertain`**, `filename_content_mismatch`).
 - High-confidence non-medical files do **not** get a review_flag — they are surfaced collectively in the disposition notice (below) and auto-delete on no-confirm. Only the borderline batch needs per-file flags, because the borderline batch is the one that waits.
 
 ### readiness.json reflection
@@ -166,5 +166,5 @@ Each organize run that touched the gate appends relevance actions to `update_log
 ## Relationship to the rest of the pipeline
 
 - Runs **inside Phase 2 Step 1, before** classify+rename — see `organizer-prompt-phase2-synthesis.md` Step 1 (triage step). A file judged non-medical never reaches the bucket scheme.
-- The deletion carve-out it relies on is the 段E entry in `../../references/safety-guardrails.md` (high-confidence auto-delete on no-confirm; borderline never auto-deleted). That guardrail is the authoritative red-line; this doc is the operational logic.
+- The deletion carve-out it relies on is the 段E entry in `../../../references/safety-guardrails.md` (high-confidence auto-delete on no-confirm; borderline never auto-deleted). That guardrail is the authoritative red-line; this doc is the operational logic.
 - 段E deletion (auto-delete of high-confidence *unrelated* files on no-confirm) is the **only** deletion this gate performs. Medical files and their `raw/` verbatim originals are never deleted by any redaction step — the originals are kept as uploaded, and the only desensitization is the sidecar text masking.
