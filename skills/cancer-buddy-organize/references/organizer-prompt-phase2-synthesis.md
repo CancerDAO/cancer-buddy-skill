@@ -139,6 +139,7 @@ After you've judged every file, write the plan to `<patient_dir>/.rename_plan.js
       "mirror_path": "90_原始文件镜像/<original_subdir>/IMG_0001.jpg",
       "ocr_sidecar_old": "ocr/IMG_0001.md",
       "bucket_path": "04_诊断与分期/病理报告",
+      "modality": "image",
       "canonical": "2024-03-15_病理报告_中山六院",
       "ext": "jpg",
       "file_dest": "04_诊断与分期/病理报告/2024-03-15_病理报告_中山六院.jpg",
