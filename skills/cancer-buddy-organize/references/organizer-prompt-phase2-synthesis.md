@@ -80,12 +80,12 @@ Each filed source also records a `modality` (`text` / `image` / `structured` / `
 
 ### Step 1·0 — Relevance triage (段E, BEFORE classification)
 
-Before deciding which bucket a file belongs in, decide whether it belongs in the clinical archive **at all**. Upload folders carry stray photos / screenshots / receipts; those must not enter the 11 buckets. This is an **LLM judgment — read the sidecar content (and the image when ambiguous), do NOT run a keyword/filename classifier**. Full standard + rationale: [`relevance-gate.md`](relevance-gate.md).
+Before deciding which bucket a file belongs in, decide whether it belongs in the clinical archive **at all**. Upload folders carry stray photos / screenshots / receipts; those must not enter the 14 clinical buckets. This is an **LLM judgment — read the sidecar content (and the image when ambiguous), do NOT run a keyword/filename classifier**. Full standard + rationale: [`relevance-gate.md`](relevance-gate.md).
 
 For each file, assign exactly one relevance class:
 
 - **medical** → proceed to Step 1a (normal classify+rename). When in real doubt but it *plausibly* carries clinical value, lean **medical** — a dropped record is the costly error.
-- **non-medical, high-confidence** (风景/自拍/餐食/无关聊天截图/广告/纯生活收据/误拍…, "you'd bet money it has no clinical value") → do NOT add to `.rename_plan.json`; move it to `99_无关文件/high_confidence/` and STOP — it never enters the 11 buckets, gets no MD/anchor, and is eligible for auto-delete on no-confirm.
+- **non-medical, high-confidence** (风景/自拍/餐食/无关聊天截图/广告/纯生活收据/误拍…, "you'd bet money it has no clinical value") → do NOT add to `.rename_plan.json`; move it to `99_无关文件/high_confidence/` and STOP — it never enters the 14 clinical buckets, gets no MD/anchor, and is eligible for auto-delete on no-confirm.
 - **borderline / 拿不准** (could be a report but you genuinely can't tell) → move it to `99_无关文件/uncertain/`, do NOT classify, and emit a `relevance_uncertain` review_flag (Step 3, 8th category). **Never auto-deleted** — held until the user explicitly decides 删/留.
 
 ```bash
@@ -96,7 +96,7 @@ mkdir -p "$patient_dir/99_无关文件/high_confidence" "$patient_dir/99_无关�
 # for each borderline file:                  mv it into uncertain/ AND add a relevance_uncertain flag
 ```
 
-`99_无关文件/` is a quarantine staging area outside the `00_…11_` clinical scheme — downstream sub-skills never read it; nothing there is anchored. Only files judged **medical** flow into Step 1a below. The disposition (告知 + 删/留/回收 解析) happens at the SKILL.md "无关文件处置门" step after organize, governed by the privacy floor: **we don't keep raw unrelated files — high-confidence non-medical files are auto-deleted on no-confirm; borderline files are never auto-deleted.** Record isolated/deleted/reclassified/held counts in `update_log.json.relevance` (see `relevance-gate.md`).
+`99_无关文件/` is a quarantine staging area outside the `01_…14_` clinical scheme — downstream sub-skills never read it; nothing there is anchored. Only files judged **medical** flow into Step 1a below. The disposition (告知 + 删/留/回收 解析) happens at the SKILL.md "无关文件处置门" step after organize, governed by the privacy floor: **we don't keep raw unrelated files — high-confidence non-medical files are auto-deleted on no-confirm; borderline files are never auto-deleted.** Record isolated/deleted/reclassified/held counts in `update_log.json.relevance` (see `relevance-gate.md`).
 
 ### Step 1a — Per-file semantic judgment (LLM, not regex)
 
@@ -755,7 +755,7 @@ Pure JSON, no prose:
 
 - NEVER invent medical facts. Read what sidecars say, don't fill in plausible-sounding gaps.
 - NEVER skip the §3 review_flags audit — even if you find nothing, write `"review_flags": []`.
-- NEVER classify a non-medical/borderline file into the 11 buckets — the Step 1·0 relevance gate diverts them to `99_无关文件/` first; only **medical** files reach Step 1a. Borderline files MUST get a `relevance_uncertain` flag and are NEVER auto-deleted by you (the SKILL.md disposition门 handles 删/留/回收 after user告知).
+- NEVER classify a non-medical/borderline file into the 14 clinical buckets — the Step 1·0 relevance gate diverts them to `99_无关文件/` first; only **medical** files reach Step 1a. Borderline files MUST get a `relevance_uncertain` flag and are NEVER auto-deleted by you (the SKILL.md disposition门 handles 删/留/回收 after user告知).
 - NEVER skip writing review_summary.md — required even when grade is A and review_flags is empty.
 - NEVER write a structured-JSON file that fails its schema; surface validation errors into `readiness.json.warnings`.
 - NEVER write a `case_text.md` containing dangling anchors — surface the gap, don't ship a broken file.
