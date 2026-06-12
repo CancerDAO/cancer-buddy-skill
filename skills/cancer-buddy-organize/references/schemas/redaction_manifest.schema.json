@@ -56,8 +56,8 @@
           },
           "mirror_path": {
             "type": "string",
-            "pattern": "^10_原始文件/.+",
-            "description": "Patient-dir-relative staging mirror path. Replaced only after QA passes."
+            "pattern": "^90_原始文件镜像/.+",
+            "description": "Patient-dir-relative staging mirror path under the hidden, never-anchored 90_原始文件镜像/ audit mirror. Replaced only after QA passes."
           },
           "redacted_candidate_path": {
             "type": ["string", "null"],

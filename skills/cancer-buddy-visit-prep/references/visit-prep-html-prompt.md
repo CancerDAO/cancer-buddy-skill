@@ -30,7 +30,7 @@ Read these from `patients/<pid>/` (all already produced by organize; read-only �
 - `timeline.json` (or `timeline.md`) — `events[]` (`date`, `category`, `title`, `detail`).
 - `missing_items.json` — `missing[]` (`item`, `priority`, `reason`, `category`).
 
-Never read `10_原始文件/` or any non-de-identified source. If a file is absent, treat its fields as missing (render the locale `val_pending` string) — do not fabricate.
+Never read `90_原始文件镜像/` or any non-de-identified source. If a file is absent, treat its fields as missing (render the locale `val_pending` string) — do not fabricate.
 
 ## Shape of `visit_prep_data.json`
 
@@ -121,7 +121,7 @@ Each empty sub-block → its array is `[]`; the template's `RENDER_IF_NOT` shows
 - `review_flags` are always presented as **待医生确认项 (questions to confirm)**, never adjudicated into facts. They live in the yellow `.q-confirm` box with the 待确认 tag.
 - **No treatment recommendation, no result interpretation, no clinical judgment, no treatment-option ranking.** visit-prep only assembles existing data + organizes questions.
 - **Never fabricate.** Any null/absent field → the locale `val_pending` string.
-- **Read-only on de-identified sources.** No formal-field writes, no confirm-gate, never read `10_原始文件/`.
+- **Read-only on de-identified sources.** No formal-field writes, no confirm-gate, never read `90_原始文件镜像/`.
 - **Clinical entities verbatim**, scaffold localized to `profile.json.locale` (`../../../references/i18n.md` §4).
 
 ## 8. Output — render via script, never by hand

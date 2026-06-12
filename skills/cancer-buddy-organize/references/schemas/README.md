@@ -13,6 +13,7 @@ These JSON Schemas define the structured outputs `cancer-buddy-organize` produce
 | `missing_items.json` | [missing_items.schema.json](missing_items.schema.json) | Cancer-checklist diff |
 | `source_inventory.json` | [source_inventory.schema.json](source_inventory.schema.json) | Per-source LLM ingestion provenance, sidecar path, and persist/redaction intent |
 | `source_redaction_status.json` | [source_redaction_status.schema.json](source_redaction_status.schema.json) | Pre-persist source-file redaction gate for images/PDF/DOCX/other source files |
+| `longitudinal_observations.json` | [longitudinal_observations.schema.json](longitudinal_observations.schema.json) | Longitudinal stream store (vital/lab/symptom/pro/adherence/activity) beside profile.json — the 单时间点→纵向曲线 trajectory; see bucket-taxonomy.md §3 |
 
 ## Anchor token contract
 
@@ -24,7 +25,7 @@ Every factual field that originates from a redacted MD sidecar MUST carry a `sou
 conversation:<ISO8601>
 ```
 
-File-anchor paths MUST begin with an `NN_` bucket prefix (`00_…` … `10_…`) — the central `ocr/` directory and the legacy `02_脱敏病历/` prefix are **retired and rejected**. Sidecars now live next to their image inside the 11-bucket subdirectory. The full contract (regex included) is in [anchor-contract.md](anchor-contract.md).
+File-anchor paths MUST begin with an `NN_` clinical-domain bucket prefix (`01_…` … `14_`, scheme_version 3) — the infrastructure mirror `90_原始文件镜像/` and quarantine `99_无关文件/` are never anchor targets, and the central `ocr/` directory plus the legacy `02_脱敏病历/` prefix are **retired and rejected**. Sidecars now live next to their image inside the clinical-domain bucket subdirectory. The full contract (regex included) is in [anchor-contract.md](anchor-contract.md).
 
 In narrative artifacts (`case_text.md`, the human-readable patient summary), the same anchors appear in `[[src:...]]` syntax — see [anchor-contract.md](anchor-contract.md).
 

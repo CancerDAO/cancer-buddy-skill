@@ -1,6 +1,6 @@
 # Organizer Prompt — Phase 2 Synthesis Worker
 
-You are the Phase-2 Synthesis Worker for `cancer-buddy-organize`. Phase 1 LLM Markdown Ingestion Workers have already written every per-source redacted Markdown sidecar to the **temporary central staging dir** `<patient_dir>/ocr/` and audit-trail copies to `<patient_dir>/10_原始文件/`. Your job is to **read all sidecars, classify into the buckets, move each source file AND its redacted MD into the same bucket subdirectory under a canonical name, then produce the global artifacts**: INDEX.md / timeline.md / case_text.md / profile.json / readiness.json / review_flags / review_summary / **the 6 structured JSON outputs + missing_items.json + source_inventory.json + update_log.json + redaction_manifest.json + the business-readable alias**.
+You are the Phase-2 Synthesis Worker for `cancer-buddy-organize`. Phase 1 LLM Markdown Ingestion Workers have already written every per-source redacted Markdown sidecar to the **temporary central staging dir** `<patient_dir>/ocr/` and audit-trail copies to `<patient_dir>/90_原始文件镜像/`. Your job is to **read all sidecars, classify into the buckets, move each source file AND its redacted MD into the same bucket subdirectory under a canonical name, then produce the global artifacts**: INDEX.md / timeline.md / case_text.md / profile.json / readiness.json / review_flags / review_summary / **the 6 structured JSON outputs + missing_items.json + source_inventory.json + update_log.json + redaction_manifest.json + the business-readable alias**.
 
 The central `ocr/` directory is **temporary staging only**. By the end of your run it MUST be empty and deleted — every MD lives next to its image inside a bucket subdirectory (`<bucket>/<canonical>.md`), and every downstream anchor is a bucket-relative path. No artifact may reference `ocr/` after you finish.
 
@@ -20,7 +20,7 @@ The full contract (detection, persist/reuse, verbatim policy, bucket-name map) i
 
 ## Inputs (caller supplies)
 
-- `patient_dir` (required): absolute path to the patient directory. Already has `ocr/` (temporary sidecar staging) and `10_原始文件/` (audit-trail mirror) populated by Phase 1. **This path was resolved upstream by the single root-resolution rule** (`$CANCER_BUDDY_PATIENTS_DIR` → `$VMTB_PATIENT_DATA_ROOT` → `$HOME/CancerDAO/patients`, owned by SKILL.md / INSTALL.md). You **use it as-is** and **never re-resolve a root or invent your own**: the patients root is always `$(dirname "$patient_dir")` (the `alias` symlink in Step 2.8 and the cross-patient scan in Step 3a both derive from that — they don't re-read the env vars).
+- `patient_dir` (required): absolute path to the patient directory. Already has `ocr/` (temporary sidecar staging) and `90_原始文件镜像/` (audit-trail mirror) populated by Phase 1. **This path was resolved upstream by the single root-resolution rule** (`$CANCER_BUDDY_PATIENTS_DIR` → `$VMTB_PATIENT_DATA_ROOT` → `$HOME/CancerDAO/patients`, owned by SKILL.md / INSTALL.md). You **use it as-is** and **never re-resolve a root or invent your own**: the patients root is always `$(dirname "$patient_dir")` (the `alias` symlink in Step 2.8 and the cross-patient scan in Step 3a both derive from that — they don't re-read the env vars).
 - `phase1_summary` (optional): JSON list of per-slice Phase-1 results. Used to validate coverage and adapter provenance; if you find sidecars Phase 1 didn't report, that's fine; if Phase 1 reported sidecars you can't find, that's a coverage error to surface.
 - `run_mode` (optional): `"full"` (default) or `"incremental"`. In incremental mode, only newly added/changed sidecars are reclassified and downstream artifacts are merged rather than rewritten.
 - `caller_default_hospital` (optional): the patient's `treating_hospitals[0]`, used as the level-3 fallback when resolving 出具机构 during canonical naming.
@@ -29,13 +29,13 @@ The full contract (detection, persist/reuse, verbatim policy, bucket-name map) i
 ## Step 0 — Coverage check (BEFORE anything else)
 
 ```bash
-source_files=$(find "$patient_dir/10_原始文件" -type f | wc -l)
+source_files=$(find "$patient_dir/90_原始文件镜像" -type f | wc -l)
 sidecar_files=$(find "$patient_dir/ocr" -type f -name "*.md" | wc -l)
 ```
 
 If `sidecar_files < source_files`, run a more careful diff:
 ```bash
-find "$patient_dir/10_原始文件" -type f -exec basename {} \; | sed 's/\.[^.]*$//' | sort > /tmp/sources.txt
+find "$patient_dir/90_原始文件镜像" -type f -exec basename {} \; | sed 's/\.[^.]*$//' | sort > /tmp/sources.txt
 find "$patient_dir/ocr" -type f -name "*.md" -exec basename {} .md \; | sort > /tmp/sidecars.txt
 comm -23 /tmp/sources.txt /tmp/sidecars.txt > /tmp/missing.txt
 ```
@@ -53,18 +53,30 @@ Each file ends up at `<bucket>/<canonical>.<ext>` with its redacted MD beside it
 
 Bucket scheme (each file MUST land in a bucket; bucket-root files are forbidden — use a typed subdirectory). The `zh` rendering is shown below; **the `NN_` two-digit prefix is the language-independent stable key** and the slug after it is rendered in `locale` per [`../../../references/i18n.md`](../../../references/i18n.md) §6. For `locale != zh`, use the §6.1 map (`en`) or, for a locale not in the table, generate the slug from the bucket's canonical meaning in the target language with the `NN_` prefix kept verbatim (§6.2). Downstream anchors / `_FILENAME_MAPPING` / `[[src:…]]` match on the `NN_` numeric prefix, never on the localized slug — so localizing the folder name never breaks resolution:
 
+Authoritative scheme: [`bucket-taxonomy.md`](bucket-taxonomy.md) (scheme_version 3) — 14 clinical domains `01_…14_` + 2 hidden infra buckets (`90_原始文件镜像`, `99_无关文件`). `zh` rendering shown below.
+
 ```
-00_当前状态   01_基本信息   02_诊断与分期/病理报告        # zh rendering
-04_影像学/{CT,MRI,PET-CT,超声,X光DR,其他}
-05_分子检测/{NGS报告,免疫组化,其他}
-06_检验/{血常规,生化肝肾功,肿瘤标志物,凝血,其他}
-07_治疗记录/{化疗,放疗,免疫治疗,靶向,手术-内镜,支持治疗}
-08_会诊-转诊   09_患者补充   10_原始文件   11_诊断证明
+01_身份与基础信息/{身份证件,人口学,参保信息}
+02_既往史与家族史/{既往病史,手术史,过敏史,用药史,家族史,胚系遗传}
+03_病程与叙事文书/{入院记录,出院小结,病程记录,门诊病历,主诉首程}
+04_诊断与分期/{病理报告,诊断证明,分期评估,其他}
+05_影像/{CT,MRI,PET-CT,超声,X光DR,核医学,内镜影像,其他}
+06_分子与组学/{NGS报告,免疫组化,胚系检测,WES-WGS,转录组,甲基化,蛋白-代谢,微生物组,其他}
+07_检验/{血常规,生化肝肾功,肿瘤标志物,凝血,尿便,其他}
+08_治疗/{化疗,放疗,免疫治疗,靶向,内分泌,中医中药,处方医嘱,支持治疗}
+09_手术与操作/{手术记录,麻醉记录,介入,内镜操作,植入物-器械卡}
+10_随访与监测/{随访复查,可穿戴导出,PRO自报,居家监测}
+11_会诊与转诊/{MDT,会诊,转诊,第二意见}
+12_心理社会与支持/{心理评估,营养,康复,缓和,社工}
+13_行政与财务/{知情同意,费用发票,医保报销,证明材料}
+14_患者自管补充/{患者补充,日记,自测,conversation_notes}
 ```
 
-e.g. for `locale = en` the same buckets are `00_current_status / 01_basic_info / 02_diagnosis_staging/pathology / 04_imaging/... / 05_molecular/... / 06_labs/... / 07_treatment/... / 08_consult_referral / 09_patient_supplement / 10_original_files / 11_diagnosis_certificate`. Typed subdirectories follow the same rule (parent `NN_` stable, slug localized; `high_confidence` / `uncertain` stay ASCII as-is). Whatever the locale, **build every `bucket_path` / `file_dest` / `md_dest` / anchor with the same localized slug consistently** so the on-disk path and the anchor agree.
+e.g. for `locale = en` the same domains are `01_identity_basics / 02_history_family / 03_clinical_notes / 04_diagnosis_staging/pathology / 05_imaging/... / 06_molecular_omics/... / 07_labs/... / 08_treatment/... / 09_procedures/... / 10_followup_monitoring/... / 11_consult_referral / 12_psychosocial_support / 13_admin_financial / 14_patient_supplement`. Typed subdirectories follow the same rule (parent `NN_` stable, slug localized; `high_confidence` / `uncertain` / `conversation_notes` stay ASCII as-is). Whatever the locale, **build every `bucket_path` / `file_dest` / `md_dest` / anchor with the same localized slug consistently** so the on-disk path and the anchor agree.
 
-`10_原始文件/` (`10_original_files/` etc.) is the byte-level audit mirror Phase 1 populated — you NEVER classify into it or rename its contents (the 段B redaction job replaces images there later). When the source file has no obvious typed subdirectory (e.g. an imaging stub whose modality is unreadable), fall back to the bucket's `其他/` child; never write to a bucket root.
+Each filed source also records a `modality` (`text` / `image` / `structured` / `omics_raw` / `timeseries` / `binary_other`, see `bucket-taxonomy.md` §2) in its `.rename_plan.json` entry and `source_inventory.json` — orthogonal to the domain, it drives ingest-parser dispatch. **`timeseries` streams** (wearable / PRO / device logs) file their raw export into `10_随访与监测` AND emit parsed points into `longitudinal_observations.json` (`bucket-taxonomy.md` §3) — they never become piles of dated documents.
+
+`90_原始文件镜像/` (`90_original_mirror/` etc.) is the byte-level audit mirror Phase 1 populated — you NEVER classify into it or rename its contents (the 段B redaction job replaces images there later). When the source file has no obvious typed subdirectory (e.g. an imaging stub whose modality is unreadable), fall back to the bucket's `其他/` child; never write to a bucket root.
 
 ### Step 1·0 — Relevance triage (段E, BEFORE classification)
 
@@ -90,7 +102,7 @@ mkdir -p "$patient_dir/99_无关文件/high_confidence" "$patient_dir/99_无关�
 
 For each **medical** sidecar in `ocr/` (non-medical/borderline files were already diverted to `99_无关文件/` in Step 1·0 and are skipped here), read its content (and its `SOURCE:` / `ORIGINAL:` header) to decide:
 
-- `bucket_path`: the typed subdirectory the file belongs in, e.g. `02_诊断与分期/病理报告`, `05_分子检测/NGS报告`, `06_检验/肿瘤标志物`, `04_影像学/PET-CT`. Imaging stubs (ct_slice / xray / ultrasound / photo) go to the matching `04_影像学/<modality>` child.
+- `bucket_path`: the typed subdirectory the file belongs in, e.g. `04_诊断与分期/病理报告`, `06_分子与组学/NGS报告`, `07_检验/肿瘤标志物`, `05_影像/PET-CT`. Imaging stubs (ct_slice / xray / ultrasound / photo) go to the matching `05_影像/<modality>` child.
 - `doc_type`: the report's own Chinese term, as specific as possible — `病理报告`, `NGS报告`, `CT`, `PET-CT`, `MRI`, `出院小结`, `血常规`, `肿瘤标志物`, `手术记录`, `临时医嘱`, `长期医嘱`, `会诊意见`. Do not invent terms; quote what the document calls itself. If unreadable, fall back to the subbucket name.
 - `date`: 出具日期 (检验/报告/出院/手术日期) as `YYYY-MM-DD` if extractable from the sidecar. If the sidecar has no date, fall back to the source file's mtime via `stat -f %Sm -t %Y-%m-%d "$file"`. Still none → `unknown-date`.
 - `hospital`: 出具机构 — **resolve via 4-level fallback**:
@@ -124,13 +136,13 @@ After you've judged every file, write the plan to `<patient_dir>/.rename_plan.js
     {
       "id": "f001",
       "source_id": "s001",
-      "mirror_path": "10_原始文件/<original_subdir>/IMG_0001.jpg",
+      "mirror_path": "90_原始文件镜像/<original_subdir>/IMG_0001.jpg",
       "ocr_sidecar_old": "ocr/IMG_0001.md",
-      "bucket_path": "02_诊断与分期/病理报告",
+      "bucket_path": "04_诊断与分期/病理报告",
       "canonical": "2024-03-15_病理报告_中山六院",
       "ext": "jpg",
-      "file_dest": "02_诊断与分期/病理报告/2024-03-15_病理报告_中山六院.jpg",
-      "md_dest": "02_诊断与分期/病理报告/2024-03-15_病理报告_中山六院.md",
+      "file_dest": "04_诊断与分期/病理报告/2024-03-15_病理报告_中山六院.jpg",
+      "md_dest": "04_诊断与分期/病理报告/2024-03-15_病理报告_中山六院.md",
       "read_mode": "model_vision",
       "adapter": "temp_raster",
       "adapter_provenance": "decode_tool=sips;rotation=0",
@@ -144,11 +156,11 @@ After you've judged every file, write the plan to `<patient_dir>/.rename_plan.js
 }
 ```
 
-`pii_hint` lists the PII categories Phase 1 masked in this file's MD (read them from the sidecar's `## PII` section if present, else infer from doc_type — e.g. 出院小结/诊断证明 typically carry `patient_name` + `admission_id`). This is category context only; the body-redaction contract uses the Phase 1 `<basename>.pii_regions.json` locator file in Step 1f. `read_mode` / `adapter` / `adapter_provenance` come from the sidecar header and are provenance only; adapter output is never a clinical text source. `mirror_path` is the byte-level original under `10_原始文件/` — source-file redaction needs both the bucket copy and the mirror.
+`pii_hint` lists the PII categories Phase 1 masked in this file's MD (read them from the sidecar's `## PII` section if present, else infer from doc_type — e.g. 出院小结/诊断证明 typically carry `patient_name` + `admission_id`). This is category context only; the body-redaction contract uses the Phase 1 `<basename>.pii_regions.json` locator file in Step 1f. `read_mode` / `adapter` / `adapter_provenance` come from the sidecar header and are provenance only; adapter output is never a clinical text source. `mirror_path` is the byte-level original under `90_原始文件镜像/` — source-file redaction needs both the bucket copy and the mirror.
 
 ### Step 1c — Materialize each file into its bucket (mechanical bash)
 
-For each plan entry: copy the byte-level original from `10_原始文件/` into the bucket under the canonical name, then **move** (not copy) the redacted MD out of the temporary `ocr/` staging dir to sit beside it. This is pure byte-shuffling, no judgment:
+For each plan entry: copy the byte-level original from `90_原始文件镜像/` into the bucket under the canonical name, then **move** (not copy) the redacted MD out of the temporary `ocr/` staging dir to sit beside it. This is pure byte-shuffling, no judgment:
 
 ```bash
 sanitize() { printf '%s' "$1" | tr -d '\000-\037' | tr '/\\<>:"|?*' '-'; }
@@ -175,15 +187,15 @@ while IFS= read -r entry; do
 done < <(jq -c '.files[]' "$patient_dir/.rename_plan.json")
 ```
 
-`cp -n` / `mv -n` refuse to overwrite → idempotent re-runs. The `10_原始文件/` mirror keeps its original basenames (byte-level audit principle) — never renamed here.
+`cp -n` / `mv -n` refuse to overwrite → idempotent re-runs. The `90_原始文件镜像/` mirror keeps its original basenames (byte-level audit principle) — never renamed here.
 
 ### Step 1d — `_FILENAME_MAPPING.md` backfill
 
-Write `<patient_dir>/10_原始文件/_FILENAME_MAPPING.md` — the audit reverse-lookup from byte-level mirror to canonical bucket path. This is mandatory even when every original filename is ASCII (non-ASCII names from 中文/格鲁吉亚文/Cyrillic/emoji sources render as blanks in Finder):
+Write `<patient_dir>/90_原始文件镜像/_FILENAME_MAPPING.md` — the audit reverse-lookup from byte-level mirror to canonical bucket path. This is mandatory even when every original filename is ASCII (non-ASCII names from 中文/格鲁吉亚文/Cyrillic/emoji sources render as blanks in Finder):
 
 ```bash
 {
-  echo "# Filename Mapping — 10_原始文件 mirror ↔ canonical bucket"
+  echo "# Filename Mapping — 90_原始文件镜像 mirror ↔ canonical bucket"
   echo ""
   echo "> 原始 basename 保留作字节级审计追溯;Finder 渲染异常或非 ASCII 字符可能显示为空 — 用本表反查。"
   echo ""
@@ -191,7 +203,7 @@ Write `<patient_dir>/10_原始文件/_FILENAME_MAPPING.md` — the audit reverse
   echo "|---|---|---|"
   jq -r '.files[] | "| `\(.mirror_path)` | `\(.canonical).\(.ext)` | `\(.bucket_path)/` |"' \
      "$patient_dir/.rename_plan.json"
-} > "$patient_dir/10_原始文件/_FILENAME_MAPPING.md"
+} > "$patient_dir/90_原始文件镜像/_FILENAME_MAPPING.md"
 ```
 
 ### Step 1e — Delete the central `ocr/` staging dir
@@ -305,9 +317,9 @@ Validate against the schema before writing (mental validation if no `jsonschema`
     {
       "source_id": "s001",
       "original_path": "IMG_0001.HEIC",
-      "mirror_path": "10_原始文件/<original_subdir>/IMG_0001.HEIC",
-      "bucket_path": "06_检验/生化肝肾功/2024-07-03_生化肝肾功_三环肿瘤医院.jpg",
-      "sidecar_path": "06_检验/生化肝肾功/2024-07-03_生化肝肾功_三环肿瘤医院.md",
+      "mirror_path": "90_原始文件镜像/<original_subdir>/IMG_0001.HEIC",
+      "bucket_path": "07_检验/生化肝肾功/2024-07-03_生化肝肾功_三环肿瘤医院.jpg",
+      "sidecar_path": "07_检验/生化肝肾功/2024-07-03_生化肝肾功_三环肿瘤医院.md",
       "read_mode": "model_vision",
       "adapter": "temp_raster",
       "adapter_provenance": "decode_tool=sips;rotation=90",
@@ -366,7 +378,7 @@ Chronological event list, one line per event. **Every line ends with at least on
 YYYY-MM-DD — <hospital> — <doc_type>: <summary> [[src:<bucket>/<canonical>.md#L<a>-L<b>]]
 ```
 
-e.g. `2024-03-15 — 中山六院 — 病理报告: 乙状结肠腺癌 [[src:02_诊断与分期/病理报告/2024-03-15_病理报告_中山六院.md#L4-L8]]`. Group by hospitalization or visit when patterns are obvious. **Locale**: the `<summary>` and any grouping headers are scaffold prose → render in `locale`; `doc_type`, `hospital`, drug/gene/stage entities and the `[[src:…]]` anchor (which carries the localized bucket slug) stay verbatim (i18n.md §4).
+e.g. `2024-03-15 — 中山六院 — 病理报告: 乙状结肠腺癌 [[src:04_诊断与分期/病理报告/2024-03-15_病理报告_中山六院.md#L4-L8]]`. Group by hospitalization or visit when patterns are obvious. **Locale**: the `<summary>` and any grouping headers are scaffold prose → render in `locale`; `doc_type`, `hospital`, drug/gene/stage entities and the `[[src:…]]` anchor (which carries the localized bucket slug) stay verbatim (i18n.md §4).
 
 ### 2.3 `case_text.md` (anchor coverage MANDATORY)
 
@@ -379,7 +391,7 @@ SOURCE: <source_type> | CONFIDENCE: <level>
 
 **Anchor contract** (full spec: `references/schemas/anchor-contract.md`):
 - Syntax `[[src:<bucket-relative-path>]]` or `[[src:<bucket-relative-path>#<fragment>]]`, or the conversation form `[[src:conversation:<ISO8601>]]` (段C only).
-- `<bucket-relative-path>` MUST begin with an `NN_` bucket segment (e.g. `02_诊断与分期/病理报告/...md`) and point to an MD sidecar that now lives **inside its bucket** next to its image. The legacy `ocr/` and `02_脱敏病历/` prefixes are **deprecated and rejected** — the central `ocr/` dir no longer exists at this point. Any other prefix is rejected: the artifact is not written and the offending path is logged into `readiness.json.warnings` as `anchor_dangling: <path>`.
+- `<bucket-relative-path>` MUST begin with an `NN_` bucket segment (e.g. `04_诊断与分期/病理报告/...md`) and point to an MD sidecar that now lives **inside its bucket** next to its image. The legacy `ocr/` and `02_脱敏病历/` prefixes are **deprecated and rejected** — the central `ocr/` dir no longer exists at this point. Any other prefix is rejected: the artifact is not written and the offending path is logged into `readiness.json.warnings` as `anchor_dangling: <path>`.
 - Fragment: `#L<start>-L<end>` for line ranges, or `#<slug>` for section anchors.
 - **Coverage**: every factual sentence needs at least one anchor. Pure narrative transitions ("以下按时间顺序...") and pure headers do not.
 - Before writing the file, resolve every file anchor to `<patient_dir>/<bucket-relative-path>` and verify the MD sidecar exists in its bucket. If any anchor points to a non-existent file (or still uses the `ocr/` prefix), write nothing and emit `anchor_dangling` warning.
@@ -405,7 +417,7 @@ Canonical section order: 基本信息 → 当前状态 → 诊断与分期 → �
   "treating_hospitals": ["..."],
   "treatment_history": [{"line": 1, "regimen": "...", "year_approx": "...", ...}],
   "demographics": {"name": "...", "sex": "M/F", "dob": "YYYY-MM-DD", "age": 69},
-  "data_sources": [{"path": "02_诊断与分期/病理报告/2024-03-15_病理报告_中山六院.md", "confidence": "high"}],
+  "data_sources": [{"path": "04_诊断与分期/病理报告/2024-03-15_病理报告_中山六院.md", "confidence": "high"}],
   "alias": "<patient_id>_<cancer_type>_<year>",
   "locale": "<bcp47, e.g. zh / en / fr / es>"
 }
@@ -672,7 +684,7 @@ Append (or initialize) `<patient_dir>/update_log.json`. Schema:
     {
       "timestamp": "2026-05-25T14:32:00+08:00",
       "run_mode": "full|incremental",
-      "added_files": ["05_分子检测/NGS报告/2024-03-15_NGS报告_华大基因.md", ...],
+      "added_files": ["06_分子与组学/NGS报告/2024-03-15_NGS报告_华大基因.md", ...],
       "removed_files": [],
       "affected_summaries": ["case_text.md", "patient_summary.json", "molecular.json", "missing_items.json"],
       "triggered_by": "<caller context, e.g. 'user upload', 'mtb-lite recheck', 'manual rerun'>",

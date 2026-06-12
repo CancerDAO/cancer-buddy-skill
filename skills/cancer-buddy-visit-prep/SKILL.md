@@ -31,7 +31,7 @@ Read [../../references/i18n.md](../../references/i18n.md). The pack is a patient
 
 1. **Read locale** from `profile.json.locale` (or detect + persist).
 2. **Resolve `visit_type`** (caller arg → else ask one question).
-3. **Read de-identified sources** (read-only): `profile.json`, `readiness.json`, `molecular.json`, `treatment_lines.json`, `labs.json`, `timeline.json`, `missing_items.json`. Never read `10_原始文件/`.
+3. **Read de-identified sources** (read-only): `profile.json`, `readiness.json`, `molecular.json`, `treatment_lines.json`, `labs.json`, `timeline.json`, `missing_items.json`. Never read `90_原始文件镜像/`.
 4. **Map Block 1 医生速览** — direct field mapping, clinical entities verbatim; null → `val_pending`.
 5. **Derive Block 2 我要问医生的 via a subagent** (do not hardcode a keyword list): dispatch the subagent per [references/visit-prep-html-prompt.md](references/visit-prep-html-prompt.md) §4 to turn `review_flags` (→ 请医生确认), `missing_items` (→ 能否补做/补齐), `timeline` 进展 (→ 下一步), and the `visit_type` scaffold from [references/question-frameworks.md](references/question-frameworks.md) into four question groups.
 6. **Assemble Block 3 带什么** and (follow-up only) **Block 4 上次→这次变化** per the assembly prompt.
@@ -57,7 +57,7 @@ Apply [../../references/safety-guardrails.md](../../references/safety-guardrails
 - **`review_flags` are presented as 待医生确认项 (questions to confirm), never adjudicated into facts** — they render in the yellow box with the 待确认 tag.
 - **No treatment recommendation. No result interpretation. No clinical judgment. No ranking of treatment options.** visit-prep only assembles existing data + organizes questions.
 - **Never fabricate** — any null/absent field renders the locale `val_pending` string ("资料缺失 / 待补充"), not an invented value.
-- **Read-only on de-identified sources** — no formal-field writes, no confirm-gate involvement, never read `10_原始文件/`.
+- **Read-only on de-identified sources** — no formal-field writes, no confirm-gate involvement, never read `90_原始文件镜像/`.
 - **Clinical entities verbatim**, scaffold localized to `profile.json.locale` ([../../references/i18n.md](../../references/i18n.md) §4).
 - **HTML is rendered by the template engine + must pass the validator — never hand-written.** The LLM produces `visit_prep_data.json` only; `render_html_template.py` fills the template; the pack is "done" only after `validate_visit_prep_html.py` exits 0. Hand-writing or post-editing the rendered HTML is forbidden.
 

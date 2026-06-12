@@ -32,17 +32,17 @@ from docx import Document
 from openpyxl import Workbook
 
 pd = Path(os.environ["PATIENT_DIR"])
-bucket = pd / "06_检验" / "其他"
-mirror = pd / "10_原始文件" / "input"
+bucket = pd / "07_检验" / "其他"
+mirror = pd / "90_原始文件镜像" / "input"
 bucket.mkdir(parents=True, exist_ok=True)
 mirror.mkdir(parents=True, exist_ok=True)
 
 sources = [
-    ("f001", "s001", "image", "llm_region_image", "synthetic_image.jpg"),
-    ("f002", "s002", "pdf", "llm_region_pdf", "synthetic_pdf.pdf"),
-    ("f003", "s003", "docx", "llm_structured_docx", "synthetic_docx.docx"),
-    ("f004", "s004", "xlsx", "llm_structured_sheet", "synthetic_sheet.xlsx"),
-    ("f005", "s005", "txt", "llm_text_rewrite", "synthetic_text.txt"),
+    ("f001", "s001", "image", "llm_region_image", "synthetic_image.jpg", "image"),
+    ("f002", "s002", "pdf", "llm_region_pdf", "synthetic_pdf.pdf", "text"),
+    ("f003", "s003", "docx", "llm_structured_docx", "synthetic_docx.docx", "structured"),
+    ("f004", "s004", "xlsx", "llm_structured_sheet", "synthetic_sheet.xlsx", "structured"),
+    ("f005", "s005", "txt", "llm_text_rewrite", "synthetic_text.txt", "text"),
 ]
 
 img = Image.new("RGB", (400, 200), "white")
@@ -65,13 +65,13 @@ wb.save(bucket / "synthetic_sheet.xlsx")
 
 (bucket / "synthetic_text.txt").write_text("label: MASKME-TXT\nclinical: EGFR L858R\n", encoding="utf-8")
 
-for _, _, _, _, name in sources:
+for _, _, _, _, name, _ in sources:
     shutil.copy2(bucket / name, mirror / name)
     (bucket / f"{Path(name).stem}.md").write_text(
         "SOURCE: synthetic | CONFIDENCE: high\n"
         "READ_MODE: llm_text_payload\n"
         "ADAPTER: text_payload\n"
-        f"ORIGINAL: 10_原始文件/input/{name}\n\n"
+        f"ORIGINAL: 90_原始文件镜像/input/{name}\n\n"
         "No identifying content.\n\n"
         "## PII\n"
         "masked: none\n",
@@ -139,13 +139,13 @@ frames = {
 now = dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")
 manifest_files = []
 inventory_files = []
-for fid, sid, kind, strategy, name in sources:
+for fid, sid, kind, strategy, name, modality in sources:
     manifest_files.append({
         "id": fid,
         "source_id": sid,
         "source_kind": kind,
-        "bucket_path": f"06_检验/其他/{name}",
-        "mirror_path": f"10_原始文件/input/{name}",
+        "bucket_path": f"07_检验/其他/{name}",
+        "mirror_path": f"90_原始文件镜像/input/{name}",
         "redacted_candidate_path": None,
         "redacted_payload_path": None,
         "adapter_frame": frames[fid],
@@ -155,9 +155,10 @@ for fid, sid, kind, strategy, name in sources:
     inventory_files.append({
         "source_id": sid,
         "original_path": name,
-        "mirror_path": f"10_原始文件/input/{name}",
-        "bucket_path": f"06_检验/其他/{name}",
-        "sidecar_path": f"06_检验/其他/{Path(name).stem}.md",
+        "mirror_path": f"90_原始文件镜像/input/{name}",
+        "bucket_path": f"07_检验/其他/{name}",
+        "sidecar_path": f"07_检验/其他/{Path(name).stem}.md",
+        "modality": modality,
         "read_mode": "llm_text_payload",
         "adapter": "text_payload",
         "adapter_provenance": "synthetic fixture",
@@ -220,17 +221,17 @@ for entry in status["files"]:
     assert entry["qa_passed"] is True, entry
     assert entry["original_deleted"] is True, entry
 
-txt = (pd / "06_检验/其他/synthetic_text.txt").read_text(encoding="utf-8")
+txt = (pd / "07_检验/其他/synthetic_text.txt").read_text(encoding="utf-8")
 assert "MASKME-TXT" not in txt and "[PII_MASKED]" in txt, txt
 
-with zipfile.ZipFile(pd / "06_检验/其他/synthetic_docx.docx") as z:
+with zipfile.ZipFile(pd / "07_检验/其他/synthetic_docx.docx") as z:
     xml = z.read("word/document.xml").decode("utf-8")
 assert "MASKME-DOCX" not in xml and "[PII_MASKED]" in xml
 
-wb = load_workbook(pd / "06_检验/其他/synthetic_sheet.xlsx")
+wb = load_workbook(pd / "07_检验/其他/synthetic_sheet.xlsx")
 assert wb["Sheet1"]["A1"].value == "[PII_MASKED]"
 
-assert (pd / "06_检验/其他/synthetic_pdf.pdf").read_bytes().startswith(b"%PDF")
+assert (pd / "07_检验/其他/synthetic_pdf.pdf").read_bytes().startswith(b"%PDF")
 PY
 
 "$PYTHON" "$REPO_ROOT/skills/cancer-buddy-organize/scripts/validate_structured_outputs.py" "$patient_dir" >/tmp/cb-redaction-validate.out

@@ -111,7 +111,7 @@ JSON
 cat > "$tmpdir/c12/readiness.json" <<'JSON'
 {"schema_version":"1","grade":"B","review_flags":[
   {"id":"RF-001","severity":"red","category":"format_violation","field_path":"stage",
-   "current_value":"rpT4aN2aM1","issue":"non-AJCC prefix","source_evidence":["10_原始文件/x.jpg"],
+   "current_value":"rpT4aN2aM1","issue":"non-AJCC prefix","source_evidence":["90_原始文件镜像/x.jpg"],
    "suggested_action":"rewrite to p","user_confirmed":false}
 ]}
 JSON

@@ -6,6 +6,42 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Changed — `feat/generalized-data-taxonomy` (bucket taxonomy v3: longitudinal multi-modal data layer)
+
+Generalizes the organize bucket scheme from a tumor-document-centric layout into a longitudinal,
+multi-modal, multi-disease data layer (oncology + rare-disease + chronic + healthy-baseline). **Clean
+replacement — no migration of existing patient directories, no backward-compatibility layer**; a dir
+under the old scheme is simply re-run through `organize`. Authoritative definition:
+[skills/cancer-buddy-organize/references/bucket-taxonomy.md](skills/cancer-buddy-organize/references/bucket-taxonomy.md)
+(`scheme_version: 3`) — every other reference now defers to it.
+
+- **One classification axis = clinical domain.** Replaces the prior axis-mixing (document-type +
+  synthesized-state `00_当前状态` + provenance `09_患者补充` + infra `10_原始文件`) with **14 visible
+  clinical domains** `01_身份与基础信息 … 14_患者自管补充` plus 2 hidden infra buckets. `00_当前状态` is
+  **removed** (it was synthesized output already in `profile.json`/`case_text.md`, never raw uploads).
+- **New domains** filling prior coverage holes: `02_既往史与家族史`, `03_病程与叙事文书` (admission/
+  discharge/progress notes), `09_手术与操作` (split from treatment), `10_随访与监测` (wearable/PRO/home
+  monitoring), `12_心理社会与支持`, `13_行政与财务` (consent/bills/insurance). `06_分子与组学` expands to
+  WES-WGS / 转录组 / 甲基化 / 蛋白-代谢 / 微生物组; `11_诊断证明` folds into `04_诊断与分期/诊断证明`.
+- **Original mirror `10_原始文件` → `90_原始文件镜像`** — moved out of the clinical band into the infra
+  band (never anchored, so no patient anchors migrate; prose/script mentions only).
+- **Modality tag** (orthogonal to domain): every filed source records `modality` ∈
+  {`text`,`image`,`structured`,`omics_raw`,`timeseries`,`binary_other`} in `source_inventory.json` and
+  the sidecar header; it drives ingest-parser dispatch. New
+  [references/ingest-adapters.md](skills/cancer-buddy-organize/references/ingest-adapters.md) defines
+  per-modality ingestion (omics → `molecular.json`; timeseries → longitudinal store).
+- **Longitudinal store** — `timeseries`/trended `structured` sources parse into a new
+  `longitudinal_observations.json` (`schemas/longitudinal_observations.schema.json`,
+  `longitudinal_observations_v1`); the raw export is filed in `10_随访与监测`. `profile.json` gains a
+  `longitudinal_observations_ref` + `latest_status` snapshot. This is the substrate for
+  单时间点 → 多时间点 → 纵向曲线 → 治疗反应轨迹.
+- **Propagated** to: `organize-contract.md`, phase1/phase2 prompts, `i18n.md §6`, `anchor-contract.md`,
+  `SKILL.md`, `patient-profile-schema.md`, `safety-guardrails.md`, redaction-job + runtime bindings,
+  the schemas (`source_inventory`/`patient_summary`/`redaction_manifest` + new `longitudinal_observations`),
+  the downstream `cancer-buddy-visit-prep` skill, and the lint/unit tests. Anchor regex `^[0-9]{2}_…`
+  unchanged (already matches the new prefixes). ⚠️ Twin repo `cancer-buddy-organize-local-skill` must
+  receive the same structural change (dual-repo sync rule).
+
 ### Added — `feat/cancerdao-platform-organize` (海外站病历整理新时序, single-repo)
 
 The cancerdao-platform overseas站 runs the two existing pipelines as **one new 5-segment sequence**, all landing in `cancer-buddy-skill` on one branch. The PaddleOCR redaction engine is vendored in from `cancer-buddy-organize-local-skill` so the platform runs the whole flow from a single repo. Spec: `docs/superpowers/specs/2026-06-07-overseas-platform-organize-design.md`.

@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cancerdao.org/schemas/cancer-buddy/longitudinal_observations.schema.json",
+  "title": "LongitudinalObservations",
+  "description": "Longitudinal stream store living at <patient_dir>/longitudinal_observations.json, beside profile.json. Per bucket-taxonomy.md §3, timeseries (and trended structured) sources do NOT become a pile of dated documents — their parsed observations accumulate here, each carrying a source_ref anchor back to the filed raw export (clinical domain 10_随访与监测). This is the substrate for 单时间点 → 多时间点 → 纵向曲线 → 治疗反应轨迹; profile.json keeps a latest_status snapshot and points consumers here for the trajectory.",
+  "type": "object",
+  "required": ["schema_version", "patient_code", "observations"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "const": "longitudinal_observations_v1" },
+    "patient_code": { "type": "string", "pattern": "^PT-[A-F0-9]+(_\\d+)?$" },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "observations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["obs_type", "metric", "value", "unit", "timestamp", "modality", "source_ref"],
+        "additionalProperties": false,
+        "properties": {
+          "obs_type": {
+            "type": "string",
+            "enum": ["vital", "lab", "symptom", "pro", "adherence", "activity"],
+            "description": "Observation class. vital=vital sign; lab=lab analyte; symptom=clinician/patient-noted symptom; pro=patient-reported outcome; adherence=medication adherence; activity=wearable/activity stream."
+          },
+          "metric": { "type": "string", "description": "Metric name, verbatim. e.g. 'HbA1c', 'resting_hr', 'ECOG'." },
+          "value": { "type": ["number", "string"], "description": "Observed value, numeric or verbatim string." },
+          "unit": { "type": "string", "description": "Unit, verbatim. e.g. '%', 'bpm'. Use empty string when unitless." },
+          "timestamp": { "type": "string", "format": "date-time", "description": "ISO 8601 date-time of the observation." },
+          "modality": {
+            "type": "string",
+            "enum": ["timeseries", "structured"],
+            "description": "Data nature of the source the observation was parsed from: timeseries (wearable/PRO stream) or structured (trended tabular report)."
+          },
+          "source_ref": {
+            "type": "string",
+            "pattern": "^(([0-9]{2}_[^\\s/]+(/[^\\s/]+)*\\.md(#L\\d+(-L\\d+)?|#[A-Za-z0-9_-]+)?)|(conversation:\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})?))$",
+            "description": "Anchor back to the filed raw export sidecar (typically 10_随访与监测/可穿戴导出/<file>.md#L.. or /PRO自报/<file>.md#L..) or a conversation:<ISO8601> reference. Same anchor contract as source_refs[] in the sibling schemas — see schemas/anchor-contract.md §4."
+          }
+        }
+      }
+    }
+  }
+}

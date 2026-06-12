@@ -16,8 +16,8 @@ import os
 from pathlib import Path
 
 pd = Path(os.environ["PATIENT_DIR"])
-bucket = pd / "06_检验" / "其他"
-mirror = pd / "10_原始文件" / "input"
+bucket = pd / "07_检验" / "其他"
+mirror = pd / "90_原始文件镜像" / "input"
 bucket.mkdir(parents=True, exist_ok=True)
 mirror.mkdir(parents=True, exist_ok=True)
 
@@ -27,7 +27,7 @@ mirror.mkdir(parents=True, exist_ok=True)
     "SOURCE: synthetic lab\n"
     "READ_MODE: model_vision\n"
     "ADAPTER: temp_raster\n"
-    "ORIGINAL: 10_原始文件/input/lab.jpg\n\n"
+    "ORIGINAL: 90_原始文件镜像/input/lab.jpg\n\n"
     "Tumor marker CEA result 4.49 ng/ml.\n\n"
     "## PII\n"
     "masked: none\n",
@@ -35,7 +35,7 @@ mirror.mkdir(parents=True, exist_ok=True)
 )
 
 now = dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")
-ref = "06_检验/其他/lab.md#L1-L2"
+ref = "07_检验/其他/lab.md#L1-L2"
 
 (pd / "patient_summary.json").write_text(json.dumps({
     "patient_code": "PT-ABC123",
@@ -49,11 +49,11 @@ ref = "06_检验/其他/lab.md#L1-L2"
 
 (pd / "timeline.md").write_text(
     "# Timeline\n\n"
-    "- 2026-01-09 CEA 4.49 ng/ml [[src:06_检验/其他/lab.md#L1-L2]]\n",
+    "- 2026-01-09 CEA 4.49 ng/ml [[src:07_检验/其他/lab.md#L1-L2]]\n",
     encoding="utf-8",
 )
 (pd / "case_text.md").write_text(
-    "CEA was within reference range. [[src:06_检验/其他/lab.md#L1-L2]]\n",
+    "CEA was within reference range. [[src:07_检验/其他/lab.md#L1-L2]]\n",
     encoding="utf-8",
 )
 
@@ -64,9 +64,10 @@ ref = "06_检验/其他/lab.md#L1-L2"
     "files": [{
         "source_id": "s001",
         "original_path": "lab.jpg",
-        "mirror_path": "10_原始文件/input/lab.jpg",
-        "bucket_path": "06_检验/其他/lab.jpg",
-        "sidecar_path": "06_检验/其他/lab.md",
+        "mirror_path": "90_原始文件镜像/input/lab.jpg",
+        "bucket_path": "07_检验/其他/lab.jpg",
+        "sidecar_path": "07_检验/其他/lab.md",
+        "modality": "image",
         "read_mode": "model_vision",
         "adapter": "temp_raster",
         "adapter_provenance": "synthetic fixture",
@@ -117,8 +118,8 @@ inventory_path.write_text(json.dumps(inventory, ensure_ascii=False, indent=2) + 
         "id": "f001",
         "source_id": "s001",
         "source_kind": "image",
-        "bucket_path": "06_检验/其他/lab.jpg",
-        "mirror_path": "10_原始文件/input/lab.jpg",
+        "bucket_path": "07_检验/其他/lab.jpg",
+        "mirror_path": "90_原始文件镜像/input/lab.jpg",
         "redacted_candidate_path": None,
         "redacted_payload_path": None,
         "adapter_frame": {
@@ -157,7 +158,7 @@ inventory_path.write_text(json.dumps(inventory, ensure_ascii=False, indent=2) + 
         "source_id": "s001",
         "status": "done",
         "strategy": "llm_region_image",
-        "redacted_path": "06_检验/其他/lab.jpg",
+        "redacted_path": "07_检验/其他/lab.jpg",
         "qa_passed": True,
         "coverage_passed": True,
         "llm_qa_passed": True,

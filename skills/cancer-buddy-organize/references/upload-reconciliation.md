@@ -107,9 +107,9 @@ headless 宿主(无 inline 回合)用 **confirm-as-product** 满足同一门:把
   "uploaded_files": ["<新图原始名/路径>"],
   "resolutions": [
     {"upload": "IMG_0042.jpg", "relation": "supersede", "action": "replace",
-     "superseded": "02_诊断与分期/病理报告/2024-03-15_病理报告_中山六院.jpg",
-     "superseded_to": "_superseded_2026-06-07T14:32:05Z/02_诊断与分期/病理报告/...",
-     "new_path": "02_诊断与分期/病理报告/2024-03-15_病理报告_中山六院.jpg"},
+     "superseded": "04_诊断与分期/病理报告/2024-03-15_病理报告_中山六院.jpg",
+     "superseded_to": "_superseded_2026-06-07T14:32:05Z/04_诊断与分期/病理报告/...",
+     "new_path": "04_诊断与分期/病理报告/2024-03-15_病理报告_中山六院.jpg"},
     {"upload": "IMG_0043.jpg", "relation": "conflict", "action": "coexist",
      "note": "新图 IV 期 vs 档案 III 期，两份都留待医生裁决"},
     {"upload": "IMG_0044.jpg", "relation": "new", "action": "ignore"}

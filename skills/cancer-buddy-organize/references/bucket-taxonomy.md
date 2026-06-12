@@ -1,0 +1,129 @@
+# Bucket Taxonomy — single source of truth (`scheme_version: 3`)
+
+> This file is the **one authoritative definition** of the `cancer-buddy-organize` bucket scheme.
+> Every other reference (`organize-contract.md`, `organizer-prompt-phase2-synthesis.md`,
+> `organizer-prompt-phase1-ocr.md`, `references/i18n.md §6`, `SKILL.md`,
+> `references/patient-profile-schema.md`, `schemas/anchor-contract.md`, runtime bindings, the
+> redaction job, and every sibling/downstream skill) MUST agree with the tables below. If they
+> disagree, **this file wins** and the other is a drift bug to fix.
+
+## 0. What changed in v3 (and why)
+
+v2 collapsed three conflicting bucket lists into one contiguous `00…09` oncology-document scheme.
+v3 **generalizes** that scheme into a longitudinal, multi-modal, multi-disease data layer, because
+the CancerDAO data layer must serve **non-oncology patients + omics + imaging + wearable + PRO +
+longitudinal time series**, not only "tumor patient + image/text". The redesign rests on three moves:
+
+1. **Single classification axis = clinical domain** (modality-agnostic). v1/v2 mixed four axes —
+   document-type (`04_影像`), synthesized state (`00_当前状态`), provenance (`09_患者补充`), and
+   infrastructure (`10_原始文件`). v3 files every *source document* on one axis: its clinical domain.
+   `00_当前状态` is **removed** as a bucket — it was synthesized output that already lives in
+   `profile.json` + `case_text.md`, never a folder of raw uploads.
+2. **Modality is an orthogonal tag, not a bucket** (§2). Every filed source carries a `modality`
+   value (`text` / `image` / `structured` / `omics_raw` / `timeseries` / `binary_other`). A pathology
+   report is domain `04` + modality `text`; an NGS panel is domain `06` with a `text` report page and
+   an `omics_raw` VCF. ingest dispatches its parser off `modality`, never off the bucket.
+3. **Longitudinal streams are first-class, not documents** (§3). Wearable exports, PRO diaries, and
+   lab trends are *series*, not one-shot files. Their parsed observations accumulate in
+   `longitudinal_observations[]` next to `profile.json`; only the raw export file is filed (domain
+   `10`). This is what lets the profile carry a trajectory, not just `latest_status`.
+
+## 1. Authoritative scheme
+
+`NN_` is a **language-independent stable key** — downstream anchors, `_FILENAME_MAPPING`, and every
+`[[src:…]]` resolve on the `NN_` numeric prefix (anchor regex `^[0-9]{2}_…`), never on the localized
+slug (see `i18n.md §6`). The `zh` slug is the on-disk folder name for `locale=zh`; the `en` slug per
+`i18n.md §6.1`. The scheme is disease-agnostic: the same 14 domains serve oncology, rare-disease
+(firefly), chronic-disease, and healthy-baseline records — no domain hardcodes a cancer-only concept
+(`TNM`, `肿瘤标志物` are *typed subdirs / schema fields*, not bucket-level identity).
+
+### 1.1 Clinical domains (visible, anchored)
+
+| NN_ | `zh` slug | `en` slug | typed sub-buckets (`zh`) | from v2 |
+|---|---|---|---|---|
+| `01_` | `01_身份与基础信息` | `01_identity_basics` | `身份证件/ 人口学/ 参保信息/` | `01_基本信息` |
+| `02_` | `02_既往史与家族史` | `02_history_family` | `既往病史/ 手术史/ 过敏史/ 用药史/ 家族史/ 胚系遗传/` | **new** |
+| `03_` | `03_病程与叙事文书` | `03_clinical_notes` | `入院记录/ 出院小结/ 病程记录/ 门诊病历/ 主诉首程/` | **new** |
+| `04_` | `04_诊断与分期` | `04_diagnosis_staging` | `病理报告/ 诊断证明/ 分期评估/ 其他/` | `02_诊断与分期` + `11_诊断证明` |
+| `05_` | `05_影像` | `05_imaging` | `CT/ MRI/ PET-CT/ 超声/ X光DR/ 核医学/ 内镜影像/ 其他/` | `04_影像学` |
+| `06_` | `06_分子与组学` | `06_molecular_omics` | `NGS报告/ 免疫组化/ 胚系检测/ WES-WGS/ 转录组/ 甲基化/ 蛋白-代谢/ 微生物组/ 其他/` | `05_分子检测` (expanded) |
+| `07_` | `07_检验` | `07_labs` | `血常规/ 生化肝肾功/ 肿瘤标志物/ 凝血/ 尿便/ 其他/` | `06_检验` |
+| `08_` | `08_治疗` | `08_treatment` | `化疗/ 放疗/ 免疫治疗/ 靶向/ 内分泌/ 中医中药/ 处方医嘱/ 支持治疗/` | `07_治疗记录` (surgery split out) |
+| `09_` | `09_手术与操作` | `09_procedures` | `手术记录/ 麻醉记录/ 介入/ 内镜操作/ 植入物-器械卡/` | split from `07_治疗记录/手术-内镜` |
+| `10_` | `10_随访与监测` | `10_followup_monitoring` | `随访复查/ 可穿戴导出/ PRO自报/ 居家监测/` | **new** |
+| `11_` | `11_会诊与转诊` | `11_consult_referral` | `MDT/ 会诊/ 转诊/ 第二意见/` | `08_会诊-转诊` |
+| `12_` | `12_心理社会与支持` | `12_psychosocial_support` | `心理评估/ 营养/ 康复/ 缓和/ 社工/` | **new** |
+| `13_` | `13_行政与财务` | `13_admin_financial` | `知情同意/ 费用发票/ 医保报销/ 证明材料/` | **new** |
+| `14_` | `14_患者自管补充` | `14_patient_supplement` | `患者补充/ 日记/ 自测/ conversation_notes/` | `09_患者补充` |
+
+### 1.2 Infrastructure buckets (hidden, never anchored)
+
+| NN_ | `zh` slug | `en` slug | visible? | anchored? | role |
+|---|---|---|---|---|---|
+| `90_` | `90_原始文件镜像` | `90_original_mirror` | **no (HIDDEN)** | never | byte-level audit mirror of every upload; redaction job replaces images here. `<原始子目录>/` preserved. |
+| `99_` | `99_无关文件` | `99_unrelated` | **no (quarantine)** | never | `high_confidence/ uncertain/` relevance quarantine, outside the clinical scheme. |
+
+`90_` and `99_` are **never patient-visible** and **never anchor targets** (the redaction manifest
+excludes `90_`; downstream never reads `99_`). The mirror moved `10_→90_` to vacate the clinical
+`01…14` band for real domains and to signal "this is infrastructure, not a clinical domain". Because
+the mirror is never anchored, the renumber costs only prose edits — **no patient anchor migrates for
+the `90_` move itself** (only its hardcoded mentions in prompts/scripts change).
+
+> Subdir rule: under any bucket the parent `NN_` prefix is stable; the localized slug is the
+> locale's rendering of the subdir's canonical meaning. `high_confidence` / `uncertain` /
+> `conversation_notes` are ASCII keys and stay as-is across locales.
+
+## 2. Modality tag (orthogonal attribute)
+
+Every filed source records a `modality` in `source_inventory.json` and in the sidecar header
+(`MODALITY:` field). It describes the **data nature**, independent of the clinical domain, and drives
+ingest-parser dispatch.
+
+| `modality` | meaning | example | ingest path |
+|---|---|---|---|
+| `text` | prose / OCR'd document | discharge summary, pathology narrative | LLM Markdown ingestion (§ phase1) |
+| `image` | imaging / scan, stub-summarized | CT series, IHC slide photo | LLM vision stub |
+| `structured` | tabular numeric report | CBC panel, biochemistry sheet | LLM table → Markdown table |
+| `omics_raw` | raw omics payload | VCF / BAM / FASTQ / expression matrix | omics ingest adapter (§ ingest-adapters) |
+| `timeseries` | longitudinal stream | wearable export, glucose log, PRO diary | timeseries ingest adapter → `longitudinal_observations[]` |
+| `binary_other` | unsupported/opaque binary | DICOM raw, proprietary export | stub + `[INGESTION_BLOCKED]`, never silently dropped |
+
+A single source may emit **one bucket file + one modality**; a compound source (NGS report PDF +
+its VCF) is two `source_inventory` entries (`text` report → `06`, `omics_raw` VCF → `06`).
+
+Per-modality ingestion behavior (what sidecar + structured output each modality produces) is defined
+in [`ingest-adapters.md`](ingest-adapters.md) — dispatch reads this `modality` value.
+
+## 3. Longitudinal store (streams, not buckets)
+
+`timeseries` (and trended `structured`) sources do **not** become a pile of dated documents. Their
+parsed observations accumulate in `<patient_dir>/longitudinal_observations.json` beside
+`profile.json` (schema: `schemas/longitudinal_observations.schema.json`). The **raw export file**
+is still filed (domain `10_随访与监测/可穿戴导出` or `/PRO自报`) and the observations carry a
+`source_ref` anchor back to it.
+
+```
+longitudinal_observations[] := {
+  obs_type: "vital|lab|symptom|pro|adherence|activity",
+  metric:   "<name, verbatim>",        # e.g. "HbA1c", "resting_hr", "ECOG"
+  value:    <number|string>,
+  unit:     "<unit, verbatim>",
+  timestamp:"<ISO8601>",
+  modality: "timeseries|structured",
+  source_ref:"10_随访与监测/可穿戴导出/<file>.md#L.."  # or conversation:<ISO8601>
+}
+```
+
+This is the substrate for **单时间点 → 多时间点 → 纵向曲线 → 治疗反应轨迹**. `profile.json` keeps a
+`latest_status` snapshot AND points consumers at `longitudinal_observations.json` for the trajectory.
+
+## 4. Clean replacement — no backward compatibility
+
+v3 **fully replaces** the prior scheme. There is **no migration of existing patient directories** and
+**no compatibility layer**: old `NN_` prefixes are not aliased, old anchors are not rewritten in
+place. Any directory organized under the old scheme is simply re-run through `organize` to land on
+v3 — pre-revenue, this is the cheaper and cleaner path than a re-anchor migration. Downstream skills
+read the v3 prefixes only; they do not need to recognize legacy `00_/02_诊断…/10_原始文件` layouts.
+
+The "from v2" column in §1.1 / §1.2 is **provenance for the reader** (why each domain exists), not a
+migration instruction — nothing reads it at runtime.

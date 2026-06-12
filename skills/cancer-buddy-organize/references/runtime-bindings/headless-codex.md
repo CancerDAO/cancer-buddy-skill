@@ -19,7 +19,7 @@
 ```text
 for src in source_inventory:
   source_id = stable_id(src)
-  mirror original into patient_dir/10_原始文件/
+  mirror original into patient_dir/90_原始文件镜像/
   adapter_input = adapt_for_llm(src)
   sidecar, pii_regions = codex_llm_ingest(source_id, adapter_input)
   write patient_dir/ocr/<source_id>.md
@@ -58,7 +58,7 @@ headless 没有 inline 往返,所以确认门产物化:
 
 Phase2 产:
 
-- 11 buckets + co-located redacted MD
+- 14 clinical domains + co-located redacted MD
 - `source_inventory.json`
 - structured JSON / timeline / case_text / readiness / review outputs
 - full-format `redaction_manifest.json` for every persisted redaction-required source

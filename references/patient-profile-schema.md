@@ -13,9 +13,13 @@ patients/<patient_code>/
 ├── timeline.md               # human-readable treatment timeline
 ├── readiness.json            # MTB readiness score
 ├── case_text.md              # consolidated narrative
-├── 01_当前状态/ 02_基本信息/ 03_病理报告/ 04_影像学/ 05_检验/
-├── 06_治疗记录/ 07_NGS 分子检测/ 08_手术-内镜/ 09_会诊-转诊/
-├── 10_原始文件/ 11_诊断证明/
+├── longitudinal_observations.json  # parsed time series (wearable / PRO / lab trends)
+│   # 14 clinical-domain buckets (scheme_version 3 — authoritative: skills/cancer-buddy-organize/references/bucket-taxonomy.md)
+├── 01_身份与基础信息/ 02_既往史与家族史/ 03_病程与叙事文书/ 04_诊断与分期/ 05_影像/
+├── 06_分子与组学/ 07_检验/ 08_治疗/ 09_手术与操作/ 10_随访与监测/
+├── 11_会诊与转诊/ 12_心理社会与支持/ 13_行政与财务/ 14_患者自管补充/
+├── 90_原始文件镜像/           # byte-level audit mirror (hidden, never anchored)
+├── 99_无关文件/               # relevance quarantine (high_confidence/ uncertain/)
 ├── ocr/                      # OCR sidecars (per-file text extracts)
 └── reports/
     ├── mtb-lite/             # cancer-buddy-mtb-lite
@@ -54,7 +58,7 @@ Shape written by `cb-organizer` (shared with `vmtb-organizer`):
   "key_comorbidities": ["HTN", "T2DM"],
   "patient_location_hint": "上海",
   "data_sources": [
-    {"path": "03_病理报告/pathology-20240115.pdf", "confidence": "high"}
+    {"path": "04_诊断与分期/病理报告/pathology-20240115.pdf", "confidence": "high"}
   ],
   "caregivers": [
     {
@@ -115,7 +119,7 @@ Fields are left `null` when truly unknown — the organizer never fabricates.
       "field_path": "stage",
       "current_value": "rpT4aN2aM1 IV期",
       "issue": "AJCC 8th 标准前缀只有 c/p/yp/r/a, 'rp' 不在其中",
-      "source_evidence": ["10_原始文件/出院诊断证明_2024-07-05.jpg"],
+      "source_evidence": ["90_原始文件镜像/出院诊断证明_2024-07-05.jpg"],
       "suggested_value": "pT4aN2aM1 IV期",
       "suggested_action": "改写为 pT4aN2aM1; 在 data_sources 注明源文件统一写作 rpT4aN2aM1 (推断为医院习惯)",
       "user_confirmed": false,
@@ -142,7 +146,7 @@ Detection categories (organizer must check all five before returning):
 | `unverified_critical_field` | Field is critical for downstream (molecular driver / stage / line of therapy) but only sourced from progress narrative, no primary report. |
 | `value_trend_anomaly` | Lab/biomarker shows non-physiologic jump or unit-suspect change (TSH 6.49 → 0.80 in 8 weeks unexplained; CEA dropping 100× in one cycle). |
 
-Each entry MUST contain: `id` (`RF-NNN`), `severity` ∈ {red, yellow, green}, `category` (from table), `field_path` (dot path into profile.json), `current_value`, `issue` (≤80 chars Chinese summary), `source_evidence[]` (paths to OCR sidecars or 10_原始文件 entries that support `current_value`), `suggested_action`, `user_confirmed: false` on first write.
+Each entry MUST contain: `id` (`RF-NNN`), `severity` ∈ {red, yellow, green}, `category` (from table), `field_path` (dot path into profile.json), `current_value`, `issue` (≤80 chars Chinese summary), `source_evidence[]` (paths to OCR sidecars or 90_原始文件镜像 entries that support `current_value`), `suggested_action`, `user_confirmed: false` on first write.
 
 May contain: `suggested_value` (concrete proposal), `rationale_for_suggestion`.
 
