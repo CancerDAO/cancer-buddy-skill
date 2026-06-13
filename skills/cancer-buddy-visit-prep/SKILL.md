@@ -61,6 +61,16 @@ Apply [../../references/safety-guardrails.md](../../references/safety-guardrails
 - **Clinical entities verbatim**, scaffold localized to `profile.json.locale` ([../../references/i18n.md](../../references/i18n.md) §4).
 - **HTML is rendered by the template engine + must pass the validator — never hand-written.** The LLM produces `visit_prep_data.json` only; `render_html_template.py` fills the template; the pack is "done" only after `validate_visit_prep_html.py` exits 0. Hand-writing or post-editing the rendered HTML is forbidden.
 
+## Role behavior
+
+Authoritative matrix in [`../../references/roles.md`](../../references/roles.md). For this skill:
+
+- **Role = patient**: 患者本人备问题 — first-person question list for the patient's own consult.
+- **Role = caregiver**: 帮家人备问题 — same pack reframed as the caregiver preparing questions for the patient's visit.
+- **Role = family**: refuse + redirect to the primary caregiver (offer a one-line handoff).
+
+**Disclosure** ([`../../references/disclosure-behavior.md`](../../references/disclosure-behavior.md)): when `disclosure_state.suppressed=true` and `role=patient`, run normally (questions are assembled from the de-identified archive) but the doctor's-snapshot **avoids surfacing 晚期/IV/进展后 staging wording** to the patient and introduces no new diagnosis disclosure.
+
 ## References
 
 - [references/visit-prep-html-prompt.md](references/visit-prep-html-prompt.md) — assembly prompt (emit `visit_prep_data.json`; question list via subagent; render + validate gate)

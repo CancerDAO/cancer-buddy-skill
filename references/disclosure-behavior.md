@@ -17,6 +17,8 @@ Clinical sub-skills (mtb-lite / trial-match / explore / access / comfort / adher
 | cancer-buddy-nutrition | normal — nutrition discussed abstractly ("你现在吃 X 药，饮食注意这些"). Drug name OK; cancer-type not surfaced. |
 | cancer-buddy-second-opinion | refuse — operator-only skill |
 | cancer-buddy-disclosure | main workflow — this is exactly the case it handles |
+| cancer-buddy-find-care | normal — but the SHORTLIST avoids rendering 晚期/IV/进展后 wording, using clinically-neutral language (the act of seeking a center implies awareness; no new diagnosis is surfaced) |
+| cancer-buddy-visit-prep | normal — assembles questions from the de-identified archive; the snapshot avoids surfacing 晚期/IV/进展后 staging wording to the patient, no new diagnosis disclosure |
 
 ## Refuse/redirect template
 
