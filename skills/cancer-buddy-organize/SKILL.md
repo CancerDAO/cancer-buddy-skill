@@ -175,7 +175,7 @@ This skill follows the shared locale contract in [`../../references/i18n.md`](..
     Only **two placeholders** are injected, **copied verbatim from `profile.json` (no LLM synthesis)**: `{{patient_code}}` ← `profile.json.patient_code`; `{{one_line_condition}}` ← `profile.json.summary.one_line_condition` (`资料缺失` when null). Claude Code reference binding:
 
     ```bash
-    python3 - "<patient_dir>" references/agents-md.template.md <<'PY'
+    python3 - "<patient_dir>" ../../references/agents-md.template.md <<'PY'
     import json, pathlib, sys
     pdir, tpl = pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2])
     d = json.loads((pdir / "profile.json").read_text())
