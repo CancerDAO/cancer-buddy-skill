@@ -22,7 +22,7 @@ Turn an already-organized patient archive into a one-page pack the patient bring
 Read [../../references/i18n.md](../../references/i18n.md). The pack is a patient-visible template artifact:
 
 1. Read `patients/<pid>/profile.json` → `locale`. If present, use it — do not re-detect (visit-prep runs after organize, so a `locale` is almost always already persisted).
-2. If absent, detect from the records' primary patient-facing language, then write it back to `profile.json.locale` (BCP-47).
+2. If absent, detect from the records' **primary patient-facing language**, tie-breaking to the language the user is conversing in (the `record-consuming generative sub-skills` row in `../../references/i18n.md` §2), then write it back to `profile.json.locale` (BCP-47).
 3. Render every patient-visible scaffold string in that `locale` from the template's locale string table — section titles, question-group titles, "待确认" tag, disclaimer, `val_pending` placeholder, footer.
 4. Keep every clinical entity verbatim regardless of `locale` — drug names, genes/variants, TNM/stage, RECIST codes, all numbers + units, biomarker labels. Mistranslating a clinical entity is a P0 medical-safety bug.
 5. Honor an explicit user language override → update `profile.json.locale` and follow it.
