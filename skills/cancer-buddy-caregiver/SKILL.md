@@ -27,7 +27,7 @@ Per `../../references/preflight.md`: role must be caregiver or family. If patien
 
 Determine what the caregiver needs:
 
-1. **First time here** → orient + baseline Zarit screen (see [references/zarit-burden.md](references/zarit-burden.md)). Offer to populate `profile.json.caregivers[]` with their name + relation + contact.
+1. **First time here** → orient + baseline Zarit screen (see [references/zarit-burden.md](references/zarit-burden.md)). Offer to populate `patient_summary.json.caregivers[]` with their name + relation + contact.
 2. **Chemo / radiotherapy / surgery day ahead** → [chemo-companion-checklist.md](references/chemo-companion-checklist.md).
 3. **Want to share load** → [family-roles-template.md](references/family-roles-template.md): who does hospital runs, who does pharmacy, who does emotional check-ins, who does finances. Export shareable family doc.
 4. **Kids ask what's going on** → [explaining-cancer-to-children.md](references/explaining-cancer-to-children.md) (age-appropriate language).
