@@ -28,6 +28,11 @@ Two-round workflow audit (8 consistency axes + 6 residual axes + 5 Python script
 - **`tests/integration/journey.md`** (pre-split smoke test) flagged with a public/pro scope banner — Steps 2–4 (explore/mtb-lite/trial-match) only run when the pro-skill is installed.
 - **Crisis-hotline list diverged** — the national 国家卫健委 line `12356` was in the meta SKILL crisis block but absent from `crisis-resources.md` (the SoT) and `safety-guardrails.md`. Added `12356` to the SoT table, aligned `safety-guardrails.md` to the canonical set (`12356` / `400-161-9995` / `010-82951332` / `021-64383562` / `120`, fixing a duplicate-number listing) and pointed it at the authoritative table.
 
+**P1 — `longitudinal_observations.json` declared but never actually produced or validated**
+- The schema authority + `schemas/README.md` + SKILL.md Outputs list `longitudinal_observations.json`, but the Phase-2 worker had no step that wrote it (only a passing mention), it was missing from the worker's own canonical-output recap, and the acceptance gate never validated it. Per D3 (real output): added an explicit conditional production sub-section (`organizer-prompt-phase2-synthesis.md` §2.6a) — write it when timeseries/trended data exists, schema-validate before writing, omit when absent. Added to the worker's two output recaps.
+- `validate_structured_outputs.py`: added `longitudinal_observations.json` to the validated set (missing-tolerant → only validated when present), and extended `collect_source_refs` to also walk the singular `source_ref` field (longitudinal carries one per observation) so its anchors validate too. Verified: compiles; singular + plural anchors both collected.
+- Runtime-parity recap (`SKILL.md` §Runtime adaptation) and the incremental rewrite-eligibility list (`SKILL.md` §Incremental mode) now include `longitudinal_observations.json` (+ `source_inventory.json` / `review_summary.md`), closing the producer-coverage holes the audit found in the incremental path.
+
 ### Fixed — pre-live-testing review (adversarial multi-dimension bug sweep)
 
 10 confirmed bugs (none in the AGENTS.md feature) fixed before live testing; no P0.
