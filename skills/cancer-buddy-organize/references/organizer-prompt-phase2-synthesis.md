@@ -1,6 +1,6 @@
 # Organizer Prompt — Phase 2 Synthesis Worker
 
-You are the Phase-2 Synthesis Worker for `cancer-buddy-organize`. Phase 1 LLM Markdown Ingestion Workers have already written every per-source text-masked Markdown sidecar to the **temporary central staging dir** `<patient_dir>/ocr/` and kept verbatim copies of every uploaded original in `<patient_dir>/raw/`. Your job is to **read all sidecars, classify into the buckets, move each source file AND its text-masked MD into the same bucket subdirectory under a canonical name, then produce the global artifacts**: INDEX.md / timeline.md / case_text.md / profile.json / readiness.json / review_flags / review_summary / **the 6 structured JSON outputs + missing_items.json + source_inventory.json + update_log.json + the business-readable alias**.
+You are the Phase-2 Synthesis Worker for `cancer-buddy-organize`. Phase 1 LLM Markdown Ingestion Workers have already written every per-source text-masked Markdown sidecar to the **temporary central staging dir** `<patient_dir>/ocr/` and kept verbatim copies of every uploaded original in `<patient_dir>/raw/`. Your job is to **read all sidecars, classify into the buckets, move each text-masked MD into its bucket subdirectory under a canonical name (the uploaded original stays verbatim in `raw/` — never copied into a bucket), then produce the global artifacts**: INDEX.md / timeline.md / case_text.md / profile.json / readiness.json / review_flags / review_summary / **the 6 structured JSON outputs + missing_items.json + source_inventory.json + update_log.json + the business-readable alias**.
 
 The central `ocr/` directory is **temporary staging only**. By the end of your run it MUST be empty and deleted — every MD lives next to its image inside a bucket subdirectory (`<bucket>/<canonical>.md`), and every downstream anchor is a bucket-relative path. No artifact may reference `ocr/` after you finish.
 
@@ -49,7 +49,7 @@ If complete: `"coverage_complete": true`.
 
 ## Step 1 — Classify + canonically rename + co-locate each file with its text-masked MD
 
-Each file ends up at `<bucket>/<canonical>.<ext>` with its text-masked MD beside it at `<bucket>/<canonical>.md`. The central `ocr/` staging dir is drained and deleted (Step 1e). This borrows the local-skill Layer 2.5/2.6 mechanism: **you** make the semantic naming judgment (LLM, not regex), write a `.rename_plan.json`, then a mechanical bash pass does the atomic moves and `_FILENAME_MAPPING` backfill.
+Each file's text-masked MD ends up at `<bucket>/<canonical>.md`; **the uploaded original stays in `raw/` (single copy — never duplicated into the bucket)**. The central `ocr/` staging dir is drained and deleted (Step 1e). This borrows the local-skill Layer 2.5/2.6 mechanism: **you** make the semantic naming judgment (LLM, not regex), write a `.rename_plan.json`, then a mechanical bash pass does the atomic moves and `_FILENAME_MAPPING` backfill.
 
 Bucket scheme (each file MUST land in a bucket; bucket-root files are forbidden — use a typed subdirectory). The `zh` rendering is shown below; **the `NN_` two-digit prefix is the language-independent stable key** and the slug after it is rendered in `locale` per [`../../../references/i18n.md`](../../../references/i18n.md) §6. For `locale != zh`, use the §6.1 map (`en`) or, for a locale not in the table, generate the slug from the bucket's canonical meaning in the target language with the `NN_` prefix kept verbatim (§6.2). Downstream anchors / `_FILENAME_MAPPING` / `[[src:…]]` match on the `NN_` numeric prefix, never on the localized slug — so localizing the folder name never breaks resolution:
 
@@ -72,7 +72,7 @@ Authoritative scheme: [`bucket-taxonomy.md`](bucket-taxonomy.md) (scheme_version
 14_患者自管补充/{患者补充,日记,自测,conversation_notes}
 ```
 
-e.g. for `locale = en` the same domains are `01_identity_basics / 02_history_family / 03_clinical_notes / 04_diagnosis_staging/pathology / 05_imaging/... / 06_molecular_omics/... / 07_labs/... / 08_treatment/... / 09_procedures/... / 10_followup_monitoring/... / 11_consult_referral / 12_psychosocial_support / 13_admin_financial / 14_patient_supplement`. Typed subdirectories follow the same rule (parent `NN_` stable, slug localized; `high_confidence` / `uncertain` / `conversation_notes` stay ASCII as-is). Whatever the locale, **build every `bucket_path` / `file_dest` / `md_dest` / anchor with the same localized slug consistently** so the on-disk path and the anchor agree.
+e.g. for `locale = en` the same domains are `01_identity_basics / 02_history_family / 03_clinical_notes / 04_diagnosis_staging/pathology / 05_imaging/... / 06_molecular_omics/... / 07_labs/... / 08_treatment/... / 09_procedures/... / 10_followup_monitoring/... / 11_consult_referral / 12_psychosocial_support / 13_admin_financial / 14_patient_supplement`. Typed subdirectories follow the same rule (parent `NN_` stable, slug localized; `high_confidence` / `uncertain` / `conversation_notes` stay ASCII as-is). Whatever the locale, **build every `bucket_path` / `md_dest` / anchor with the same localized slug consistently** so the on-disk path and the anchor agree.
 
 Each filed source also records a `modality` (`text` / `image` / `structured` / `omics_raw` / `timeseries` / `binary_other`, see `bucket-taxonomy.md` §2) in its `.rename_plan.json` entry and `source_inventory.json` — orthogonal to the domain, it drives ingest-parser dispatch. **`timeseries` streams** (wearable / PRO / device logs) file their raw export into `10_随访与监测` AND emit parsed points into `longitudinal_observations.json` (`bucket-taxonomy.md` §3) — they never become piles of dated documents.
 
@@ -126,7 +126,7 @@ unknown-date_化验单_unknown-org.pdf
 
 ### Step 1b — Write `.rename_plan.json` (Write tool, not a script)
 
-After you've judged every file, write the plan to `<patient_dir>/.rename_plan.json`. `ocr_sidecar_old` is the file's current path under the temporary `ocr/` staging dir; `md_dest` and `file_dest` are the bucket-relative co-located destinations (both share the same `<canonical>` stem):
+After you've judged every file, write the plan to `<patient_dir>/.rename_plan.json`. `ocr_sidecar_old` is the file's current path under the temporary `ocr/` staging dir; `md_dest` is the bucket-relative destination of the text-masked MD (**the only thing that lands in the bucket** — the uploaded original stays in `raw/`):
 
 ```json
 {
@@ -142,8 +142,6 @@ After you've judged every file, write the plan to `<patient_dir>/.rename_plan.js
       "bucket_path": "04_诊断与分期/病理报告",
       "modality": "image",
       "canonical": "2024-03-15_病理报告_中山六院",
-      "ext": "jpg",
-      "file_dest": "04_诊断与分期/病理报告/2024-03-15_病理报告_中山六院.jpg",
       "md_dest": "04_诊断与分期/病理报告/2024-03-15_病理报告_中山六院.md",
       "read_mode": "model_vision",
       "adapter": "temp_raster",
@@ -156,7 +154,7 @@ After you've judged every file, write the plan to `<patient_dir>/.rename_plan.js
 }
 ```
 
-`pii_hint` lists the PII categories Phase 1 masked in this file's MD (read them from the sidecar's `## PII` section if present, else infer from doc_type — e.g. 出院小结/诊断证明 typically carry `patient_name` + `admission_id`). This is category context only and applies to the **text sidecar**; the uploaded original in `raw/` is kept verbatim and never pixel-redacted. `read_mode` / `adapter` / `adapter_provenance` come from the sidecar header and are provenance only; adapter output is never a clinical text source. `raw_path` is the verbatim original under `raw/` — the bucket copy is renamed/co-located, but the `raw/` original keeps its uploaded bytes and name. `id` is the content unit's `file_id` (1:1 with the sidecar); `page_range` is the page span of a multi-document source (else null).
+`pii_hint` lists the PII categories Phase 1 masked in this file's MD (read them from the sidecar's `## PII` section if present, else infer from doc_type — e.g. 出院小结/诊断证明 typically carry `patient_name` + `admission_id`). This is category context only and applies to the **text sidecar**; the uploaded original in `raw/` is kept verbatim and never pixel-redacted. `read_mode` / `adapter` / `adapter_provenance` come from the sidecar header and are provenance only; adapter output is never a clinical text source. `raw_path` is the verbatim original under `raw/` — **the original lives only there** (uploaded bytes + name); the bucket holds only the text-masked `.md` sidecar, which deep-links back to `raw_path`. `id` is the content unit's `file_id` (1:1 with the sidecar); `page_range` is the page span of a multi-document source (else null).
 
 ### Step 1b·5 — Second-check the plan against content (filename_content_mismatch)
 
@@ -165,55 +163,50 @@ Before the mechanical move, **re-verify every `.rename_plan.json` entry against 
 For each entry, re-read the **first ~30 lines of its sidecar** (`md_dest` source in `ocr/`) and ask: does the content actually match the assigned `doc_type` and `bucket_path`?
 
 - **Clear match** → keep the plan entry.
-- **Clear mismatch** (content is unambiguously a different doc_type/domain) → **correct the entry in place** (fix `doc_type`, `bucket_path`, `canonical`, `file_dest`, `md_dest`) before Step 1c, and record a `filename_content_mismatch` flag in `readiness.json.review_flags` (severity `yellow`, with `field_path: <file_id>`, the old vs corrected name, and the evidence line) so the correction is auditable.
+- **Clear mismatch** (content is unambiguously a different doc_type/domain) → **correct the entry in place** (fix `doc_type`, `bucket_path`, `canonical`, `md_dest`) before Step 1c, and record a `filename_content_mismatch` flag in `readiness.json.review_flags` (severity `yellow`, with `field_path: <file_id>`, the old vs corrected name, and the evidence line) so the correction is auditable.
 - **Genuinely ambiguous** (content could be either, you can't confidently re-derive) → keep the best-guess entry but raise a `filename_content_mismatch` flag at severity `red` for user review; do not silently ship an uncertain name.
 
 This is a second, independent LLM read — not a regex check — and it is **mandatory**: a name is only as trustworthy as a re-read of the content confirms. Apply the same fidelity rule (doc_type is quoted verbatim from the document; never invent a type the document doesn't claim).
 
 ### Step 1c — Materialize each file into its bucket (mechanical bash)
 
-For each plan entry: copy the verbatim original from `raw/` into the bucket under the canonical name, then **move** (not copy) the text-masked MD out of the temporary `ocr/` staging dir to sit beside it. This is pure byte-shuffling, no judgment:
+For each plan entry, **move** (not copy) the text-masked MD out of the temporary `ocr/` staging dir into its bucket under the canonical `.md` name. **The uploaded original is NOT copied into the bucket** — it lives **once** in `raw/` (the frontend / `_FILENAME_MAPPING` / `source_inventory.raw_path` link a sidecar back to it). The bucket holds only `.md` sidecars. This is pure byte-shuffling, no judgment:
 
 ```bash
-sanitize() { printf '%s' "$1" | tr -d '\000-\037' | tr '/\\<>:"|?*' '-'; }
-
 while IFS= read -r entry; do
-    raw=$(jq -r '.raw_path'       <<<"$entry")
     sc_old=$(jq -r '.ocr_sidecar_old' <<<"$entry")
-    fdest=$(jq -r '.file_dest'        <<<"$entry")
     mdest=$(jq -r '.md_dest'          <<<"$entry")
     bucket=$(jq -r '.bucket_path'     <<<"$entry")
 
     mkdir -p "$patient_dir/$bucket"
 
-    # collision-safe canonical file name
-    fabs="$patient_dir/$fdest"; mabs="$patient_dir/$mdest"
-    if [ -e "$fabs" ]; then
-        stem="${fdest%.*}"; ext="${fdest##*.}"; i=2
-        while [ -e "$patient_dir/${stem}_${i}.${ext}" ]; do i=$((i+1)); done
-        fabs="$patient_dir/${stem}_${i}.${ext}"; mabs="$patient_dir/${stem}_${i}.md"
+    # collision-safe canonical .md name (only the sidecar lands in the bucket; the original stays in raw/)
+    mabs="$patient_dir/$mdest"
+    if [ -e "$mabs" ]; then
+        stem="${mdest%.md}"; i=2
+        while [ -e "$patient_dir/${stem}_${i}.md" ]; do i=$((i+1)); done
+        mabs="$patient_dir/${stem}_${i}.md"
     fi
 
-    cp -n "$patient_dir/$raw" "$fabs"          # source image/PDF into bucket
-    [ -f "$patient_dir/$sc_old" ] && mv -n "$patient_dir/$sc_old" "$mabs"   # MD co-located, drained from ocr/
+    [ -f "$patient_dir/$sc_old" ] && mv -n "$patient_dir/$sc_old" "$mabs"   # only the MD is co-located; original is NEVER copied into the bucket
 done < <(jq -c '.files[]' "$patient_dir/.rename_plan.json")
 ```
 
-`cp -n` / `mv -n` refuse to overwrite → idempotent re-runs. The `raw/` vault keeps its original basenames and verbatim bytes — never renamed or pixel-redacted here.
+`mv -n` refuses to overwrite → idempotent re-runs. The `raw/` vault keeps its original basenames and verbatim bytes (the single copy of every original) — never renamed, copied into a bucket, or pixel-redacted.
 
 ### Step 1d — `_FILENAME_MAPPING.md` backfill
 
-Write `<patient_dir>/raw/_FILENAME_MAPPING.md` — the audit reverse-lookup from the `raw/` original to its canonical bucket path. This is mandatory even when every original filename is ASCII (non-ASCII names from 中文/格鲁吉亚文/Cyrillic/emoji sources render as blanks in Finder):
+Write `<patient_dir>/raw/_FILENAME_MAPPING.md` — the audit reverse-lookup from the `raw/` original to the canonical `.md` sidecar that carries its text (the original itself stays in `raw/`; no canonical copy exists in the bucket). This is mandatory even when every original filename is ASCII (non-ASCII names from 中文/格鲁吉亚文/Cyrillic/emoji sources render as blanks in Finder):
 
 ```bash
 {
-  echo "# Filename Mapping — raw/ original ↔ canonical bucket"
+  echo "# Filename Mapping — raw/ original ↔ canonical sidecar"
   echo ""
-  echo "> 原始 basename 保留作审计追溯;Finder 渲染异常或非 ASCII 字符可能显示为空 — 用本表反查。"
+  echo "> 原始 basename 保留作审计追溯;Finder 渲染异常或非 ASCII 字符可能显示为空 — 用本表反查。原件只在 raw/,桶里只有同名 .md sidecar。"
   echo ""
-  echo "| 原始文件 (raw/) | 规范化文件 | 所在桶 |"
+  echo "| 原始文件 (raw/) | 对应 sidecar (.md) | 所在桶 |"
   echo "|---|---|---|"
-  jq -r '.files[] | "| `\(.raw_path)` | `\(.canonical).\(.ext)` | `\(.bucket_path)/` |"' \
+  jq -r '.files[] | "| `\(.raw_path)` | `\(.md_dest)` | `\(.bucket_path)/` |"' \
      "$patient_dir/.rename_plan.json"
 } > "$patient_dir/raw/_FILENAME_MAPPING.md"
 ```

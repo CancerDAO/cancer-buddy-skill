@@ -100,7 +100,7 @@ sidecar 的脱敏 Markdown 正文**必须由驱动 LLM(Claude / codex / OpenClaw
 
 | 产物 | 内容 | 关键约束 |
 |---|---|---|
-| 14 临床域桶(`01_…14_`)| 每文件落 `<bucket>/<canonical>.<ext>` + co-located `<bucket>/<canonical>.md`;域定义见 [`bucket-taxonomy.md`](bucket-taxonomy.md)(权威,scheme_version 3)| 禁止桶根裸文件;无明确子类落该桶 `其他/`。 |
+| 14 临床域桶(`01_…14_`)| 每文件的 text-masked MD 落 `<bucket>/<canonical>.md`;**原件只在 `raw/`(单份),绝不复制进桶**;域定义见 [`bucket-taxonomy.md`](bucket-taxonomy.md)(权威,scheme_version 3)| 禁止桶根裸文件;无明确子类落该桶 `其他/`。 |
 | `source_inventory.json` | 每个 content unit 的 LLM ingestion provenance + sidecar + `modality` + `file_id`/`source_id` + `raw_path`(回链 `raw/` 逐字原件)+ `page_range` | `source_inventory_v1`;`modality` ∈ {text,image,structured,omics_raw,timeseries,binary_other};`raw_path` 以 `raw/` 开头,指向永不打码的逐字原件(见 `bucket-taxonomy.md` §4)。 |
 | `longitudinal_observations.json` | `timeseries`/趋势 `structured` 源解析出的纵向观测序列(可穿戴/PRO/检验趋势)| `longitudinal_observations_v1`;原始导出文件归 `10_随访与监测`,每观测带 `source_ref` 锚点;见 `bucket-taxonomy.md` §3。 |
 | canonical 命名 | `<YYYY-MM-DD>_<doc_type>_<hospital>[_p<page>].<ext>` | doc_type/hospital/date 由 sidecar 语义判定(LLM,非正则);hospital 走 4 级回退;缺值 `unknown-date`/`unknown-org`。 |
@@ -131,7 +131,7 @@ Phase2 的跨文档审计(Phase1 做不到,因 Phase1 只见自己那片;Phase2 
 
 ### 2.5 不变量
 
-- **桶不变量**:每文件必进某桶的 typed 子目录,禁桶根裸文件;`NN_` 两位数字前缀是**语言无关稳定 key**,其后 slug 按 `locale` 渲染;下游一律按 `NN_` 数字前缀解析锚点,localize slug 不破坏解析(`bucket_path`/`file_dest`/`md_dest`/锚点用同一 localized slug,保证盘上路径与锚点一致)。
+- **桶不变量**:每文件必进某桶的 typed 子目录,禁桶根裸文件;`NN_` 两位数字前缀是**语言无关稳定 key**,其后 slug 按 `locale` 渲染;下游一律按 `NN_` 数字前缀解析锚点,localize slug 不破坏解析(`bucket_path`/`md_dest`/锚点用同一 localized slug,保证盘上路径与锚点一致)。
 - **locale 不变量**:Phase2 是 `profile.json.locale` 的 canonical 写者——检测并持久化(已存在则复用,除非用户显式改语言);所有患者向 scaffold(桶 slug、timeline/case_text/review_summary 文案、gap/warning 文案、确认通知)按 locale 渲染。**临床实体(药/基因/变异/TNM/数值+单位)与 `doc_type` 永远 verbatim,绝不翻译/转写/规范化**——误译是 P0 安全 bug。
 - **暂存区不残留**:综合结束后,中央 sidecar 暂存区必须被排空——每个 MD 都 co-located 进桶,排空失败 → 暴露 `ocr_drain_incomplete`、保留暂存区、不弃文件。任何产物不得在综合后引用中央暂存区。
 - **source inventory 必产**:返回前必产 `source_inventory.json`;每个 content unit 一条,记录 `file_id` / `source_id` / `READ_MODE` / `ADAPTER` / sidecar path / `raw_path`(回链 `raw/` 逐字原件)/ `page_range` / persist;校验失败记 warning,不发无效 inventory。
