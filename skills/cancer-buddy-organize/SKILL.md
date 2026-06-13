@@ -60,7 +60,7 @@ A consumer answering questions on an **already-organized** `patients/<patient_co
 | `readiness.json` | Coverage grade + `blocking_gaps` + 9 `review_flags` | **Second** — honesty gate; if the asked domain is a blocking gap, say what's missing |
 | `INDEX.md` | File manifest (file_id / 桶 / 类型 / 日期 / 机构 / 置信 / MD / Raw原件 / 页码) | **Third** — to know which sources exist + map fact→filename for citation |
 | `patient_summary.json` | **Full structured** demographics / diagnosis / current_status rollup (authoritative for structured diagnosis) | Diagnosis / staging / demographics questions |
-| `molecular.json` / `labs.json` / `treatment_lines.json` / `timeline.json` / `comorbidities.json` | The 6 structured JSONs (schema-validated, each row carries `source_refs[]`) | The matching question domain — read **one**, not all |
+| `molecular.json` / `labs.json` / `treatment_lines.json` / `timeline.json` / `comorbidities.json` | 5 of the 6 structured JSONs (patient_summary.json is the row above; schema-validated, each row carries `source_refs[]`) | The matching question domain — read **one**, not all |
 | `longitudinal_observations.json` | Time series (wearable / PRO / lab trends) | Trend / trajectory questions |
 | `case_text.md` / `timeline.md` | Human-readable narrative (anchored) | Only when quoting / a verbatim citation is needed |
 | `source_inventory.json` | `file_id ↔ sidecar ↔ raw_path` map | Frontend deep-link to a `raw/` original |

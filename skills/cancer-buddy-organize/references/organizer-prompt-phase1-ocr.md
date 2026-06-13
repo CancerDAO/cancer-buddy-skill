@@ -102,6 +102,8 @@ Replace every occurrence of the following with the literal token `[PII_MASKED]`:
 - national ID / 身份证号
 - date of birth / 出生日期 (the patient's birth date specifically — NOT clinical event dates)
 
+> Name/DOB are masked in the sidecar BODY as above. Separately, any residual or partially-masked patient name + birth-year may be recorded ONLY into `patient_summary.json.demographics` (`name`/`dob`) for the P0 `cross_patient_name_collision` check (organizer-prompt-phase2-synthesis.md Step 3a) — never surfaced in any patient-facing artifact; when fully masked these are null and the check skips.
+
 **Redaction touches PII tokens ONLY. It MUST NOT alter any clinical character.** Anti-anchoring (§2.2a) is unchanged and takes precedence: do not "correct", normalize, or rewrite drug names, dosing, TNM staging, molecular markers, lab values, or clinical event dates while redacting. If you are unsure whether a string is the patient's birth date or a clinical date, treat it as clinical (keep it verbatim) — clinical fidelity wins over over-redaction.
 
 This is a judgment task, not a fixed regex list — read each line in context and mask the PII tokens you actually see. Keep the surrounding clinical text, table structure, and role labels intact so Phase 2 and the 段D HTML can still consume the sidecar.
