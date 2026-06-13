@@ -91,7 +91,7 @@ stages:
       category: consent
       reason: "一线吉西他滨+顺铂联合 PD-1 抑制剂方案知情"
 
-postoperative_followup:
+followup:
   - item: "随访血浆 EBV DNA 监测 (前 2 年每 3 个月)"
     priority: P1
     category: lab

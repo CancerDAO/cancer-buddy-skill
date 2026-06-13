@@ -427,11 +427,12 @@ to manual mental validation for the Phase2 structured JSONs.
 2. Resolve the checklist:
    - If `references/checklists/<cancer_type>.yaml` **exists**, load it (the shipped set covers the common cancer types).
    - If it does **NOT** exist (a less-common type not yet shipped), **generate the checklist in-session** for this `<cancer_type>` + stage, grounded in current NCCN / CSCO / ESMO standard-of-care workup, following the SAME schema as the shipped YAMLs (each item: `item` / `priority` P0|P1|P2 / `category` ∈ pathology|imaging|lab|molecular|history|consent / `reason`). Set `checklist_version: "<cancer_type>-rt<YYYY-MM-DD>"` (`rt` = runtime-generated) and add a warning `"checklist_generated_runtime: <cancer_type>"` so the run is transparent that it used a generated (not human-curated) checklist. **Do NOT silently emit `missing: []` and do NOT skip** — a real generated checklist is required here (no silent degradation). Keep it run-local (do not write into the shared `references/checklists/` package).
-3. Stage-context resolution: take `profile.json.summary.stage`. Reduce to the coarsest matching key in the YAML's `stages` block:
-   - `cI`, `cII`, `pI`, `pII` → `I-II`
-   - `cIII`, `pIII`, `ypIII` → `III` or `II-III` (prefer `III` if present, else fall back)
-   - `cIV`, `pIV`, `yp` with M1 → `IV`
-   - HCC: use BCLC if present in case_text, else map TNM crudely.
+3. Stage-context resolution: reduce the patient's stage/histology to the coarsest matching key **among the keys the loaded YAML actually ships** (the keying convention varies by cancer type — TNM, histology, risk group, or early/advanced):
+   - **TNM-keyed** (most types): `cI`/`cII`/`pI`/`pII` → `I-II`; `cIII`/`pIII`/`ypIII` → `III` (or `II-III` if that is the shipped key); `cIV`/`pIV`/`yp`+M1 → `IV`.
+   - **HCC**: use BCLC stage if present in case_text, else map TNM crudely.
+   - **THCA** (histology-keyed): match `profile.json.summary.histology` → `DTC` (乳头状/滤泡状/分化型), `MTC` (髓样/medullary), `ATC` (未分化/anaplastic).
+   - **UCEC** (early/advanced): `I-II` → `early`; `III-IV` → `advanced`.
+   - **General fallback**: if the shipped `stages` keys are non-TNM (resectability tiers, risk groups, etc.), pick the key whose label best matches the patient's stage/histology/risk descriptor in case_text. If only `all` is shipped, use just `all`. Never fail — `stages.all` is always the floor.
 4. Compute checklist items = `stages.all ∪ stages.<resolved_stage>` (union).
 5. For each item, check whether it is already covered:
    - **molecular** items: present in `molecular.json.variants[]` / `ihc[]` / `msi_mmr` / `tmb`.

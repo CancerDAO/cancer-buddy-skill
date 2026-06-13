@@ -37,12 +37,21 @@ sources: [<guideline citations>]
 stages:
   all:                          # items needed regardless of stage
     - item: <plain-language description>
-      priority: P0|P1|P2
-      category: pathology|imaging|lab|molecular|history|consent
-      reason: <why this is needed>
-  <stage-context>:              # e.g. "IV", "II-III", "BCLC B-C"
-    - ...
+      priority: P0|P1|P2        # required
+      category: pathology|imaging|lab|molecular|history|consent   # required
+      reason: <why this is needed>   # recommended (most items carry it; not enforced)
+  <stage-context>:              # e.g. "IV", "II-III", "early", "DTC", "BCLC B-C"
+    - ...                       # keying varies by cancer type — TNM, histology
+                                # (THCA DTC/MTC/ATC), risk group, or early/advanced
+
+followup:                       # OPTIONAL top-level block (sibling to `stages:`)
+  - item: <surveillance item>   # post-treatment / surveillance items, applied
+    priority: P0|P1|P2          # regardless of stage. FORWARD-LOOKING reference —
+    category: lab|imaging|...    # NOT unioned into the missing-now `missing_items.json`
+                                # diff; consumed by downstream monitoring features.
 ```
+
+> **Block-name uniformity**: the surveillance block is a single key `followup:` across all YAMLs (earlier files used `postoperative_followup` / `response_followup` / `posttreatment_followup` — reconciled to one name so consumers find it deterministically).
 
 The synthesis worker:
 
@@ -56,7 +65,7 @@ The synthesis worker:
 
 1. Copy any existing YAML as template.
 2. Update `cancer_type`, `version`, `sources`.
-3. List the required items by stage. Each item needs `priority` + `category` + `reason`.
+3. List the required items by stage. Each item needs `priority` + `category` (both required); `reason` is recommended but optional (the synthesis worker does not enforce it, and several shipped items omit it).
 4. Reference up-to-date guideline (NCCN / CSCO / ESMO / ASCO).
 5. Open PR; reviewer should be a clinical oncologist when the cancer type is new.
 

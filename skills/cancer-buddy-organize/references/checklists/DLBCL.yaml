@@ -83,7 +83,7 @@ stages:
       category: consent
       reason: "PIPL + 临床合规"
 
-response_followup:
+followup:
   - item: "中期 / 终末 PET-CT + Deauville 5 分量表评分"
     priority: P0
     category: imaging

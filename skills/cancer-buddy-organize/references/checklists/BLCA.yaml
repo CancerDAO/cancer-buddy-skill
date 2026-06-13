@@ -89,7 +89,7 @@ stages:
       category: consent
       reason: "PIPL + 临床合规"
 
-postoperative_followup:
+followup:
   - item: "尿细胞学 + 膀胱镜 (NMIBC 按风险定期)"
     priority: P1
     category: lab
