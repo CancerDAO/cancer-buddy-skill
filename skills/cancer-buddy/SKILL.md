@@ -179,6 +179,7 @@ ls ~/.claude/plugins/vmtb-skill/SKILL.md \
 
 回答任何依赖患者档案的问题时，按下面这个**固定顺序**读 `patients/<patient_code>/`，**选择性读取、不通读整个文件夹**。这一节是内部指令（决定读什么、按什么顺序）；其中**面向用户输出的部分按 `profile.json.locale` 渲染**，协议本身不渲染。
 
+0. **`AGENTS.md` 补建兜底（self-heal）** —— 进入档案前，若 `patients/<patient_code>/` 已有 `profile.json` 但**缺 `AGENTS.md`**（本功能上线前建的旧档案，或文件被删），触发一次 `cancer-buddy-organize`（`run_mode: incremental`）补建——**organize 是 `AGENTS.md` 的唯一生成者**，这里只负责发现缺失并委派，不自行写患者文件。`AGENTS.md` 已存在则跳过。新档案在首次 `full` organize 的 Step 13 就已生成，正常不会触发这步。
 1. **`profile.json`** —— 身份 + `locale`（**永远第一**，最便宜的"这是谁"）。先拿到 locale 再决定所有后续话术语言。
 2. **`readiness.json`** —— grade + `blocking_gaps` + `review_flags`（**诚实闸门**）。如果用户问到的领域正落在某个 `blocking_gap` 上，就**如实说缺什么、不要编**——"这部分档案里还没有，建议你下次复诊补上"，而不是凭空合成一个答案。
 3. **`INDEX.md`** —— 文件清单（每文件一行：file_id/桶/类型/日期/机构/置信/MD/Raw原件/页码）。读它是为了知道**到底有哪些源文件存在**，并能把"事实 → 文件名"映射起来用于引用（见下一节）。

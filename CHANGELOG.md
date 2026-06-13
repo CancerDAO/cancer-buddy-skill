@@ -35,8 +35,9 @@ session can find and read it.
   each fact's `source_refs[]`. A documented **Archive Read Protocol** (profile → readiness → INDEX →
   targeted JSON → anchored md; selective, never whole-folder, never `raw/`).
 - **Per-patient `AGENTS.md` recall pointer (cross-session discovery).** `organize` now writes an
-  agent-facing `AGENTS.md` into `patients/<code>/` (Step 13, filled from
-  [skills/cancer-buddy-organize/references/templates/agents-md.template.md](skills/cancer-buddy-organize/references/templates/agents-md.template.md)).
+  agent-facing `AGENTS.md` into `patients/<code>/` (Step 13, always on a `full` build, filled from the
+  repo-root shared template [references/agents-md.template.md](references/agents-md.template.md), alongside
+  `patient-profile-schema.md`). A pre-existing archive lacking `AGENTS.md` is backfilled on next read.
   Harnesses that auto-load `AGENTS.md` from the cwd (pi, Claude Code) then get — in **every session
   whose cwd is in the patient dir** — the patient identity + a routing table (which structured file
   answers which question) + a **two-layer drill-down** rule (top-level JSON → `source_refs` /

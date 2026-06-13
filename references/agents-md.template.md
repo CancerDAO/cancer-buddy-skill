@@ -1,7 +1,7 @@
 # 患者档案 · AGENTS.md
 
 <!--
-  本文件由 cancer-buddy-organize 自动生成（填充模板 references/templates/agents-md.template.md）。
+  本文件由 cancer-buddy-organize 自动生成（填充模板 references/agents-md.template.md，repo-root 共享契约，与 patient-profile-schema.md 并排，被 cancer-buddy 家族 + vmtb 共用）。
   它是 agent-facing 的**索引 / 召回指针**，不是数据本身，也不是给患者看的。
   只注入两个占位符，且都是从 profile.json **逐字复制**、不重新合成（占位符写法见下方正文）：
     patient_code        ← profile.json.patient_code
