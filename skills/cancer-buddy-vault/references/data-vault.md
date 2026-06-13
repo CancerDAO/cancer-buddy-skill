@@ -60,54 +60,36 @@ Authoritative profile contract: [../../../references/patient-profile-schema.md](
 
 When a share / export needs a single aggregated object (e.g. a de-identified bundle for an authorized recipient), vault emits **`vault_export.json`** — a vault-produced aggregate, **not** the on-disk `profile.json`. It is assembled from the canonical sources above (and scoped/de-identified per the active `sharing-settings.json` rule), so its shape is determined by the requested `scope`, not by any fixed profile schema. It must never be named `profile.json` and never re-introduce the retired flat `version: "1.0"` shape.
 
-## JSON Schema: timeline.json
+## timeline.json (organize-produced; vault is a read-only consumer)
+
+Vault does **not** define this schema — the authority is [`../../cancer-buddy-organize/references/schemas/timeline.schema.json`](../../cancer-buddy-organize/references/schemas/timeline.schema.json) (and `../../../references/patient-profile-schema.md`). The canonical on-disk shape vault reads / shares is `cancer_buddy_profile_v3`-era:
 
 ```json
 {
-  "version": "1.0",
-  "patient_id": "patient-xxxx",
+  "patient_code": "PT-48C5070065",
+  "schema_version": "1",
   "events": [
     {
-      "date": "2024-01-10",
-      "type": "symptom",
-      "category": "presentation",
-      "title": "Left knee pain onset",
-      "description": "Progressive pain, worse at night",
-      "outcome": null,
-      "documents": []
-    },
-    {
       "date": "2024-01-15",
-      "type": "diagnosis",
-      "category": "pathology",
+      "category": "diagnosis",
       "title": "Biopsy confirmed osteosarcoma",
-      "description": "Core needle biopsy, conventional osteoblastic subtype",
-      "outcome": "diagnosis_confirmed",
-      "documents": ["diagnostics/pathology/biopsy-20240115.pdf"]
+      "detail": "Core needle biopsy, conventional osteoblastic subtype",
+      "hospital": "中山六院",
+      "source_refs": ["04_诊断与分期/病理报告/2024-01-15_病理报告_中山六院.md#L4-L8"]
     },
     {
       "date": "2024-02-01",
-      "type": "treatment_start",
-      "category": "chemotherapy",
+      "category": "chemo",
       "title": "MAP regimen initiated",
-      "description": "Neoadjuvant chemotherapy, cycle 1",
-      "outcome": null,
-      "documents": ["treatments/line1-MAP.json"]
-    },
-    {
-      "date": "2024-04-15",
-      "type": "assessment",
-      "category": "imaging",
-      "title": "Mid-treatment CT",
-      "description": "Partial response per RECIST 1.1, 40% reduction",
-      "outcome": "PR",
-      "documents": ["diagnostics/imaging/ct-20240415.pdf"]
+      "detail": "Neoadjuvant chemotherapy, cycle 1",
+      "hospital": "中山六院",
+      "source_refs": ["08_治疗/化疗记录/2024-02-01_化疗_中山六院.md#L1-L6"]
     }
   ]
 }
 ```
 
-**Event types:** `symptom`, `diagnosis`, `treatment_start`, `treatment_end`, `assessment`, `surgery`, `biopsy`, `lab`, `consultation`, `adverse_event`, `hospitalization`, `trial_enrollment`, `expanded_access`, `genetic_test`, `other`
+**Event `category` enum** (from the schema): `diagnosis`, `surgery`, `chemo`, `radio`, `immuno`, `targeted`, `molecular_test`, `imaging`, `lab`, `hospitalization`, `consult`, `other`. Citations are per-event `source_refs[]` (NN_ bucket-relative `.md` anchors). The retired flat `version` / `patient_id` / per-event `type` / `outcome` / `description` / `documents[]` shape must **never** be re-introduced (per the prohibition above) — it would fail `timeline.schema.json` (`additionalProperties:false`) and the `validate_structured_outputs.py` gate.
 
 ## sharing-settings.json
 
