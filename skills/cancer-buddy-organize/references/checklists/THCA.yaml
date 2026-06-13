@@ -108,7 +108,7 @@ stages:
       category: consent
       reason: "PIPL + 临床合规 (进展快需快速决策)"
 
-postoperative_followup:
+followup:
   - item: "DTC: 术后 Tg/TgAb 监测 + TSH 抑制达标评估"
     priority: P1
     category: lab

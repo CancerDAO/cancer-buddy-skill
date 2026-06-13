@@ -85,7 +85,7 @@ stages:
       category: consent
       reason: "PIPL + 临床合规"
 
-posttreatment_followup:
+followup:
   - item: "随访头颈影像 + 内镜 (前 2 年密集)"
     priority: P1
     category: imaging

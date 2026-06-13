@@ -103,7 +103,7 @@ stages:
       category: lab
       reason: "确认 CRPC 诊断前提 (去势水平下进展)"
 
-postoperative_followup:
+followup:
   - item: "术后 / 放疗后 PSA 监测 (前 2 年每 3 个月)"
     priority: P1
     category: lab

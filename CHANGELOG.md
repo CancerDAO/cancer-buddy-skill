@@ -39,6 +39,11 @@ Two-round workflow audit (8 consistency axes + 6 residual axes + 5 Python script
 **P1 — `modality` enum example drift (BAM/FASTQ mis-classed)**
 - `bucket-taxonomy.md` §2 and `source_inventory.schema.json` listed `VCF/BAM/FASTQ/expression matrix` as `omics_raw` examples, but `ingest-adapters.md` (the dispatch authority) routes BAM/FASTQ to `binary_other` (not LLM-readable → `[INGESTION_BLOCKED]`), reserving `omics_raw` for parseable payloads (VCF / annotated TSV / expression-methylation matrix). A reader trusting the stale examples would expect an omics parser to run on a BAM. Corrected both stale example lists to match the authority; BAM/FASTQ now shown under `binary_other` everywhere.
 
+**P2 — checklist YAML schema non-uniformity**
+- **`reason` field**: `checklists/README.md` said every item needs `priority` + `category` + `reason`, but many shipped items (and the whole `followup` block) omit `reason`, and neither the worker nor `missing_items.schema.json` enforces it. Relaxed the README to "`priority` + `category` required; `reason` recommended".
+- **Surveillance block name unified**: the top-level forward-looking block shipped under three names (`postoperative_followup` ×13, `response_followup` DLBCL, `posttreatment_followup` HNSCC) and was undocumented in the README schema. Renamed all 15 to a single `followup:` key and documented the block (forward-looking; not unioned into the missing-now diff). All 19 YAMLs still parse.
+- **Stage-context resolution** (`organizer-prompt-phase2-synthesis.md` §2.7) only mapped TNM keys (I/II/III/IV + BCLC) and silently ignored the non-TNM keys actually shipped (THCA histology `DTC`/`MTC`/`ATC`, UCEC `early`/`advanced`). Extended the resolver to those keys + a general non-TNM fallback (`stages.all` is always the floor).
+
 ### Fixed — pre-live-testing review (adversarial multi-dimension bug sweep)
 
 10 confirmed bugs (none in the AGENTS.md feature) fixed before live testing; no P0.

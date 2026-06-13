@@ -99,7 +99,7 @@ stages:
       category: consent
       reason: "PIPL + 临床合规"
 
-postoperative_followup:
+followup:
   - item: "随访胸腹盆 CT (每 6-12 个月)"
     priority: P1
     category: imaging

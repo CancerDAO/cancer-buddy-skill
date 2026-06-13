@@ -87,7 +87,7 @@ stages:
       category: consent
       reason: "PIPL + 临床合规"
 
-postoperative_followup:
+followup:
   - item: "术后随访 CA125 监测 (浆液性 / 晚期)"
     priority: P1
     category: lab

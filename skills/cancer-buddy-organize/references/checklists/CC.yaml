@@ -100,7 +100,7 @@ stages:
       category: consent
       reason: "贝伐珠单抗 / 替索单抗 ADC 等方案知情"
 
-postoperative_followup:
+followup:
   - item: "术后随访 SCC-Ag / CA125 监测"
     priority: P1
     category: lab

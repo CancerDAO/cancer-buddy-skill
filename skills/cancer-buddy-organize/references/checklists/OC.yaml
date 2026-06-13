@@ -81,7 +81,7 @@ stages:
       category: consent
       reason: "PIPL + 临床合规"
 
-postoperative_followup:
+followup:
   - item: "CA125 监测 (每 2-4 个月 × 2 年)"
     priority: P1
     category: lab

@@ -96,7 +96,7 @@ stages:
       category: consent
       reason: "PIPL + 临床合规"
 
-postoperative_followup:
+followup:
   - item: "术后 CA19-9 监测 (每 3 个月 × 2 年)"
     priority: P1
     category: lab
