@@ -13,7 +13,14 @@ patients/<patient_code>/
 ├── timeline.md               # human-readable treatment timeline
 ├── readiness.json            # MTB readiness score
 ├── case_text.md              # consolidated narrative
+├── patient_summary.json molecular.json treatment_lines.json labs.json comorbidities.json timeline.json  # the 6 structured JSON outputs (schema-validated)
 ├── longitudinal_observations.json  # parsed time series (wearable / PRO / lab trends) — CONDITIONAL: only when timeseries/trended data exists; absent otherwise
+├── source_inventory.json     # file_id ↔ sidecar ↔ raw_path map
+├── missing_items.json        # cancer-type checklist diff
+├── update_log.json           # append-only audit trail of every run
+├── review_summary.md         # 1-page extracted-field spot-check (always); review_flags.md (when non-empty)
+├── AGENTS.md                 # agent-facing cross-session recall pointer (filled from profile.json)
+├── 病情简要总结.html          # patient-facing one-page 段D summary; case_summary_versions/ holds dated snapshots
 │   # 14 clinical-domain buckets (scheme_version 3 — authoritative: skills/cancer-buddy-organize/references/bucket-taxonomy.md)
 ├── 01_身份与基础信息/ 02_既往史与家族史/ 03_病程与叙事文书/ 04_诊断与分期/ 05_影像/
 ├── 06_分子与组学/ 07_检验/ 08_治疗/ 09_手术与操作/ 10_随访与监测/

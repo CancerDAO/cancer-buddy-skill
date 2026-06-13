@@ -47,7 +47,7 @@
 - two files **disagree** (cross-check the originals).
 
 How to drill down (follow the index — never hand-browse directories):
-1. Take the `source_refs[]` anchor on the Layer-1 field (e.g. `04_diagnosis_staging/pathology.md#L20-L34` for an `en` archive, `04_诊断与分期/...` for `zh`) and `read` exactly that sidecar's line range.
+1. Take the `source_refs[]` anchor on the Layer-1 field (e.g. `04_diagnosis_staging/pathology/2024-03-15_pathology_xhospital.md#L20-L34` for an `en` archive, `04_诊断与分期/病理报告/2024-03-15_病理报告_x.md#L20-L34` for `zh` — the filename is the dated canonical `<YYYY-MM-DD>_<doc_type>_<hospital>.md`, never a flat `pathology.md`) and `read` exactly that sidecar's line range.
 2. If the field has no `source_refs`, or you need a whole domain, open `source_inventory.json` and filter `sidecar_path` by `bucket_path`, then `read` each.
 3. **Buckets are keyed by their `NN_` prefix (01–14), stable across locales; the slug after `NN_` is localized to this archive's `profile.json.locale`.** Do not assume slug spelling — always take the actual path from `source_refs[]` / `source_inventory.json` (they already carry this archive's real paths). The 14 domains, by `NN_` key: 01 identity/basics · 02 history/family · 03 clinical notes · 04 diagnosis/staging · 05 imaging · 06 molecular/omics · 07 labs · 08 treatment · 09 procedures · 10 follow-up/monitoring · 11 consult/referral · 12 psychosocial/support · 13 admin/financial · 14 patient-supplement.
 

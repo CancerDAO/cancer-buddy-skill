@@ -1,6 +1,6 @@
 # Readiness Preflight
 
-Shared entry-gate check for every sub-skill that reads an existing patient directory (`explore`, `mtb-lite`, `trial-match`, `manage`). See `patient-profile-schema.md` §readiness.json for the full schema.
+Shared entry-gate check for every sub-skill that reads an existing patient directory — the public companions `education` / `nutrition` / `find-care` / `second-opinion` / `visit-prep` / `vault`, plus the private `cancer-buddy-pro-skill` clinical tools (`explore` / `mtb-lite` / `trial-match` / `manage`). See `patient-profile-schema.md` §readiness.json for the full schema.
 
 ## Step 0 — Role
 
@@ -70,7 +70,7 @@ Only after every unconfirmed RED flag is resolved (`user_confirmed = true` with 
 > 本报告基于此值生成。如该值实际有误, 报告结论需相应调整。
 ```
 
-This is non-negotiable. A sub-skill that consumes `profile.json` without checking RED flags is non-compliant. **Affected sub-skills**: anything using `summary.current_regimen` (nutrition, mtb-lite, find-care), `summary.stage` / `summary.histology` (education, find-care, second-opinion), treatment lines (`treatment_lines.json`) (mtb-lite, second-opinion, education), drivers (`molecular.json`) (mtb-lite, find-care, second-opinion).
+This is non-negotiable. A sub-skill that consumes `profile.json` without checking RED flags is non-compliant. **Affected sub-skills** (public companions + `(pro)` for the private pro-skill clinical tools): anything using `summary.current_regimen` (nutrition, find-care, mtb-lite `(pro)`), `summary.stage` / `summary.histology` (education, find-care, second-opinion), treatment lines (`treatment_lines.json`) (second-opinion, education, mtb-lite `(pro)`), drivers (`molecular.json`) (find-care, second-opinion, mtb-lite `(pro)`).
 
 ## Why the gate exists
 

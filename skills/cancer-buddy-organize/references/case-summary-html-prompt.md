@@ -1,6 +1,6 @@
 # 病情简要总结 HTML 生成 prompt（段 D）
 
-Phase2 结构化整理完成、Profile Card 之后自动触发。读结构化文本脱敏 JSON → **只产出一份 `case_summary_data.json` 数据对象** → 跑确定性模板引擎 `scripts/render_html_template.py` 填模板 → 跑 `scripts/validate_case_summary_html.py` 过"形"不变量 → 不过则不出文件 → 落 `<patient_dir>/病情简要总结.html`。上传原件逐字保存在 `raw/`,永不像素打码;唯一脱敏是 sidecar 文本遮蔽。
+Phase2 结构化整理完成、Profile Card 之后自动触发。读结构化文本脱敏 JSON → **只产出一份 `case_summary_data.json` 数据对象** → 跑确定性模板引擎 `scripts/render_html_template.py` 填模板 → 跑 `scripts/validate_case_summary_html.py` 过"形"不变量 → 不过则不出文件 → 落 `<patient_dir>/病情简要总结.html`。上传原件逐字保存在 `raw/`,永不像素打码;对**归档数据**的唯一脱敏是 sidecar 文本遮蔽,而本 段D 患者向 HTML 另在**输出侧**把患者标识粗粒度化(年代段如"50+"、不出真名/生日)——见下文 §患者标识。
 
 ## 红线（违反即非法输出，哪怕临床内容全对）
 

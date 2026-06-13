@@ -76,7 +76,7 @@ Use the most widely recognized abbreviation. Examples:
 - CRC — Colorectal Cancer
 - NSCLC — Non-Small-Cell Lung Cancer
 - SCLC — Small-Cell Lung Cancer
-- BC — Breast Cancer (use TNBC, HRPBC for subtypes in stage_context only)
+- BC — Breast Cancer (TNBC / HRPBC etc. are histology/receptor SUBTYPES, not stage_context keys — the shipped `BC.yaml` keys its `stages` block by TNM stage like the other YAMLs; record subtype as an item, not a stage key)
 - GC — Gastric Cancer
 - HCC — Hepatocellular Carcinoma
 - PDAC — Pancreatic Ductal Adenocarcinoma

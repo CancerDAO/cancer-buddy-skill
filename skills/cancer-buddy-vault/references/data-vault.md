@@ -8,77 +8,57 @@ This protocol is governed by [../../../references/i18n.md](../../../references/i
 - **Human-readable values and prose are rendered in `locale`**: the `purpose` free-text, sharing-level *descriptions*, data-quality reminders, revocation confirmations, and breach notifications. Render fixed labels (level names, notice headings) as a `locale → string` lookup; run generative prose (case report, reminders) via a prompt instruction "Output scaffold/narrative prose in `<locale>`; keep clinical entities verbatim per `i18n.md` §4."
 - **Clinical entities stay verbatim in every locale** — diagnosis names, drug regimens, gene/variant strings, TNM/stage, numbers + units, biomarker labels are never translated, transliterated, or normalized (P0 medical-safety bug). The example strings below (e.g. "Profile is 72% complete. Missing: PD-L1 status…") show `en`; render the scaffold in the active `locale` while keeping the clinical tokens (`PD-L1`, `RNA-seq`) verbatim.
 
-## Directory Structure
+## Sharing-Scope View (logical, NOT the on-disk layout)
+
+⚠️ The tree below is a **logical sharing-scope view** — the set of category names vault uses for `scope` / `data_scope` values in `sharing-settings.json` and `audit-log` entries. These are **not directories on disk**; vault does not create them.
+
+The **real on-disk archive** is the one `cancer-buddy-organize` produces at `patients/<patient_code>/` — the **14 clinical-domain buckets** `01_身份与基础信息/ … 14_患者自管补充/` (scheme_version 3), plus `raw/` (verbatim originals), `99_无关文件/`, and the structured JSONs (`profile.json`, `patient_summary.json`, `treatment_lines.json`, `molecular.json`, `comorbidities.json`, …). Authoritative on-disk layout: [../../cancer-buddy-organize/references/bucket-taxonomy.md](../../cancer-buddy-organize/references/bucket-taxonomy.md) and [../../../references/patient-profile-schema.md](../../../references/patient-profile-schema.md).
 
 ```
-patient-vault/
-├── profile.json           # Patient Profile Card
-├── timeline.json          # All events chronologically
-├── diagnostics/
-│   ├── genomics/          # Gene test reports (panel, WES, WGS, RNA-seq)
-│   ├── imaging/           # CT/MRI/PET-CT reports + DICOM references
-│   ├── pathology/         # Biopsy, surgical pathology, IHC
-│   └── blood/             # CBC, biochemistry, tumor markers, ctDNA
-├── treatments/            # Per-line treatment records + response assessment
-├── monitoring/            # Longitudinal tracking (MRD, markers, imaging series)
-├── notes/                 # Doctor visit notes, Q&A records, second opinions
-└── sharing-settings.json  # Access control configuration
+# Logical sharing-scope categories (each maps to on-disk buckets — see table below)
+profile                 # Patient Profile Card (on-disk: profile.json — cancer_buddy_profile_v3)
+timeline                # All events chronologically
+diagnostics             # genomics / imaging / pathology / blood
+treatments              # Per-line treatment records + response assessment
+monitoring              # Longitudinal tracking (MRD, markers, imaging series)
+notes                   # Doctor visit notes, Q&A records, second opinions
+sharing-settings.json   # Access control configuration (vault-produced)
 ```
 
-## JSON Schema: profile.json
+### Sharing-scope → on-disk bucket mapping
 
-```json
-{
-  "version": "1.0",
-  "patient_id": "patient-xxxx",
-  "demographics": {
-    "age_at_diagnosis": 45,
-    "sex": "M/F",
-    "ethnicity": "Han Chinese",
-    "location": "Shanghai"
-  },
-  "diagnosis": {
-    "primary": "Osteosarcoma",
-    "icd10": "C40.2",
-    "histology": "Conventional osteoblastic",
-    "grade": "High",
-    "stage_at_diagnosis": "IIB",
-    "tnm": "T2N0M0",
-    "date_of_diagnosis": "2024-01-15",
-    "primary_site": "Left distal femur",
-    "metastatic_sites": ["lung"]
-  },
-  "molecular_features": {
-    "key_mutations": [
-      {"gene": "TP53", "variant": "R175H", "vaf": 0.45, "source": "WES"}
-    ],
-    "tmb": {"value": 8.2, "unit": "mut/Mb"},
-    "msi_status": "MSS",
-    "pd_l1": {"tps": 10, "cps": 15, "clone": "22C3"},
-    "fusions": [],
-    "hrd_score": null,
-    "signatures": ["SBS3"],
-    "additional_biomarkers": {}
-  },
-  "treatment_history": [
-    {
-      "line": 1,
-      "regimen": "MAP (Methotrexate/Adriamycin/Cisplatin)",
-      "start_date": "2024-02-01",
-      "end_date": "2024-06-15",
-      "best_response": "PR",
-      "reason_stopped": "Surgery",
-      "toxicities": ["Grade 2 nausea", "Grade 3 neutropenia"]
-    }
-  ],
-  "ecog_status": 1,
-  "allergies": [],
-  "comorbidities": [],
-  "current_medications": [],
-  "insurance_type": "城镇职工医保",
-  "last_updated": "2024-12-01"
-}
-```
+| Sharing scope | Spans on-disk buckets (from `cancer-buddy-organize`) |
+|---|---|
+| `profile` | `profile.json` (+ structured `patient_summary.json` / `molecular.json` / `treatment_lines.json` / `comorbidities.json`) |
+| `timeline` | derived across buckets (chronological roll-up; no single bucket) |
+| `diagnostics` | `04_诊断与分期/` (pathology), `05_影像/` (imaging), `06_分子与组学/` (genomics), `07_检验/` (blood/labs) |
+| `diagnostics/genomics` | `06_分子与组学/` (NGS, WES-WGS, transcriptome, IHC, germline) |
+| `diagnostics/imaging` | `05_影像/` (CT/MRI/PET-CT/ultrasound/nuclear) |
+| `diagnostics/pathology` | `04_诊断与分期/` (pathology, diagnosis certificate, staging) |
+| `diagnostics/blood` | `07_检验/` (CBC, biochemistry, tumor markers, coagulation) |
+| `treatments` | `08_治疗/` (chemo/radiation/immuno/targeted/…), `09_手术与操作/` (surgery & procedures) |
+| `monitoring` | `10_随访与监测/` (follow-up, wearable export, PRO, home monitoring) |
+| `notes` | `03_病程与叙事文书/` (admission/discharge/progress/outpatient notes), `11_会诊与转诊/` (MDT, consult, referral, second opinions) |
+
+## profile.json (canonical shape — vault does NOT define its own)
+
+Vault **does not define a competing `profile.json` schema**. It reads the canonical `profile.json` written by `cancer-buddy-organize`, which is the slim **`cancer_buddy_profile_v3`** snapshot — top-level `schema` / `patient_code` / `alias` / `locale` / `generated_at` / `privacy` / `anthropometrics` / `summary{one_line_condition, primary, histology, stage, metastasis_sites, current_regimen}` / `latest_status{regimen, response, ecog, as_of, source_refs}` / `source_refs`.
+
+`profile.json` carries **none** of the old flat `demographics` / `diagnosis` / `molecular_features` / `treatment_history` / `comorbidities` / `ecog_status` fields. Those live in the structured JSONs alongside it:
+
+| Need | Read this file |
+|---|---|
+| identity / locale / one-line condition / current status | `profile.json` (`cancer_buddy_profile_v3`) |
+| demographics + diagnosis (icd10, diagnosed_at, confidence, staging) | `patient_summary.json` |
+| lines of therapy | `treatment_lines.json` |
+| drivers / variants / biomarkers | `molecular.json` |
+| comorbidities | `comorbidities.json` |
+
+Authoritative profile contract: [../../../references/patient-profile-schema.md](../../../references/patient-profile-schema.md).
+
+### vault_export.json (vault-produced aggregate)
+
+When a share / export needs a single aggregated object (e.g. a de-identified bundle for an authorized recipient), vault emits **`vault_export.json`** — a vault-produced aggregate, **not** the on-disk `profile.json`. It is assembled from the canonical sources above (and scoped/de-identified per the active `sharing-settings.json` rule), so its shape is determined by the requested `scope`, not by any fixed profile schema. It must never be named `profile.json` and never re-introduce the retired flat `version: "1.0"` shape.
 
 ## JSON Schema: timeline.json
 
