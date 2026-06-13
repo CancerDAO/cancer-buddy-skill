@@ -126,7 +126,7 @@ Phase 2 reads this `## PII` section only as category context. If you masked noth
 After you have written every sidecar in your slice, run the deterministic residue scanner over them. A single semantic redaction pass (§2.4) can miss a phone number on a busy lab footer or a 住院号 that landed on the next line — the sidecar is the **single downstream plaintext boundary**, so we do not trust one self-pass to be airtight. The gate is rule-based and independent of your `## PII` self-report:
 
 ```bash
-python3 skills/cancer-buddy-organize/scripts/pii_rescan.py "$patient_dir/ocr"
+python3 scripts/pii_rescan.py "$patient_dir/ocr"
 ```
 
 (Or point it at your slice's specific sidecar files if you only wrote a subset.) It scans the OCR **body** of each sidecar — skipping the `SOURCE:`/`ORIGINAL:` header and the `## PII` trailer — for plaintext PII that survived: label+value shapes (`患者姓名: 张伟`, `住院号: 12345`, 床号, 出生日期…), standalone 身份证号 / 手机 / 座机 numbers, and label/value pairs that straddle two lines. Exit `0` = clean; exit `1` = residue found (it prints each `file:line [category] snippet`).
