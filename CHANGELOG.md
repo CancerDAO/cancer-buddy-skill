@@ -46,7 +46,12 @@ session can find and read it.
   organized records but a later session can't find/read them" without the cancer-buddy skill having to
   be invoked first (the floor holds skill-less; the skill adds the full citation rendering on top). Only
   `{{patient_code}}` + `{{one_line_condition}}` are injected, **copied verbatim from `profile.json` (no
-  LLM synthesis)**; idempotently re-filled on incremental / reconciliation runs.
+  LLM synthesis)**; idempotently re-filled on incremental / reconciliation runs. The template is
+  **locale-agnostic**: an English agent-facing scaffold (the repo convention) that hardcodes no
+  localized bucket slugs — drill-down follows each fact's `source_refs[]` / `source_inventory.json`
+  (already this archive's real, locale-correct paths), buckets keyed by stable `NN_` prefix — plus a
+  floor rule to **answer the patient in `profile.json.locale`** (clinical entities verbatim). One
+  template serves zh / en / fr archives correctly.
 - **Case-summary freshness gate.** Incremental / upload / conversation runs that change a summary-source
   field now detect staleness and **prompt** the user to regenerate `病情简要总结.html` (rendered per
   `profile.json.locale` — the summary template is already fully localized), instead of silently
