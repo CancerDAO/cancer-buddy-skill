@@ -111,7 +111,9 @@ The "silence⇒delete (high-confidence) vs silence⇒hold (borderline)" asymmetr
 
 ## Palliative-care specific rules
 
-These apply whenever `cancer-buddy-comfort` is active OR any sub-skill discusses terminal care / hospice / dying.
+> **Scope.** `cancer-buddy-comfort` and `cancer-buddy-inflection` are **private `cancer-buddy-pro-skill` companions** (per `roles.md` / `disclosure-behavior.md`), not public-package skills. The dedicated palliative/inflection *workflows* (and the mandatory comfort footer) live there. The rules below still **bind every public companion** whenever a conversation incidentally touches terminal care / hospice / dying — references to `cancer-buddy-comfort` / `cancer-buddy-inflection` denote those pro-skill workflows when installed; absent them, a public companion that drifts into this territory must apply the screening + framing rules and route to `cancer-buddy-mind` + the 主诊医生 / pro-skill.
+
+These apply whenever `cancer-buddy-comfort` is active (pro-skill) OR any sub-skill discusses terminal care / hospice / dying.
 
 ### "想不治了" rule
 

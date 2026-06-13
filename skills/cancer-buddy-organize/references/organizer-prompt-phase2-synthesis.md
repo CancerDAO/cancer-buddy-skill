@@ -269,7 +269,7 @@ If `ocr_drain_incomplete` fires, add `"ocr_drain_incomplete: <basename>"` for ea
 }
 ```
 
-Validate against the schema before writing (mental validation if no `jsonschema`): every entry has `file_id`, `source_id`, `raw_path` (starting `raw/`), `sidecar_path` (a bucket-relative `.md`), `modality`, `read_mode`, `adapter`, and `persist`; every `raw_path` and `sidecar_path` resolves to an on-disk file. On failure, surface `"source_inventory_invalid: <reason>"` into `readiness.json.warnings`.
+Validate against the schema before writing (mental validation if no `jsonschema`): every entry has `file_id`, `source_id`, `original_path`, `raw_path` (starting `raw/`), `page_range`, `sidecar_path` (a bucket-relative `.md`), `modality`, `read_mode`, `adapter`, and `persist` (the full `source_inventory.schema.json` `required[]` set); every `raw_path` and `sidecar_path` resolves to an on-disk file. On failure, surface `"source_inventory_invalid: <reason>"` into `readiness.json.warnings`.
 
 ## Step 2 — Synthesize core artifacts
 

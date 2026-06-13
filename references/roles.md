@@ -70,6 +70,8 @@ Companion-scope skills only. Clinical skills (explore / mtb-lite / trial-match /
 | cancer-buddy-nutrition | self-cook menus | shopping list + week-prep plan | refuse + redirect |
 | cancer-buddy-second-opinion | 1st-person packet | operator-view packet | refuse + redirect |
 | cancer-buddy-disclosure | inverted (telling family) | main | other-kin support |
+| cancer-buddy-find-care | 2nd-person, self-operated 挂号路径 | 2nd-person, 帮家人办 (异地医保备案/协助身份证明) | refuse + redirect |
+| cancer-buddy-visit-prep | 患者本人备问题 | 帮家人备问题 | refuse + redirect to caregiver |
 
 ## Refuse patterns
 
