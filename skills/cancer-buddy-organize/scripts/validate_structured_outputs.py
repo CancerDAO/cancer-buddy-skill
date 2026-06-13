@@ -10,12 +10,14 @@ products line up.
 
 Gate sections (each contributes to one aggregated exit code):
 
-  [1] Structured JSON schema + anchor (ORIGINAL behavior, unchanged):
+  [1] Structured JSON schema + anchor:
       For each present structured output (patient_summary / timeline / molecular /
-      treatment_lines / labs / comorbidities / missing_items), validate against
-      references/schemas/<name>.schema.json (Draft 2020-12 via jsonschema>=4.18,
-      with a lighter fallback when jsonschema is absent) and verify every
-      source_refs[] anchor resolves to an existing markdown file.
+      treatment_lines / labs / comorbidities / missing_items, plus the conditional
+      longitudinal_observations when the patient has timeseries/trended data),
+      validate against references/schemas/<name>.schema.json (Draft 2020-12 via
+      jsonschema>=4.18, with a lighter fallback when jsonschema is absent) and
+      verify every source_refs[] / source_ref anchor resolves to an existing
+      markdown file. A file that is absent is skipped (longitudinal is optional).
 
   [2] PII residue rescan (pii_rescan.py):
       Independently re-scan every text-masked MD sidecar for plaintext PII that
@@ -77,6 +79,11 @@ STRUCTURED_FILES = {
     "treatment_lines.json": "treatment_lines.schema.json",
     "labs.json": "labs.schema.json",
     "comorbidities.json": "comorbidities.schema.json",
+    # Conditional output: only written when the patient has timeseries / trended
+    # data (wearable / PRO / lab trends). validate_one() skips it when absent, so
+    # a patient with no longitudinal data never fails this gate; when present it
+    # is schema-validated like every other structured output.
+    "longitudinal_observations.json": "longitudinal_observations.schema.json",
     "missing_items.json": "missing_items.schema.json",
 }
 
@@ -97,12 +104,18 @@ except ImportError:
 # [1] structured JSON schema + anchor (ORIGINAL behavior, preserved verbatim)
 # --------------------------------------------------------------------------- #
 def collect_source_refs(obj, path="$"):
-    """Yield (jsonpath, anchor) tuples for every source_refs entry in `obj`."""
+    """Yield (jsonpath, anchor) tuples for every source_refs / source_ref entry in `obj`.
+
+    Most structured files carry a plural `source_refs: [...]` per fact; the
+    longitudinal_observations store carries a singular `source_ref: "<anchor>"`
+    per observation. Both are collected so their anchors are validated."""
     if isinstance(obj, dict):
         for k, v in obj.items():
             if k == "source_refs" and isinstance(v, list):
                 for i, ref in enumerate(v):
                     yield f"{path}.source_refs[{i}]", ref
+            elif k == "source_ref" and isinstance(v, str):
+                yield f"{path}.source_ref", v
             yield from collect_source_refs(v, f"{path}.{k}")
     elif isinstance(obj, list):
         for i, item in enumerate(obj):

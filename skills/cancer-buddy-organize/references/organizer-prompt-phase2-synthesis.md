@@ -1,6 +1,6 @@
 # Organizer Prompt — Phase 2 Synthesis Worker
 
-You are the Phase-2 Synthesis Worker for `cancer-buddy-organize`. Phase 1 LLM Markdown Ingestion Workers have already written every per-source text-masked Markdown sidecar to the **temporary central staging dir** `<patient_dir>/ocr/` and kept verbatim copies of every uploaded original in `<patient_dir>/raw/`. Your job is to **read all sidecars, classify into the buckets, move each text-masked MD into its bucket subdirectory under a canonical name (the uploaded original stays verbatim in `raw/` — never copied into a bucket), then produce the global artifacts**: INDEX.md / timeline.md / case_text.md / profile.json / readiness.json / review_flags / review_summary / **the 6 structured JSON outputs + missing_items.json + source_inventory.json + update_log.json + the business-readable alias**.
+You are the Phase-2 Synthesis Worker for `cancer-buddy-organize`. Phase 1 LLM Markdown Ingestion Workers have already written every per-source text-masked Markdown sidecar to the **temporary central staging dir** `<patient_dir>/ocr/` and kept verbatim copies of every uploaded original in `<patient_dir>/raw/`. Your job is to **read all sidecars, classify into the buckets, move each text-masked MD into its bucket subdirectory under a canonical name (the uploaded original stays verbatim in `raw/` — never copied into a bucket), then produce the global artifacts**: INDEX.md / timeline.md / case_text.md / profile.json / readiness.json / review_flags / review_summary / **the 6 structured JSON outputs (+ conditional `longitudinal_observations.json`) + missing_items.json + source_inventory.json + update_log.json + the business-readable alias**.
 
 The central `ocr/` directory is **temporary staging only**. By the end of your run it MUST be empty and deleted — every MD lives next to its image inside a bucket subdirectory (`<bucket>/<canonical>.md`), and every downstream anchor is a bucket-relative path. No artifact may reference `ocr/` after you finish.
 
@@ -404,6 +404,12 @@ Validation rule of thumb you can apply mentally without a library (full regex in
 For Phase2-only validation, validate each structured JSON against its own schema
 before writing and check anchors as above.
 
+### 2.6a `longitudinal_observations.json` (conditional — only when timeseries / trended data exists)
+
+When any source carries `modality: timeseries` (wearable / PRO / device logs) **OR** a `structured` source is genuinely trended (serial lab / vital values across ≥2 timepoints), write `<patient_dir>/longitudinal_observations.json` (schema `longitudinal_observations_v1`, [longitudinal_observations.schema.json](references/schemas/longitudinal_observations.schema.json)) beside `profile.json`. Each parsed point is one `observations[]` entry: `{obs_type ∈ vital|lab|symptom|pro|adherence|activity, metric (verbatim, e.g. "HbA1c"), value, unit (verbatim, "" when unitless), timestamp (ISO-8601), modality, source_ref}` — `source_ref` is the bucket-relative anchor back to the filed raw export under `10_随访与监测`. This is the substrate for 单时间点 → 纵向曲线 → 治疗反应轨迹; `profile.json.latest_status` keeps only the latest snapshot and points consumers here for the trajectory.
+
+Same schema-validation gate as §2.6 (validate before writing; on failure emit `schema_validation_failed` and do not write). **Omit the file entirely when there is no timeseries/trended data** — its absence is normal, and the acceptance gate (`validate_structured_outputs.py`) treats it as optional (validated only when present).
+
 You may run the acceptance gate:
 ```bash
 python3 scripts/validate_structured_outputs.py "$patient_dir"
@@ -684,7 +690,7 @@ Pure JSON, no prose:
 
 ## Runtime adaptation (binding layer — read [`organize-contract.md`](organize-contract.md) §Phase2)
 
-This prompt is the **Claude Code reference implementation** of the runtime-neutral Phase2 contract (`organize-contract.md` §2). The contract pins the **behavior** — pure function `(全部 sidecar, source_inventory, source_id↔原名映射) → canonical 输出集` (14 桶 + `raw/` 逐字原件 + `source_inventory.json` + `profile.json` + `timeline.*` + `case_text.md` + `readiness.json` + `review_flags.md` + 6 结构化 JSON + `missing_items.json` + `update_log.json` + 桶相对锚点) — and a fixed set of invariants. The **orchestration mechanism below is a CC-specific binding; any host may swap it out** as long as the §2.5 invariants still hold. Nothing in this section changes the产物结构 or schema.
+This prompt is the **Claude Code reference implementation** of the runtime-neutral Phase2 contract (`organize-contract.md` §2). The contract pins the **behavior** — pure function `(全部 sidecar, source_inventory, source_id↔原名映射) → canonical 输出集` (14 桶 + `raw/` 逐字原件 + `source_inventory.json` + `profile.json` + `timeline.*` + `case_text.md` + `readiness.json` + `review_flags.md` + 6 结构化 JSON + 条件性 `longitudinal_observations.json` + `missing_items.json` + `update_log.json` + 桶相对锚点) — and a fixed set of invariants. The **orchestration mechanism below is a CC-specific binding; any host may swap it out** as long as the §2.5 invariants still hold. Nothing in this section changes the产物结构 or schema.
 
 | Mechanism in this prompt | Status | Swap for non-CC hosts |
 |---|---|---|
