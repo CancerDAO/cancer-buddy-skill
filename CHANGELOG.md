@@ -44,6 +44,12 @@ Two-round workflow audit (8 consistency axes + 6 residual axes + 5 Python script
 - **Surveillance block name unified**: the top-level forward-looking block shipped under three names (`postoperative_followup` ×13, `response_followup` DLBCL, `posttreatment_followup` HNSCC) and was undocumented in the README schema. Renamed all 15 to a single `followup:` key and documented the block (forward-looking; not unioned into the missing-now diff). All 19 YAMLs still parse.
 - **Stage-context resolution** (`organizer-prompt-phase2-synthesis.md` §2.7) only mapped TNM keys (I/II/III/IV + BCLC) and silently ignored the non-TNM keys actually shipped (THCA histology `DTC`/`MTC`/`ATC`, UCEC `early`/`advanced`). Extended the resolver to those keys + a general non-TNM fallback (`stages.all` is always the floor).
 
+**P2 — pipeline / i18n documentation hygiene**
+- **Locale fallback** for the record-consuming generative sub-skills (`education` / `nutrition` / …) detected from records-first, but `i18n.md` §2's table only had rows for organize (records) and chat sub-skills (conversation) — leaving these uncategorised. Added a third row naming the record-consuming generative skills (reuse `profile.json.locale`; fallback = records, tie-break to conversation) and aligned education's wording to it.
+- **Single-pass threshold** (`SKILL.md` §Why fan-out) said `< 30 files OR no subdirs`, contradicting the governing Step-2 slicing rule (`≤ 15 files`). Reconciled to `≤ 15 files and no actionable sub-directory split`.
+- **Stale section number**: SKILL.md ×2 + phase1-ocr.md called the review_flags audit `§4.6`; the authoritative phase-2 prompt numbers it `Step 3`. All repointed to `Step 3`.
+- **Dangling cross-reference**: the phase-2 prompt cited `legacy organizer-prompt.md §4.6b` (a file deleted in the prompt split) for the `review_flags.md` template. Repointed to the authoritative format contract in `patient-profile-schema.md` § review_flags.
+
 ### Fixed — pre-live-testing review (adversarial multi-dimension bug sweep)
 
 10 confirmed bugs (none in the AGENTS.md feature) fixed before live testing; no P0.

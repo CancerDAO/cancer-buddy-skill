@@ -126,7 +126,7 @@ This skill follows the shared locale contract in [`../../references/i18n.md`](..
      - `patient_dir: <absolute patient_dir>`
      - `phase1_summary: <JSON list of all Phase 1 worker results>`
 
-   Phase 2 reads all sidecars (cross-slice), classifies into the 14 clinical buckets, builds source_inventory.json / INDEX.md / timeline.md / case_text.md / profile.json / readiness.json, runs the §4.6 review_flags audit (now WITH cross-slice visibility), and writes review_flags.md (if non-empty) + review_summary.md (always).
+   Phase 2 reads all sidecars (cross-slice), classifies into the 14 clinical buckets, builds source_inventory.json / INDEX.md / timeline.md / case_text.md / profile.json / readiness.json, runs the Step 3 review_flags audit (now WITH cross-slice visibility), and writes review_flags.md (if non-empty) + review_summary.md (always).
 
    Phase 2 returns: `{role, patient_dir, files_classified, md_sidecars_relocated, coverage_complete, missing_sidecars, readiness_grade, readiness_score, blocking_gaps, warnings, review_flags_total, review_flags_red, review_flags_yellow, review_flags_green, review_summary_path, source_inventory_path}`.
 
@@ -229,10 +229,10 @@ Claude Code does not change: the mechanism in Step 2–5 is preserved verbatim a
 The original design was a single subagent processing every input file sequentially. A 73-image archive took ~33 minutes. Splitting into Phase 1 (parallel per-slice LLM Markdown ingestion) + Phase 2 (cross-slice synthesis + audit) gives three benefits:
 
 1. **Speed**: 3 parallel Phase-1 LLM ingestion workers + 1 Phase-2 finishes in roughly the time of the SLOWEST slice + the synthesis pass — ~3× faster on multi-hospitalization archives in practice.
-2. **Anti-anchoring is stronger**: each Phase 1 worker only sees its slice (one hospitalization), so the narrative window the model could anchor on is shorter. Cross-slice contradictions are caught explicitly in Phase 2's §4.6 audit (which has the deterministic cross-doc check) rather than being smoothed over by a single agent's running narrative.
+2. **Anti-anchoring is stronger**: each Phase 1 worker only sees its slice (one hospitalization), so the narrative window the model could anchor on is shorter. Cross-slice contradictions are caught explicitly in Phase 2's Step 3 review_flags audit (which has the deterministic cross-doc check) rather than being smoothed over by a single agent's running narrative.
 3. **Better failure isolation**: if one slice's worker hits context exhaustion, only that slice retries (continuation loop). Slices that finished cleanly are not re-dispatched.
 
-Single-pass is preserved for small inputs (< 30 files OR no subdirs) — the parallelism overhead isn't worth it.
+Single-pass is preserved for small inputs (≤ 15 files and no actionable sub-directory split — the governing rule is the Step-2 slicing table above) — the parallelism overhead isn't worth it.
 
 ## Incremental mode
 
