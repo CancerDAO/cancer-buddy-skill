@@ -75,12 +75,12 @@ PII_PATTERNS = [
     ("phone_us", re.compile(r"(?<!\d)\(?\d{3}\)?[-.\s]\d{3}[-.\s]\d{4}(?!\d)")),
     ("birth_date", re.compile(r"(?:出生|生于|出生日期|date of birth|DOB|born|birth\s*date)\D{0,6}\d{4}\D?\d{1,2}\D?\d{1,2}", re.IGNORECASE)),
 ]
-# Exact age: "<n>岁" / "aged 47" / "age 47" / "47 years old" / "47 yo" — but allow
-# decade bands like "50+".
+# Exact age: "<n>岁" / "aged 47" / "age 47" / "47 years old" / "47-year-old" / "47 yo" —
+# but allow decade bands like "50+".
 EXACT_AGE_PATTERNS = [
     ("age_sui", re.compile(r"(?<!\d)\d{1,3}\s*岁")),
     ("age_en", re.compile(r"\bage[d]?\s*[:：]?\s*\d{1,3}\b(?!\s*\+)", re.IGNORECASE)),
-    ("age_years_old", re.compile(r"\b\d{1,3}\s*(?:years?\s*old|yrs?\s*old|y/?o)\b", re.IGNORECASE)),
+    ("age_years_old", re.compile(r"\b\d{1,3}[\s-]*(?:years?[\s-]*old|yrs?[\s-]*old|y/?o)\b", re.IGNORECASE)),
 ]
 
 

@@ -26,9 +26,12 @@ affected=(
 # Behavior keyword(s) each skill's disclosure declaration MUST contain, matching its
 # disclosure-behavior.md matrix cell. Keeps the guard consistent with the authority
 # table, so a regression that silently flips a cell's behavior is caught.
+# IMPORTANT: a keyword must be unique to the BEHAVIOR, never a substring of the trigger
+# condition `disclosure_state=suppressed` (which every cell contains) or other scaffolding
+# — otherwise the assertion is an always-pass. (organize uses `warn`, NOT `suppress`.)
 behavior_re() {
   case "$1" in
-    organize)        echo 'suppress' ;;                    # warn entering breaks suppression
+    organize)        echo 'warn' ;;                        # warn entering breaks suppression
     vault)           echo 'redact|mask' ;;                 # redacted/masked view
     education)       echo 'refuse' ;;                       # refuse patient handbook
     mind)            echo 'continue' ;;                     # continue screening, generic framing

@@ -87,11 +87,13 @@ _SSN_RE = re.compile(r"(?<!\d)\d{3}-\d{2}-\d{4}(?!\d)")
 _INTL_PHONE_RE = re.compile(r"(?<![\w+])\+\d[\d\s().-]{6,}\d")
 _US_PHONE_RE = re.compile(r"(?<!\d)\(?\d{3}\)?[-.\s]\d{3}[-.\s]\d{4}(?!\d)")
 
-# (e) precise age — zh 岁 OR en forms ("63 years old", "63 yo", "Age: 63").
+# (e) precise age — zh 岁 OR en forms ("63 years old", "63-year-old", "63 yo",
+#     "aged 63", "Age 63", "Age: 63"). Colon optional; decade bands like "50+" allowed
+#     (negative lookahead). Kept identical in coverage to the sibling visit-prep guard.
 _AGE_RE = re.compile(
     r"(?i)(?:\d{1,3}\s*岁"
-    r"|\b\d{1,3}\s*(?:years?\s*old|yrs?\s*old|y/?o)\b"
-    r"|\bage[d]?\s*[:：]\s*\d{1,3}\b)"
+    r"|\b\d{1,3}[\s-]*(?:years?[\s-]*old|yrs?[\s-]*old|y/?o)\b"
+    r"|\bage[d]?\s*[:：]?\s*\d{1,3}\b(?!\s*\+))"
 )
 
 # (g) provenance comment emitted by render_html_template.py
