@@ -19,7 +19,7 @@ Read [../../references/i18n.md](../../references/i18n.md). This sub-skill has **
 
 - **`profile.json.locale`** (the patient's scaffold language) governs every output the **patient/caregiver** reads: the `presentation-script.md`, the packaging explanation, role-refusal copy, and the caregiver phone-consult checklist.
   1. Read `patients/<patient_code>/profile.json` → `locale`. If present, use it — do not re-detect (second-opinion runs after organize, so a `locale` is almost always already persisted).
-  2. If absent (no profile, or `locale` is null), detect from the language the user is conversing in, then write it back to `profile.json.locale` (BCP-47, e.g. `en` / `zh` / `fr`).
+  2. If absent (no profile, or `locale` is null), detect from the **primary patient-facing language of the records**, tie-breaking to the language the user is conversing in (the `record-consuming generative sub-skills` row in `../../references/i18n.md` §2), then write it back to `profile.json.locale` (BCP-47, e.g. `en` / `zh` / `fr`).
   3. Honor an explicit user language override ("用中文" / "answer me in English") → update `profile.json.locale` and follow it going forward.
 - **`reviewer_locale`** (the **target center's** language) governs the **reviewer-facing** artifacts (`case-summary.md`, `cover-letter.md`, `records-index.md`). This is NOT `profile.json.locale` — the packet must be in the language the reviewing oncologist reads, regardless of the patient's scaffold language. Derive it from the target chosen in Workflow §1 / `top-centers.md`:
   - MSK / MD Anderson / Mayo / Dana-Farber / Johns Hopkins / NCIS (新加坡) / 养和 (English intake) → `en`.
