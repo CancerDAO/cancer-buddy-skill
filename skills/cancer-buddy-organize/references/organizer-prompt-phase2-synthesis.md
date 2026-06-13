@@ -486,18 +486,21 @@ For every extracted clinical field — in profile.json (`summary.stage`, `summar
 After you've extracted `demographics.name` (which may already be partially desensitized by Phase 1), run:
 
 ```bash
+# demographics.name / .dob live in patient_summary.json under cancer_buddy_profile_v3
+# (profile.json no longer carries a demographics block — reading it there would make
+#  this P0 collision check silently no-op).
 patients_root="$(dirname "$patient_dir")"
 my_code="$(basename "$patient_dir")"
-my_name="$(jq -r '.demographics.name // empty' "$patient_dir/profile.json")"
-my_dob_year="$(jq -r '.demographics.dob // empty' "$patient_dir/profile.json" | cut -c1-4)"
+my_name="$(jq -r '.demographics.name // empty' "$patient_dir/patient_summary.json")"
+my_dob_year="$(jq -r '.demographics.dob // empty' "$patient_dir/patient_summary.json" | cut -c1-4)"
 
 [ -z "$my_name" ] && exit 0
 
 for other in "$patients_root"/PT-*; do
   [ "$(basename "$other")" = "$my_code" ] && continue
-  [ ! -f "$other/profile.json" ] && continue
-  other_name=$(jq -r '.demographics.name // empty' "$other/profile.json")
-  other_dob_year=$(jq -r '.demographics.dob // empty' "$other/profile.json" | cut -c1-4)
+  [ ! -f "$other/patient_summary.json" ] && continue
+  other_name=$(jq -r '.demographics.name // empty' "$other/patient_summary.json")
+  other_dob_year=$(jq -r '.demographics.dob // empty' "$other/patient_summary.json" | cut -c1-4)
   if [ "$my_name" = "$other_name" ] && [ "$my_dob_year" = "$other_dob_year" ]; then
     echo "COLLISION: $other"
   fi

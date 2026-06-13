@@ -136,7 +136,7 @@ These are two distinct files with a deliberate division of labor (this is the de
       "issue": "AJCC 8th 标准前缀只有 c/p/yp/r/a, 'rp' 不在其中",
       "source_evidence": ["04_诊断与分期/诊断证明/2024-07-05_出院诊断证明_unknown-org.md"],
       "suggested_value": "pT4aN2aM1 IV期",
-      "suggested_action": "改写为 pT4aN2aM1; 在 data_sources 注明源文件统一写作 rpT4aN2aM1 (推断为医院习惯)",
+      "suggested_action": "改写为 pT4aN2aM1; 在该 flag 的 source_evidence 注明源文件统一写作 rpT4aN2aM1 (推断为医院习惯)",
       "user_confirmed": false,
       "rationale_for_suggestion": "首诊→手术间隔≤30天,病程明确写'辅助化疗'(非新辅助),故术中标本应为treatment-naive → p前缀"
     }
