@@ -659,7 +659,7 @@ Pure JSON, no prose:
 - `coverage_complete: false` is acceptable as long as you list the missing files; caller will retry-mini-Phase1 + re-run you.
 - The alias is sticky: never overwrite a previously set `profile.json.alias` on incremental runs.
 - ALWAYS detect+persist `profile.json.locale` (reuse if already set) and render every patient-facing scaffold string (bucket slugs, timeline/case_text/review_summary prose, gap/warning text) in that locale per [`../../../references/i18n.md`](../../../references/i18n.md). NEVER translate a clinical entity (drug/gene/variant/TNM/number/unit) or a `doc_type` — those are verbatim; mistranslation is a P0 safety bug.
-- The `NN_` two-digit bucket prefix is a **language-independent stable key**: localize the slug after it, never the number. Downstream consumers match on `NN_`; keep `bucket_path` / `file_dest` / `md_dest` / anchors using the same localized slug so on-disk path and anchor agree.
+- The `NN_` two-digit bucket prefix is a **language-independent stable key**: localize the slug after it, never the number. Downstream consumers match on `NN_`; keep `bucket_path` / `md_dest` / anchors using the same localized slug so on-disk path and anchor agree.
 - Output pure JSON only at the end — narrative goes in case_text.md / timeline.md / review_flags.md / review_summary.md.
 
 ## Runtime adaptation (binding layer — read [`organize-contract.md`](organize-contract.md) §Phase2)
