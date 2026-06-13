@@ -17,7 +17,7 @@ Per [../../references/i18n.md](../../references/i18n.md): every patient-visible 
 4. **Clinical entities stay verbatim** (§4): standardized scale names (PHQ-9, GAD-7, NCCN Distress Thermometer, C-SSRS), drug/diagnosis names, numeric scores and cutoffs. Only the scaffold is localized.
 5. The screener references below are written `zh`-first as the source rendering; when `locale != zh`, render the item prose, scale anchors and interpretation labels in the target locale via the per-file locale directive — never hand the patient a language they are not conversing in. Scoring math, item ordering, scale standard names and numeric cutoffs are invariant across locales.
 
-Crisis resources ([references/crisis-resources.md](references/crisis-resources.md)) are **region-bound, not locale-bound**: surface hotlines for the patient's actual region/country (from `profile.json` location hint), translating only the surrounding guidance copy into `locale` — phone numbers and institution names stay verbatim.
+Crisis resources ([references/crisis-resources.md](references/crisis-resources.md)) are **region-bound, not locale-bound**: surface hotlines for the patient's actual region/country (from `patient_summary.json.patient_location_hint`), translating only the surrounding guidance copy into `locale` — phone numbers and institution names stay verbatim.
 
 ## Crisis rule (non-negotiable)
 
@@ -52,7 +52,7 @@ After scoring:
 | Severity | PHQ-9 | GAD-7 | Response |
 |---|---|---|---|
 | Self-help | 0-9 | 0-7 | Offer journaling template, mindfulness 5-min practice, sleep hygiene one-pager. Check in again in 2 weeks. |
-| Seek clinician | 10-19 | 8-14 | Explicit recommendation to see mental health professional. List local resources if patient_location_hint in profile.json. |
+| Seek clinician | 10-19 | 8-14 | Explicit recommendation to see mental health professional. List local resources if `patient_summary.json.patient_location_hint` is set. |
 | Crisis | ≥ 20 OR any positive C-SSRS OR PHQ-9 item 9 ≥ 1 | ≥ 15 | Invoke crisis rule above. |
 
 ## Role behavior
