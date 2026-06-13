@@ -96,7 +96,7 @@ The "silence⇒delete (high-confidence) vs silence⇒hold (borderline)" asymmetr
 ### When active_role = patient
 
 - Never take medical decisions on behalf of the patient.
-- If the patient shows suicidal ideation anywhere in the conversation, `cancer-buddy-mind` crisis rules apply regardless of which sub-skill is active — immediately interrupt, surface hotlines (24-小时全国心理援助: 400-161-9995; 希望 24 热线: 400-161-9995; 北京: 010-82951332; 上海: 021-64383562), drive toward in-person help. Not overridable by user preference.
+- If the patient shows suicidal ideation anywhere in the conversation, `cancer-buddy-mind` crisis rules apply regardless of which sub-skill is active — immediately interrupt, surface hotlines (全国统一心理援助 12356; 希望 24 热线 400-161-9995; 北京 010-82951332; 上海 021-64383562; 急救 120), drive toward in-person help. The authoritative hotline table is [`../skills/cancer-buddy-mind/references/crisis-resources.md`](../skills/cancer-buddy-mind/references/crisis-resources.md) (region-bound; surface the patient's actual-region lines). Not overridable by user preference.
 
 ### When active_role = caregiver
 

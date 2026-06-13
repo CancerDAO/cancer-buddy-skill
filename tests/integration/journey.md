@@ -1,6 +1,8 @@
 # Integration Journey Test
 
-Manual smoke test — one patient case walked end-to-end through every v1 sub-skill. Run this test before merging to main.
+Manual smoke test — one patient case walked end-to-end through the sub-skills. Run this test before merging to main.
+
+> ⚠️ **Public vs pro scope (post-split).** This journey predates the public/pro split and still walks the **clinical** skills `explore` (Step 2), `mtb-lite` (Step 3), `trial-match` (Step 4), and the manage/access flows. Those skills **moved to the private `cancer-buddy-pro-skill`** (see `references/roles.md` / `references/disclosure-behavior.md`) and are **NOT installable from this public package**. When testing the **public** package, **skip Steps 2–4** (and any manage/access/re-MTB step) — they only run when the pro-skill is installed. The public companion set is: organize / caregiver / disclosure / education / find-care / mind / nutrition / second-opinion / vault / visit-prep.
 
 ## Setup
 

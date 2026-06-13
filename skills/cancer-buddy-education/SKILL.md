@@ -1,6 +1,6 @@
 ---
 name: cancer-buddy-education
-description: "Generate a patient-friendly education handbook (Markdown with Mermaid diagrams) from the MTB report and patient profile. Includes quick reference card, my-health-summary in plain language, drug sheets with side-effect management, daily living guide, follow-up schedule, cost/insurance navigation, FAQ. Absorbs mechanism diagrams, cancer-type modules, and phase-organized FAQ from vmtb-patient-education. Triggers on 宣教手册, 给我爸妈看的版本, patient handbook, 患者教育."
+description: "Generate a patient-friendly education handbook (Markdown with Mermaid diagrams) from the patient profile + organize's structured JSONs (and an MTB report when one is available — not required). Includes quick reference card, my-health-summary in plain language, drug sheets with side-effect management, daily living guide, follow-up schedule, cost/insurance navigation, FAQ. Absorbs mechanism diagrams, cancer-type modules, and phase-organized FAQ from vmtb-patient-education. Triggers on 宣教手册, 给我爸妈看的版本, patient handbook, 患者教育."
 ---
 
 # cancer-buddy-education
@@ -9,7 +9,7 @@ Turn clinical output into something the patient (and their family) can actually 
 
 ## When to use
 
-- Patient has at least `profile.json` + one MTB report (lite or full).
+- Patient has at least `profile.json` + organize's structured JSONs. An MTB report (`mtb-full` from `vmtb-skill`, or `mtb-lite` from the private pro-skill) **enriches** the handbook but is **not required** — education works from organize's outputs alone.
 - Patient says: 宣教手册 / 给我爸妈看的版本 / 我爸妈看不懂报告 / patient handbook.
 
 ## Locale
@@ -28,8 +28,8 @@ Run [../../references/preflight.md](../../references/preflight.md) — role + di
 
 ## Inputs
 
-- `patients/<pid>/profile.json`
-- MTB report: prefer `patients/<pid>/reports/mtb-full/` if exists; fallback to `patients/<pid>/reports/mtb-lite/`.
+- `patients/<pid>/profile.json` + organize's structured JSONs (`patient_summary.json` / `molecular.json` / `treatment_lines.json` / `comorbidities.json`) — the always-available base.
+- MTB report (optional enrichment): prefer `patients/<pid>/reports/mtb-full/` (vmtb-skill) if it exists, else `patients/<pid>/reports/mtb-lite/` (pro-skill). Absent is fine — fall back to the structured JSONs above.
 - Treatment timeline, comorbidities, current medications.
 
 ## Output
@@ -43,7 +43,7 @@ Written under `patients/<pid>/reports/education/`:
 
 See [references/handbook-template.md](references/handbook-template.md) for the full template. Main steps:
 
-1. Read MTB report (full preferred, lite fallback).
+1. Read the MTB report if one exists (full preferred, lite fallback); otherwise read organize's structured JSONs (`patient_summary.json` / `molecular.json` / `treatment_lines.json`) directly as the source of treatment facts.
 2. Extract: treatment plan, drug list, monitoring schedule, comorbidity interactions.
 3. Select relevant handbook chapters based on patient's condition (skip chemotherapy chapter if immunotherapy only, include diabetes chapter if comorbid T2DM, etc.).
    - **Mechanism diagrams**: pull relevant diagrams from `references/mechanism-diagrams.md` based on patient's `summary.current_regimen` type (chemo / targeted / immuno / radio).
@@ -55,8 +55,8 @@ See [references/handbook-template.md](references/handbook-template.md) for the f
    - My Health Summary (1 page, plain language)
    - Per-drug sheets (what it does, how to take, side-effect watchlist)
    - Daily living guide (nutrition placeholder → full version in v2 nutrition skill, exercise, sleep, work)
-   - Follow-up schedule (derived from cancer-buddy-manage monitoring calendar)
-   - Cost and insurance navigation (reference: [../../cancer-buddy-access/references/access-pathways.md] for drug access + insurance section)
+   - Follow-up schedule (from the treatment plan + `timeline.json`; a richer monitoring calendar comes from the private pro-skill `cancer-buddy-manage` when it is available)
+   - Cost and insurance navigation (general guidance only; detailed drug-access / 同情用药 / 跨境 pathways are handled by the private pro-skill `cancer-buddy-access` when available — not part of this public companion)
    - FAQ (common patient questions grouped by disease stage)
 5. Embed Mermaid diagrams: disease-mechanism flow, treatment-decision tree.
 
