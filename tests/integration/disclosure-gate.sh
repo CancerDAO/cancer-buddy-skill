@@ -54,14 +54,24 @@ for skill in "${affected[@]}"; do
     errs=$((errs+1))
     continue
   fi
-  # 2) declaration is consistent with the disclosure-behavior.md matrix cell.
-  # Scope the keyword search to the disclosure DECLARATION region (each line that
-  # mentions disclosure + the following 5 lines) so unrelated prose elsewhere in the
-  # SKILL.md (e.g. a "晚期" example query) can't false-pass the consistency check.
-  dscope="$(awk '/[Dd]isclosure/{c=6} c>0{print; c--}' "$f")"
+  # The disclosure skill IS the disclosure workflow (matrix cell = "main workflow"),
+  # so there is no suppressed-patient behavior keyword to assert — presence suffices.
+  [[ "$skill" == "disclosure" ]] && continue
+  # 2) extract the ACTUAL disclosure-behavior cell — the inline `*Disclosure*:` /
+  # `**Disclosure**` declaration line, or the body of a `## Disclosure` section — and
+  # assert the matrix keyword appears INSIDE it. Scoping to the cell itself (not a fixed
+  # line window) prevents an unrelated `refuse`/`晚期` elsewhere in the file (a preflight
+  # role-gate, a Role-behavior family-refuse rule, an example query) from false-passing a
+  # flipped cell.
+  dcell="$(awk '
+    /^#+ *Disclosure/ { sec=1; print; next }
+    sec==1 && /^#+ / { sec=0 }
+    sec==1 { print; next }
+    /\*Disclosure\*:|\*\*Disclosure\*\*/ { print }
+  ' "$f")"
   re="$(behavior_re "$skill")"
-  if ! echo "$dscope" | grep -qiE "$re"; then
-    echo "FAIL: cancer-buddy-$skill disclosure behavior inconsistent with matrix (expected /$re/ near a disclosure declaration)" >&2
+  if ! echo "$dcell" | grep -qiE "$re"; then
+    echo "FAIL: cancer-buddy-$skill disclosure cell inconsistent with matrix (expected /$re/ in the Disclosure cell)" >&2
     errs=$((errs+1))
   fi
 done

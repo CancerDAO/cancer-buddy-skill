@@ -52,18 +52,25 @@ description: "查找能做特定治疗资源的医院、专科医生和临床试
 
 ### Profile completeness
 
-读 `patients/<patient_code>/profile.json`，至少需要：
+调研前先确认信息齐全。**病历侧**字段从 organize 产出读（`cancer_buddy_profile_v3` 嵌套形态 + 结构化 JSON）；**query 侧**字段从对话向用户收集、落进 Step-1 的 `QUERY.md`（它们**不是** profile.json 字段，别去 profile.json 找、更别因其缺失而阻断）。
 
-| 字段 | 必需？ | 用途 |
+**病历侧（organize 产出）：**
+
+| 字段 | 来源文件 | 必需？ | 用途 |
+|---|---|---|---|
+| `summary.primary` | `profile.json` | 必需 | 决定查哪些专科榜单 |
+| `summary.stage` | `profile.json` | 推荐 | 影响 MTB / 试验匹配优先级 |
+| drivers（基因 / 变异） | `molecular.json` | MTB/试验任务必需 | 没有就先去 `organize` 整理 / 做 NGS |
+
+**query 侧（向用户收集 → `QUERY.md`）：**
+
+| 字段（→ QUERY.md） | 必需？ | 用途 |
 |---|---|---|
-| `cancer_type` | 必需 | 决定查哪些专科榜单 |
-| `stage` | 推荐 | 影响 MTB / 试验匹配优先级 |
-| `molecular_profile` | MTB/试验任务必需 | 没有就先去做 NGS |
-| `geo.current_city` + `geo.willing_radius` | 必需 | 否则全国/全球范围太散 |
-| `economic.budget_band` | 推荐 | 影响公立/私立/海外比例 |
-| `insurance.medicare_city` | 推荐 | 异地医保备案影响推荐 |
+| 当前城市 + 可接受范围（`geo`） | 必需 | 否则全国/全球范围太散 |
+| 预算档位（`constraints.budget`） | 推荐 | 影响公立/私立/海外比例 |
+| 异地医保参保地 | 推荐 | 异地医保备案影响推荐 |
 
-**字段不全时**：不要让 subagent 瞎跑。先回过头问用户补齐 1–3 个关键字段，再调研。
+**病历侧字段不全时**：不要让 subagent 瞎跑。先回过头让用户补齐（或先去 `organize` 整理病历 / 做 NGS），再调研。query 侧字段直接在对话里问用户。
 
 ## Core workflow
 
