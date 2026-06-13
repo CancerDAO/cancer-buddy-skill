@@ -69,7 +69,7 @@ Authoritative matrix in [`../../references/roles.md`](../../references/roles.md)
 - **Role = caregiver**: 帮家人备问题 — same pack reframed as the caregiver preparing questions for the patient's visit.
 - **Role = family**: refuse + redirect to the primary caregiver (offer a one-line handoff).
 
-**Disclosure** ([`../../references/disclosure-behavior.md`](../../references/disclosure-behavior.md)): when `disclosure_state.suppressed=true` and `role=patient`, run normally (questions are assembled from the de-identified archive) but the doctor's-snapshot **avoids surfacing 晚期/IV/进展后 staging wording** to the patient and introduces no new diagnosis disclosure.
+**Disclosure** ([`../../references/disclosure-behavior.md`](../../references/disclosure-behavior.md)): when `profile.json.disclosure_state == "suppressed"` and `role=patient`, run normally (questions are assembled from the de-identified archive) but the doctor's-snapshot **avoids surfacing 晚期/IV/进展后 staging wording** to the patient and introduces no new diagnosis disclosure.
 
 ## References
 

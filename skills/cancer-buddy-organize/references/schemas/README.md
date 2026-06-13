@@ -16,7 +16,7 @@ These JSON Schemas define the structured outputs `cancer-buddy-organize` produce
 
 ## Anchor token contract
 
-Every factual field that originates from a text-masked MD sidecar MUST carry a `source_refs[]` array. Each entry is either a bucket-relative path (file anchor) or a `conversation:<ISO8601>` reference (段C conversation anchor), with an optional fragment:
+Every factual field that originates from a text-masked MD sidecar MUST carry a `source_refs[]` array — **except `longitudinal_observations.json`, where each `observations[]` entry carries a singular `source_ref` string** (same anchor grammar, different cardinality; see `anchor-contract.md` §4). Each entry is either a bucket-relative path (file anchor) or a `conversation:<ISO8601>` reference (段C conversation anchor), with an optional fragment:
 
 ```
 <NN_bucket>/<…>/<file>.md[#L<start>-L<end>]

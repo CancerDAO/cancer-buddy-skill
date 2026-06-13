@@ -273,7 +273,7 @@ When `profile.json.alias` is set by Phase 2 (format `{patient_id_short}_{cancer_
 <patients_root>/17CE02_CRC_2019 -> PT-17CE02BC33/
 ```
 
-Internal storage continues to use the `PT-<hex>` directory. Downstream sub-skills accept either name; the alias is the human-friendly handle for exports and conversations ("我跟病人沟通的是 003_CRC_2024,不是 PT- 那串十六进制"). If filesystem symlinks are not available, the synthesis worker writes `<patients_root>/alias_map.json` mapping aliases to `PT-<hex>` codes.
+Internal storage continues to use the `PT-<hex>` directory. Downstream sub-skills accept either name; the alias is the human-friendly handle for exports and conversations ("我跟病人沟通的是 17CE02_CRC_2019,不是 PT- 那串十六进制"). If filesystem symlinks are not available, the synthesis worker writes `<patients_root>/alias_map.json` mapping aliases to `PT-<hex>` codes.
 
 ## patient_code collision
 

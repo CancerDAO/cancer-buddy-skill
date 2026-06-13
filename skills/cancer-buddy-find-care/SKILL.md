@@ -204,7 +204,7 @@ patient_profile_ref: patients/PT-XXXX/profile.json
 
 ## Disclosure 行为
 
-如果 `disclosure_state.suppressed=true` 且 `role=patient`：
+如果 `profile.json.disclosure_state == "suppressed"` 且 `role=patient`：
 - 患者可能还不完全知道分期/分子情况，但"找做 X 的医院" 这个动作本身已经说明 ta 知道在找什么
 - 正常执行，但 SHORTLIST 里**避免**渲染"晚期/IV/进展后"等可能加重情绪的表述，用临床中性语
 - 详见 `../../references/disclosure-behavior.md`
