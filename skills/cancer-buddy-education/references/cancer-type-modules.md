@@ -64,11 +64,11 @@ End every cancer-type section with this standardized footer, rendered in `locale
 
 When generating handbook for a specific patient:
 
-1. Read patient's `profile.json.primary_cancer` (canonical) or `primary_diagnosis.site` (legacy schema). Determine the cancer type.
+1. Read patient's `profile.json.summary.primary` (canonical) or `primary_diagnosis.site` (legacy schema). Determine the cancer type.
 2. Use your oncology training to draft the 6 subsections matching the schema above. Length: 500-800 字 per cancer type.
 3. **Tailor to the patient's actual stage + line + comorbidities** — do NOT recite a generic textbook overview. If the patient is stage IV on 5L therapy, the 治疗方案概述 should focus on late-line options, not "I-II 期手术为主".
-4. **Use the patient's specific drugs verbatim** when discussing their regimen — pull from `profile.json.current_therapy`. If the agent doesn't recognize the drug names from training data, do NOT make up a mechanism — write `[需向主诊医生确认 <drug> 的具体作用机制]`.
-5. **Cross-reference the readiness audit**: if `readiness.json.review_flags` has any 🔴 unconfirmed flags on `primary_cancer` / `stage` / `current_therapy` / `molecular_drivers_known`, the handbook MUST NOT BE WRITTEN — the preflight Step 2.5 gate should have already blocked. (Sanity check: if you reach this step with red flags unconfirmed, something upstream is broken.)
+4. **Use the patient's specific drugs verbatim** when discussing their regimen — pull from `profile.json.summary.current_regimen`. If the agent doesn't recognize the drug names from training data, do NOT make up a mechanism — write `[需向主诊医生确认 <drug> 的具体作用机制]`.
+5. **Cross-reference the readiness audit**: if `readiness.json.review_flags` has any 🔴 unconfirmed flags on `summary.primary` / `summary.stage` / `summary.current_regimen` / drivers (`molecular.json`), the handbook MUST NOT BE WRITTEN — the preflight Step 2.5 gate should have already blocked. (Sanity check: if you reach this step with red flags unconfirmed, something upstream is broken.)
 
 ## Uncertainty escape hatch
 
@@ -83,4 +83,4 @@ When you encounter a cancer subtype, regimen, or molecular target that you don't
 - Length: ~500-800 字 (or the equivalent reading length in `locale`) per cancer type, readable in 5-8 minutes by a layperson
 - Reading level: junior-high (zh: 初中文化), avoid medical Latinate jargon (zh: use 化疗 not 系统性细胞毒性药物治疗; apply the same plain-language principle in every locale) — but clinical entity names stay verbatim
 - Footer: the disclaimer (zh: `本内容为信息参考，具体方案与调整必须与主诊医生确认。`) rendered in `locale` — present on every section, no exceptions
-- Override on RED review_flag: must NOT proceed if upstream organize flagged primary_cancer / stage / current_therapy / molecular driver as 🔴 unconfirmed (preflight Step 2.5 enforces this; this is the second sanity check)
+- Override on RED review_flag: must NOT proceed if upstream organize flagged summary.primary / summary.stage / summary.current_regimen / molecular driver (`molecular.json`) as 🔴 unconfirmed (preflight Step 2.5 enforces this; this is the second sanity check)

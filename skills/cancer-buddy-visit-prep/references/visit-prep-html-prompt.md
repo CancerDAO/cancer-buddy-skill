@@ -22,7 +22,7 @@ These red lines exist so the pixel-exact patient-facing template is never deform
 
 Read these from `patients/<pid>/` (all already produced by organize; read-only — visit-prep writes no formal field, touches no confirm-gate):
 
-- `profile.json` — `locale`, `primary_cancer`, `histology`, `stage`, `molecular_drivers_known`, `current_therapy`, `demographics`, `data_sources`.
+- `profile.json` — `locale`, `summary.primary`, `summary.histology`, `summary.stage`, `summary.current_regimen`, `source_refs` (drivers now in `molecular.json`, demographics in `patient_summary.json.demographics`).
 - `readiness.json` — `review_flags[]` (each: `field_path`, `current_value`, `issue`, `suggested_value`, `severity`, `user_confirmed`), `blocking_gaps[]`.
 - `molecular.json` — `variants[]`, `ihc[]`, `msi_mmr`, `tmb`.
 - `treatment_lines.json` — `lines[]` (`line`, `regimen`, `intent`, `started_at`, `ended_at`, `best_response`, `reason_for_change`).
@@ -73,10 +73,10 @@ Map structured fields straight into the snapshot, verbatim — no interpretation
 
 | placeholder | source |
 |---|---|
-| `{{one_line_condition}}` | one-sentence condition line from `profile.json` (`primary_cancer` + `histology` + `stage` + headline driver), e.g. `非小细胞肺癌 腺癌 IIIA (cT3N2M0)，EGFR L858R`. |
-| `{{snapshot_diagnosis}}` | `primary_cancer` / `histology` / `stage` joined verbatim. |
+| `{{one_line_condition}}` | one-sentence condition line from `profile.json` (`summary.primary` + `summary.histology` + `summary.stage` + headline driver), e.g. `非小细胞肺癌 腺癌 IIIA (cT3N2M0)，EGFR L858R`. |
+| `{{snapshot_diagnosis}}` | `summary.primary` / `summary.histology` / `summary.stage` joined verbatim. |
 | `{{snapshot_molecular}}` | from `molecular.json`: variants (`gene` + `variant`), `msi_mmr.status`, key `ihc[]`, `tmb` — verbatim, comma-joined. |
-| `{{snapshot_current_line}}` | current line from `treatment_lines.json` (latest line with no `ended_at`, or `profile.current_therapy`): `regimen` + line number, verbatim. |
+| `{{snapshot_current_line}}` | current line from `treatment_lines.json` (latest line with no `ended_at`, or `profile.summary.current_regimen`): `regimen` + line number, verbatim. |
 | `{{snapshot_key_labs}}` | from `labs.json`: latest value of each panel whose newest value has `flag` ∈ {H, L, HH, LL}, as `analyte value unit (date)` verbatim. |
 
 Any source field null/absent → set that scalar to `null` (the renderer substitutes `fallbacks.__default__` = the locale `val_pending` string). Never fabricate a value.
@@ -101,9 +101,9 @@ The renderer maps these arrays to template loops: `confirm_questions` → Group 
 
 ## 5. Block 3 — 带什么
 
-From `missing_items.json` + archive state (`profile.json.data_sources` / which buckets hold originals). Both are arrays of `{ "text": "..." }`:
+From `missing_items.json` + archive state (`profile.json.source_refs` / which buckets hold originals). Both are arrays of `{ "text": "..." }`:
 
-- `bring_originals` — the originals worth physically bringing: pathology原件, imaging 光盘/胶片, NGS/基因报告原件, 出院/诊断证明. Infer presence from `data_sources` and bucket coverage; if none inferable, leave the array empty (the template's `RENDER_IF_NOT` shows the `val_pending` line). List **what to bring** only — never interpret the content.
+- `bring_originals` — the originals worth physically bringing: pathology原件, imaging 光盘/胶片, NGS/基因报告原件, 出院/诊断证明. Infer presence from `source_refs` and bucket coverage; if none inferable, leave the array empty (the template's `RENDER_IF_NOT` shows the `val_pending` line). List **what to bring** only — never interpret the content.
 - `bring_for_questions` — for each Block-2 question, the record that backs it (e.g. a `confirm` question about `stage` → bring the original pathology / diagnosis certificate; a `supplement` question about a missing scan → bring prior imaging for comparison).
 
 ## 6. Block 4 — 上次 → 这次的变化 (followup only)

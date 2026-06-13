@@ -46,7 +46,7 @@ stages:
 
 The synthesis worker:
 
-1. Reads `profile.json.stage` + `profile.json.primary_cancer` (both flat fields on profile.json) → maps to a cancer_type code.
+1. Reads `profile.json.summary.stage` + `profile.json.summary.primary` (v3 nested under `summary`) → maps to a cancer_type code.
 2. Loads the matching YAML; if none is shipped for that code, generates the checklist in-session (see the runtime note above).
 3. Unions `stages.all` with the closest-fit `stages.<stage>` block.
 4. For each item, checks `profile.json` / `molecular.json` / `timeline.json` / `labs.json` to see if it's already present.

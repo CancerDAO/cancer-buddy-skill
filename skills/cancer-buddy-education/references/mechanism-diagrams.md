@@ -32,7 +32,7 @@ Styling convention (from vmtb-patient-education mermaid-guide):
 - Danger: `fill:#ffcccc,stroke:#ff6666`
 - Success: `fill:#ccffcc,stroke:#66cc66`
 
-Pick the section(s) that match the patient's `current_therapy` field from
+Pick the section(s) that match the patient's `summary.current_regimen` field from
 `profile.json`. If multiple apply (e.g. chemo + immuno combo), include both.
 
 ---

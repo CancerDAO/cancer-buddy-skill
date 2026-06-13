@@ -21,14 +21,14 @@ Render **every patient/caregiver-visible output in that locale** — the 7-day m
 
 ## Preflight
 
-Run [../../references/preflight.md](../../references/preflight.md) — role + disclosure + readiness grade + **review_flags red gate (Step 2.5)** + schema validity. Especially critical here: a 🔴 RED review_flag on `current_therapy` or `treatment_history[].name` makes the entire meal plan wrong (drug-food interaction table is keyed on actual drugs in use). Real failure case: when `current_therapy` was OCR'd as "瑞戈非尼 + 伊立替康" instead of the actual "雷替曲塞 + 信迪利单抗", the resulting nutrition plan included a TKI low-fat-breakfast medication-timing rule and a SN-38 delayed-diarrhea protocol — both clinically irrelevant, both confidently wrong. Block until human-resolved.
+Run [../../references/preflight.md](../../references/preflight.md) — role + disclosure + readiness grade + **review_flags red gate (Step 2.5)** + schema validity. Especially critical here: a 🔴 RED review_flag on `summary.current_regimen` or a line's drug name in `treatment_lines.json` makes the entire meal plan wrong (drug-food interaction table is keyed on actual drugs in use). Real failure case: when `summary.current_regimen` was OCR'd as "瑞戈非尼 + 伊立替康" instead of the actual "雷替曲塞 + 信迪利单抗", the resulting nutrition plan included a TKI low-fat-breakfast medication-timing rule and a SN-38 delayed-diarrhea protocol — both clinically irrelevant, both confidently wrong. Block until human-resolved.
 
 In addition:
-- Require `patients/<patient_code>/profile.json` with `primary_cancer` and `current_therapy` populated; if missing, route back to organize.
+- Require `patients/<patient_code>/profile.json` with `summary.primary` and `summary.current_regimen` populated; if missing, route back to organize.
 
 ## Workflow
 
-1. Identify treatment phase from `profile.json.current_therapy` + `profile.json.treatment_history`. Phases: pre-op / post-op recovery / active chemo / active radio / active immuno / active targeted / maintenance / post-treatment survivorship.
+1. Identify treatment phase from `profile.json.summary.current_regimen` + the ordered lines of therapy in `treatment_lines.json`. Phases: pre-op / post-op recovery / active chemo / active radio / active immuno / active targeted / maintenance / post-treatment survivorship.
 2. Query [references/phase-based-plans.md](references/phase-based-plans.md) for the phase-appropriate nutrition rules (protein target, caloric target, hydration, foods to emphasize/avoid).
 3. Cross-check patient's current medications against [references/drug-food-interactions.md](references/drug-food-interactions.md). Critical interactions (TKI ↔ 西柚汁, 华法林 ↔ 大量深色叶菜, 奥沙利铂 ↔ 冷食, 免疫抑制期 ↔ 生食) MUST be flagged.
 4. Generate a 7-day menu per [references/china-dietary-templates.md](references/china-dietary-templates.md) — match to patient's regional preference (北方 / 南方 / 川湘 / 粤) if hinted in `profile.json.patient_location_hint`. Render the menu scaffold (meal labels, section titles, prep notes) in `profile.json.locale`; the `zh` templates are the source string table. For a non-`zh` locale, adapt to dishes the patient can actually source/cook in that culinary context rather than transliterating Chinese dish names, while honoring the same per-phase nutrition rules.
