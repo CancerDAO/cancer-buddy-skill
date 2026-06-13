@@ -19,6 +19,7 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
+        "name": { "type": ["string", "null"], "description": "Patient name (may be partially Phase-1-masked). Sole purpose: the P0 cross_patient_name_collision check (name + dob_year) in organizer-prompt-phase2-synthesis.md Step 3a. Null when fully masked → the check skips. Not surfaced in any patient-facing artifact." },
         "sex": { "type": ["string", "null"], "enum": ["M", "F", null] },
         "age": { "type": ["integer", "null"], "minimum": 0, "maximum": 120 },
         "dob": { "type": ["string", "null"], "format": "date" },

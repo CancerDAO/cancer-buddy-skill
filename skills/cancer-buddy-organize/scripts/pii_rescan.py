@@ -16,8 +16,10 @@ small deterministic PII-pattern family and flags any line that still looks like
 it carries plaintext PII. It never performs OCR.
 
 Scope (matches phase1-ocr.md §2.4 — "touches PII tokens ONLY"):
-  - Only the OCR body is scanned. The `SOURCE:`/`ORIGINAL:` header and the
-    `## PII` trailer are metadata, not clinical content — skipped.
+  - Only the OCR body is scanned. The full sidecar header block (`SOURCE:` /
+    `READ_MODE:` / `ADAPTER:` / `ADAPTER_PROVENANCE:` / `CONFIDENCE:`, plus the
+    legacy `ORIGINAL:`) and the `## PII` trailer are provenance metadata, not
+    clinical content — skipped.
   - A line is skipped once its PII value has already been replaced by
     `[PII_MASKED]` (i.e. label present but value is the mask → clean).
   - Clinical fidelity wins: this gate flags label+value PII shapes and
@@ -225,8 +227,11 @@ def scan_sidecar(path: Path) -> list[tuple[int, str, str]]:
     results: list[tuple[int, str, str]] = []
     prev_body: tuple[int, str] | None = None  # (line_no, text) of last body line
     for i, line in enumerate(lines, start=1):
-        # Skip the SOURCE/ORIGINAL header lines (metadata, not OCR body)
-        if line.startswith("SOURCE:") or line.startswith("ORIGINAL:"):
+        # Skip the sidecar header block (provenance metadata, not OCR body).
+        # The header per phase1-ocr.md is SOURCE/READ_MODE/ADAPTER/ADAPTER_PROVENANCE
+        # (+CONFIDENCE on the SOURCE line; legacy ORIGINAL:). These carry enum/provenance
+        # tokens, never PII, so skipping them avoids both noise and any header false-fire.
+        if line.startswith(("SOURCE:", "ORIGINAL:", "READ_MODE:", "ADAPTER:", "ADAPTER_PROVENANCE:", "CONFIDENCE:")):
             continue
         # `## PII` trailer is metadata — stop scanning the body once we hit it
         if re.match(r"^##\s+PII\b", line):

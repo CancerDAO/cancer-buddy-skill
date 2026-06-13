@@ -290,7 +290,7 @@ Organize does not make medical recommendations. Still:
 - Never fabricate fields — when a value is truly unreadable in the source, the subagent writes `null` (JSON) or `[OCR_UNCERTAIN]` (text) and surfaces it as a gap.
 - Text masking only masks PII in the sidecar body — it never alters clinical characters (anti-anchoring). The MD sidecar is the downstream-only read source and must not carry plaintext PII.
 - Downstream sub-skills apply the full `safety-guardrails.md` rule set when they read what organize produced; wrong data here poisons every downstream report.
-- `raw/` holds every uploaded original **verbatim** — never pixel-redacted, never deleted. It is the vault the frontend deep-links a sidecar back to (`source_inventory.json.raw_path`). The only desensitization is the sidecar text masking; downstream artifacts are built from the text sidecars, so they stay de-identified even though the originals are kept as uploaded. See `references/bucket-taxonomy.md` §5.
+- `raw/` holds every uploaded original **verbatim** — never pixel-redacted, never deleted. It is the vault the frontend deep-links a sidecar back to (`source_inventory.json.raw_path`). The only desensitization **of the archived data** is the sidecar text masking; downstream artifacts are built from the text sidecars, so they stay de-identified even though the originals are kept as uploaded. (One output-side step is layered on top for the patient-facing 段D HTML only: identity is coarse-grained to a decade band — no name/DOB — see `references/case-summary-html-prompt.md`.) See `references/bucket-taxonomy.md` §5.
 
 ## Next-step guidance
 

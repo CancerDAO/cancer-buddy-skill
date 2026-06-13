@@ -164,6 +164,13 @@ verbatim upload, and each clinical-domain `.md` sidecar links back to it via
 > two pinned forms** — `zh` when `locale=zh`, `en` for every other locale (see §1.1a). Subdir slugs
 > are **never runtime-translated** into other languages. `high_confidence` / `uncertain` /
 > `conversation_notes` are ASCII keys and stay as-is across locales.
+>
+> **`conversation_notes/` is cross-domain, not exclusive to `14_`.** A 段C conversation fact is
+> archived under the `conversation_notes/` subdir of its **corresponding clinical domain** (e.g. a
+> lab value → `07_检验/conversation_notes/`, a staging change → `04_诊断与分期/conversation_notes/`),
+> falling back to `14_患者自管补充/conversation_notes/` only when the fact fits no clinical domain
+> (matches `schemas/anchor-contract.md` §1 and `conversation-incremental-prompt.md`). The `14_` row
+> above lists it because `14_` is the fallback home, not its only home.
 
 ### 1.3 Classification disambiguation (judge by clinical context, not a title keyword)
 
