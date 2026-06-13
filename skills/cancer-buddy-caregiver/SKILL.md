@@ -31,7 +31,7 @@ Determine what the caregiver needs:
 2. **Chemo / radiotherapy / surgery day ahead** → [chemo-companion-checklist.md](references/chemo-companion-checklist.md).
 3. **Want to share load** → [family-roles-template.md](references/family-roles-template.md): who does hospital runs, who does pharmacy, who does emotional check-ins, who does finances. Export shareable family doc.
 4. **Kids ask what's going on** → [explaining-cancer-to-children.md](references/explaining-cancer-to-children.md) (age-appropriate language).
-5. **"I'm at the end of my rope"** → Zarit > 21 or affirmative suicidal statement → route to `cancer-buddy-mind` for caregiver-distress branch. Do NOT keep caregiver talking only to you.
+5. **"I'm at the end of my rope"** → a Zarit hard-trigger hit (题22 总体负担 ≥3, 或题 5/9/17/18 ≥3 — see [references/zarit-burden.md](references/zarit-burden.md)) or affirmative suicidal statement → route to `cancer-buddy-mind` for caregiver-distress branch. Do NOT keep caregiver talking only to you.
 6. **Preparing for bad news** → soft framework for emotional pre-commitment without being morbid; render in `profile.json.locale`. `zh` source phrasing: "你想不想花 10 分钟想一下，如果接下来复查不好，你希望 Ta 得到什么？你希望你自己怎么被对待？"
 
 ## Role behavior

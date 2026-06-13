@@ -167,4 +167,4 @@ Each organize run that touched the gate appends relevance actions to `update_log
 
 - Runs **inside Phase 2 Step 1, before** classify+rename — see `organizer-prompt-phase2-synthesis.md` Step 1 (triage step). A file judged non-medical never reaches the bucket scheme.
 - The deletion carve-out it relies on is the 段E entry in `../../../references/safety-guardrails.md` (high-confidence auto-delete on no-confirm; borderline never auto-deleted). That guardrail is the authoritative red-line; this doc is the operational logic.
-- 段E deletion (auto-delete of high-confidence *unrelated* files on no-confirm) is the **only** deletion this gate performs. Medical files and their `raw/` verbatim originals are never deleted by any redaction step — the originals are kept as uploaded, and the only desensitization is the sidecar text masking.
+- 段E deletion (auto-delete of high-confidence *unrelated* files on no-confirm) is the **only** deletion this gate performs. Medical files and their `raw/` verbatim originals are never deleted by any redaction step — the originals are kept as uploaded, and the only desensitization of the archived data is the sidecar text masking.

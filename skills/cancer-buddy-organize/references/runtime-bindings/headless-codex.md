@@ -22,7 +22,7 @@ for src in source_inventory:
   copy original verbatim into patient_dir/raw/
   adapter_input = adapt_for_llm(src)
   sidecar = codex_llm_ingest(source_id, adapter_input)
-  write patient_dir/ocr/<source_id>.md            # text-masked MD sidecar (only desensitization)
+  write patient_dir/ocr/<source_id>.md            # text-masked MD sidecar (only desensitization of archived data)
 run single Phase2 synthesis over all sidecars
 ```
 
