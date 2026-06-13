@@ -28,7 +28,8 @@ Gate sections (each contributes to one aggregated exit code):
       text-masked MD sidecar plus a raw_path back to its verbatim original in raw/.
       Originals in raw/ are kept verbatim and are never pixel-redacted — there is no
       image-level source-redaction gate (the former segment B is removed). Sources
-      cited by formal outputs must be persist:true with a co-located bucket copy.
+      cited by formal outputs must be persist:true with a co-located .md sidecar
+      in its bucket (the original itself lives once in raw/, never copied into a bucket).
 
   [4] Case-summary HTML shape (validate_case_summary_html.py):
       If 病情简要总结.html exists, it must pass the shape+provenance invariants
