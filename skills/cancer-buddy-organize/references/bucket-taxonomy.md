@@ -47,7 +47,7 @@ slug (see `i18n.md §6`). The `zh` slug is the on-disk folder name for `locale=z
 | `04_` | `04_诊断与分期` | `04_diagnosis_staging` | `病理报告/ 诊断证明/ 分期评估/ 其他/` | `02_诊断与分期` + `11_诊断证明` |
 | `05_` | `05_影像` | `05_imaging` | `CT/ MRI/ PET-CT/ 超声/ X光DR/ 核医学/ 内镜影像/ 其他/` | `04_影像学` |
 | `06_` | `06_分子与组学` | `06_molecular_omics` | `NGS报告/ 免疫组化/ 胚系检测/ WES-WGS/ 转录组/ 甲基化/ 蛋白-代谢/ 微生物组/ 其他/` | `05_分子检测` (expanded) |
-| `07_` | `07_检验` | `07_labs` | `血常规/ 生化肝肾功/ 肿瘤标志物/ 凝血/ 尿便/ 其他/` | `06_检验` |
+| `07_` | `07_检验` | `07_labs` | `血常规/ 生化肝肾功/ 肿瘤标志物/ 凝血/ 尿便/ 心电图功能检查/ 其他/` | `06_检验` |
 | `08_` | `08_治疗` | `08_treatment` | `化疗/ 放疗/ 免疫治疗/ 靶向/ 内分泌/ 中医中药/ 处方医嘱/ 支持治疗/` | `07_治疗记录` (surgery split out) |
 | `09_` | `09_手术与操作` | `09_procedures` | `手术记录/ 麻醉记录/ 介入/ 内镜操作/ 植入物-器械卡/` | split from `07_治疗记录/手术-内镜` |
 | `10_` | `10_随访与监测` | `10_followup_monitoring` | `随访复查/ 可穿戴导出/ PRO自报/ 居家监测/` | **new** |
@@ -73,6 +73,14 @@ verbatim upload, and each clinical-domain `.md` sidecar links back to it via
 > Subdir rule: under any bucket the parent `NN_` prefix is stable; the localized slug is the
 > locale's rendering of the subdir's canonical meaning. `high_confidence` / `uncertain` /
 > `conversation_notes` are ASCII keys and stay as-is across locales.
+
+### 1.3 Classification disambiguation (judge by clinical context, not a title keyword)
+
+The 14-domain scheme is filed by **LLM judgment of content** (`organizer-prompt-phase2-synthesis.md` Step 1a) — never a keyword match on the filename. Known traps:
+
+- **Inpatient 体温单 / 护理生命体征记录 / 出入量单 → `03_病程与叙事文书/病程记录`, never `10_随访与监测`.** `10_随访与监测` is **outpatient-only** (门诊随访 / wearable / PRO自报 / 居家监测). If a "生命体征 / 体温 / 趋势" file's recording window falls inside an admission (ward + continuous inpatient dates), it is a hospitalization record → `03`. The words "趋势 / 监测 / 生命体征" in a title are a keyword trap — do not route to `10` on that basis.
+- **心电图 / 心电监测 / 肺功能 等功能检查 → `07_检验/心电图功能检查`** (functional/physiologic studies — not specimen labs, not imaging).
+- `10_随访与监测` positive examples: post-discharge outpatient re-check, Apple Health / wristband export, patient-reported symptom diary, home BP/glucose logs. The same record type recorded *during* an admission goes to `03`.
 
 ## 2. Modality tag (orthogonal attribute)
 

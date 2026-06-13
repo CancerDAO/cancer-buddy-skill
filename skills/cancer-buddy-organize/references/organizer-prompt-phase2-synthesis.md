@@ -62,7 +62,7 @@ Authoritative scheme: [`bucket-taxonomy.md`](bucket-taxonomy.md) (scheme_version
 04_诊断与分期/{病理报告,诊断证明,分期评估,其他}
 05_影像/{CT,MRI,PET-CT,超声,X光DR,核医学,内镜影像,其他}
 06_分子与组学/{NGS报告,免疫组化,胚系检测,WES-WGS,转录组,甲基化,蛋白-代谢,微生物组,其他}
-07_检验/{血常规,生化肝肾功,肿瘤标志物,凝血,尿便,其他}
+07_检验/{血常规,生化肝肾功,肿瘤标志物,凝血,尿便,心电图功能检查,其他}
 08_治疗/{化疗,放疗,免疫治疗,靶向,内分泌,中医中药,处方医嘱,支持治疗}
 09_手术与操作/{手术记录,麻醉记录,介入,内镜操作,植入物-器械卡}
 10_随访与监测/{随访复查,可穿戴导出,PRO自报,居家监测}
@@ -114,6 +114,12 @@ For each **medical** sidecar in `ocr/` (non-medical/borderline files were alread
 - `summary`: ≤ 80 字中文摘要 (used in INDEX.md).
 
 This is judgment, not pattern-matching: real hospital names, cancer subtypes, and doc-type wording vary endlessly, so hard-coded cancer lists / doc_type regex / hospital regex generalize poorly on real records. Make the call from the sidecar text yourself.
+
+**常见易错(disambiguation — judge by clinical context, NOT by a keyword in the title):**
+
+- **住院期间的体温单 / 护理生命体征记录 / 出入量单 → `03_病程与叙事文书/病程记录`,绝不进 `10_随访与监测`。** `10_随访与监测` 只装**门诊随访 / 可穿戴 / PRO自报 / 居家监测**。判据:如果一份"生命体征 / 体温 / 趋势"文件的记录时段落在某次**住院窗口内**(有病房/科室、连续住院日期),它是住院记录 → `03`。标题里的"趋势 / 监测 / 生命体征"是关键词陷阱,**别据此往 `10` 放**。
+- **心电图 / 心电监测报告 / 肺功能等功能检查 → `07_检验/心电图功能检查`**(它们是功能/生理检查,不是标本检验,也不是影像)。
+- **`10_随访与监测` 的正例**:出院后的门诊复查单、Apple Health/手环导出、患者自报症状日记、家用血压/血糖记录。住院内的同类记录一律归 `03`。
 
 Canonical basename: `<YYYY-MM-DD>_<doc_type>_<hospital>[_p<page>].<ext>` — collapse whitespace in `hospital` to `-`, no slashes or punctuation that breaks filesystems. When `date` is unknown use `unknown-date`; when `hospital` falls through all 4 levels use `unknown-org`. Examples:
 

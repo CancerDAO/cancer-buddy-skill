@@ -48,6 +48,26 @@ Additionally, at the patients-root level (one level above `<patient_code>`):
 - `<alias>/` symlink → `<patient_code>/` (business-readable, when `profile.json.alias` is set; format `{patient_id_short}_{cancer_code}_{year}`, e.g. `17CE02_CRC_2019`)
 - `alias_map.json` (when symlinks aren't supported, e.g. Windows / restricted containers)
 
+## Patient-dir file map (read/consume relationships)
+
+A consumer answering questions on an **already-organized** `patients/<patient_code>/` reads **selectively**, in the order defined by the patient-facing read protocol (`../cancer-buddy/SKILL.md` → 档案读取协议). This is the role map:
+
+| File | Role | Read it when |
+|---|---|---|
+| `profile.json` | **Slim canonical first-read snapshot** (`cancer_buddy_profile_v3`): identity + `locale` + denormalized `summary` + `latest_status` | **Always first** — who is this + current state + language |
+| `readiness.json` | Coverage grade + `blocking_gaps` + 9 `review_flags` | **Second** — honesty gate; if the asked domain is a blocking gap, say what's missing |
+| `INDEX.md` | File manifest (file_id / 桶 / 类型 / 日期 / 机构 / 置信 / MD / Raw原件 / 页码) | **Third** — to know which sources exist + map fact→filename for citation |
+| `patient_summary.json` | **Full structured** demographics / diagnosis / current_status rollup (authoritative for structured diagnosis) | Diagnosis / staging / demographics questions |
+| `molecular.json` / `labs.json` / `treatment_lines.json` / `timeline.json` / `comorbidities.json` | The 6 structured JSONs (schema-validated, each row carries `source_refs[]`) | The matching question domain — read **one**, not all |
+| `longitudinal_observations.json` | Time series (wearable / PRO / lab trends) | Trend / trajectory questions |
+| `case_text.md` / `timeline.md` | Human-readable narrative (anchored) | Only when quoting / a verbatim citation is needed |
+| `source_inventory.json` | `file_id ↔ sidecar ↔ raw_path` map | Frontend deep-link to a `raw/` original |
+| `missing_items.json` / `review_summary.md` / `review_flags.md` / `update_log.json` | Coverage gaps / spot-check / audit | Completeness / audit questions |
+| `病情简要总结.html` | Patient-facing one-page summary | Hand to the patient as-is |
+| `.case_summary_data.json` | **Hidden** render intermediate for the HTML | Never read for Q&A (build artifact) |
+
+**Producer**: Phase 2 writes everything except the 段D HTML (a 段D subagent + `render_html_template.py`). **`timeline.md` vs `timeline.json`** = human surface vs machine mirror (same content); **`profile.json` vs `patient_summary.json`** = slim denormalized snapshot vs full normalized rollup (`profile.summary` is an intentional convenience copy — see `../../references/patient-profile-schema.md`).
+
 ## Locale (i18n)
 
 This skill follows the shared locale contract in [`../../references/i18n.md`](../../references/i18n.md). organize is the **canonical writer** of `profile.json.locale`:
@@ -135,7 +155,7 @@ This skill follows the shared locale contract in [`../../references/i18n.md`](..
     ```bash
     python3 scripts/render_html_template.py \
       --template references/templates/case-summary.template.html \
-      --data <patient_dir>/case_summary_data.json \
+      --data <patient_dir>/.case_summary_data.json \
       --out  <patient_dir>/病情简要总结.html
     ```
 

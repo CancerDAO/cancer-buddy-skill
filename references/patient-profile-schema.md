@@ -39,58 +39,73 @@ Format: `PT-<hex>`, e.g. `PT-17CE02BC33`.
 
 ## profile.json (required fields)
 
-Shape written by `cb-organizer` (shared with `vmtb-organizer`):
+`profile.json` is the **slim canonical first-read snapshot** (schema `cancer_buddy_profile_v3`). Shape written by `cb-organizer` (shared with `vmtb-organizer`):
 
 ```json
 {
-  "patient_code": "PT-17CE02BC33",
-  "demographics": {
-    "age": 65,
-    "sex": "F",
-    "ethnicity": null
+  "schema": "cancer_buddy_profile_v3",
+  "patient_code": "PT-48C5070065",
+  "alias": "48C507_CRC_2022",
+  "locale": "zh",
+  "generated_at": "2024-07-06T08:00:00Z",
+  "privacy": {
+    "pii_policy": "sidecar_text_masked; raw_originals_retained_under_raw",
+    "html_age_policy": "decade_band_only"
   },
-  "primary_cancer": "非小细胞肺癌",
-  "histology": "腺癌",
-  "stage": "IIIA (cT3N2M0)",
-  "molecular_drivers_known": ["EGFR L858R"],
-  "current_therapy": "osimertinib 80mg qd",
-  "ecog": 1,
-  "key_comorbidities": ["HTN", "T2DM"],
-  "patient_location_hint": "上海",
-  "data_sources": [
-    {"path": "04_诊断与分期/病理报告/pathology-20240115.pdf", "confidence": "high"}
-  ],
-  "caregivers": [
-    {
-      "relation": "spouse|parent|child|sibling|friend",
-      "name": "张 *",
-      "is_primary": true,
-      "contact_preference": "wechat|phone|email|none",
-      "lives_with_patient": true
-    }
-  ],
-  "disclosure_state": "full|partial|suppressed|null",
-  "disclosure_history": [
-    {"state": "suppressed", "set_at": "2024-03-10T09:00:00Z", "set_by_role": "caregiver"},
-    {"state": "partial",    "set_at": "2024-05-20T11:00:00Z", "set_by_role": "caregiver"},
-    {"state": "full",       "set_at": "2025-01-15T14:30:00Z", "set_by_role": "patient"}
-  ],
-  "acp_status": "none|discussed|documented|legally_filed|null",
-  "surveillance_schedule_anchor": "2025-08-30",
-  "locale": "en|fr|es|zh|de|...|null"
+  "anthropometrics": {
+    "height_cm": 170,
+    "weight_kg": 80,
+    "bmi": 27.7,
+    "source_refs": ["conversation:2024-07-05"]
+  },
+  "summary": {
+    "one_line_condition": "60余岁男性，乙状结肠腺癌 IV 期（肝/肺/淋巴结转移），术后辅助化疗中",
+    "primary": "乙状结肠恶性肿瘤",
+    "histology": "中分化腺癌",
+    "stage": "ypT4aN2aM1 IV期",
+    "metastasis_sites": ["肝", "肺", "淋巴结"],
+    "current_regimen": "FOLFOX + 贝伐珠单抗"
+  },
+  "latest_status": {
+    "regimen": "FOLFOX + 贝伐珠单抗",
+    "response": "NE",
+    "ecog": null,
+    "as_of": "2024-07-05",
+    "source_refs": ["03_病程与叙事文书/出院小结/2024-07-05_出院小结.md"]
+  },
+  "source_refs": [
+    "03_病程与叙事文书/出院小结/2024-07-05_出院小结.md",
+    "05_影像/CT/2024-07-01_腹部CT.md"
+  ]
 }
 ```
 
-Fields are left `null` when truly unknown — the organizer never fabricates.
+Block-by-block contract:
 
-**Required at minimum** for downstream skills to function: `patient_code`, `primary_cancer`, `histology`, `stage`. If these are missing, downstream skills must prompt the user to re-run organize.
+- `schema` (required): always the literal string `cancer_buddy_profile_v3`. Downstream consumers branch on this to detect the shape.
+- `patient_code` (required): canonical `PT-<hex>` identity. Same value as `INDEX.md` first line.
+- `alias` (required): sticky human-readable business alias (e.g. `48C507_CRC_2022`), stable across re-organizes — used in UI/filenames where `patient_code` is too opaque.
+- `locale` (required, BCP-47 — `en` / `fr` / `es` / `zh` / `de` / …): the language all patient-facing **scaffold** (section titles, field labels, narrative connectives, user copy, date formats) is rendered in. **Auto-detected once, persisted here, reused for the whole patient journey** — organize detects it from the medical records' primary patient-facing language; chat sub-skills detect from the conversation language when no profile exists yet. Every sub-skill reads `locale` first and only re-detects when it's absent. Clinical entities (drug names / genes / variants / TNM / numbers / units) are **never** translated regardless of locale. An explicit user override ("answer me in English") updates this field and wins over detection. Full contract: `references/i18n.md`.
+- `generated_at` (required): ISO8601 timestamp of the organize run that wrote this file.
+- `privacy` (required): the desensitization policy in force — `pii_policy` (e.g. `sidecar_text_masked; raw_originals_retained_under_raw`) and `html_age_policy` (e.g. `decade_band_only`, controlling how age is rendered in patient-facing HTML).
+- `anthropometrics` (optional): `height_cm` / `weight_kg` / `bmi` plus `source_refs[]`. Null block when no body metrics are known.
+- `summary` (required): the **slim denormalized snapshot** of the diagnosis — `one_line_condition` (one-line human condition string), `primary` (primary cancer), `histology`, `stage`, `metastasis_sites[]`, `current_regimen`. This is a convenience copy of facts authoritatively held in `patient_summary.json` (see below).
+- `latest_status` (required): current treatment state — `regimen`, `response` (e.g. RECIST code or `NE`), `ecog`, `as_of` (ISO date), plus `source_refs[]`.
+- `source_refs` (top-level, required): bucket-relative paths to the text-masked MD sidecars that back this profile. **Every clinical block** (`anthropometrics`, `summary`-derived facts via the top-level list, `latest_status`) carries its own `source_refs[]` so each fact is traceable.
 
-- caregivers[] (optional): populated by cancer-buddy-caregiver at role-caregiver first interaction, used by downstream sub-skills to know who the operator is.
-- `disclosure_state` (optional, default null interpreted as "full"): diagnosis known to patient. When "suppressed", downstream skills in patient role apply softened/refuse behavior per `disclosure-behavior.md`.
-- `disclosure_history` (optional): append-only log of state transitions with who set each.
-- `acp_status` (optional): advance care planning progress. Written by `cancer-buddy-comfort`.
-- `surveillance_schedule_anchor` (optional): ISO date. Starts the survivorship clock. Written by organize when treatment transitions to maintenance/post-treatment, or explicitly by patient/caregiver.
-- `locale` (optional, BCP-47 — `en` / `fr` / `es` / `zh` / `de` / …): the language all patient-facing **scaffold** (section titles, field labels, narrative connectives, user copy, date formats) is rendered in. **Auto-detected once, persisted here, reused for the whole patient journey** — organize detects it from the medical records' primary patient-facing language; chat sub-skills detect from the conversation language when no profile exists yet. Every sub-skill reads `locale` first and only re-detects when it's absent. Clinical entities (drug names / genes / variants / TNM / numbers / units) are **never** translated regardless of locale. An explicit user override ("answer me in English") updates this field and wins over detection. Full contract: `references/i18n.md`.
+Fields are left `null` when truly unknown — the organizer **never fabricates**.
+
+**Required at minimum** for downstream skills to function: `patient_code`, `summary.primary`, `summary.histology`, `summary.stage`. ⚠️ These diagnosis fields now live **under `summary`** (v3 nested shape) — they are NOT the old flat top-level `primary_cancer` / `histology` / `stage`. If any are missing, downstream skills must prompt the user to re-run organize.
+
+### profile.json vs patient_summary.json
+
+These are two distinct files with a deliberate division of labor (this is the dedup contract, not an accident):
+
+- **`profile.json`** = the **slim canonical first-read snapshot** — identity (`patient_code` / `alias`) + `locale` + a denormalized `summary` one-liner/diagnosis + `latest_status`. It is what a Q&A / chat sub-skill reads **FIRST**: a cheap "who is this + what's their current state" lookup without loading the full record.
+- **`patient_summary.json`** (one of the 6 structured JSONs, `schema_version 1`) = the **full normalized structured rollup** — detailed `demographics` / `diagnosis` (with `icd10`, `diagnosed_at`, `confidence`) / `current_status` / `treating_hospitals` / `caregivers` / `longitudinal_observations_ref`.
+- **Relationship:** `profile.summary` is a **denormalized convenience copy** of the authoritative structured facts in `patient_summary.json` — this is intentional (cheap snapshot vs full record), NOT an accidental duplicate. When the two could disagree, `patient_summary.json` is **authoritative for structured diagnosis fields**; `profile.json` is authoritative for **identity / locale / latest_status**.
+
+> ⚠️ **Cross-repo follow-up:** the shared `vmtb-skill` (separate repo) also reads `profile.json` and must be aligned to the `cancer_buddy_profile_v3` shape — its `vmtb-organizer` writer and any downstream consumers still expecting the old flat top-level `primary_cancer` / `histology` / `stage` need to be migrated. Track as a cross-repo task.
 
 ## readiness.json
 
