@@ -13,7 +13,7 @@ organize 是 5 个纯函数步骤的有序组合。每步以 inputs → outputs(
 | # | 步骤 | 纯函数语义 | 主要产物 |
 |---|---|---|---|
 | 1 | Phase1 — LLM Markdown ingestion | `(一个源文件或 content unit, 稳定 source_id, LLM-readable adapter input) → 一个文本脱敏 sidecar MD` | `<source>` 的文本脱敏 MD(`SOURCE/READ_MODE/ADAPTER/CONFIDENCE` 头 + LLM 脱敏正文 + `## PII` trailer) |
-| 2 | Phase2 — 综合 | `(全部 sidecar, source_inventory, source_id↔原名映射) → canonical 输出集` | 14 临床域桶(`01_…14_`)+ 2 infra 桶(`raw/`/`99_`)+ `source_inventory.json`(含 `modality` + `raw_path` 回链)+ `profile.json` + 条件性 `longitudinal_observations.json` + `timeline.*` + `case_text.md` + `readiness.json` + `review_flags.md` + 6 结构化 JSON + `missing_items.json` + `update_log.json` + 桶相对锚点 |
+| 2 | Phase2 — 综合 | `(全部 sidecar, source_inventory, source_id↔原名映射) → canonical 输出集` | 14 临床域桶(`01_…14_`)+ 2 infra 桶(`raw/`/`99_`)+ `source_inventory.json`(含 `modality` + `raw_path` 回链)+ `INDEX.md` + `profile.json` + 条件性 `longitudinal_observations.json` + `timeline.*` + `case_text.md` + `readiness.json` + `review_summary.md` + `review_flags.md`(非空时)+ 6 结构化 JSON + `missing_items.json` + `update_log.json` + 桶相对锚点 |
 | 3 | 确认门(产物化) | `(待写正式字段/待删文件) → 待确认项数据;经确认 → 写/删` | 待确认项数据(候选结构);确认后才落正式字段或不可逆删除 |
 | 4 | 段D — HTML 渲染(Phase2 之后) | `(脱敏 JSON/MD) → case_summary_data.json → 病情简要总结.html` | 模板脚本渲染的 HTML;不读原始文件 |
 | 5 | AGENTS.md — 召回指针(确认/修正之后) | `(确认后的 profile.json) → AGENTS.md` | 2 占位符 verbatim 复制自 `profile.json`,无 LLM 合成;在 确认门 + Profile Card 之后写(反映用户刚修正的字段),**不被 段D 结果 gate**;`full` run 必产、幂等可覆写 |
@@ -143,7 +143,7 @@ Phase2 的跨文档审计(Phase1 做不到,因 Phase1 只见自己那片;Phase2 
 ### 2.6 契约**不规定**(交 binding)
 
 - 单进程顺序综合 vs 扇出后 reduce——只要 2.1 inputs 就绪、2.2/2.5 成立,二者等价。
-- canonical 改名 / 原子移动**由谁执行**:语义判定(哪个桶、什么 canonical 名)是必须的 LLM 判断并固化为一份"改名计划"数据;据此做的机械字节搬运(把原件按 canonical 名拷进桶、把 MD 移到旁边、把上传原件逐字存入 `raw/`、回填映射、排空暂存区)是无判断的纯搬运,可由宿主执行。契约要求"结果落在 2.2 的产物结构里",不要求"哪个原语搬的"。这是 §6「编排 / 存储」接缝。
+- canonical 改名 / 原子移动**由谁执行**:语义判定(哪个桶、什么 canonical 名)是必须的 LLM 判断并固化为一份"改名计划"数据;据此做的机械字节搬运(把 text-masked MD sidecar 按 canonical 名移进桶(原件绝不拷进桶)、把上传原件逐字存入 `raw/`、回填映射、排空暂存区)是无判断的纯搬运,可由宿主执行。契约要求"结果落在 2.2 的产物结构里",不要求"哪个原语搬的"。这是 §6「编排 / 存储」接缝。
 
 ---
 

@@ -396,7 +396,7 @@ Write the following six files under `<patient_dir>/`. Each conforms to the match
 **Schema validation gate**: before writing each file, validate against its schema. If validation fails, do NOT write the file. Emit warning `"schema_validation_failed: <file> — <jsonpath>: <reason>"` into `readiness.json.warnings`.
 
 Validation rule of thumb you can apply mentally without a library (full regex in `references/schemas/anchor-contract.md` §4):
-- All `source_refs[]` entries match `^(([0-9]{2}_[^\s/]+(/[^\s/]+)*\.md(#L\d+(-L\d+)?|#[A-Za-z0-9_-]+)?)|(conversation:\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})?))$` — bucket-relative `.md` path (leading `NN_` segment) or a `conversation:<ISO8601>` ref. The legacy `ocr/` / `02_脱敏病历/` prefixes are rejected.
+- All `source_refs[]` entries match `^(([0-9]{2}_[^\s/]+(/[^\s/]+)*\.md(#L\d+(-L\d+)?|#[A-Za-z0-9_-]+)?)|(conversation:\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})?))$` — bucket-relative `.md` path (leading `NN_` segment) or a `conversation:<ISO8601>` ref. The legacy `ocr/` prefix is rejected by this regex (no `NN_` segment); the retired `02_脱敏病历/` bucket is not part of the v3 taxonomy and is caught at the dangling-anchor filesystem check.
 - All enums constrained in the schema have valid values.
 - All `format: date` fields parse as `YYYY-MM-DD`.
 - `patient_code` matches `^PT-[A-F0-9]+(_\d+)?$`.
