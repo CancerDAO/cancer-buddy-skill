@@ -50,7 +50,7 @@
 
 ## 功能
 
-### 9 个陪伴模块
+### 10 个陪伴模块
 
 ```
 organize        把 PDF / 图片 / docx 病历整理成结构化档案（自动隔离无关文件、重传自动对账）
@@ -62,6 +62,7 @@ education       给家人看的宣教手册（含可视化图）
 nutrition       按癌种 + 治疗阶段的饮食陪伴
 second-opinion  跨院 / 跨境第二意见 packet 打包
 find-care       找做 MTB / MDT 的医院、专科医生、临床试验中心（多 subagent 并行联网）
+visit-prep      一页就诊准备包：医生 30 秒速览 + 该问医生什么 + 带什么 + 复诊"上次→这次"变化
 ```
 
 你不需要按顺序使用。系统会先理解你的身份（患者 / 照护者 / 家属），再根据情境引导下一步。
@@ -103,7 +104,7 @@ npx skills add CancerDAO/cancer-buddy-skill -g --all
 npx skills add CancerDAO/cancer-buddy-skill --all
 ```
 
-`--all` 会把 10 个子技能（搭子主入口 + 9 个陪伴模块 + 1 个联网底层 web-access）一次性全部装好，不用手动勾选。装完重启 Claude Code，对它说 `抗癌搭子` 或 `帮我分析病情` 就能用。
+`--all` 会把 12 个子技能（搭子主入口 + 10 个陪伴模块 + 1 个联网底层 web-access）一次性全部装好，不用手动勾选。装完重启 Claude Code，对它说 `抗癌搭子` 或 `帮我分析病情` 就能用。
 
 > 如果你只想装其中几个子技能，把 `--all` 去掉即可，CLI 会进入交互选择。
 >
@@ -220,7 +221,7 @@ cancer-buddy-skill/
 ├── README.md                          # 你正在看的这个
 ├── INSTALL.md                         # 详细安装说明
 └── skills/
-    ├── cancer-buddy/                  # 总入口（路由到下面 9 个 companion）
+    ├── cancer-buddy/                  # 总入口（路由到下面 10 个 companion）
     ├── cancer-buddy-organize/         # 病历整理
     ├── cancer-buddy-caregiver/        # 照护者支援
     ├── cancer-buddy-mind/             # 心理筛查 + 危机响应
@@ -230,6 +231,7 @@ cancer-buddy-skill/
     ├── cancer-buddy-nutrition/        # 饮食陪伴
     ├── cancer-buddy-second-opinion/   # 第二意见 packet
     ├── cancer-buddy-find-care/        # 找医院 / 医生 / 临床试验中心
+    ├── cancer-buddy-visit-prep/       # 一页就诊准备包
     └── web-access/                    # 联网底层（多 subagent 并行调研，依赖此模块）
 ```
 

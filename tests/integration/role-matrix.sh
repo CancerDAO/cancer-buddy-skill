@@ -13,9 +13,12 @@ for skill_md in "$REPO_ROOT"/skills/cancer-buddy-*/SKILL.md; do
     errs=$((errs+1))
     continue
   fi
-  body=$(awk '/^## Role behavior/,/^## [^R]/' "$skill_md")
+  # Capture the body strictly between `## Role behavior` and the next `## ` header
+  # (flag-based, so it stops at any following header incl. `## References`).
+  body=$(awk '/^## Role behavior/{f=1; next} f && /^## /{f=0} f{print}' "$skill_md")
   for role in patient caregiver family; do
-    if ! echo "$body" | grep -q "Role = $role\|role = $role\|active_role = $role"; then
+    # Spacing- and case-tolerant: matches `role=patient`, `Role = patient`, `active_role = patient`.
+    if ! echo "$body" | grep -qiE "role[[:space:]]*=[[:space:]]*$role|active_role[[:space:]]*=[[:space:]]*$role"; then
       echo "FAIL: $name Role behavior missing '$role' branch" >&2
       errs=$((errs+1))
     fi
