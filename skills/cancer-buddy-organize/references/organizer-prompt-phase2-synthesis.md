@@ -28,14 +28,16 @@ The full contract (detection, persist/reuse, verbatim policy, bucket-name map) i
 
 ## Step 0 — Coverage check (BEFORE anything else)
 
+`raw/` also holds audit artifacts that are NOT uploaded sources (the `_FILENAME_MAPPING.md` reverse-lookup written by Step 1d, and any future `_*.md` audit file). They have no sidecar by design, so they MUST be excluded from the coverage count and diff — otherwise every re-run / incremental run sees `_FILENAME_MAPPING.md` as an uncovered source and triggers a spurious coverage-gap retry.
+
 ```bash
-source_files=$(find "$patient_dir/raw" -type f | wc -l)
+source_files=$(find "$patient_dir/raw" -type f ! -name '_FILENAME_MAPPING.md' ! -name '_*.md' | wc -l)
 sidecar_files=$(find "$patient_dir/ocr" -type f -name "*.md" | wc -l)
 ```
 
 If `sidecar_files < source_files`, run a more careful diff:
 ```bash
-find "$patient_dir/raw" -type f -exec basename {} \; | sed 's/\.[^.]*$//' | sort > /tmp/sources.txt
+find "$patient_dir/raw" -type f ! -name '_FILENAME_MAPPING.md' ! -name '_*.md' -exec basename {} \; | sed 's/\.[^.]*$//' | sort > /tmp/sources.txt
 find "$patient_dir/ocr" -type f -name "*.md" -exec basename {} .md \; | sort > /tmp/sidecars.txt
 comm -23 /tmp/sources.txt /tmp/sidecars.txt > /tmp/missing.txt
 ```
@@ -337,7 +339,7 @@ Canonical section order: 基本信息 → 当前状态 → 诊断与分期 → �
 
 **`alias`** (new): when `primary_cancer` AND the earliest diagnosis year are both known, set `alias = "{patient_id_short}_{cancer_code}_{year}"`, where:
 - `patient_id_short` = `patient_code` with `PT-` stripped, truncated to 6 chars. E.g. `PT-17CE02BC33` → `17CE02`.
-- `cancer_code` = the cancer-type code used by `references/checklists/` (CRC / NSCLC / BC / GC / HCC / SCLC / PDAC / OC / CCA / EC). When uncertain, omit `alias`.
+- `cancer_code` = the cancer-type code used by `references/checklists/` — the most widely recognized abbreviation (see `references/checklists/README.md` for the shipped set + conventions; e.g. CRC / NSCLC / BC / GC / HCC / SCLC / PDAC / OC / CCA / EC / PC / CC / UCEC / THCA / NPC / RCC / BLCA / DLBCL / HNSCC). When uncertain, omit `alias`.
 - `year` = 4-digit earliest diagnosis year (from pathology / first hospitalization).
 
 Example: `17CE02_CRC_2019`. Never overwrite a previously set alias on incremental runs — alias is sticky.
@@ -405,8 +407,10 @@ to manual mental validation for the Phase2 structured JSONs.
 
 ### 2.7 `missing_items.json` (NEW — cancer-checklist diff)
 
-1. Map `profile.json.primary_cancer` to a cancer-type code. Use the table in `references/checklists/README.md`. If the mapping is ambiguous, set `cancer_type: null` and `missing: []`, then add a warning `"checklist_unmapped: <primary_cancer>"`.
-2. Load `references/checklists/<cancer_type>.yaml`.
+1. Map `profile.json.primary_cancer` to a cancer-type code (the most widely recognized abbreviation — see `references/checklists/README.md`). If the cancer type itself is genuinely unmappable/ambiguous, set `cancer_type: null` and `missing: []`, then add a warning `"checklist_unmapped: <primary_cancer>"`.
+2. Resolve the checklist:
+   - If `references/checklists/<cancer_type>.yaml` **exists**, load it (the shipped set covers the common cancer types).
+   - If it does **NOT** exist (a less-common type not yet shipped), **generate the checklist in-session** for this `<cancer_type>` + stage, grounded in current NCCN / CSCO / ESMO standard-of-care workup, following the SAME schema as the shipped YAMLs (each item: `item` / `priority` P0|P1|P2 / `category` ∈ pathology|imaging|lab|molecular|history|consent / `reason`). Set `checklist_version: "<cancer_type>-rt<YYYY-MM-DD>"` (`rt` = runtime-generated) and add a warning `"checklist_generated_runtime: <cancer_type>"` so the run is transparent that it used a generated (not human-curated) checklist. **Do NOT silently emit `missing: []` and do NOT skip** — a real generated checklist is required here (no silent degradation). Keep it run-local (do not write into the shared `references/checklists/` package).
 3. Stage-context resolution: take `profile.json.stage`. Reduce to the coarsest matching key in the YAML's `stages` block:
    - `cI`, `cII`, `pI`, `pII` → `I-II`
    - `cIII`, `pIII`, `ypIII` → `III` or `II-III` (prefer `III` if present, else fall back)
@@ -513,7 +517,7 @@ For every file the Step 1·0 relevance triage diverted to `99_无关文件/uncer
 {
   "id": "RF-001",
   "severity": "red|yellow|green",
-  "category": "<one of the 8>",
+  "category": "<one of the 9 categories from the Step 3 review-flag table>",
   "field_path": "<dotted path into profile.json or 'case_text.md:<section>'>",
   "current_value": "<as extracted>",
   "issue": "<one-sentence why suspicious>",

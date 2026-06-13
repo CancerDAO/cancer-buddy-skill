@@ -42,7 +42,8 @@ Written under `patients/<patient_code>/`:
 - `01_身份与基础信息/`…`14_患者自管补充/` (14 clinical-domain buckets, scheme_version 3 — see `references/bucket-taxonomy.md`). Each bucket holds **only the text-masked MD sidecars** `<bucket>/<canonical>.md` (canonical = `<YYYY-MM-DD>_<doc_type>_<hospital>`, 4-level hospital fallback; the downstream-only read source — no plaintext PII). **The uploaded original is NOT copied into the bucket** — it lives once in `raw/`, deep-linked from each sidecar via `source_inventory.json.raw_path`.
 - `raw/` — hidden vault holding every uploaded original **verbatim** (`<original_subdir>/` structure preserved). Originals are never pixel-redacted and never deleted; each sidecar deep-links back to its original via `source_inventory.json.raw_path`. See `references/bucket-taxonomy.md` §4–§5.
 - `longitudinal_observations.json` — parsed time series from `timeseries`/trended `structured` sources (wearable / PRO / lab trends); raw export filed in `10_随访与监测`. Conforms to `references/schemas/longitudinal_observations.schema.json` (`longitudinal_observations_v1`).
-- `病情简要总结.html` — 段D one-page case summary, 1:1 against the gold-standard template, generated after the Profile Card from text-masked JSON only (never raw images).
+- `病情简要总结.html` — 段D one-page case summary, 1:1 against the gold-standard template, generated after the Profile Card from text-masked JSON only (never raw images). The patient-root file is always the **latest**; immutable **dated versions** accumulate under `case_summary_versions/病情简要总结_<date>.html` (a re-render never destroys the version a patient already shared).
+- `case_summary_versions/` — dated immutable snapshots of every 段D summary generation (version history of the patient-facing HTML).
 
 Additionally, at the patients-root level (one level above `<patient_code>`):
 
@@ -158,9 +159,20 @@ This skill follows the shared locale contract in [`../../references/i18n.md`](..
       --template references/templates/case-summary.template.html \
       --data <patient_dir>/.case_summary_data.json \
       --out  <patient_dir>/病情简要总结.html
+
+    # Dated version control — snapshot every generation. 病情简要总结.html at the patient
+    # root is ALWAYS the latest (canonical; what downstream/patient links point to). Immutable
+    # dated copies accumulate under case_summary_versions/, so a patient who shared an older
+    # summary can still retrieve exactly what they shared, and a re-render never destroys the
+    # prior version. (date = generation date; same-day re-render suffixes _2, _3, …)
+    ver_date=$(date +%F)
+    mkdir -p "<patient_dir>/case_summary_versions"
+    snap="<patient_dir>/case_summary_versions/病情简要总结_${ver_date}.html"
+    n=2; while [ -e "$snap" ]; do snap="<patient_dir>/case_summary_versions/病情简要总结_${ver_date}_${n}.html"; n=$((n+1)); done
+    cp "<patient_dir>/病情简要总结.html" "$snap"
     ```
 
-    The renderer is a zero-medical-logic template engine: it only substitutes `{{key}}` and expands `<!-- LOOP -->` / `<!-- RENDER_IF -->` blocks from the data, so CSS/DOM stay 1:1 and clinical entities are passed through verbatim. It stamps a `template_sha256:` provenance comment proving the HTML came from the template. 患者标识 stays coarse-grained (女 / 50+ / 海外 — never real name or birth date); any `null` field maps to the `资料缺失` placeholder, never a fabricated value.
+    The renderer is a zero-medical-logic template engine: it only substitutes `{{key}}` and expands `<!-- LOOP -->` / `<!-- RENDER_IF -->` blocks from the data, so CSS/DOM stay 1:1 and clinical entities are passed through verbatim. It stamps a `template_sha256:` provenance comment proving the HTML came from the template. 患者标识 stays coarse-grained (女 / 50+ / 海外 — never real name or birth date); any `null` field maps to the `资料缺失` placeholder, never a fabricated value. The patient-root `病情简要总结.html` is the latest pointer; `case_summary_versions/病情简要总结_<date>.html` is the immutable history.
 
     **🔴 TEXT/HTML GATE — 段D HTML is complete when both hold:**
     1. `病情简要总结.html` was produced by `render_html_template.py` from `references/templates/case-summary.template.html` (**rendered, not hand-written**). A subagent that pastes HTML inline fails this gate.
@@ -237,12 +249,13 @@ Use full mode (`run_mode: "full"`, default) for the very first organize, or when
 
 ### Case-summary freshness gate (段D re-render prompt)
 
-`病情简要总结.html` is generated once (Step 12) and is NOT auto-regenerated, because re-rendering is a user-visible artifact the patient may have shared. Any later run that **changes a field the summary draws on** — incremental, `upload_reconciliation`, or conversation-incremental (段C) — must, after writing, **detect staleness and prompt the user** rather than regenerate silently:
+`病情简要总结.html` is generated once (Step 12) and is NOT auto-regenerated, because re-rendering is a user-visible artifact the patient may have shared. Any later run that **changes a field the summary draws on** — incremental, `upload_reconciliation`, conversation-incremental (段C), **or a full-run 段E `回收` reclassify (Step 14) that moves a real medical file back into the clinical buckets** — must, after writing, **detect staleness and prompt the user** rather than regenerate silently:
 
-- **Detect**: the summary is stale if any of `profile.json` / `patient_summary.json` / `molecular.json` / `labs.json` / `treatment_lines.json` / `timeline.json` was modified after `病情简要总结.html`'s mtime (or `update_log.json.affected_summaries` includes one of them). If the HTML doesn't exist yet, there is nothing to refresh — skip.
+- **Detect**: the summary is stale if any of `profile.json` / `patient_summary.json` / `molecular.json` / `labs.json` / `treatment_lines.json` / `timeline.json` was modified after `病情简要总结.html`'s mtime (or `update_log.json.affected_summaries` includes one of them, or a 段E `回收` in this run re-added a summary-source fact). If the HTML doesn't exist yet, there is nothing to refresh — skip.
 - **Prompt (rendered in `profile.json.locale`)**: e.g. zh — "你的病情记录有更新（<改了什么>）。要我重新生成一份病情简要总结吗？" / en — "Your record changed (<what changed>). Want me to regenerate the case summary?" Offer 重新生成 / 暂不.
 - **Act**: only on explicit yes, re-dispatch the Step 12 段D worker (same `case-summary-html-prompt.md` → `render_html_template.py` → validate). On no/defer, leave the existing HTML and record `case_summary_stale: true` in `update_log.json` so the next session can re-offer. The regenerated HTML follows `profile.json.locale` (the summary template is fully localized — `references/templates/case-summary.template.html` string table).
-- This is the confirm-gate floor applied to the summary: no silent rewrite of a patient-facing artifact.
+- **Versioned, never destructive**: every (re)generation writes a new dated snapshot to `case_summary_versions/病情简要总结_<date>.html` and updates the root `病情简要总结.html` to the latest (Step 12). So even if the patient defers a refresh, the version they already shared is preserved on disk, and accepting a refresh never erases the prior copy. Note: because the original Step-12 generation in a full run happens at Step 12 — *before* the Step 14 段E `回收` — a same-run reclaim that the user accepts re-renders a fresh dated version rather than leaving the shared one silently stale.
+- This is the confirm-gate floor applied to the summary: no silent rewrite of a patient-facing artifact, and no silent loss of a prior one.
 
 **Re-uploading files onto an existing archive** is a distinct entry: pass `run_mode: "upload_reconciliation"` instead of plain `incremental`. That mode runs the 段E relevance gate on each new file, then an LLM new/supersede/conflict relation判断 → a diff card (替换? 并存? 忽略?) gated by the **same "先确认" door段C uses** — unconfirmed re-uploads never write formal fields, and 替换 archives the superseded doc to `_superseded_<ts>/` rather than deleting it. Full logic: [`references/upload-reconciliation.md`](references/upload-reconciliation.md). Plain `incremental` (above) is for newly-added files that don't supersede or conflict with an existing doc.
 
@@ -250,7 +263,7 @@ Use full mode (`run_mode: "full"`, default) for the very first organize, or when
 
 When the patient or caregiver is *chatting* about their condition (not handing over files) and a `<patient_dir>` with an existing `update_log.json` already exists, the caller may run `run_mode: "conversation_incremental"` to capture archivable facts that surface in the dialogue. Dispatch a `general-purpose` subagent with the full content of [`references/conversation-incremental-prompt.md`](references/conversation-incremental-prompt.md), appending `## Call parameters`: `patient_dir`, `conversation_turn` (verbatim user message + context), `turn_timestamp` (ISO-8601), `actor_role`.
 
-The flow: an LLM detects candidate archivable facts (新诊断/分期 / 新检验值 / 治疗变更 / 症状 / 体能-ECOG) → maps each to a `profile.json` field or a `timeline.md` row → presents a **diff card** (before → after, with the user's own words as 依据) → the user confirms / corrects / defers → only confirmed candidates are written. Provenance uses the conversation anchor `[[src:conversation:<ISO8601>]]` (never a file anchor). Confirmed facts land in the **corresponding clinical domain's** `conversation_notes/` subdir (e.g. a lab value → `07_检验/conversation_notes/`, a staging change → `04_诊断与分期/conversation_notes/`; `14_患者自管补充/conversation_notes/` is the fallback when the fact fits no domain) with a `patient_curated` tag and update the formal field/row; `update_log.json` gets a `run_mode: "conversation_incremental"` entry. **Unconfirmed talk never touches formal fields** — this gate prevents a mis-spoken value from poisoning downstream reports. This mode does NOT re-ingest files or re-run synthesis; for new *files* use full or incremental mode. Major changes ("我整套方案都换了") route to a full re-organize, not turn-by-turn merge.
+The flow: an LLM detects candidate archivable facts (新诊断/分期 / 新检验值 / 治疗变更 / 症状 / 体能-ECOG) → maps each to a `profile.json` field or a `timeline.md` row → presents a **diff card** (before → after, with the user's own words as 依据) → the user confirms / corrects / defers → only confirmed candidates are written. Provenance uses the conversation anchor `[[src:conversation:<ISO8601>]]` (never a file anchor). Confirmed facts land in the **corresponding clinical domain's** `conversation_notes/` subdir, resolved by the domain's stable `NN_` prefix against the archive's existing (locale-localized) buckets — e.g. a lab value → the `07_` domain (`07_检验/` for zh, `07_labs/` for en/fr…), a staging change → the `04_` domain; the `14_` domain is the fallback when the fact fits no domain — with a `patient_curated` tag and update the formal field/row; `update_log.json` gets a `run_mode: "conversation_incremental"` entry. **Unconfirmed talk never touches formal fields** — this gate prevents a mis-spoken value from poisoning downstream reports. This mode does NOT re-ingest files or re-run synthesis; for new *files* use full or incremental mode. Major changes ("我整套方案都换了") route to a full re-organize, not turn-by-turn merge.
 
 ## Business-readable alias
 

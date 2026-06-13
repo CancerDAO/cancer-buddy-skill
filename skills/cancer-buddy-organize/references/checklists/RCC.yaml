@@ -1,0 +1,93 @@
+# Renal Cell Carcinoma (RCC) — minimum data checklist
+# Driven by NCCN Kidney Cancer 2024 + CSCO 肾癌 2024 + ESMO RCC
+
+cancer_type: RCC
+version: RCC-v1
+last_updated: 2026-06-13
+sources:
+  - "NCCN Kidney Cancer v1.2024"
+  - "CSCO 肾癌诊疗指南 2024"
+  - "ESMO Renal Cell Carcinoma Clinical Practice Guideline 2024"
+
+stages:
+  all:
+    - item: "病理报告 (含组织学亚型 — 透明细胞 / 乳头状 / 嫌色 / 集合管 / 未分类)"
+      priority: P0
+      category: pathology
+      reason: "透明细胞 vs 非透明细胞决定全身治疗分流"
+    - item: "WHO/ISUP 核分级"
+      priority: P0
+      category: pathology
+      reason: "预后分层 + 辅助治疗决策"
+    - item: "肉瘤样 / 横纹肌样分化描述"
+      priority: P1
+      category: pathology
+      reason: "侵袭性亚型 — 影响免疫联合方案选择"
+    - item: "腹部增强 CT 或 MRI (肾脏 + 肾静脉 / 下腔静脉癌栓评估)"
+      priority: P0
+      category: imaging
+      reason: "T 分期 + 癌栓评估 (手术决策核心)"
+    - item: "胸部 CT"
+      priority: P0
+      category: imaging
+      reason: "肺转移筛查 (RCC 最常见转移部位)"
+    - item: "血常规 + 肝肾功能 + 校正钙 + LDH"
+      priority: P0
+      category: lab
+      reason: "IMDC 风险评分组分 (钙 / 中性粒 / 血小板)"
+    - item: "中性粒细胞 / 血小板计数 (IMDC 组分)"
+      priority: P0
+      category: lab
+      reason: "IMDC 风险分层所需"
+    - item: "ECOG / PS 评分 + 确诊至全身治疗间隔时间"
+      priority: P0
+      category: history
+      reason: "IMDC 风险评分组分 (PS < 80% + < 1 年起病)"
+
+  "localized":
+    - item: "估算 GFR / 肾功能基线 (对侧肾评估)"
+      priority: P0
+      category: lab
+      reason: "部分肾切除 vs 根治性肾切除决策"
+    - item: "肾肿瘤穿刺活检 (小肾肿瘤 / 拟主动监测时)"
+      priority: P1
+      category: pathology
+      reason: "良恶性鉴别 + 主动监测适应证"
+    - item: "骨扫描 / 脑 MRI (有症状或碱性磷酸酶升高时)"
+      priority: P2
+      category: imaging
+      reason: "局限期非常规, 仅症状导向"
+
+  "advanced":
+    - item: "IMDC 风险分层 (favorable / intermediate / poor)"
+      priority: P0
+      category: history
+      reason: "一线方案选择 (双免 vs IO-TKI) 的核心依据"
+    - item: "脑 MRI 增强"
+      priority: P1
+      category: imaging
+      reason: "脑转移筛查 — 影响 TKI / 局部治疗"
+    - item: "骨扫描或骨 ECT (骨痛 / ALP 升高)"
+      priority: P1
+      category: imaging
+      reason: "骨转移评估 + 骨保护治疗"
+    - item: "非透明细胞型: 二代测序 (MET / 融合基因 / TFE3 等)"
+      priority: P1
+      category: molecular
+      reason: "乳头状 / MiT 家族易位型靶向选择 (如 MET 抑制剂)"
+    - item: "遗传咨询 / 胚系检测 (年轻 / 双侧 / 多灶 / 家族史)"
+      priority: P1
+      category: molecular
+      reason: "VHL / FH / MET / BAP1 等遗传性肾癌综合征筛查"
+    - item: "知情同意书 (基因检测 + 全身治疗)"
+      priority: P1
+      category: consent
+      reason: "PIPL + 临床合规"
+
+postoperative_followup:
+  - item: "术后随访 CT (胸腹, 按风险每 3-6 个月)"
+    priority: P1
+    category: imaging
+  - item: "术后肾功能 + 血压监测"
+    priority: P1
+    category: lab

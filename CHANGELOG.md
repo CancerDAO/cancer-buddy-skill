@@ -6,6 +6,23 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Fixed — pre-live-testing review (adversarial multi-dimension bug sweep)
+
+10 confirmed bugs (none in the AGENTS.md feature) fixed before live testing; no P0.
+
+**P1**
+- **PII gate false-positives on clean Chinese records** (`scripts/pii_rescan.py`) — `_TAIL_SEP` made the colon optional and `_PII_LABEL_TAIL`/`_PII_LABEL_PATTERNS` included bare `患者`/`病人`, so any clinical line ending in "患者"/"病人" followed by a 2–4 字 line was mis-flagged as a name straddle → `validate_structured_outputs` PII gate failed on clean records. Now the cross-line label requires a trailing colon and only the unambiguous field labels `患者姓名`/`姓名` count. Verified: clean clinical text passes, real `姓名：`/`身份证：`/手机 still caught.
+- **Spurious coverage-gap retry on every re-run** (`organizer-prompt-phase2-synthesis.md` Step 0) — `raw/_FILENAME_MAPPING.md` (audit artifact, no sidecar) was counted as an uncovered source. Step 0 now excludes `_FILENAME_MAPPING.md` / `_*.md` from the count and diff.
+- **conversation-incremental hardcoded zh bucket slugs** (`conversation-incremental-prompt.md` Step 4a) — `mkdir`'d a phantom Chinese `07_检验/…` tree on non-zh archives. Now resolves `$domain_dir` by the stable `NN_` prefix against the existing (locale-localized) bucket; never hardcodes the zh slug.
+
+**P2**
+- **Checklist coverage expanded + runtime fallback** — shipped YAMLs went from 5 → **19** common cancer types (added SCLC, EC, PDAC, OC, CCA, PC, CC, UCEC, THCA, NPC, RCC, BLCA, DLBCL, HNSCC; NCCN/CSCO/ESMO 2024-grounded). `missing_items.json` §2.7 no longer `Load`s a non-existent YAML for an unshipped code — it **generates the checklist in-session** (marked `checklist_version: <code>-rt<date>` + `checklist_generated_runtime` warning), never silently emitting an empty checklist.
+- **review_flag `category` template said `<one of the 8>` but the audit has 9** (`phase2-synthesis.md` L516) → `<one of the 9 …>` (dropped category `filename_content_mismatch`). L89's "8th category" for `relevance_uncertain` is correct and left as-is.
+- **Checklist README field path** `profile.json.diagnosis.stage` (nested) → `profile.json.stage` (flat).
+- **Two off-by-one repo-root relative links** — `conversation-incremental-prompt.md` L55 and `bucket-taxonomy.md` i18n references (`../../` / bare → `../../../references/…`).
+- **Patient-facing HTML summary now has dated version control** (`SKILL.md` Step 12) — every (re)generation snapshots to `case_summary_versions/病情简要总结_<date>.html` while the root file stays the latest, so a re-render never destroys the version a patient already shared. The freshness-gate trigger list now also includes a full-run 段E `回收` reclassify (previously could leave the summary silently stale).
+- **bucket-taxonomy §1.2 raw/ naming** said `<source_id>__<basename>` but Phase-1 cp / §4 / Phase-2 `raw_path` all use the plain `<original_subdir>/<basename>` → reconciled to the plain form (the `file_id`↔`raw_path` link lives in `source_inventory.json`, not the filename).
+
 ### Changed — `feat/generalized-data-taxonomy` (organize iteration: raw vault, citations, classification correctness)
 
 An 8-item iteration on top of the v3 taxonomy. Originals are now kept verbatim, the patient-facing Q&A

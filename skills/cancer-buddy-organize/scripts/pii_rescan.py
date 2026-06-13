@@ -70,7 +70,10 @@ _SEP = r"\s*[:：\s]\s*"
 #   - rejects: "" (empty), lines where the very next thing is the mask token
 #   - the per-line skip for `[PII_MASKED]` is handled separately below
 _PII_LABEL_PATTERNS = [
-    (re.compile(r"(患者姓名|姓\s*名|患\s*者|病\s*人)" + _SEP + r"(\S)"), "patient_name"),
+    # patient_name: only the unambiguous FIELD labels (患者姓名 / 姓名). Bare 患者 / 病人
+    # are excluded — they are ordinary clinical-prose words ("患者神志清", "病人诉…"),
+    # not name-field labels, and including them false-fires on normal records.
+    (re.compile(r"(患者姓名|姓\s*名)" + _SEP + r"(\S)"), "patient_name"),
     (re.compile(r"(身份证号?码?|证件号码?)" + _SEP + r"(\S)"), "id_number"),
     (re.compile(r"(电\s*话|联系电话|手\s*机|联系方式|Tel|TEL)" + _SEP + r"(\S)"), "phone"),
     (re.compile(r"(地\s*址|住\s*址|家庭地址|通讯地址|联系地址)" + _SEP + r"(\S)"), "address"),
@@ -79,14 +82,16 @@ _PII_LABEL_PATTERNS = [
     (re.compile(r"(出生日期|出生年月)" + _SEP + r"(\S)"), "birth_date"),
 ]
 
-# Label-only patterns (label, then an OPTIONAL trailing colon/separator run, then
-# END of line) — used for cross-line detection where the value spills onto the
-# next line. _TAIL_SEP is fully optional (the label may sit flush at line end with
-# no separator, e.g. `床号`↵`12床`). Keyed to the same category set as
-# _PII_LABEL_PATTERNS.
-_TAIL_SEP = r"[:：\s]*$"
+# Label-only patterns (label, then a REQUIRED trailing colon, then END of line) —
+# used for cross-line detection where the value spills onto the next line. The
+# colon is MANDATORY: a cross-line straddle only counts when the previous line ends
+# with a real field label like `住院号：` / `姓名：`. Without this, an ordinary
+# clinical line ending in a noun (e.g. "…既往体健患者") followed by a line starting
+# with 2–4 汉字 ("双肺纹理清晰") was being mis-flagged as a name straddle and the gate
+# failed on clean records. Keyed to the same category set as _PII_LABEL_PATTERNS.
+_TAIL_SEP = r"\s*[:：]\s*$"
 _PII_LABEL_TAIL = [
-    (re.compile(r"(患者姓名|姓\s*名|患\s*者|病\s*人)" + _TAIL_SEP), "patient_name"),
+    (re.compile(r"(患者姓名|姓\s*名)" + _TAIL_SEP), "patient_name"),
     (re.compile(r"(身份证号?码?|证件号码?)" + _TAIL_SEP), "id_number"),
     (re.compile(r"(电\s*话|联系电话|手\s*机|联系方式|Tel|TEL)" + _TAIL_SEP), "phone"),
     (re.compile(r"(地\s*址|住\s*址|家庭地址|通讯地址|联系地址)" + _TAIL_SEP), "address"),

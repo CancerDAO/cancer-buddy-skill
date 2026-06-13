@@ -1,0 +1,98 @@
+# Bladder / Urothelial Cancer (BLCA) — minimum data checklist
+# Driven by NCCN Bladder Cancer 2024 + CSCO 尿路上皮癌 2024 + ESMO
+
+cancer_type: BLCA
+version: BLCA-v1
+last_updated: 2026-06-13
+sources:
+  - "NCCN Bladder Cancer v3.2024"
+  - "CSCO 尿路上皮癌诊疗指南 2024"
+  - "ESMO Bladder Cancer Clinical Practice Guideline 2024"
+
+stages:
+  all:
+    - item: "膀胱镜 + TURBT 病理报告 (含肌层是否受累 + 是否含逼尿肌)"
+      priority: P0
+      category: pathology
+      reason: "区分 NMIBC vs MIBC — 治疗路径分水岭, 标本须含肌层"
+    - item: "组织学分级 (高级别 / 低级别) + 变异型描述"
+      priority: P0
+      category: pathology
+      reason: "变异型 (微乳头 / 浆细胞样 / 鳞化等) 影响治疗强度"
+    - item: "尿细胞学"
+      priority: P0
+      category: lab
+      reason: "高级别 / 原位癌 (CIS) 检出 + 随访"
+    - item: "上尿路影像 (CT 尿路造影 CTU)"
+      priority: P0
+      category: imaging
+      reason: "排查上尿路尿路上皮癌 (同时性多原发)"
+    - item: "血常规 + 肝肾功能 (含 eGFR)"
+      priority: P0
+      category: lab
+      reason: "顺铂适用性评估 (eGFR 阈值)"
+    - item: "ECOG / PS 评分"
+      priority: P1
+      category: history
+
+  "NMIBC":
+    - item: "膀胱原位癌 (CIS) 评估 / 随机活检"
+      priority: P0
+      category: pathology
+      reason: "BCG 灌注 vs 早期膀胱切除决策"
+    - item: "再次电切 (re-TURBT) 病理 (高危 / T1 / 无肌层标本)"
+      priority: P0
+      category: pathology
+      reason: "高危 NMIBC 标准 — 降低分期不足风险"
+
+  "MIBC":
+    - item: "盆腔 MRI 或增强 CT (局部分期)"
+      priority: P0
+      category: imaging
+      reason: "T 分期 + 周围浸润评估"
+    - item: "胸部 CT"
+      priority: P0
+      category: imaging
+      reason: "M 分期"
+    - item: "PD-L1 IHC"
+      priority: P1
+      category: molecular
+      reason: "顺铂不耐受患者免疫治疗适用性参考"
+    - item: "肾功能 / eGFR (新辅助顺铂资格)"
+      priority: P0
+      category: lab
+      reason: "新辅助含顺铂化疗资格判定"
+
+  "metastatic":
+    - item: "FGFR2/3 基因变异检测 (突变 / 融合)"
+      priority: P0
+      category: molecular
+      reason: "厄达替尼 (erdafitinib) 适用性"
+    - item: "PD-L1 IHC (CPS / IC)"
+      priority: P0
+      category: molecular
+      reason: "免疫维持 / 一线免疫联合决策"
+    - item: "Nectin-4 表达背景 (ADC 治疗参考)"
+      priority: P1
+      category: molecular
+      reason: "维恩妥尤单抗 (enfortumab vedotin, Nectin-4 ADC) — 通常无需检测但需记录"
+    - item: "HER2 IHC / ISH"
+      priority: P1
+      category: molecular
+      reason: "HER2 靶向 ADC (如 DS-8201) 与临床试验匹配"
+    - item: "全身评估 (胸腹盆 CT ± 骨扫描 / 脑 MRI 症状导向)"
+      priority: P0
+      category: imaging
+      reason: "转移负荷 + 反应评估基线"
+    - item: "知情同意书 (基因检测 + 全身治疗)"
+      priority: P1
+      category: consent
+      reason: "PIPL + 临床合规"
+
+postoperative_followup:
+  - item: "尿细胞学 + 膀胱镜 (NMIBC 按风险定期)"
+    priority: P1
+    category: lab
+  - item: "随访 CT (MIBC 术后 / 转移监测)"
+    priority: P1
+    category: imaging

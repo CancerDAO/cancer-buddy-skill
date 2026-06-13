@@ -2,7 +2,7 @@
 
 > This file is the **one authoritative definition** of the `cancer-buddy-organize` bucket scheme.
 > Every other reference (`organize-contract.md`, `organizer-prompt-phase2-synthesis.md`,
-> `organizer-prompt-phase1-ocr.md`, `references/i18n.md §6`, `SKILL.md`,
+> `organizer-prompt-phase1-ocr.md`, `../../../references/i18n.md §6`, `SKILL.md`,
 > `references/patient-profile-schema.md`, `schemas/anchor-contract.md`, runtime bindings, the
 > redaction job, and every sibling/downstream skill) MUST agree with the tables below. If they
 > disagree, **this file wins** and the other is a drift bug to fix.
@@ -32,8 +32,8 @@ longitudinal time series**, not only "tumor patient + image/text". The redesign 
 
 `NN_` is a **language-independent stable key** — downstream anchors, `_FILENAME_MAPPING`, and every
 `[[src:…]]` resolve on the `NN_` numeric prefix (anchor regex `^[0-9]{2}_…`), never on the localized
-slug (see `i18n.md §6`). The `zh` slug is the on-disk folder name for `locale=zh`; the `en` slug per
-`i18n.md §6.1`. The scheme is disease-agnostic: the same 14 domains serve oncology, rare-disease
+slug (see `../../../references/i18n.md §6`). The `zh` slug is the on-disk folder name for `locale=zh`; the `en` slug per
+`../../../references/i18n.md §6.1`. The scheme is disease-agnostic: the same 14 domains serve oncology, rare-disease
 (firefly), chronic-disease, and healthy-baseline records — no domain hardcodes a cancer-only concept
 (`TNM`, `肿瘤标志物` are *typed subdirs / schema fields*, not bucket-level identity).
 
@@ -150,7 +150,7 @@ slug (see `i18n.md §6`). The `zh` slug is the on-disk folder name for `locale=z
 
 | key | `zh` slug | `en` slug | visible? | anchored? | role |
 |---|---|---|---|---|---|
-| `raw/` | `raw` | `raw` | **no (HIDDEN)** | never | **un-redacted vault of every uploaded original**, one copy per upload, named `<source_id>__<original-basename>`. The frontend deep-links a sidecar back to its original here (see §4). `<原始子目录>/` structure preserved. **Never pixel-redacted** (image-level 段B redaction is removed — see §5). |
+| `raw/` | `raw` | `raw` | **no (HIDDEN)** | never | **un-redacted vault of every uploaded original**, one copy per upload, stored at `raw/<original_subdir>/<original-basename>` — the original sub-folder structure + basename preserved verbatim (NO `<source_id>__` prefix; the `file_id`↔`raw_path` link lives in `source_inventory.json`, not in the filename). The frontend deep-links a sidecar back to its original here (see §4). **Never pixel-redacted** (image-level 段B redaction is removed — see §5). |
 | `99_` | `99_无关文件` | `99_unrelated` | **no (quarantine)** | never | `high_confidence/ uncertain/` relevance quarantine, outside the clinical scheme. |
 
 `raw/` and `99_` are **never patient-visible scaffold** and **never anchor targets** (anchors point

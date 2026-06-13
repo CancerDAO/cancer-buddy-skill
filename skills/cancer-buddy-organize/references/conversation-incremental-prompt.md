@@ -52,7 +52,7 @@ You need the current value of any field a candidate fact would change, so the di
 
 From `conversation_turn`, extract zero or more candidate facts. For each, decide its **target**:
 
-- **profile.json field** — when the fact updates a structured field. Use the dot path from [`../../references/patient-profile-schema.md`](../../references/patient-profile-schema.md), e.g. `stage`, `current_therapy`, `ecog`, `molecular_drivers_known[]`, `demographics.*`. Only write fields that exist in the schema.
+- **profile.json field** — when the fact updates a structured field. Use the dot path from [`../../../references/patient-profile-schema.md`](../../../references/patient-profile-schema.md), e.g. `stage`, `current_therapy`, `ecog`, `molecular_drivers_known[]`, `demographics.*`. Only write fields that exist in the schema.
 - **timeline row** — when the fact is a dated clinical event (a new line of therapy starting, a symptom onset, a new lab draw). One new line appended to `timeline.md`, mirrored as one entry in `timeline.json`.
 
 A single turn may yield both (e.g. "这周换奥希替尼了" → `current_therapy` field change **and** a new timeline row for the switch).
@@ -94,25 +94,25 @@ Only write the candidates the user confirms (`确认`). For `改一下` use the 
 
 **4a. Archive the note (always, for every confirmed candidate) — routed to its clinical domain:**
 
-First, decide **which clinical domain** the confirmed fact belongs to, then file the note into THAT domain's `conversation_notes/` subdir — not unconditionally into `14_`. Use the **same Step-1a-style LLM domain judgment the synthesis worker uses**: read the confirmed fact in the context of the existing `profile.json` and pick the matching domain from the 14 clinical domains in [`bucket-taxonomy.md`](bucket-taxonomy.md) §1.1. This is **LLM judgment — do NOT use a hardcoded keyword→domain map** (per the skill's no-hardcode rule). Typical mappings (illustrative, not exhaustive — decide per fact):
+First, decide **which clinical domain** the confirmed fact belongs to, then file the note into THAT domain's `conversation_notes/` subdir — not unconditionally into `14_`. Use the **same Step-1a-style LLM domain judgment the synthesis worker uses**: read the confirmed fact in the context of the existing `profile.json` and pick the matching domain from the 14 clinical domains in [`bucket-taxonomy.md`](bucket-taxonomy.md) §1.1. This is **LLM judgment — do NOT use a hardcoded keyword→domain map** (per the skill's no-hardcode rule). What's load-bearing is the **two-digit `NN_` prefix** of the chosen domain; the slug after it is **localized to `profile.json.locale`** (zh slug like `07_检验` when locale=zh, the `en` slug like `07_labs` for every other locale — see `bucket-taxonomy.md` §1.1a / [`../../../references/i18n.md`](../../../references/i18n.md) §6). Typical mappings (shown with zh slugs for illustration; resolve to the actual localized dir at write time):
 
-- a new lab value → `07_检验`
-- a newly stated pathology / diagnosis / staging → `04_诊断与分期`
-- a treatment change → `08_治疗`
-- an imaging finding → `05_影像`
-- a molecular / NGS result → `06_分子与组学`
-- a symptom / PRO / ECOG / follow-up observation → `10_随访与监测`
+- a new lab value → `07_` (检验 / labs)
+- a newly stated pathology / diagnosis / staging → `04_` (诊断与分期 / diagnosis_staging)
+- a treatment change → `08_` (治疗 / treatment)
+- an imaging finding → `05_` (影像 / imaging)
+- a molecular / NGS result → `06_` (分子与组学 / molecular_omics)
+- a symptom / PRO / ECOG / follow-up observation → `10_` (随访与监测 / followup_monitoring)
 
-Only when the fact fits **no clinical domain** (a general life note, an undirected remark) does it fall back to `14_患者自管补充/conversation_notes/`.
+Only when the fact fits **no clinical domain** (a general life note, an undirected remark) does it fall back to the `14_` domain (患者自管补充 / patient_supplement) `conversation_notes/`.
 
-Append to a dated note under the chosen domain's `conversation_notes/` subdir, creating it if needed:
+Append to a dated note under the chosen domain's `conversation_notes/` subdir. **Resolve `$domain_dir` by globbing the bucket that ALREADY EXISTS in this archive by its `NN_` prefix** (organize created all 14 buckets in the archive's locale on the first run) — this lands the note inside the real, locale-correct bucket and never creates a second, differently-named (e.g. phantom Chinese) directory:
 
 ```bash
-# $domain_dir = the NN_ domain chosen by LLM judgment above
-#   (e.g. 07_检验 for a lab value), or 14_患者自管补充 only as the no-domain fallback
+nn=07   # the two-digit prefix from the LLM domain judgment above (14 = no-domain fallback)
+domain_dir=$(basename "$(ls -d "$patient_dir/${nn}_"*/ 2>/dev/null | head -1)")
+# $domain_dir is now the archive's actual localized slug (07_检验 OR 07_labs OR …) — NOT hardcoded
 mkdir -p "$patient_dir/$domain_dir/conversation_notes"
 # write to <domain_dir>/conversation_notes/<turn_timestamp-date>.md
-# e.g. 07_检验/conversation_notes/2026-06-07.md
 ```
 
 The note file carries a `tags: [patient_curated]` front-matter marker and the verbatim user quote + the confirmed structured value. This file is the **archive**, not the citation target — facts cite the conversation anchor, not this file (see anchor-contract §1b). The note still carries the **conversation** anchor, never a file anchor, because the source is the dialogue turn — domain routing only chooses where the archive lands, it does not change the provenance class.
@@ -176,6 +176,6 @@ Final message MUST be pure JSON, no prose:
 The gate rules (unconfirmed → no formal write; silence = no-confirm; never fabricate; critical-field never a fait accompli; never silently overwrite a contradicting value; LLM judgment not a keyword list; `alias` sticky / no broad rewrite) are the shared floor in [`../../../references/confirm-gate.md`](../../../references/confirm-gate.md) — that doc is authoritative; do not fork them here. Conversation-mode specializations on top of that floor:
 
 - **Never use a file anchor for a conversation fact.** Conversation provenance is `[[src:conversation:<ISO8601>]]` only — domain routing of the archive note (Step 4a) does not change this; the source is still the dialogue turn.
-- **Route the archived conversation note to its corresponding clinical domain's `conversation_notes/` subdir**, not unconditionally into `14_患者自管补充/`. Pick the domain with the same Step-1a-style LLM domain judgment the synthesis worker uses (read the confirmed fact + existing profile context against the 14 domains in `bucket-taxonomy.md` §1.1) — e.g. a lab value → `07_检验/conversation_notes/`, a staging change → `04_诊断与分期/conversation_notes/`, a treatment change → `08_治疗/conversation_notes/`. `14_患者自管补充/conversation_notes/` is the **fallback only**, used when the fact fits no clinical domain. This is LLM judgment, **not a hardcoded keyword→domain map**.
+- **Route the archived conversation note to its corresponding clinical domain's `conversation_notes/` subdir**, not unconditionally into the `14_` domain. Pick the domain with the same Step-1a-style LLM domain judgment the synthesis worker uses (read the confirmed fact + existing profile context against the 14 domains in `bucket-taxonomy.md` §1.1) — e.g. a lab value → `07_` domain, a staging change → `04_` domain, a treatment change → `08_` domain. The `14_` domain is the **fallback only**, used when the fact fits no clinical domain. **Resolve the actual directory by its stable `NN_` prefix against the existing buckets (Step 4a), so the note lands in the archive's locale-correct slug (`07_检验` for zh, `07_labs` for en/fr…) — never hardcode the zh slug and never mkdir a phantom second bucket.** This is LLM judgment, **not a hardcoded keyword→domain map**.
 - Detecting and classifying the 5 archivable-fact categories is an LLM judgment task — read each turn in context, do not run a hardcoded keyword list.
 - Tag every conversation-sourced field/row `patient_curated`; never let a spoken value masquerade as a confirmed report value.
