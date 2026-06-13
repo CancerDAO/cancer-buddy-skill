@@ -14,10 +14,11 @@ Checks:
   (b) Every CSS class used in the output is a subset of the template's class set
       (catches hand-authored / hallucinated CSS classes).
   (c) After stripping HTML comments, no residual `{{` placeholder remains.
-  (d) No PII — national ID (18-digit) / mobile (1[3-9]\\d{9}) / landline, and no
-      PII label (姓名/住院号/门诊号/病案号/检验号/报告号/床号/身份证/电话/...)
-      followed by an un-masked number.
-  (e) No precise age — \\d{1,3}\\s*岁.
+  (d) No PII — national ID (18-digit) / mobile / landline / email / US-SSN /
+      international(E.164) phone, and no PII label (zh 姓名/住院号/门诊号/病案号/检验号/
+      报告号/床号/身份证/电话 OR en patient name/MRN/patient id/SSN/phone/...) followed
+      by an un-masked value. Runs an unconditional zh∪en∪locale-agnostic union.
+  (e) No precise age — zh \\d{1,3}岁 OR en "<n> years old" / "<n> yo" / "Age: <n>".
   (f) Skeleton present — .header + .footer + an <h2> for every template section
       (the template always renders every section, even when empty).
   (g) Provenance — the render_html_template.py `template_sha256:` comment is
@@ -70,8 +71,28 @@ _PII_LABEL = (
 )
 _PII_LABEL_VALUE_RE = re.compile(_PII_LABEL + r"\s*[:：]?\s*([0-9][0-9A-Za-z\-]{2,})")
 
-# (e) precise age
-_AGE_RE = re.compile(r"\d{1,3}\s*岁")
+# English / Latin PII labels (colon-MANDATORY — single Latin words appear in
+# ordinary prose, so a real colon is required to avoid false-firing).
+_PII_LABEL_EN = (
+    r"(?i)(?:patient\s*name|pt\.?\s*name|mrn|medical\s*record\s*(?:no\.?|number|#)?"
+    r"|patient\s*id|account\s*(?:no\.?|number|#)?|ssn|social\s*security(?:\s*(?:no\.?|number))?"
+    r"|phone|mobile|cell(?:\s*phone)?|telephone|tel|fax|admission\s*(?:no\.?|number|id)"
+    r"|encounter\s*(?:no\.?|id)|visit\s*(?:no\.?|id)|chart\s*(?:no\.?|number)|bed(?:\s*(?:no\.?|number|#))?)"
+)
+_PII_LABEL_EN_VALUE_RE = re.compile(_PII_LABEL_EN + r"\s*[:：]\s*([0-9A-Za-z][0-9A-Za-z.\-@]{2,})")
+
+# Locale-agnostic high-precision standalone identifiers.
+_EMAIL_RE = re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+")
+_SSN_RE = re.compile(r"(?<!\d)\d{3}-\d{2}-\d{4}(?!\d)")
+_INTL_PHONE_RE = re.compile(r"(?<![\w+])\+\d[\d\s().-]{6,}\d")
+_US_PHONE_RE = re.compile(r"(?<!\d)\(?\d{3}\)?[-.\s]\d{3}[-.\s]\d{4}(?!\d)")
+
+# (e) precise age — zh 岁 OR en forms ("63 years old", "63 yo", "Age: 63").
+_AGE_RE = re.compile(
+    r"(?i)(?:\d{1,3}\s*岁"
+    r"|\b\d{1,3}\s*(?:years?\s*old|yrs?\s*old|y/?o)\b"
+    r"|\bage[d]?\s*[:：]\s*\d{1,3}\b)"
+)
 
 # (g) provenance comment emitted by render_html_template.py
 _PROVENANCE_RE = re.compile(r"template_sha256:\s*([0-9a-f]{64})", re.IGNORECASE)
@@ -184,6 +205,19 @@ def check(html: str, template: str, errors: list[str]) -> str | None:
             continue
         frag = m.group(0).replace("\n", " ")
         errors.append(f"(d) PII: label followed by un-masked value: {frag!r}")
+    for m in _PII_LABEL_EN_VALUE_RE.finditer(scan):
+        if "[PII_MASKED]" in m.group(0):
+            continue
+        frag = m.group(0).replace("\n", " ")
+        errors.append(f"(d) PII: en label followed by un-masked value: {frag!r}")
+    if _EMAIL_RE.search(scan):
+        errors.append("(d) PII: email-address pattern present")
+    if _SSN_RE.search(scan):
+        errors.append("(d) PII: US SSN pattern present")
+    if _INTL_PHONE_RE.search(scan):
+        errors.append("(d) PII: international/E.164 phone pattern present")
+    if _US_PHONE_RE.search(scan):
+        errors.append("(d) PII: US phone-number pattern present")
 
     # (e) precise age
     am = _AGE_RE.search(scan)

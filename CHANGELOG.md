@@ -6,6 +6,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Fixed — cross-file consistency & multi-language audit (2026-06-13)
+
+Two-round workflow audit (8 consistency axes + 6 residual axes + 5 Python scripts). PRD: `docs/superpowers/plans/2026-06-13-taxonomy-consistency-fixes-PRD.md`.
+
+**P0 — PII residue gate was Chinese-only (non-zh PII passed acceptance)**
+- **`scripts/pii_rescan.py` now runs an unconditional zh∪en∪locale-agnostic union.** Empirically reproduced before the fix: an English discharge sidecar with 8 PII fields passed the gate with `findings=0`. Added English/Latin field labels (`patient name`/`MRN`/`SSN`/`patient id`/`phone`/`DOB`/…, colon-mandatory to avoid false-firing on prose like "cell count"/"bed rest") plus locale-agnostic standalone shapes (email, US-SSN `\d{3}-\d{2}-\d{4}`, E.164/international phone, US 10-digit). Cross-line straddle now also catches capitalised Latin names + emails. Verified: EN `Name:`/`MRN:`/`SSN`/`+1…`/email + ZH 身份证/手机/住院号 all caught; clean EN clinical prose ("cell count", "born in 1950", "bed rest", "Ki-67 63%") not flagged.
+- **`scripts/validate_structured_outputs.py` inherits the fix** (it invokes `pii_rescan.scan_sidecar`), so the acceptance gate now blocks English PII too.
+- **`scripts/validate_case_summary_html.py`** (segment-D HTML PII safety-net) and **`cancer-buddy-visit-prep/scripts/validate_visit_prep_html.py`** extended the same way: PII checks gained en labels + email/SSN/intl+US phone; precise-age check gained `<n> years old` / `<n> yo` / `Age: <n>` (decade bands like `50+` still allowed). `render_html_template.py` was already fully locale-agnostic — left unchanged (reference pattern).
+- The case-summary deliverable filename stays the single language-independent key `病情简要总结.html` across all locales (matches the `NN_` bucket-prefix policy, SKILL.md:78); documented in the gate so it isn't re-flagged.
+
 ### Fixed — pre-live-testing review (adversarial multi-dimension bug sweep)
 
 10 confirmed bugs (none in the AGENTS.md feature) fixed before live testing; no P0.
