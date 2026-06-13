@@ -256,7 +256,7 @@ If `ocr_drain_incomplete` fires, add `"ocr_drain_incomplete: <basename>"` for ea
       "original_path": "IMG_0001.HEIC",
       "raw_path": "raw/<original_subdir>/IMG_0001.HEIC",
       "page_range": null,
-      "bucket_path": "07_检验/生化肝肾功/2024-07-03_生化肝肾功_三环肿瘤医院.jpg",
+      "bucket_path": "07_检验/生化肝肾功/2024-07-03_生化肝肾功_三环肿瘤医院.md",
       "sidecar_path": "07_检验/生化肝肾功/2024-07-03_生化肝肾功_三环肿瘤医院.md",
       "modality": "image",
       "read_mode": "model_vision",

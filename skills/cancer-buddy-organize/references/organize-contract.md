@@ -8,7 +8,7 @@
 
 ## 0. 契约总览
 
-organize 是 4 个纯函数步骤的有序组合。每步以 inputs → outputs(JSON / 文件产物)描述,带一组不变量。前三步是同一次 organize run 内的主链;段D HTML 可在脱敏 MD/JSON 完成后生成。上传原件**逐字保存在 `raw/` 保险库**,永不像素打码、永不删除——文本级脱敏只发生在 sidecar 正文(见 `bucket-taxonomy.md` §5)。
+organize 是 5 个纯函数步骤的有序组合。每步以 inputs → outputs(JSON / 文件产物)描述,带一组不变量。前三步是同一次 organize run 内的主链;段D HTML 可在脱敏 MD/JSON 完成后生成。上传原件**逐字保存在 `raw/` 保险库**,永不像素打码、永不删除——文本级脱敏只发生在 sidecar 正文(见 `bucket-taxonomy.md` §5)。
 
 | # | 步骤 | 纯函数语义 | 主要产物 |
 |---|---|---|---|
