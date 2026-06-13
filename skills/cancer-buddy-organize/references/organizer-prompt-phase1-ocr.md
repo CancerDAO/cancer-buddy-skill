@@ -85,7 +85,7 @@ The single biggest historical failure mode of this skill: a consistent-but-wrong
 | Default | medium |
 | `discharge_summary` / `formal_rx` / `pathology_report` / NGS panel / CT-MRI narrative AND ≥ 2 documents in your slice agree on key fields verbatim | high |
 
-Phase 2 may downgrade `high` to `medium` if it discovers a cross-slice contradiction during the §4.6 audit. That's not your problem — write the best per-slice CONFIDENCE you can.
+Phase 2 may downgrade `high` to `medium` if it discovers a cross-slice contradiction during the Step 3 review_flags audit. That's not your problem — write the best per-slice CONFIDENCE you can.
 
 ### §2.4 PII redaction (MANDATORY)
 

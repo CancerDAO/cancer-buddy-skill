@@ -551,7 +551,7 @@ For every file the Step 1·0 relevance triage diverted to `99_无关文件/uncer
 - 🟡 `yellow` — should be reviewed, doesn't break downstream
 - 🟢 `green` — informational
 
-If `review_flags` non-empty → write `review_flags.md` (companion artifact, see template in legacy organizer-prompt.md §4.6b).
+If `review_flags` non-empty → write `review_flags.md` — the human-readable rendering of the `review_flags[]` array (source of truth is the JSON; regenerated every run). Format contract: `../../../references/patient-profile-schema.md` § review_flags[].
 
 ## Step 4 — review_summary.md (ALWAYS WRITTEN)
 
