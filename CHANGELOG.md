@@ -8,8 +8,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Changed — `feat/generalized-data-taxonomy` (organize iteration: raw vault, citations, classification correctness)
 
-A 7-item iteration on top of the v3 taxonomy. Originals are now kept verbatim, the patient-facing Q&A
-cites its sources, and classification is double-checked.
+An 8-item iteration on top of the v3 taxonomy. Originals are now kept verbatim, the patient-facing Q&A
+cites its sources, classification is double-checked, and the archive now self-describes so any later
+session can find and read it.
 
 - **Image-level redaction (段B) removed; `raw/` vault added.** The pixel-redaction subsystem is gone
   (`redaction-job.md`, `run_redaction_job.py`, and the `redaction_manifest`/`redaction_status`/
@@ -33,6 +34,17 @@ cites its sources, and classification is double-checked.
   `<sup>[n]</sup>` markers + a footnote list (date · doc_type · hospital — bucket-relative path) reusing
   each fact's `source_refs[]`. A documented **Archive Read Protocol** (profile → readiness → INDEX →
   targeted JSON → anchored md; selective, never whole-folder, never `raw/`).
+- **Per-patient `AGENTS.md` recall pointer (cross-session discovery).** `organize` now writes an
+  agent-facing `AGENTS.md` into `patients/<code>/` (Step 13, filled from
+  [skills/cancer-buddy-organize/references/templates/agents-md.template.md](skills/cancer-buddy-organize/references/templates/agents-md.template.md)).
+  Harnesses that auto-load `AGENTS.md` from the cwd (pi, Claude Code) then get — in **every session
+  whose cwd is in the patient dir** — the patient identity + a routing table (which structured file
+  answers which question) + a **two-layer drill-down** rule (top-level JSON → `source_refs` /
+  `source_inventory.json` sidecars) + the verbatim-citation / no-fabrication floor. This fixes "patient
+  organized records but a later session can't find/read them" without the cancer-buddy skill having to
+  be invoked first (the floor holds skill-less; the skill adds the full citation rendering on top). Only
+  `{{patient_code}}` + `{{one_line_condition}}` are injected, **copied verbatim from `profile.json` (no
+  LLM synthesis)**; idempotently re-filled on incremental / reconciliation runs.
 - **Case-summary freshness gate.** Incremental / upload / conversation runs that change a summary-source
   field now detect staleness and **prompt** the user to regenerate `病情简要总结.html` (rendered per
   `profile.json.locale` — the summary template is already fully localized), instead of silently

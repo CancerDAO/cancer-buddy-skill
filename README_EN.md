@@ -260,6 +260,8 @@ $HOME/CancerDAO/patients/
 
 All generated content (timeline, profile, etc.) is in readable, exportable, open formats — nothing proprietary.
 
+The organized archive also ships an `AGENTS.md` index: compatible agent tools (pi, Claude Code) that open a new session in that directory automatically recognize *whose* records these are and read the right file for the question — no need to re-point them each time or invoke the buddy skill first; just pick up where you left off.
+
 ---
 
 ## Notes
