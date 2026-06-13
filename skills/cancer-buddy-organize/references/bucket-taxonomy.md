@@ -56,6 +56,96 @@ slug (see `i18n.md §6`). The `zh` slug is the on-disk folder name for `locale=z
 | `13_` | `13_行政与财务` | `13_admin_financial` | `知情同意/ 费用发票/ 医保报销/ 证明材料/` | **new** |
 | `14_` | `14_患者自管补充` | `14_patient_supplement` | `患者补充/ 日记/ 自测/ conversation_notes/` | `09_患者补充` |
 
+### 1.1a Typed subdirectory slug map (`zh` ↔ `en`, pinned)
+
+> **Folder-slug policy (two pinned sets, never per-language).** On-disk folder slugs are
+> infrastructure keys, not user-facing prose. They come in exactly **two pinned forms**: `zh`
+> (when `locale=zh`) and `en` (**every other locale** — fr/es/de/pt/ar/… all use the `en` column,
+> NOT a runtime-translated French/Spanish/German slug). Subdirs are **never runtime-translated** into
+> other languages. The `NN_` numeric prefix stays language-independent and stable; `high_confidence`
+> / `uncertain` / `conversation_notes` stay ASCII as before. All user-facing localization (timeline
+> prose, summaries, INDEX labels, UI) still renders in the patient's locale — only the folder NAMES
+> are restricted to these two pinned sets.
+
+| domain | `zh` subdir | `en` subdir (pinned, used for every non-zh locale) |
+|---|---|---|
+| `01_身份与基础信息` | 身份证件 | `id_documents` |
+| `01_身份与基础信息` | 人口学 | `demographics` |
+| `01_身份与基础信息` | 参保信息 | `insurance_enrollment` |
+| `02_既往史与家族史` | 既往病史 | `past_history` |
+| `02_既往史与家族史` | 手术史 | `surgical_history` |
+| `02_既往史与家族史` | 过敏史 | `allergies` |
+| `02_既往史与家族史` | 用药史 | `medication_history` |
+| `02_既往史与家族史` | 家族史 | `family_history` |
+| `02_既往史与家族史` | 胚系遗传 | `germline` |
+| `03_病程与叙事文书` | 入院记录 | `admission_notes` |
+| `03_病程与叙事文书` | 出院小结 | `discharge_summary` |
+| `03_病程与叙事文书` | 病程记录 | `progress_notes` |
+| `03_病程与叙事文书` | 门诊病历 | `outpatient_notes` |
+| `03_病程与叙事文书` | 主诉首程 | `chief_complaint` |
+| `04_诊断与分期` | 病理报告 | `pathology` |
+| `04_诊断与分期` | 诊断证明 | `diagnosis_certificate` |
+| `04_诊断与分期` | 分期评估 | `staging` |
+| `04_诊断与分期` | 其他 | `other` |
+| `05_影像` | CT | `CT` |
+| `05_影像` | MRI | `MRI` |
+| `05_影像` | PET-CT | `PET-CT` |
+| `05_影像` | 超声 | `ultrasound` |
+| `05_影像` | X光DR | `xray_dr` |
+| `05_影像` | 核医学 | `nuclear_medicine` |
+| `05_影像` | 内镜影像 | `endoscopy_imaging` |
+| `05_影像` | 其他 | `other` |
+| `06_分子与组学` | NGS报告 | `ngs` |
+| `06_分子与组学` | 免疫组化 | `ihc` |
+| `06_分子与组学` | 胚系检测 | `germline_panel` |
+| `06_分子与组学` | WES-WGS | `wes_wgs` |
+| `06_分子与组学` | 转录组 | `transcriptome` |
+| `06_分子与组学` | 甲基化 | `methylation` |
+| `06_分子与组学` | 蛋白-代谢 | `proteomics_metabolomics` |
+| `06_分子与组学` | 微生物组 | `microbiome` |
+| `06_分子与组学` | 其他 | `other` |
+| `07_检验` | 血常规 | `cbc` |
+| `07_检验` | 生化肝肾功 | `biochemistry` |
+| `07_检验` | 肿瘤标志物 | `tumor_markers` |
+| `07_检验` | 凝血 | `coagulation` |
+| `07_检验` | 尿便 | `urine_stool` |
+| `07_检验` | 心电图功能检查 | `ecg_functional` |
+| `07_检验` | 其他 | `other` |
+| `08_治疗` | 化疗 | `chemo` |
+| `08_治疗` | 放疗 | `radiation` |
+| `08_治疗` | 免疫治疗 | `immunotherapy` |
+| `08_治疗` | 靶向 | `targeted` |
+| `08_治疗` | 内分泌 | `endocrine` |
+| `08_治疗` | 中医中药 | `tcm` |
+| `08_治疗` | 处方医嘱 | `prescriptions_orders` |
+| `08_治疗` | 支持治疗 | `supportive` |
+| `09_手术与操作` | 手术记录 | `operative_notes` |
+| `09_手术与操作` | 麻醉记录 | `anesthesia` |
+| `09_手术与操作` | 介入 | `interventional` |
+| `09_手术与操作` | 内镜操作 | `endoscopy_procedure` |
+| `09_手术与操作` | 植入物-器械卡 | `implant_device_cards` |
+| `10_随访与监测` | 随访复查 | `followup_visits` |
+| `10_随访与监测` | 可穿戴导出 | `wearable_export` |
+| `10_随访与监测` | PRO自报 | `pro_reported` |
+| `10_随访与监测` | 居家监测 | `home_monitoring` |
+| `11_会诊与转诊` | MDT | `MDT` |
+| `11_会诊与转诊` | 会诊 | `consult` |
+| `11_会诊与转诊` | 转诊 | `referral` |
+| `11_会诊与转诊` | 第二意见 | `second_opinion` |
+| `12_心理社会与支持` | 心理评估 | `psych_assessment` |
+| `12_心理社会与支持` | 营养 | `nutrition` |
+| `12_心理社会与支持` | 康复 | `rehab` |
+| `12_心理社会与支持` | 缓和 | `palliative` |
+| `12_心理社会与支持` | 社工 | `social_work` |
+| `13_行政与财务` | 知情同意 | `informed_consent` |
+| `13_行政与财务` | 费用发票 | `bills_invoices` |
+| `13_行政与财务` | 医保报销 | `insurance_reimbursement` |
+| `13_行政与财务` | 证明材料 | `certificates_admin` |
+| `14_患者自管补充` | 患者补充 | `patient_uploads` |
+| `14_患者自管补充` | 日记 | `diary` |
+| `14_患者自管补充` | 自测 | `self_test` |
+| `14_患者自管补充` | conversation_notes | `conversation_notes` |
+
 ### 1.2 Infrastructure buckets (hidden, never anchored)
 
 | key | `zh` slug | `en` slug | visible? | anchored? | role |
@@ -70,8 +160,9 @@ are no longer pixel-redacted, there is no separate "redacted vs mirror" copy: `r
 verbatim upload, and each clinical-domain `.md` sidecar links back to it via
 `source_inventory.json.raw_path` (+ `page_range` for a multi-document source).
 
-> Subdir rule: under any bucket the parent `NN_` prefix is stable; the localized slug is the
-> locale's rendering of the subdir's canonical meaning. `high_confidence` / `uncertain` /
+> Subdir rule: under any bucket the parent `NN_` prefix is stable; the subdir slug is **one of the
+> two pinned forms** — `zh` when `locale=zh`, `en` for every other locale (see §1.1a). Subdir slugs
+> are **never runtime-translated** into other languages. `high_confidence` / `uncertain` /
 > `conversation_notes` are ASCII keys and stay as-is across locales.
 
 ### 1.3 Classification disambiguation (judge by clinical context, not a title keyword)
