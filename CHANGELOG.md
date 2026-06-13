@@ -16,6 +16,12 @@ Round-3 workflow re-audit (post-round-14): 3 confirmed fatal, 7 refuted (all sou
 
 Verification: `tests/eval/run.sh` 5/5; integration 4/4; unit 21/21; py_compile + all-JSON-parse clean; both age guards + the disclosure-gate organize cell mutation-tested.
 
+### Added — deterministic structured-JSON-shape guard (2026-06-14, round 15b)
+
+The "a consumer doc shows a structured-JSON file with a retired/non-canonical SHAPE that contradicts its schema" class recurred three times (round-14 find-care fields, round-14b visit-prep template comment, round-15 vault timeline block). Per the no-sampling-for-recurring-classes discipline, added a deterministic exhaustive guard rather than picking them off one audit at a time:
+
+- **`tests/integration/structured-json-shape.sh`** — for every `schemas/*.schema.json` with `additionalProperties:false` (a CLOSED shape), it finds ` ```json ` blocks across `skills/**.md` + `references/*.md` + `*.html` that sit under a heading naming that file, and asserts the block's top-level keys are all allowed by the schema. Heading-anchored association keeps it high-precision (no false failures on correct examples under other headings); it only flags forbidden EXTRA keys (partial examples and `//`-commented snippets are skipped), so it cannot false-fail a legitimate doc. Verified: green on the current tree (9 blocks associated, 0 violations) AND catches a planted retired-timeline block. This guard would have caught the round-15 vault timeline straggler at commit time.
+
 ### Fixed — round-2 re-audit stragglers (2026-06-14, round 14)
 
 Round-2 workflow re-audit of the post-round-13 tree: 3 confirmed fatal (2 v3-taxonomy stragglers round-1's finders missed because the offenders use non-canonical field names, + 1 weakness the round-13 disclosure-gate hardening itself introduced). 2 refuted (a `disclosure_state="unknown"` enum mention no workflow ever produces; a duplicate framing of the find-care finding).
