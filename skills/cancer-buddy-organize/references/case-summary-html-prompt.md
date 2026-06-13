@@ -124,14 +124,14 @@ Phase2 结构化整理完成、Profile Card 之后自动触发。读结构化文
 
 `<patient_dir>` 是上游（SKILL.md / INSTALL.md）按**单一解析规则** `$CANCER_BUDDY_PATIENTS_DIR → $VMTB_PATIENT_DATA_ROOT → $HOME/CancerDAO/patients` 解析出来、再作为 call parameter 传给你的绝对路径。你**直接用这个 `patient_dir`**，自己**绝不重新发明输出根**、不另解析环境变量。
 
-1. 把 `case_summary_data.json` 写到 `<patient_dir>/case_summary_data.json`，结构遵 `references/schemas/case_summary_data.schema.json`（i18n 串表 + fallbacks + 各标量 + lesions/molecular_rows/labs/treatment_lines/path_items 数组）。
+1. 把渲染数据对象写到 **`<patient_dir>/.case_summary_data.json`**（**点开头的隐藏文件** —— 它只是喂给模板引擎的渲染中间产物，不是患者向产物，不应出现在目录顶层可见清单里；渲染成功后保留作 re-render/debug 即可），结构遵 `references/schemas/case_summary_data.schema.json`（i18n 串表 + fallbacks + 各标量 + lesions/molecular_rows/labs/treatment_lines/path_items 数组）。
 
 2. 跑确定性模板引擎填模板、落 HTML：
 
    ```
    python3 scripts/render_html_template.py \
      --template references/templates/case-summary.template.html \
-     --data <patient_dir>/case_summary_data.json \
+     --data <patient_dir>/.case_summary_data.json \
      --out <patient_dir>/病情简要总结.html
    ```
 

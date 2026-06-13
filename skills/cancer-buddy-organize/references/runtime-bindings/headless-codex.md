@@ -76,7 +76,7 @@ Codex reads only text-masked JSON/MD and produces `case_summary_data.json` + nar
 ```bash
 python3 skills/cancer-buddy-organize/scripts/render_html_template.py \
   --template skills/cancer-buddy-organize/references/templates/case-summary.template.html \
-  --data <patient_dir>/case_summary_data.json \
+  --data <patient_dir>/.case_summary_data.json \
   --out <patient_dir>/病情简要总结.html
 
 python3 skills/cancer-buddy-organize/scripts/validate_case_summary_html.py \
