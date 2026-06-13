@@ -28,13 +28,29 @@ triggers=(
   "忌口"
   "第二意见"
   "跨境会诊"
-  "要不要告诉"
-  "不想让 Ta 知道"
+  "告不告诉"
+  "不想让对方知道"
   "数据保险箱"
   "宣教手册"
 )
 
-meta_desc=$(awk '/^---$/{n++; next} n==1 && /^description:/{sub(/^description:[[:space:]]*/,""); print}' "$META")
+# Extract the meta description, handling BOTH single-line (`description: "..."`)
+# and YAML block-scalar (`description: |` + indented continuation lines) forms.
+# Inside frontmatter (n==1): capture the description line, then keep appending
+# indented continuation lines until the next top-level key or the closing `---`.
+meta_desc=$(awk '
+  /^---$/ { n++; next }
+  n==1 && /^description:/ {
+    indesc=1
+    sub(/^description:[[:space:]]*\|?[[:space:]]*/, "")
+    print
+    next
+  }
+  n==1 && indesc==1 {
+    if (/^[A-Za-z_][A-Za-z0-9_]*:/) { indesc=0; next }  # next top-level key ends the block
+    print
+  }
+' "$META")
 
 errs=0
 for t in "${triggers[@]}"; do

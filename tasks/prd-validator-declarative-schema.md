@@ -4,6 +4,16 @@
 > Author: Claude Code (engineering). Date: 2026-06-06.
 > Related history: PR #8, #9, #10 — three consecutive PRs fixing the *same class*
 > of bug in `scripts/validate-profile-schema.sh`.
+>
+> ⚠️ **Partially superseded (2026-06-14, round 13).** The imperative validator has been
+> migrated in place to the **`cancer_buddy_profile_v3` nested shape** (top-level `schema`
+> == `cancer_buddy_profile_v3` + `summary.{primary,histology,stage}`; ECOG under
+> `latest_status`; demographics/drivers/treatment-lines validated in
+> `patient_summary.json`/`molecular.json`/`treatment_lines.json`, not here), and the
+> `review_flags` category whitelist expanded to the full 9-category roster. So the
+> "current accept/reject behavior" referenced below is now the **v3** contract, NOT the
+> retired flat shape. The schema specs in US-001 below have been repointed to v3 — if this
+> declarative refactor is ever executed, it MUST target v3, not `schema_version`+`diagnosis`.
 
 ## 1. Introduction / Overview
 
@@ -43,12 +53,11 @@ handled uniformly and a new field needs a schema edit, not a new hand-written gu
 Schema file so the rules live in data, not code.
 
 **Acceptance Criteria:**
-- [ ] `references/schemas/profile.schema.json` exists, encoding the contract in `references/patient-profile-schema.md`:
-  - required: `schema_version` (const `"1.0.0"`), `patient_code` (pattern `^PT-`), `diagnosis` (object, required `primary_site`/`histology`/`stage`).
-  - optional, type+enum constrained, **nullable where the doc says so**: `basics.ecog` (int 0–4 | null), `basics.sex` (`M`/`F`/null), `disclosure_state`, `acp_status`, `surveillance_schedule_anchor` (date), `treatment_history[]`.
-  - `additionalProperties: true` at top level (doc: "validator ignores unknown top-level keys" — must NOT regress into rejecting `geo`/`economic`/`insurance`/`molecular`).
-- [ ] A cross-field rule the pure schema can't express (treatment_history `line` non-decreasing + `start` chronological) is documented as a **post-schema check** retained in code.
-- [ ] Each of the 32 existing unit cases maps to an expected accept/reject under this schema (traceability table).
+- [ ] `references/schemas/profile.schema.json` exists, encoding the **cancer_buddy_profile_v3** contract in `references/patient-profile-schema.md`:
+  - required: `schema` (const `"cancer_buddy_profile_v3"`), `patient_code` (pattern `^PT-`), `summary` (object, required `primary`/`histology`/`stage`).
+  - optional, type+enum constrained, **nullable where the doc says so**: `latest_status.ecog` (int 0–4 | null), `latest_status.{regimen,response,as_of}`, `disclosure_state` (`full`/`partial`/`suppressed`), `alias`, `locale`, `anthropometrics`, `privacy`, top-level `source_refs[]`. (Demographics/`sex`, molecular drivers, and ordered treatment lines are NOT in profile.json under v3 — they live in `patient_summary.json`/`molecular.json`/`treatment_lines.json` and are validated by `validate_structured_outputs.py`. The retired flat fields `schema_version`/`diagnosis`/`basics`/`acp_status`/`surveillance_schedule_anchor`/`treatment_history` are gone.)
+  - `additionalProperties: true` at top level (doc: "validator ignores unknown top-level keys" — must NOT regress into rejecting unknown blocks).
+- [ ] Each of the 21 existing unit cases maps to an expected accept/reject under this schema (traceability table), including the regression cases that reject the legacy flat shape and a v3 profile missing `summary.stage`.
 
 ### US-002: Author `readiness.schema.json` and `role.schema.json`
 **Description:** As a maintainer, I want the other two validated files covered by the same mechanism.
@@ -79,8 +88,8 @@ Schema file so the rules live in data, not code.
 **Description:** As a maintainer, I must prove the rewrite changes no accept/reject decision.
 
 **Acceptance Criteria:**
-- [ ] A corpus of ≥40 profiles (the 32 unit cases + real `patients/*/profile.json` fixtures if available, anonymized) is run through **old (git main) and new** validators; every accept/reject decision is identical, diff printed.
-- [ ] The 32-case unit suite passes unchanged against the new script.
+- [ ] A corpus of ≥30 profiles (the 21 unit cases + real `patients/*/profile.json` fixtures if available, anonymized) is run through **old (git main) and new** validators; every accept/reject decision is identical, diff printed.
+- [ ] The 21-case unit suite passes unchanged against the new script.
 - [ ] CI job (`unit + integration`) green.
 - [ ] Any intentional difference is explicitly listed and approved (expected: none).
 
@@ -96,7 +105,7 @@ Schema file so the rules live in data, not code.
 
 - FR-1: The validator MUST validate `profile.json` against `references/schemas/profile.schema.json`.
 - FR-2: It MUST also validate `readiness.json` and `role.json` against their schemas when those files exist.
-- FR-3: It MUST retain cross-field checks not expressible in stock JSON Schema: `treatment_history` `line` non-decreasing and `start` chronological ordering.
+- FR-3: Cross-field ordering checks for treatment lines (`line` non-decreasing, `start` chronological) belong to the `treatment_lines.json` validator (`validate_structured_outputs.py`), NOT this one — under v3, ordered treatment lines no longer live in `profile.json`. This validator covers profile shape only.
 - FR-4: It MUST preserve top-level `additionalProperties: true` (unknown keys ignored) for `profile.json`.
 - FR-5: It MUST treat present-but-null on a nullable field as "absent/unknown" (accept) and present-but-null on a required field as invalid (reject) — exactly today's post-#10 behavior.
 - FR-6: It MUST exit 0 on valid, non-zero on invalid, and emit `ERROR:`-prefixed lines to stderr; it MUST never emit a Python traceback for any JSON input.
@@ -128,12 +137,12 @@ references/schemas/
   role.schema.json                # NEW
   (existing per-artifact *.schema.json — untouched)
 tests/unit/
-  validate-profile-schema.test.sh # unchanged 32 cases must pass
+  validate-profile-schema.test.sh # unchanged 21 cases must pass
   validate-equivalence.test.sh    # NEW — old-vs-new decision diff (US-005)
 ```
 
 ### Asset extraction (what we reuse vs write fresh)
-- **Reuse:** the 32 unit cases (become the equivalence corpus + traceability table); the prose contract in `patient-profile-schema.md` (becomes the schema's spec); the enum/range/required facts already encoded in the current script (transcribe into schema).
+- **Reuse:** the 21 unit cases (become the equivalence corpus + traceability table); the prose contract in `patient-profile-schema.md` (becomes the schema's spec); the enum/range/required facts already encoded in the current script (transcribe into schema).
 - **Reuse pattern, not files:** the existing local `*.schema.json` show the house style (Draft version, naming) — match it; do not import them.
 - **Write fresh:** 3 schema files, the engine wiring, the equivalence harness, the retained cross-field checker.
 

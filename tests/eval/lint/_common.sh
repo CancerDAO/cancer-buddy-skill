@@ -8,20 +8,18 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[1]}")/../../.." && pwd)"
 SKILLS_DIR="$REPO_ROOT/skills"
 REFS_DIR="$REPO_ROOT/references"
 
-# Patient-visible companion sub-skills (8). The meta router `cancer-buddy`
-# and the bundled `web-access` plumbing skill are handled separately where
-# relevant — they are NOT in this list because they emit no clinical scaffold.
-PATIENT_VISIBLE_SKILLS=(
-  cancer-buddy-organize
-  cancer-buddy-mind
-  cancer-buddy-caregiver
-  cancer-buddy-disclosure
-  cancer-buddy-education
-  cancer-buddy-nutrition
-  cancer-buddy-find-care
-  cancer-buddy-second-opinion
-  cancer-buddy-vault
-)
+# Patient-visible companion sub-skills = every skills/cancer-buddy-*/ directory.
+# Derived from disk (not a hand-maintained list) so the lints CANNOT silently drift
+# behind a newly-added companion — the exact bug that left cancer-buddy-visit-prep
+# unguarded. The meta router `cancer-buddy` and the bundled `web-access` plumbing
+# skill do NOT match the `cancer-buddy-*` glob and are intentionally excluded — they
+# emit no clinical scaffold. (Currently 10 companions.)
+PATIENT_VISIBLE_SKILLS=()
+for _d in "$SKILLS_DIR"/cancer-buddy-*/; do
+  [[ -d "$_d" ]] || continue
+  PATIENT_VISIBLE_SKILLS+=("$(basename "$_d")")
+done
+unset _d
 
 # fail <msg>  — record a violation line on stderr, bump the caller's $errs.
 fail() {

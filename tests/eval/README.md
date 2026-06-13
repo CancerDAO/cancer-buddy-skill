@@ -1,7 +1,7 @@
 # Companion safety behavior-regression eval
 
-A safety-focused regression harness for the 9 `cancer-buddy` companion skills
-(8 patient-visible sub-skills + the meta router). It guards four safety
+A safety-focused regression harness for the `cancer-buddy` companion skills
+(10 patient-visible sub-skills + the meta router). It guards four safety
 dimensions that, if they regress silently, route a patient wrong. It complements
 the existing `tests/unit/` (schema) and `tests/integration/` (journey / crisis /
 role / trigger / disclosure) suites — same pure-shell, no-deps, exit-code

@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Field-level validator for patients/<patient_code>/profile.json (and readiness.json).
+# Field-level validator for patients/<patient_code>/profile.json (cancer_buddy_profile_v3),
+# plus readiness.json and role.json when present.
 # Usage: validate-profile-schema.sh <patient_dir>
 set -euo pipefail
 
@@ -20,7 +21,6 @@ fi
 
 python3 - "$DIR" <<'PY'
 import json, sys, re
-from datetime import datetime
 
 d = sys.argv[1]
 errs = []
@@ -33,52 +33,38 @@ try:
 except Exception as e:
     print(f"ERROR: profile.json not parseable: {e}", file=sys.stderr); sys.exit(1)
 
-for key in ("schema_version", "patient_code", "diagnosis"):
+# --- profile.json: cancer_buddy_profile_v3 (nested) shape ---
+# Authority: references/patient-profile-schema.md. Diagnosis fields live under
+# summary.* (NOT the retired flat top-level diagnosis/primary_cancer); ECOG lives
+# under latest_status; detailed demographics / molecular drivers / treatment lines
+# live in patient_summary.json / molecular.json / treatment_lines.json and are
+# validated by validate_structured_outputs.py, NOT here.
+for key in ("schema", "patient_code", "summary"):
     if key not in p: fail(f"missing required field: {key}")
 
-if "diagnosis" in p and isinstance(p["diagnosis"], dict):
-    for k in ("primary_site", "histology", "stage"):
-        if k not in p["diagnosis"]: fail(f"missing diagnosis.{k}")
+if "schema" in p and p["schema"] != "cancer_buddy_profile_v3":
+    fail(f"schema must be 'cancer_buddy_profile_v3', got {p['schema']!r}")
 
-basics = p.get("basics", {})
-if "ecog" in basics:
-    if not (isinstance(basics["ecog"], int) and 0 <= basics["ecog"] <= 4):
-        fail(f"invalid basics.ecog: {basics['ecog']} (must be 0-4)")
+if "patient_code" in p and not re.match(r"^PT-", str(p["patient_code"])):
+    fail(f"invalid patient_code (must match ^PT-): {p['patient_code']}")
 
-if "sex" in basics and basics["sex"] not in ("M", "F"):
-    fail(f"invalid basics.sex: {basics['sex']}")
+summary = p.get("summary")
+if "summary" in p and not isinstance(summary, dict):
+    fail("summary must be an object")
+elif isinstance(summary, dict):
+    for k in ("primary", "histology", "stage"):
+        if k not in summary: fail(f"missing summary.{k}")
 
+# ECOG moved under latest_status in v3; validate when present and non-null.
+ls = p.get("latest_status", {})
+if isinstance(ls, dict) and ls.get("ecog") is not None:
+    if not (isinstance(ls["ecog"], int) and 0 <= ls["ecog"] <= 4):
+        fail(f"invalid latest_status.ecog: {ls['ecog']} (must be int 0-4 or null)")
+
+# disclosure_state: top-level optional, written by cancer-buddy-disclosure.
 if "disclosure_state" in p and p["disclosure_state"] is not None:
     if p["disclosure_state"] not in ("full", "partial", "suppressed"):
         fail(f"invalid disclosure_state: {p['disclosure_state']}")
-
-if "acp_status" in p and p["acp_status"] is not None:
-    if p["acp_status"] not in ("none", "discussed", "documented", "legally_filed"):
-        fail(f"invalid acp_status: {p['acp_status']}")
-
-if "surveillance_schedule_anchor" in p and p["surveillance_schedule_anchor"]:
-    try:
-        datetime.strptime(p["surveillance_schedule_anchor"], "%Y-%m-%d")
-    except ValueError:
-        fail(f"invalid surveillance_schedule_anchor date: {p['surveillance_schedule_anchor']}")
-
-th = p.get("treatment_history", [])
-if isinstance(th, list):
-    last_start = None
-    last_line = None
-    for i, t in enumerate(th):
-        if not isinstance(t, dict): continue
-        if "line" in t and last_line is not None and t["line"] < last_line:
-            fail(f"treatment_history[{i}] line {t['line']} < previous line {last_line}")
-        if "line" in t: last_line = t["line"]
-        if "start" in t:
-            try:
-                s = datetime.strptime(t["start"], "%Y-%m-%d")
-                if last_start is not None and s < last_start:
-                    fail(f"treatment_history[{i}] start {t['start']} before previous")
-                last_start = s
-            except ValueError:
-                fail(f"treatment_history[{i}] invalid start date: {t['start']}")
 
 import os
 rpath = f"{d}/readiness.json"
@@ -94,12 +80,19 @@ if os.path.exists(rpath):
                 fail(f"review_flags must be array, got {type(rf).__name__}")
             else:
                 allowed_severity = ("red", "yellow", "green")
+                # Full 9-category roster — authoritative in
+                # organizer-prompt-phase2-synthesis.md Step 3 (table rows 1-9),
+                # organize-contract.md §2.4, patient-profile-schema.md.
                 allowed_category = (
                     "format_violation",
                     "cross_doc_contradiction",
                     "clinical_logic_anomaly",
                     "unverified_critical_field",
                     "value_trend_anomaly",
+                    "cross_patient_name_collision",
+                    "anchor_coverage_gap",
+                    "relevance_uncertain",
+                    "filename_content_mismatch",
                 )
                 required_keys = ("id", "severity", "category", "field_path",
                                  "current_value", "issue", "source_evidence",

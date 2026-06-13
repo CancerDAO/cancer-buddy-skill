@@ -198,9 +198,9 @@ patient_profile_ref: patients/PT-XXXX/profile.json
 
 ## Role behavior
 
-- **role=patient**：第二人称 "你"，挂号路径以患者本人操作为准
-- **role=caregiver**：第二人称 "你"，但任务理解为帮家人办，挂号路径以照护者操作为准（包括异地医保备案、协助身份证明等）
-- **role=family**：refuse（见 Preflight）
+- **Role = patient**：第二人称 "你"，挂号路径以患者本人操作为准
+- **Role = caregiver**：第二人称 "你"，但任务理解为帮家人办，挂号路径以照护者操作为准（包括异地医保备案、协助身份证明等）
+- **Role = family**：refuse（见 Preflight）
 
 ## Disclosure 行为
 
