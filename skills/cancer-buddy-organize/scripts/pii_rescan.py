@@ -256,6 +256,11 @@ def collect_sidecars(target: Path) -> list[Path]:
         return [target]
     if not target.is_dir():
         return []
+    # Phase-1 invokes the gate as `pii_rescan.py "$patient_dir/ocr"` — i.e. the
+    # target IS the staging dir. Scan its *.md directly (without this, the dir-arg
+    # path below would look for a nonexistent <ocr>/ocr/ child and scan nothing).
+    if target.name == "ocr":
+        return sorted(target.glob("*.md"))
     ocr_dir = target / "ocr"
     if ocr_dir.is_dir():
         return sorted(ocr_dir.glob("*.md"))

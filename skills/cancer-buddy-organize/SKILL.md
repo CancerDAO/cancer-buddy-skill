@@ -143,7 +143,7 @@ This skill follows the shared locale contract in [`../../references/i18n.md`](..
    After displaying, prompt the user: "请核对上面 5 个检查要点。任何字段需要修正,直接告诉我哪个字段 + 正确值,我会更新 profile.json 并重新生成清单。"
 
 10. **Surface review_flags (MANDATORY)** — if `review_flags_total > 0`, read `review_flags.md` and display its content to the user immediately after `review_summary.md`. This is a hard gate, not optional polish:
-    - **If any 🔴 red flag present**: tell the user "进入下游 skill 之前请先逐条确认或 override 这些 🔴 项 — 它们会直接影响 find-care / vmtb / 内部版临床工具（pro-skill 的 mtb-lite·trial-match）的推荐"
+    - **If any 🔴 red flag present**: tell the user "进入下游 skill 之前请先逐条确认或 override 这些 🔴 项 — 它们会直接影响 find-care / vmtb / 内部版临床工具（pro-skill mtb-lite）/ 开源 clinical-trial-matching的推荐"
     - **If only 🟡/🟢 flags**: present them as "建议核对", do not block downstream routing
     - **If `review_flags_total: 0`**: still tell the user "所有提取字段已通过 9 项可疑值检查 (格式/跨文档矛盾/临床逻辑/原始证据/数值趋势), 无待确认项 — 但仍请核对上面的 review_summary.md 速查清单"
     - The user's resolution per flag (`accept_suggestion` / `keep_original` / `custom_value` / `defer`) is logged back into `readiness.json.review_flags[i].user_confirmed = true` plus a `resolution` sub-object.
