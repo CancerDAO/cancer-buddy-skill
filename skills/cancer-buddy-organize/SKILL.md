@@ -68,7 +68,7 @@ A consumer answering questions on an **already-organized** `patients/<patient_co
 | `病情简要总结.html` | Patient-facing one-page summary | Hand to the patient as-is |
 | `.case_summary_data.json` | **Hidden** render intermediate for the HTML | Never read for Q&A (build artifact) |
 
-**Producer**: Phase 2 writes everything except the 段D HTML (a 段D subagent + `render_html_template.py`). **`timeline.md` vs `timeline.json`** = human surface vs machine mirror (same content); **`profile.json` vs `patient_summary.json`** = slim denormalized snapshot vs full normalized rollup (`profile.summary` is an intentional convenience copy — see `../../references/patient-profile-schema.md`).
+**Producer**: Phase 2 writes everything except the 段D HTML (a 段D subagent + `render_html_template.py`) and `AGENTS.md` (orchestrator Step 13, filled from the post-correction `profile.json` — it depends on the user-corrected profile, so it runs after Phase 2 + the confirm gate, not inside the synthesis worker). **`timeline.md` vs `timeline.json`** = human surface vs machine mirror (same content); **`profile.json` vs `patient_summary.json`** = slim denormalized snapshot vs full normalized rollup (`profile.summary` is an intentional convenience copy — see `../../references/patient-profile-schema.md`).
 
 ## Locale (i18n)
 

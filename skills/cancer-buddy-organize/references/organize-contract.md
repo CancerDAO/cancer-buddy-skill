@@ -13,9 +13,10 @@ organize 是 4 个纯函数步骤的有序组合。每步以 inputs → outputs(
 | # | 步骤 | 纯函数语义 | 主要产物 |
 |---|---|---|---|
 | 1 | Phase1 — LLM Markdown ingestion | `(一个源文件或 content unit, 稳定 source_id, LLM-readable adapter input) → 一个文本脱敏 sidecar MD` | `<source>` 的文本脱敏 MD(`SOURCE/READ_MODE/ADAPTER/CONFIDENCE` 头 + LLM 脱敏正文 + `## PII` trailer) |
-| 2 | Phase2 — 综合 | `(全部 sidecar, source_inventory, source_id↔原名映射) → canonical 输出集` | 14 临床域桶(`01_…14_`)+ 2 infra 桶(`raw/`/`99_`)+ `source_inventory.json`(含 `modality` + `raw_path` 回链)+ `profile.json` + `AGENTS.md` + `longitudinal_observations.json` + `timeline.*` + `case_text.md` + `readiness.json` + `review_flags.md` + 6 结构化 JSON + `missing_items.json` + `update_log.json` + 桶相对锚点 |
+| 2 | Phase2 — 综合 | `(全部 sidecar, source_inventory, source_id↔原名映射) → canonical 输出集` | 14 临床域桶(`01_…14_`)+ 2 infra 桶(`raw/`/`99_`)+ `source_inventory.json`(含 `modality` + `raw_path` 回链)+ `profile.json` + 条件性 `longitudinal_observations.json` + `timeline.*` + `case_text.md` + `readiness.json` + `review_flags.md` + 6 结构化 JSON + `missing_items.json` + `update_log.json` + 桶相对锚点 |
 | 3 | 确认门(产物化) | `(待写正式字段/待删文件) → 待确认项数据;经确认 → 写/删` | 待确认项数据(候选结构);确认后才落正式字段或不可逆删除 |
-| 4 | 段D — HTML 渲染 | `(脱敏 JSON/MD) → case_summary_data.json → 病情简要总结.html` | 模板脚本渲染的 HTML;不读原始文件 |
+| 4 | 段D — HTML 渲染(Phase2 之后) | `(脱敏 JSON/MD) → case_summary_data.json → 病情简要总结.html` | 模板脚本渲染的 HTML;不读原始文件 |
+| 5 | AGENTS.md — 召回指针(确认/修正之后) | `(确认后的 profile.json) → AGENTS.md` | 2 占位符 verbatim 复制自 `profile.json`,无 LLM 合成;在 确认门 + Profile Card 之后写(反映用户刚修正的字段),**不被 段D 结果 gate**;`full` run 必产、幂等可覆写 |
 
 **步骤间数据流的前置**:Phase2 开始前,其覆盖范围内**所有源文件/content unit 的 sidecar 必须就绪**(契约要求"就绪",不要求"如何就绪")。Phase2 产出 `source_inventory.json`(每个 content unit 带 `raw_path` 回链其 `raw/` 中的逐字原件)。段D HTML 只读脱敏 JSON/MD,不读图。
 
@@ -108,7 +109,7 @@ sidecar 的脱敏 Markdown 正文**必须由驱动 LLM(Claude / codex / OpenClaw
 | `timeline.md` / `timeline.json` | 时间序事件 + 机器可读镜像 | 每事件行 ≥1 个桶相对 `[[src:...]]` 锚点。 |
 | `case_text.md` | 分节叙述,每事实句带锚点 | 锚点契约见 2.3;dangling 锚点 → 不写文件、记 `anchor_dangling`。 |
 | `profile.json` | canonical schema `cancer_buddy_profile_v3` slim 快照(含 `locale`/`alias`/`summary`/`latest_status`) | `summary.current_regimen`/`latest_status.regimen` 为 STRING 取最新;详细治疗线/分子/人口学归 `treatment_lines.json`/`molecular.json`/`patient_summary.json`;`alias` sticky 不覆写。 |
-| `AGENTS.md` | agent-facing 跨会话召回指针(填 `templates/agents-md.template.md`):身份 + 路由表 + 两层(顶层 JSON → `source_refs`/`source_inventory.json` sidecar)下钻 + 逐字引用/不编造底线 | 只注入 `{{patient_code}}`+`{{one_line_condition}}`,**verbatim 复制自 `profile.json`,无 LLM 合成**;静态体患者无关;`full` run 必产、幂等可覆写(无用户策展内容)。 |
+| `AGENTS.md` | agent-facing 跨会话召回指针(填 `templates/agents-md.template.md`):身份 + 路由表 + 两层(顶层 JSON → `source_refs`/`source_inventory.json` sidecar)下钻 + 逐字引用/不编造底线 | 只注入 `{{patient_code}}`+`{{one_line_condition}}`,**verbatim 复制自 `profile.json`,无 LLM 合成**;静态体患者无关;**由 §2 概览 Step 5 的 Phase2-之后 orchestrator 步骤写(确认/修正后的 profile.json),非 Phase2 synthesis worker**;`full` run 必产、幂等可覆写(无用户策展内容)。 |
 | `readiness.json` | 8 域评分 + grade + `blocking_gaps` + `warnings` + `review_flags` | grade 阈值:A≥.90 B≥.75 C≥.60 D≥.40 F<.40。 |
 | `review_flags.md` | 非空时写(9 类审查) | 见 2.4。 |
 | 6 结构化 JSON | `patient_summary/timeline/molecular/treatment_lines/labs/comorbidities` | 每事实字段带 `source_refs`;过 schema gate 才写,失败记 `schema_validation_failed`。 |

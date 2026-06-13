@@ -33,6 +33,9 @@ Two-round workflow audit (8 consistency axes + 6 residual axes + 5 Python script
 - `validate_structured_outputs.py`: added `longitudinal_observations.json` to the validated set (missing-tolerant → only validated when present), and extended `collect_source_refs` to also walk the singular `source_ref` field (longitudinal carries one per observation) so its anchors validate too. Verified: compiles; singular + plural anchors both collected.
 - Runtime-parity recap (`SKILL.md` §Runtime adaptation) and the incremental rewrite-eligibility list (`SKILL.md` §Incremental mode) now include `longitudinal_observations.json` (+ `source_inventory.json` / `review_summary.md`), closing the producer-coverage holes the audit found in the incremental path.
 
+**P1 — `AGENTS.md` producer attribution drift**
+- `organize-contract.md` §2 overview listed `AGENTS.md` inside Phase-2's output set, and SKILL.md:71 said "Phase 2 writes everything except the 段D HTML" — but `AGENTS.md` is actually written by orchestrator Step 13, *after* the confirm gate, because it copies the **user-corrected** `profile.json` (the Phase-2 worker prompt never references it — `grep AGENTS` = 0). Moved it to a distinct post-Phase-2 contract step (Step 5, alongside 段D), annotated the §2.2 detail row, and carved it out of SKILL.md:71's Phase-2 statement.
+
 ### Fixed — pre-live-testing review (adversarial multi-dimension bug sweep)
 
 10 confirmed bugs (none in the AGENTS.md feature) fixed before live testing; no P0.
