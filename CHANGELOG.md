@@ -6,6 +6,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Fixed — disclosure-gate consistency check redesigned to behavior-direction tokens (2026-06-14, round 16)
+
+Round-4 re-audit: 1 confirmed fatal, 3 sound refutations (education's "v2 nutrition skill" content note = not a routing instruction; `latest_status.ecog=5` rejected by the profile validator while `patient_summary` allows it = unrealistic for an active patient's snapshot; vault antonym = a contrived flip — closed anyway, below).
+
+- **disclosure-gate.sh passed-on-wrong-state for 3 companions (D11-01).** The **third** weakness the adversarial re-audit found in the round-13/14/15 disclosure-gate hardening — so instead of patching one more keyword, the consistency check was **redesigned**. The earlier keyword approach failed whenever the per-skill keyword was a token co-present in BOTH the correct and the flipped cell: a subject noun (`nutrition` → `cancer-type`, present in both "cancer-type not surfaced" and a flipped "cancer-type surfaced"), a forbidden staging word the cell tells the agent to AVOID (`find-care`/`visit-prep` → `晚期|进展后`, present whether the cell avoids OR surfaces it), a generic word (`normal`), and — refuted but real — an antonym substring (`redact` ⊂ `unredacted`). The check now asserts a behavior-**DIRECTION** token (a verb/negation a flip destroys), implemented in Python for reliable `\b` word boundaries: `organize`→`\bwarn`, `vault`→`\bredacted\b|\bmasked\b` (excludes unredacted/unmasked), `education`/`second-opinion`→`\brefuse`, `mind`→`\bcontinue`, `nutrition`→`not\s+surfaced`, `find-care`→`避免`, `visit-prep`→`\bavoid`, `disclosure`→presence-only. **Exhaustively mutation-tested: each of the 8 direction-checked companions now FAILS the guard on a realistic flipped cell** (the verification missing the previous three times), and all pass on correct content. The rule (a keyword must be a direction token, never a subject noun / trigger condition / forbidden word / generic word / antonym substring) is documented in the script header.
+
 ### Fixed — round-3 re-audit stragglers (2026-06-14, round 15)
 
 Round-3 workflow re-audit (post-round-14): 3 confirmed fatal, 7 refuted (all sound: an unreachable gate-guaranteed legacy fallback, frontmatter-description-not-a-read, example-string-not-a-read, stale manual-smoke-test refs). Two of the three confirmed were further weaknesses the adversarial re-audit found in the round-13/14 guard hardening itself.
