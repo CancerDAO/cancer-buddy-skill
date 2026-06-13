@@ -131,7 +131,7 @@ python3 skills/cancer-buddy-organize/scripts/pii_rescan.py "$patient_dir/ocr"
 
 **Hard gate:** you may NOT return `continuation_needed: false` (i.e. signal your slice is done for Phase 2) until `pii_rescan.py` passes (`findings=0`) on the sidecars you wrote. A slice with surviving plaintext PII does not proceed to Phase 2.
 
-> The scanner is a deterministic backstop, not the redactor. The redaction itself is your §2.4 semantic pass; this gate only catches what slipped through and forces a re-mask. Text masking is the only desensitization — the original in `raw/` is kept verbatim.
+> The scanner is a deterministic backstop, not the redactor. The redaction itself is your §2.4 semantic pass; this gate only catches what slipped through and forces a re-mask. Text masking is the only desensitization of the archived data — the original in `raw/` is kept verbatim.
 
 ## Step 3 — Return JSON
 

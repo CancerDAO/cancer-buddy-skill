@@ -240,7 +240,7 @@ If `ocr_drain_incomplete` fires, add `"ocr_drain_incomplete: <basename>"` for ea
 
 `source_inventory.json` is the run-level proof that every source file/content unit went through LLM Markdown ingestion, and the machine-readable deep-link from each sidecar (content unit) back to its verbatim original in `raw/`. Build it from `.rename_plan.json` and the sidecar headers. Schema: [source_inventory.schema.json](references/schemas/source_inventory.schema.json) (`source_inventory_v1`).
 
-**`raw_path` always deep-links to the verbatim original under `raw/`.** Uploaded originals are kept verbatim and are never pixel-redacted (see `bucket-taxonomy.md` §4–§5) — the only desensitization is the text masking in the `.md` sidecar. One upload may yield several content units (e.g. a PDF that is discharge summary + labs): each gets its own `file_id` + `page_range`, all sharing the same `source_id` and `raw_path`.
+**`raw_path` always deep-links to the verbatim original under `raw/`.** Uploaded originals are kept verbatim and are never pixel-redacted (see `bucket-taxonomy.md` §4–§5) — the only desensitization of the archived data is the text masking in the `.md` sidecar. One upload may yield several content units (e.g. a PDF that is discharge summary + labs): each gets its own `file_id` + `page_range`, all sharing the same `source_id` and `raw_path`.
 
 **Do not use `persist:false` as a shortcut.** Any medical source whose sidecar is referenced by `timeline.md`, `case_text.md`, `review_summary.md`, `review_flags.md`, or any structured JSON `source_refs[]` is part of the formal archive and MUST remain `persist:true`. `persist:false` is reserved only for isolated unrelated sources that are not cited by formal outputs.
 
@@ -684,7 +684,7 @@ Pure JSON, no prose:
 - NEVER leave the central `ocr/` dir behind: every MD must be moved into its bucket (`<bucket>/<canonical>.md`) and `ocr/` deleted (Step 1e). If an MD can't be drained, surface `ocr_drain_incomplete` and keep `ocr/`, don't strand the file.
 - NEVER emit an anchor (in any artifact, `source_evidence`, or `source_refs[]`) that still uses the `ocr/` or `02_脱敏病历/` prefix — those are retired; all anchors are bucket-relative or `conversation:<ISO8601>`.
 - NEVER mark a formally cited medical source `persist:false` to make validation pass. If `timeline.md` / `case_text.md` / review outputs / structured JSON cite a sidecar, that source is archive-selected and must stay `persist:true`.
-- NEVER pixel-redact or delete an uploaded original in `raw/` — originals are kept verbatim; the only desensitization is the text masking in the `.md` sidecar (Phase 1) re-scanned by `pii_rescan.py`.
+- NEVER pixel-redact or delete an uploaded original in `raw/` — originals are kept verbatim; the only desensitization of the archived data is the text masking in the `.md` sidecar (Phase 1) re-scanned by `pii_rescan.py`.
 - ALWAYS write `source_inventory.json` (Step 1f) before returning — it is the proof that every content unit produced a text-masked MD and the deep-link (`raw_path` + `page_range`) back to its verbatim original in `raw/`.
 - `coverage_complete: false` is acceptable as long as you list the missing files; caller will retry-mini-Phase1 + re-run you.
 - The alias is sticky: never overwrite a previously set `profile.json.alias` on incremental runs.

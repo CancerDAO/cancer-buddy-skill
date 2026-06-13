@@ -196,7 +196,7 @@ organize 的产出分两类,**职责必须分离**,任何 binding 不得混:
 4. **临床保真 > 一切便利**:任何步骤、任何 binding 都不得翻译/规范化/平滑临床实体。
 5. **逻辑/schema/产物结构零改动**:换 binding 只换"谁执行机制",§1–§2 的 inputs/outputs/schema 不变。
 6. **sidecar 正文和 PII 判断 = LLM 输出**(§1.5):图片/扫描件走 LLM 原生视觉;PDF/DOCX/表格/文本可先格式适配给 LLM;纯 OCR/parser 不是 sidecar 临床正文来源,也不是 PII 判断来源。
-7. **唯一脱敏 = sidecar 文本遮蔽**:`raw/` 中的原件逐字保存、永不像素打码;下游产物只从文本脱敏 sidecar 构建,故保持去标识。
+7. **归档数据唯一脱敏 = sidecar 文本遮蔽**:`raw/` 中的原件逐字保存、永不像素打码;下游产物只从文本脱敏 sidecar 构建,故保持去标识。
 8. **确定性产出走脚本,不靠 LLM 自觉**(§4b):段D HTML 由 `render_html_template.py` 渲染(LLM 不手写 HTML)、形校验 / PII 复扫 全是机械步;LLM 只供语义判断和 QA。
 9. **输出根单一**(§4c):一次 run 全部产物落一个 `patient_dir`,别名是指针不是副本。
 

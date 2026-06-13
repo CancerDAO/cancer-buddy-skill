@@ -37,5 +37,5 @@ A minimal validator is shipped in `scripts/validate_structured_outputs.py` (cons
 The validator is also the archive hard gate. A final archive must include
 `source_inventory.json`; every content unit must point to a text-masked MD sidecar
 and carry a `raw_path` back to its verbatim original in `raw/`. Originals in `raw/`
-are kept verbatim and are never pixel-redacted — the only desensitization is the
+are kept verbatim and are never pixel-redacted — the only desensitization of the archived data is the
 sidecar text masking (re-scanned by `pii_rescan.py`).
