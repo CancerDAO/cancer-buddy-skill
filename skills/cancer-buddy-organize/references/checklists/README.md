@@ -6,9 +6,25 @@ These YAML files drive `missing_items.json` generation in `cancer-buddy-organize
 |---|---|---|
 | [CRC.yaml](CRC.yaml) | Colorectal | NCCN Colon/Rectal v3.2024 + CSCO 2024 |
 | [NSCLC.yaml](NSCLC.yaml) | Non-Small-Cell Lung | NCCN NSCLC v4.2024 + CSCO 2024 |
+| [SCLC.yaml](SCLC.yaml) | Small-Cell Lung | NCCN SCLC 2024 + CSCO 2024 |
 | [BC.yaml](BC.yaml) | Breast | NCCN Breast v4.2024 + CSCO 2024 |
 | [GC.yaml](GC.yaml) | Gastric | NCCN Gastric v2.2024 + CSCO 2024 |
+| [EC.yaml](EC.yaml) | Esophageal | NCCN Esophageal 2024 + CSCO 2024 + ESMO |
 | [HCC.yaml](HCC.yaml) | Hepatocellular | NCCN Hepatobiliary v3.2024 + CSCO 2024 |
+| [CCA.yaml](CCA.yaml) | Cholangiocarcinoma | NCCN Hepatobiliary 2024 + CSCO 2024 + ESMO |
+| [PDAC.yaml](PDAC.yaml) | Pancreatic (ductal adeno) | NCCN Pancreatic 2024 + CSCO 2024 |
+| [OC.yaml](OC.yaml) | Ovarian | NCCN Ovarian 2024 + CSCO 2024 + ESMO |
+| [CC.yaml](CC.yaml) | Cervical | NCCN Cervical 2024 + CSCO 2024 |
+| [UCEC.yaml](UCEC.yaml) | Endometrial / Uterine | NCCN Uterine 2024 + FIGO/ESGO 2023 |
+| [PC.yaml](PC.yaml) | Prostate | NCCN Prostate 2024 + CSCO 2024 |
+| [RCC.yaml](RCC.yaml) | Renal Cell | NCCN Kidney 2024 + CSCO 2024 |
+| [BLCA.yaml](BLCA.yaml) | Bladder / Urothelial | NCCN Bladder 2024 + CSCO 2024 |
+| [THCA.yaml](THCA.yaml) | Thyroid | NCCN Thyroid 2024 + ATA + CSCO 2024 |
+| [NPC.yaml](NPC.yaml) | Nasopharyngeal | NCCN Head&Neck 2024 + CSCO 2024 |
+| [HNSCC.yaml](HNSCC.yaml) | Head & Neck SCC | NCCN Head&Neck 2024 + CSCO 2024 |
+| [DLBCL.yaml](DLBCL.yaml) | Diffuse Large B-Cell Lymphoma | NCCN B-Cell Lymphomas 2024 + Lugano + CSCO 2024 |
+
+**Any cancer type without a shipped YAML above is handled at runtime** — the synthesis worker generates a checklist in-session from current NCCN/CSCO/ESMO standard-of-care (marked `checklist_version: <code>-rt<date>` + a `checklist_generated_runtime` warning); it never silently returns an empty checklist. The shipped YAMLs are the curated, cached common cases.
 
 ## Schema (informal)
 
@@ -30,8 +46,8 @@ stages:
 
 The synthesis worker:
 
-1. Reads `profile.json.diagnosis.stage` + `primary_cancer` → maps to a cancer_type code.
-2. Loads the matching YAML.
+1. Reads `profile.json.stage` + `profile.json.primary_cancer` (both flat fields on profile.json) → maps to a cancer_type code.
+2. Loads the matching YAML; if none is shipped for that code, generates the checklist in-session (see the runtime note above).
 3. Unions `stages.all` with the closest-fit `stages.<stage>` block.
 4. For each item, checks `profile.json` / `molecular.json` / `timeline.json` / `labs.json` to see if it's already present.
 5. Emits the residual into `missing_items.json` sorted by priority (P0 first).

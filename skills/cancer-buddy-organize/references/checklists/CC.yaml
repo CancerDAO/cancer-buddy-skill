@@ -1,0 +1,109 @@
+# Cervical Cancer (CC) — minimum data checklist
+# Used by cancer-buddy-organize to generate missing_items.json
+# Driven by NCCN Cervical 2024 + CSCO 宫颈癌 2024
+
+cancer_type: CC
+version: CC-v1
+last_updated: 2026-06-13
+sources:
+  - "NCCN Cervical Cancer v1.2024"
+  - "CSCO 宫颈癌诊疗指南 2024"
+  - "FIGO 2018 Cervical Cancer Staging"
+  - "ESGO-ESTRO-ESP Cervical Cancer Guidelines 2023"
+
+# Items listed by stage context. The synthesis worker picks the closest-fit
+# stage_context and unions any "all" items.
+# Stage contexts: early (IA-IB2/IIA1) | locally-advanced (IB3-IVA) | metastatic (IVB/复发)
+
+stages:
+  all:
+    - item: "宫颈活检 / 锥切病理 (含组织学类型 + 分化)"
+      priority: P0
+      category: pathology
+      reason: "诊断 (鳞癌 / 腺癌 / 腺鳞癌) + 治疗决策基础"
+    - item: "盆腔 MRI 增强 (评估宫旁 + 局部浸润)"
+      priority: P0
+      category: imaging
+      reason: "FIGO 局部分期 + 肿瘤大小测量"
+    - item: "HPV 检测 (分型) + 细胞学 (TCT)"
+      priority: P1
+      category: lab
+      reason: "病因学 + HPV 非依赖型腺癌识别 (预后差异)"
+    - item: "血常规 + 肝肾功能"
+      priority: P1
+      category: lab
+      reason: "化疗 / 放化疗安全评估"
+    - item: "肿瘤标志物: SCC-Ag (鳞癌), CA125 (腺癌)"
+      priority: P2
+      category: lab
+      reason: "基线 + 疗效与复发监测"
+    - item: "ECOG / PS 评分"
+      priority: P1
+      category: history
+      reason: "治疗方案选择"
+
+  early:
+    - item: "宫颈锥切 / LEEP 病理 (浸润深度 + 脉管浸润 LVSI)"
+      priority: P0
+      category: pathology
+      reason: "IA 期分层 + 保育 / 根治术式选择"
+    - item: "盆腔 MRI + 肿瘤直径精确测量"
+      priority: P0
+      category: imaging
+      reason: "IB1/IB2 分层 + 保育可行性评估"
+    - item: "胸部 CT (排除远处转移)"
+      priority: P1
+      category: imaging
+      reason: "全身分期基线"
+    - item: "保育意愿评估 (年轻患者生育要求)"
+      priority: P2
+      category: history
+      reason: "广泛宫颈切除术 vs 根治性子宫切除决策"
+
+  locally-advanced:
+    - item: "PET/CT (评估淋巴结 + 远处转移)"
+      priority: P0
+      category: imaging
+      reason: "IB3-IVA 期推荐 PET/CT 指导放疗野设计"
+    - item: "盆腔 MRI (放疗靶区 + 近距离治疗规划)"
+      priority: P0
+      category: imaging
+      reason: "同步放化疗 + 腔内近距离治疗定位"
+    - item: "PD-L1 检测 (CPS)"
+      priority: P1
+      category: molecular
+      reason: "帕博利珠单抗联合放化疗适用性 (KEYNOTE-A18)"
+    - item: "知情同意书 (放化疗 + 免疫治疗)"
+      priority: P1
+      category: consent
+      reason: "PIPL + 临床合规"
+
+  metastatic:
+    - item: "PD-L1 检测 (CPS, 22C3)"
+      priority: P0
+      category: molecular
+      reason: "一线帕博利珠单抗联合化疗 (CPS≥1) 决策"
+    - item: "MMR / MSI 检测"
+      priority: P0
+      category: molecular
+      reason: "dMMR/MSI-H 免疫治疗适用性"
+    - item: "NTRK 融合检测"
+      priority: P2
+      category: molecular
+      reason: "拉罗替尼 / 恩曲替尼适用 (罕见)"
+    - item: "PET/CT 或 胸腹盆增强 CT (转移评估)"
+      priority: P0
+      category: imaging
+      reason: "IVB / 复发病灶定位 + 疗效评估基线"
+    - item: "知情同意书 (化疗 + 免疫 + 抗血管生成 + 基因检测)"
+      priority: P1
+      category: consent
+      reason: "贝伐珠单抗 / 替索单抗 ADC 等方案知情"
+
+postoperative_followup:
+  - item: "术后随访 SCC-Ag / CA125 监测"
+    priority: P1
+    category: lab
+  - item: "随访盆腔 MRI / 胸部 CT (前 2 年每 3-6 个月)"
+    priority: P1
+    category: imaging

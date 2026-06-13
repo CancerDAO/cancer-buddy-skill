@@ -1,0 +1,92 @@
+# Diffuse Large B-Cell Lymphoma (DLBCL) — minimum data checklist
+# Driven by NCCN B-Cell Lymphomas 2024 + CSCO 淋巴瘤 2024 + Lugano
+
+cancer_type: DLBCL
+version: DLBCL-v1
+last_updated: 2026-06-13
+sources:
+  - "NCCN B-Cell Lymphomas v2.2024"
+  - "CSCO 淋巴瘤诊疗指南 2024"
+  - "Lugano Classification 2014 (response criteria)"
+
+stages:
+  all:
+    - item: "切除 / 切取活检病理 (优于细针穿刺) + 免疫组化 (CD20/CD3/CD5/CD10/BCL2/BCL6/MUM1/Ki-67)"
+      priority: P0
+      category: pathology
+      reason: "确诊 DLBCL + Hans 算法判定细胞起源所需"
+    - item: "细胞起源分型 (GCB vs non-GCB / ABC, Hans 算法)"
+      priority: P0
+      category: pathology
+      reason: "预后分层 + 临床试验分层依据"
+    - item: "MYC / BCL2 / BCL6 FISH (排查双打击 / 三打击高级别 B 细胞淋巴瘤)"
+      priority: P0
+      category: molecular
+      reason: "double/triple-hit (HGBL) 需强化方案 (如 DA-EPOCH-R), 不能漏检"
+    - item: "PET-CT (全身, 治疗前基线)"
+      priority: P0
+      category: imaging
+      reason: "Ann Arbor 分期 + 后续 Deauville 反应评估基线"
+    - item: "血清 LDH"
+      priority: P0
+      category: lab
+      reason: "IPI 评分组分 + 肿瘤负荷"
+    - item: "IPI / aaIPI / NCCN-IPI 评分 (年龄 / 分期 / LDH / 结外 / PS)"
+      priority: P0
+      category: history
+      reason: "预后分层 + 方案强度决策"
+    - item: "血常规 + 肝肾功能 + 尿酸 (肿瘤溶解风险)"
+      priority: P0
+      category: lab
+      reason: "化疗安全 + 肿瘤溶解综合征预防"
+    - item: "乙肝两对半 + HBV-DNA (HBsAg / 抗-HBc)"
+      priority: P0
+      category: lab
+      reason: "利妥昔单抗致 HBV 再激活风险 — 须抗病毒预防"
+    - item: "HIV + HCV 血清学"
+      priority: P1
+      category: lab
+      reason: "合并感染影响方案 + 预后"
+    - item: "心脏超声 / MUGA 测左室射血分数 (LVEF)"
+      priority: P0
+      category: lab
+      reason: "蒽环类 (多柔比星) 心脏毒性基线 — 用药前必查"
+    - item: "ECOG / PS 评分"
+      priority: P1
+      category: history
+
+  "I-II":
+    - item: "骨髓穿刺 + 活检 (PET 阴性骨髓时可选)"
+      priority: P1
+      category: pathology
+      reason: "骨髓受累评估 — PET-CT 阴性者部分可豁免"
+    - item: "结外受累部位定位 (利于放疗野设计)"
+      priority: P1
+      category: imaging
+      reason: "局限期联合放疗 (ISRT) 计划"
+
+  "III-IV":
+    - item: "骨髓穿刺 + 活检"
+      priority: P0
+      category: pathology
+      reason: "晚期分期 + 大 B / 小 B 不一致评估"
+    - item: "中枢神经系统受累风险评估 (CNS-IPI) + 必要时腰穿脑脊液 + 脑 MRI"
+      priority: P0
+      category: imaging
+      reason: "高危者需 CNS 预防 (鞘注 / 大剂量 MTX)"
+    - item: "睾丸 / 鼻窦 / 肾上腺等高危结外部位影像"
+      priority: P1
+      category: imaging
+      reason: "特定结外原发提示更高 CNS 复发风险"
+    - item: "知情同意书 (病理分子检测 + 含蒽环 / 利妥昔治疗)"
+      priority: P1
+      category: consent
+      reason: "PIPL + 临床合规"
+
+response_followup:
+  - item: "中期 / 终末 PET-CT + Deauville 5 分量表评分"
+    priority: P0
+    category: imaging
+  - item: "随访 LDH + 血常规"
+    priority: P1
+    category: lab

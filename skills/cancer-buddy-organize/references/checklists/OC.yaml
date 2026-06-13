@@ -1,0 +1,90 @@
+# Ovarian Cancer (OC) — minimum data checklist
+# Used by cancer-buddy-organize to generate missing_items.json
+# Driven by NCCN Ovarian 2024 + CSCO 卵巢癌 2024 + ESMO
+# 主要指上皮性卵巢/输卵管/原发性腹膜癌
+
+cancer_type: OC
+version: OC-v1
+last_updated: 2026-06-13
+sources:
+  - "NCCN Ovarian Cancer / Fallopian Tube / Primary Peritoneal v3.2024"
+  - "CSCO 卵巢癌诊疗指南 2024"
+  - "ESMO Newly Diagnosed and Relapsed Ovarian Cancer 2023"
+
+stages:
+  all:
+    - item: "病理报告 (组织学类型 + 分级 — 高级别浆液性 / 子宫内膜样 / 透明细胞 / 黏液性)"
+      priority: P0
+      category: pathology
+      reason: "组织学亚型驱动化疗与靶向选择"
+    - item: "胸腹盆增强 CT"
+      priority: P0
+      category: imaging
+      reason: "分期 + 评估可否满意减瘤"
+    - item: "肿瘤标志物: CA125 (+ HE4 / ROMA)"
+      priority: P0
+      category: lab
+      reason: "基线 + 疗效与复发监测"
+    - item: "盆腔超声 / 盆腔 MRI"
+      priority: P1
+      category: imaging
+      reason: "附件包块性质评估"
+    - item: "血常规 + 肝肾功能"
+      priority: P1
+      category: lab
+      reason: "化疗安全评估"
+    - item: "ECOG / PS 评分 + 腹水/胸水记录"
+      priority: P1
+      category: history
+    - item: "胚系 BRCA1/2 检测 (所有上皮性卵巢癌)"
+      priority: P0
+      category: molecular
+      reason: "NCCN 推荐全部患者胚系检测 — PARP 抑制剂适用 + 遗传咨询 + 家族风险"
+
+  "early":
+    - item: "全面分期手术病理 (大网膜 + 腹膜多点活检 + 淋巴结)"
+      priority: P0
+      category: pathology
+      reason: "I 期需完整手术分期决定是否辅助化疗"
+    - item: "黏液性/早期患者: 胃肠镜 (排除转移性肿瘤)"
+      priority: P1
+      category: imaging
+      reason: "黏液性卵巢癌需排除消化道原发转移"
+    - item: "知情同意书 (手术 + 辅助化疗)"
+      priority: P1
+      category: consent
+      reason: "PIPL + 临床合规"
+
+  "advanced-III-IV":
+    - item: "体系 BRCA1/2 检测 (肿瘤组织)"
+      priority: P0
+      category: molecular
+      reason: "胚系阴性者仍可有体系突变 — PARP 抑制剂 (奥拉帕利/尼拉帕利) 适用性"
+    - item: "HRD 同源重组缺陷检测 (含 BRCA + 基因组瘢痕评分)"
+      priority: P0
+      category: molecular
+      reason: "决定 PARP 抑制剂 ± 贝伐珠单抗维持获益分层 (HRD+)"
+    - item: "MSI / MMR + dMMR 检测"
+      priority: P1
+      category: molecular
+      reason: "免疫治疗适用性 (尤其子宫内膜样/透明细胞亚型)"
+    - item: "胸部 CT / 胸水细胞学 (IV 期)"
+      priority: P0
+      category: imaging
+      reason: "胸膜转移 / 恶性胸水确认 M1"
+    - item: "可切除性 / 新辅助评估 (诊断性腹腔镜或影像 PCI 评分)"
+      priority: P1
+      category: imaging
+      reason: "决定初始减瘤手术 vs 新辅助化疗"
+    - item: "知情同意书 (基因/HRD 检测 + 减瘤手术 + 维持治疗)"
+      priority: P1
+      category: consent
+      reason: "PIPL + 临床合规"
+
+postoperative_followup:
+  - item: "CA125 监测 (每 2-4 个月 × 2 年)"
+    priority: P1
+    category: lab
+  - item: "随访胸腹盆 CT (症状或 CA125 升高时)"
+    priority: P1
+    category: imaging

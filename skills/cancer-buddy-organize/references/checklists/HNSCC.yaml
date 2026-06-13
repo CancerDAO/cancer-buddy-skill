@@ -1,0 +1,97 @@
+# Head & Neck Squamous Cell Carcinoma (HNSCC) — minimum data checklist
+# Driven by NCCN Head and Neck Cancers 2024 + CSCO 头颈部肿瘤 2024 + ESMO
+
+cancer_type: HNSCC
+version: HNSCC-v1
+last_updated: 2026-06-13
+sources:
+  - "NCCN Head and Neck Cancers v4.2024"
+  - "CSCO 头颈部肿瘤诊疗指南 2024"
+  - "ESMO Squamous Cell Carcinoma of Head and Neck Guideline 2024"
+
+stages:
+  all:
+    - item: "病理报告 (含原发部位 + 鳞癌分化程度 + 切缘 / 神经周 / 脉管侵犯)"
+      priority: P0
+      category: pathology
+      reason: "诊断 + 辅助治疗强度 (切缘阳性 / ENE 决策)"
+    - item: "p16 IHC (口咽癌) / HPV 检测"
+      priority: P0
+      category: molecular
+      reason: "口咽鳞癌 HPV/p16 状态决定 AJCC 第8版独立分期 + 预后"
+    - item: "头颈部增强 CT 或 MRI (原发 + 颈部淋巴结)"
+      priority: P0
+      category: imaging
+      reason: "T + N 分期 + 软组织 / 颅底侵犯评估"
+    - item: "胸部 CT"
+      priority: P0
+      category: imaging
+      reason: "M 分期 + 第二原发肺癌 / 肺转移筛查"
+    - item: "纤维喉镜 / 内镜检查 (上消化道气道评估)"
+      priority: P0
+      category: imaging
+      reason: "原发灶范围 + 同时性第二原发筛查"
+    - item: "血常规 + 肝肾功能 (含 eGFR)"
+      priority: P0
+      category: lab
+      reason: "顺铂适用性评估"
+    - item: "牙科 / 口腔评估 + 营养 + 吞咽功能基线"
+      priority: P1
+      category: history
+      reason: "放疗前牙科处理 + 放射性骨坏死预防 + 营养支持"
+    - item: "ECOG / PS 评分 + 吸烟 / 饮酒史"
+      priority: P1
+      category: history
+
+  "鼻咽 (NPC)":
+    - item: "EBV-DNA 血浆定量 + EBER 原位杂交"
+      priority: P0
+      category: molecular
+      reason: "鼻咽癌诊断 / 预后 / 疗效监测核心标志物"
+    - item: "鼻咽 + 颅底增强 MRI"
+      priority: P0
+      category: imaging
+      reason: "鼻咽癌局部分期金标准 (颅底 / 颅内侵犯)"
+
+  "locally-advanced":
+    - item: "PET-CT (全身)"
+      priority: P1
+      category: imaging
+      reason: "隐匿转移 + 放疗靶区勾画参考"
+    - item: "多学科 MDT 评估 (手术 vs 放化疗保器官)"
+      priority: P1
+      category: history
+      reason: "局部晚期保喉 / 保器官策略决策"
+    - item: "口咽外原发 ENE (结外侵犯) 病理评估"
+      priority: P1
+      category: pathology
+      reason: "术后辅助同步放化疗指征"
+
+  "recurrent-metastatic":
+    - item: "PD-L1 CPS (22C3)"
+      priority: P0
+      category: molecular
+      reason: "帕博利珠单抗一线 (单药 CPS ≥ 1 / 联合化疗) 决策"
+    - item: "全身影像评估 (胸腹盆 CT ± 脑 MRI / 骨扫描症状导向)"
+      priority: P0
+      category: imaging
+      reason: "转移负荷 + 反应评估基线"
+    - item: "可切除 / 可再程放疗评估 (局部复发)"
+      priority: P1
+      category: imaging
+      reason: "挽救性手术 / 再程放疗适应证"
+    - item: "知情同意书 (分子检测 + 全身治疗)"
+      priority: P1
+      category: consent
+      reason: "PIPL + 临床合规"
+
+posttreatment_followup:
+  - item: "随访头颈影像 + 内镜 (前 2 年密集)"
+    priority: P1
+    category: imaging
+  - item: "鼻咽癌: 随访 EBV-DNA"
+    priority: P1
+    category: molecular
+  - item: "甲状腺功能监测 (颈部放疗后)"
+    priority: P2
+    category: lab
