@@ -28,7 +28,7 @@
           "modality": {
             "type": "string",
             "enum": ["text", "image", "structured", "omics_raw", "timeseries", "binary_other"],
-            "description": "Orthogonal data-nature tag (independent of the clinical-domain bucket) driving ingest-parser dispatch. text=prose/OCR doc; image=imaging/scan stub; structured=tabular numeric report; omics_raw=VCF/BAM/FASTQ/expression matrix; timeseries=wearable/PRO/longitudinal stream → longitudinal_observations.json; binary_other=opaque/unsupported binary (stub + [INGESTION_BLOCKED], never silently dropped). See bucket-taxonomy.md §2."
+            "description": "Orthogonal data-nature tag (independent of the clinical-domain bucket) driving ingest-parser dispatch. text=prose/OCR doc; image=imaging/scan stub; structured=tabular numeric report; omics_raw=parseable omics payload (VCF / annotated TSV / expression-methylation matrix); timeseries=wearable/PRO/longitudinal stream → longitudinal_observations.json; binary_other=opaque/unsupported binary, incl. BAM/FASTQ/DICOM/proprietary (stub + [INGESTION_BLOCKED], never silently dropped). See bucket-taxonomy.md §2 and ingest-adapters.md."
           },
           "read_mode": {
             "type": "string",

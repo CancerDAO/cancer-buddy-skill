@@ -36,6 +36,9 @@ Two-round workflow audit (8 consistency axes + 6 residual axes + 5 Python script
 **P1 — `AGENTS.md` producer attribution drift**
 - `organize-contract.md` §2 overview listed `AGENTS.md` inside Phase-2's output set, and SKILL.md:71 said "Phase 2 writes everything except the 段D HTML" — but `AGENTS.md` is actually written by orchestrator Step 13, *after* the confirm gate, because it copies the **user-corrected** `profile.json` (the Phase-2 worker prompt never references it — `grep AGENTS` = 0). Moved it to a distinct post-Phase-2 contract step (Step 5, alongside 段D), annotated the §2.2 detail row, and carved it out of SKILL.md:71's Phase-2 statement.
 
+**P1 — `modality` enum example drift (BAM/FASTQ mis-classed)**
+- `bucket-taxonomy.md` §2 and `source_inventory.schema.json` listed `VCF/BAM/FASTQ/expression matrix` as `omics_raw` examples, but `ingest-adapters.md` (the dispatch authority) routes BAM/FASTQ to `binary_other` (not LLM-readable → `[INGESTION_BLOCKED]`), reserving `omics_raw` for parseable payloads (VCF / annotated TSV / expression-methylation matrix). A reader trusting the stale examples would expect an omics parser to run on a BAM. Corrected both stale example lists to match the authority; BAM/FASTQ now shown under `binary_other` everywhere.
+
 ### Fixed — pre-live-testing review (adversarial multi-dimension bug sweep)
 
 10 confirmed bugs (none in the AGENTS.md feature) fixed before live testing; no P0.
