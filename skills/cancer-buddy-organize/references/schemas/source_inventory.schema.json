@@ -19,7 +19,7 @@
         "additionalProperties": false,
         "properties": {
           "file_id": { "type": "string", "description": "Stable id of this content unit (1:1 with the sidecar/MD), e.g. f001. N content units may share one source_id when a single upload yields multiple sidecars. See bucket-taxonomy.md §4." },
-          "source_id": { "type": "string", "pattern": "^s\\d{3,}$", "description": "Stable per-upload id, e.g. s001. 1:1 with an uploaded original in raw/; N content units may share it." },
+          "source_id": { "type": "string", "description": "Stable per-upload id, e.g. s001. 1:1 with an uploaded original in raw/; N content units may share it." },
           "original_path": { "type": "string", "description": "Original user-supplied path or archive-relative path recorded for audit. May be absolute or logical; never used as an anchor." },
           "raw_path": { "type": "string", "pattern": "^raw/.+", "description": "Path to the verbatim un-redacted original under patient_dir/raw/ (hidden, never-anchored vault). Original sub-folder structure and basename preserved. Never pixel-redacted. The frontend deep-links a sidecar back to its original here. See bucket-taxonomy.md §4." },
           "page_range": { "type": ["string", "null"], "description": "Which pages of a multi-document source this content unit covers, e.g. \"3-5\". Null when the sidecar covers the whole file." },
