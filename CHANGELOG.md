@@ -6,6 +6,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+**Follow-up — complete the P2-8 i18n sweep + PII passport (regression fixes from the audit's re-run)**
+- The P2-8 i18n.md §2 edit added `second-opinion` / `vault` to the "record-consuming generative" row (records-first fallback) but left their own SKILL.md `locale` step still saying "detect from the conversation language" — a new divergence. Aligned both to records-first (tie-break to conversation), matching education/nutrition/visit-prep.
+- `i18n.md` §1 family enumeration omitted `visit-prep` while §2's table (post-edit) lists it. Added `visit-prep` to §1.
+- `pii_rescan.py`: passport had zero coverage even within the agreed zh+en scope. Added `护照号` / `passport (no/number)` to the `id_number` label set (all 4 sites). Verified caught.
+
 ### Fixed — cross-file consistency & multi-language audit (2026-06-13)
 
 Two-round workflow audit (8 consistency axes + 6 residual axes + 5 Python scripts). PRD: `docs/superpowers/plans/2026-06-13-taxonomy-consistency-fixes-PRD.md`.

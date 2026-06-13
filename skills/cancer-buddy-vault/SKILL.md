@@ -18,7 +18,7 @@ The patient's own public-style cancer data vault — every report, every visit n
 Read [../../references/i18n.md](../../references/i18n.md). Before producing any patient-visible output:
 
 1. Read `patients/<pid>/profile.json` → `locale`. If present, use it — do not re-detect.
-2. If absent (no profile, or `locale` is null), detect from the language the user is conversing in (vault is entered after organize, so a `locale` is almost always already persisted), then write it back to `profile.json.locale` (BCP-47, e.g. `en` / `zh` / `fr`).
+2. If absent (no profile, or `locale` is null — vault is entered after organize, so a `locale` is almost always already persisted), detect from the **primary patient-facing language of the records**, tie-breaking to the language the user is conversing in (the `record-consuming generative sub-skills` row in `../../references/i18n.md` §2), then write it back to `profile.json.locale` (BCP-47, e.g. `en` / `zh` / `fr`).
 3. Render every patient-visible scaffold string — `vault-manifest.md`, sharing-level labels, confirmation prompts, missing-data reminders, revocation confirmations, breach notices, the public / anonymized case report — in that `locale`.
 4. Keep every clinical entity verbatim (drug names, genes/variants, TNM/stage, numbers + units, biomarker labels) regardless of `locale` — never translate, transliterate, or normalize them. Mistranslating a clinical entity is a P0 medical-safety bug.
 5. Honor an explicit user language override ("answer me in English" / "用中文") → update `profile.json.locale` and follow it going forward.

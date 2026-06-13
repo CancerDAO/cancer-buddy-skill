@@ -87,7 +87,7 @@ _PII_LABEL_PATTERNS = [
     # are excluded — they are ordinary clinical-prose words ("患者神志清", "病人诉…"),
     # not name-field labels, and including them false-fires on normal records.
     (re.compile(r"(患者姓名|姓\s*名)" + _SEP + r"(\S)"), "patient_name"),
-    (re.compile(r"(身份证号?码?|证件号码?)" + _SEP + r"(\S)"), "id_number"),
+    (re.compile(r"(身份证号?码?|证件号码?|护照号?码?)" + _SEP + r"(\S)"), "id_number"),
     (re.compile(r"(电\s*话|联系电话|手\s*机|联系方式|Tel|TEL)" + _SEP + r"(\S)"), "phone"),
     (re.compile(r"(地\s*址|住\s*址|家庭地址|通讯地址|联系地址)" + _SEP + r"(\S)"), "address"),
     (re.compile(r"(住院号|住院病历号|病历号|门诊号|就诊号|就诊卡号|病案号|报告单号|卡号|ID号)" + _SEP + r"(\S)"), "admission_id"),
@@ -96,7 +96,7 @@ _PII_LABEL_PATTERNS = [
     # --- English / Latin field labels (multi-locale safety net; colon-mandatory
     #     via _SEP_COLON to avoid false-firing on ordinary English prose) --------
     (re.compile(r"(?i)(patient\s*name|pt\.?\s*name|full\s*name|given\s*name|family\s*name|surname)" + _SEP_COLON + r"(\S)"), "patient_name"),
-    (re.compile(r"(?i)(mrn|medical\s*record\s*(?:no\.?|number|#)|patient\s*id|account\s*(?:no\.?|number|#)|ssn|social\s*security(?:\s*(?:no\.?|number))?)" + _SEP_COLON + r"(\S)"), "id_number"),
+    (re.compile(r"(?i)(mrn|medical\s*record\s*(?:no\.?|number|#)|patient\s*id|account\s*(?:no\.?|number|#)|ssn|social\s*security(?:\s*(?:no\.?|number))?|passport(?:\s*(?:no\.?|number|#))?)" + _SEP_COLON + r"(\S)"), "id_number"),
     (re.compile(r"(?i)(phone|mobile|cell(?:\s*phone)?|telephone|fax|contact\s*(?:no\.?|number)?)" + _SEP_COLON + r"(\S)"), "phone"),
     (re.compile(r"(?i)(address|addr|residence|home\s*address)" + _SEP_COLON + r"(\S)"), "address"),
     (re.compile(r"(?i)(admission\s*(?:no\.?|number|id)|encounter\s*(?:no\.?|id)|visit\s*(?:no\.?|id)|chart\s*(?:no\.?|number))" + _SEP_COLON + r"(\S)"), "admission_id"),
@@ -114,7 +114,7 @@ _PII_LABEL_PATTERNS = [
 _TAIL_SEP = r"\s*[:：]\s*$"
 _PII_LABEL_TAIL = [
     (re.compile(r"(患者姓名|姓\s*名)" + _TAIL_SEP), "patient_name"),
-    (re.compile(r"(身份证号?码?|证件号码?)" + _TAIL_SEP), "id_number"),
+    (re.compile(r"(身份证号?码?|证件号码?|护照号?码?)" + _TAIL_SEP), "id_number"),
     (re.compile(r"(电\s*话|联系电话|手\s*机|联系方式|Tel|TEL)" + _TAIL_SEP), "phone"),
     (re.compile(r"(地\s*址|住\s*址|家庭地址|通讯地址|联系地址)" + _TAIL_SEP), "address"),
     (re.compile(r"(住院号|住院病历号|病历号|门诊号|就诊号|就诊卡号|病案号|报告单号|卡号|ID号)" + _TAIL_SEP), "admission_id"),
@@ -122,7 +122,7 @@ _PII_LABEL_TAIL = [
     (re.compile(r"(出生日期|出生年月)" + _TAIL_SEP), "birth_date"),
     # English / Latin labels (colon already mandatory via _TAIL_SEP)
     (re.compile(r"(?i)(patient\s*name|pt\.?\s*name|full\s*name|given\s*name|family\s*name|surname)" + _TAIL_SEP), "patient_name"),
-    (re.compile(r"(?i)(mrn|medical\s*record\s*(?:no\.?|number|#)|patient\s*id|account\s*(?:no\.?|number|#)|ssn|social\s*security(?:\s*(?:no\.?|number))?)" + _TAIL_SEP), "id_number"),
+    (re.compile(r"(?i)(mrn|medical\s*record\s*(?:no\.?|number|#)|patient\s*id|account\s*(?:no\.?|number|#)|ssn|social\s*security(?:\s*(?:no\.?|number))?|passport(?:\s*(?:no\.?|number|#))?)" + _TAIL_SEP), "id_number"),
     (re.compile(r"(?i)(phone|mobile|cell(?:\s*phone)?|telephone|fax|contact\s*(?:no\.?|number)?)" + _TAIL_SEP), "phone"),
     (re.compile(r"(?i)(address|addr|residence|home\s*address)" + _TAIL_SEP), "address"),
     (re.compile(r"(?i)(admission\s*(?:no\.?|number|id)|encounter\s*(?:no\.?|id)|visit\s*(?:no\.?|id)|chart\s*(?:no\.?|number))" + _TAIL_SEP), "admission_id"),
