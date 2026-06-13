@@ -13,14 +13,14 @@ patients/<patient_code>/
 ├── timeline.md               # human-readable treatment timeline
 ├── readiness.json            # MTB readiness score
 ├── case_text.md              # consolidated narrative
-├── longitudinal_observations.json  # parsed time series (wearable / PRO / lab trends)
+├── longitudinal_observations.json  # parsed time series (wearable / PRO / lab trends) — CONDITIONAL: only when timeseries/trended data exists; absent otherwise
 │   # 14 clinical-domain buckets (scheme_version 3 — authoritative: skills/cancer-buddy-organize/references/bucket-taxonomy.md)
 ├── 01_身份与基础信息/ 02_既往史与家族史/ 03_病程与叙事文书/ 04_诊断与分期/ 05_影像/
 ├── 06_分子与组学/ 07_检验/ 08_治疗/ 09_手术与操作/ 10_随访与监测/
 ├── 11_会诊与转诊/ 12_心理社会与支持/ 13_行政与财务/ 14_患者自管补充/
 ├── raw/                      # verbatim vault of every uploaded original (hidden, never anchored, never pixel-redacted)
 ├── 99_无关文件/               # relevance quarantine (high_confidence/ uncertain/)
-├── ocr/                      # transient Phase-1 staging — OCR sidecars (per-file text extracts) drained into buckets & deleted by Phase-2; a completed run has no ocr/
+├── ocr/                      # transient Phase-1 staging — LLM-generated text-masked MD sidecars (never dumb OCR/parser output), drained into buckets & deleted by Phase-2; a completed run has no ocr/
 └── reports/
     ├── mtb-lite/             # cancer-buddy-mtb-lite
     ├── mtb-full/             # vmtb-skill cancerdao-vmtb

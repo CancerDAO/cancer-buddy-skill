@@ -189,7 +189,8 @@ def scan_line(line: str) -> list[tuple[str, str]]:
 # false-fire on ordinary sentence-initial capitalisation.
 _NEXTLINE_VALUE_RE = re.compile(
     r"^\s*(?!\[PII_MASKED\])(\|?\s*)"
-    r"([0-9][0-9A-Za-z\-]{1,}|[一-龥]{2,4}|[A-Z][a-z]+(?:\s+[A-Z][a-z]+)?|[\w.+-]+@[\w-]+\.[\w.-]+)"
+    # digit-run / CJK name / Latin name (any case, incl. Latin-1 accents like Müller) / email
+    r"([0-9][0-9A-Za-z\-]{1,}|[一-龥]{2,4}|[A-Za-zÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ'.\-]+(?:\s+[A-Za-zÀ-ÖØ-öø-ÿ'.\-]+)?|[\w.+-]+@[\w-]+\.[\w.-]+)"
 )
 
 

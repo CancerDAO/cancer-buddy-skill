@@ -67,6 +67,8 @@ Validity is checked per anchor kind.
 In `patient_summary.json`, `timeline.json`, `molecular.json`, `treatment_lines.json`, `labs.json`, `comorbidities.json`, `missing_items.json`:
 
 - Anchors live in `source_refs: [...]` arrays.
+
+> **`longitudinal_observations.json` exception**: this file carries a **singular** `source_ref: "<anchor>"` string per `observations[]` entry (not a plural `source_refs[]` array). The anchor string itself follows the same regex below; only the field name/cardinality differs. The acceptance gate (`validate_structured_outputs.py` `collect_source_refs`) validates both the plural `source_refs[]` and the singular `source_ref` forms.
 - Each entry is the **path-only** (file anchor) or **`conversation:<ISO8601>`** (conversation anchor) string, with no surrounding `[[src:` / `]]`.
 - For file anchors the fragment is preserved: `"04_诊断与分期/病理报告/2024-03-15_病理报告_x.md#L22-L29"` is valid.
 - For conversation anchors: `"conversation:2026-06-07T14:32:05Z"` is valid.
