@@ -13,7 +13,7 @@ organize 是 4 个纯函数步骤的有序组合。每步以 inputs → outputs(
 | # | 步骤 | 纯函数语义 | 主要产物 |
 |---|---|---|---|
 | 1 | Phase1 — LLM Markdown ingestion | `(一个源文件或 content unit, 稳定 source_id, LLM-readable adapter input) → 一个文本脱敏 sidecar MD` | `<source>` 的文本脱敏 MD(`SOURCE/READ_MODE/ADAPTER/CONFIDENCE` 头 + LLM 脱敏正文 + `## PII` trailer) |
-| 2 | Phase2 — 综合 | `(全部 sidecar, source_inventory, source_id↔原名映射) → canonical 输出集` | 14 临床域桶(`01_…14_`)+ 2 infra 桶(`raw/`/`99_`)+ `source_inventory.json`(含 `modality` + `raw_path` 回链)+ `profile.json` + `longitudinal_observations.json` + `timeline.*` + `case_text.md` + `readiness.json` + `review_flags.md` + 6 结构化 JSON + `missing_items.json` + `update_log.json` + 桶相对锚点 |
+| 2 | Phase2 — 综合 | `(全部 sidecar, source_inventory, source_id↔原名映射) → canonical 输出集` | 14 临床域桶(`01_…14_`)+ 2 infra 桶(`raw/`/`99_`)+ `source_inventory.json`(含 `modality` + `raw_path` 回链)+ `profile.json` + `AGENTS.md` + `longitudinal_observations.json` + `timeline.*` + `case_text.md` + `readiness.json` + `review_flags.md` + 6 结构化 JSON + `missing_items.json` + `update_log.json` + 桶相对锚点 |
 | 3 | 确认门(产物化) | `(待写正式字段/待删文件) → 待确认项数据;经确认 → 写/删` | 待确认项数据(候选结构);确认后才落正式字段或不可逆删除 |
 | 4 | 段D — HTML 渲染 | `(脱敏 JSON/MD) → case_summary_data.json → 病情简要总结.html` | 模板脚本渲染的 HTML;不读原始文件 |
 
@@ -108,6 +108,7 @@ sidecar 的脱敏 Markdown 正文**必须由驱动 LLM(Claude / codex / OpenClaw
 | `timeline.md` / `timeline.json` | 时间序事件 + 机器可读镜像 | 每事件行 ≥1 个桶相对 `[[src:...]]` 锚点。 |
 | `case_text.md` | 分节叙述,每事实句带锚点 | 锚点契约见 2.3;dangling 锚点 → 不写文件、记 `anchor_dangling`。 |
 | `profile.json` | canonical schema(含 `locale`、`alias`,字段不变) | `current_therapy` 为 STRING 取最新;`alias` sticky 不覆写。 |
+| `AGENTS.md` | agent-facing 跨会话召回指针(填 `templates/agents-md.template.md`):身份 + 路由表 + 两层(顶层 JSON → `source_refs`/`source_inventory.json` sidecar)下钻 + 逐字引用/不编造底线 | 只注入 `{{patient_code}}`+`{{one_line_condition}}`,**verbatim 复制自 `profile.json`,无 LLM 合成**;静态体患者无关;幂等可覆写(无用户策展内容)。 |
 | `readiness.json` | 8 域评分 + grade + `blocking_gaps` + `warnings` + `review_flags` | grade 阈值:A≥.90 B≥.75 C≥.60 D≥.40 F<.40。 |
 | `review_flags.md` | 非空时写(9 类审查) | 见 2.4。 |
 | 6 结构化 JSON | `patient_summary/timeline/molecular/treatment_lines/labs/comorbidities` | 每事实字段带 `source_refs`;过 schema gate 才写,失败记 `schema_validation_failed`。 |
@@ -182,7 +183,7 @@ organize 的产出分两类,**职责必须分离**,任何 binding 不得混:
 
 ## 4c. 输出根单一规则
 
-一次 organize run 的全部 canonical 产物(§2.2 输出集 + `病情简要总结.html` + `case_summary_data.json` + `raw/` 原件保险库)**只落一个输出根**:`patients/<patient_code>/`(`patient_dir`)。不得把同一 run 的产物散到多个顶层目录。别名指针(业务别名)是**指回该 `patient_dir` 的指针**(symlink 或退化 alias 映射文件),不是第二份产物副本。binding 的 persist(对象存储 / 库)按此单根选文件持久化。
+一次 organize run 的全部 canonical 产物(§2.2 输出集 + `AGENTS.md` + `病情简要总结.html` + `case_summary_data.json` + `raw/` 原件保险库)**只落一个输出根**:`patients/<patient_code>/`(`patient_dir`)。不得把同一 run 的产物散到多个顶层目录。别名指针(业务别名)是**指回该 `patient_dir` 的指针**(symlink 或退化 alias 映射文件),不是第二份产物副本。binding 的 persist(对象存储 / 库)按此单根选文件持久化。
 
 ## 5. 跨步骤全局不变量
 
