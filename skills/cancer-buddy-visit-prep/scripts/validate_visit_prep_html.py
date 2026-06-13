@@ -20,12 +20,14 @@ What it asserts (all derived from the template at runtime, nothing patient-speci
                              markup with novel classes.)
   3. NO residual markers   — no live `{{…}}` placeholder and no LOOP / RENDER_IF /
                              RENDER_IF_NOT / END marker comment survived rendering.
-  4. NO PII                — no 18-digit national ID, 11-digit mobile, email,
-                             or explicit birth-date leaked into a patient-visible
-                             artifact. (Locale-independent deterministic patterns
-                             only — never a name allow/deny list.)
-  5. NO exact age          — no `<n>岁` / `aged <n>` precise age; only decade bands
-                             (e.g. 50+) are permitted by the desensitization rule.
+  4. NO PII                — no 18-digit national ID, CN mobile/landline, US SSN,
+                             international(E.164)/US phone, email, or explicit
+                             birth-date leaked into a patient-visible artifact.
+                             (Locale-independent deterministic patterns only —
+                             never a name allow/deny list; zh∪en∪locale-agnostic
+                             union runs unconditionally.)
+  5. NO exact age          — no `<n>岁` / `aged <n>` / `<n> years old` / `<n> yo`
+                             precise age; only decade bands (e.g. 50+) allowed.
   6. SKELETON present       — the template's fixed, patient-independent scaffold is
                              intact: header div, footer div, snapshot-box div, and
                              at least the snapshot + questions + bring <h2> sections.
@@ -61,16 +63,24 @@ MARKER_RE = re.compile(
 COMMENT_RE = re.compile(r"<!--.*?-->", re.DOTALL)
 
 # --- PII / exact-age red-flag patterns (deterministic, locale-independent) ----
+# Unconditional zh∪en∪locale-agnostic union — a residue gate must over-detect, so
+# every pattern fires regardless of the pack's locale.
 PII_PATTERNS = [
     ("national_id_18", re.compile(r"(?<!\d)\d{17}[\dXx](?!\d)")),
     ("mobile_11", re.compile(r"(?<!\d)1[3-9]\d{9}(?!\d)")),
+    ("landline_cn", re.compile(r"(?<!\d)0\d{2,3}[-\s]?\d{7,8}(?!\d)")),
     ("email", re.compile(r"[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}")),
-    ("birth_date", re.compile(r"(?:出生|生于|出生日期|date of birth|DOB)\D{0,6}\d{4}\D?\d{1,2}\D?\d{1,2}", re.IGNORECASE)),
+    ("ssn_us", re.compile(r"(?<!\d)\d{3}-\d{2}-\d{4}(?!\d)")),
+    ("phone_intl", re.compile(r"(?<![\w+])\+\d[\d\s().\-]{6,}\d")),
+    ("phone_us", re.compile(r"(?<!\d)\(?\d{3}\)?[-.\s]\d{3}[-.\s]\d{4}(?!\d)")),
+    ("birth_date", re.compile(r"(?:出生|生于|出生日期|date of birth|DOB|born|birth\s*date)\D{0,6}\d{4}\D?\d{1,2}\D?\d{1,2}", re.IGNORECASE)),
 ]
-# Exact age: "<n>岁" or "aged 47" / "age 47" — but allow decade bands like "50+".
+# Exact age: "<n>岁" / "aged 47" / "age 47" / "47 years old" / "47 yo" — but allow
+# decade bands like "50+".
 EXACT_AGE_PATTERNS = [
     ("age_sui", re.compile(r"(?<!\d)\d{1,3}\s*岁")),
     ("age_en", re.compile(r"\bage[d]?\s*[:：]?\s*\d{1,3}\b(?!\s*\+)", re.IGNORECASE)),
+    ("age_years_old", re.compile(r"\b\d{1,3}\s*(?:years?\s*old|yrs?\s*old|y/?o)\b", re.IGNORECASE)),
 ]
 
 

@@ -56,6 +56,12 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 SCRIPT_DIR = Path(__file__).resolve().parent
 SCHEMA_DIR = REPO_ROOT / "references" / "schemas"
 CASE_SUMMARY_TEMPLATE = REPO_ROOT / "references" / "templates" / "case-summary.template.html"
+# The case-summary deliverable keeps a single, language-INDEPENDENT filename across
+# all locales — only the scaffold *inside* the HTML localizes (SKILL.md §i18n,
+# case-summary-html-prompt.md). This mirrors the `NN_` bucket-prefix policy
+# (SKILL.md:78): a stable key downstream can match on, never a per-locale string.
+# The renderer (SKILL.md Step 12 `--out`) writes this exact name, so this gate's
+# literal stays in lock-step with the producer — do not localize one without the other.
 CASE_SUMMARY_HTML_NAME = "病情简要总结.html"
 SOURCE_INVENTORY_NAME = "source_inventory.json"
 FORMAL_MARKDOWN_FILES = ("timeline.md", "case_text.md", "review_summary.md", "review_flags.md")

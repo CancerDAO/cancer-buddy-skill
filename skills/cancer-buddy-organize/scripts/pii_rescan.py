@@ -21,9 +21,16 @@ Scope (matches phase1-ocr.md §2.4 — "touches PII tokens ONLY"):
   - A line is skipped once its PII value has already been replaced by
     `[PII_MASKED]` (i.e. label present but value is the mask → clean).
   - Clinical fidelity wins: this gate flags label+value PII shapes and
-    standalone 身份证/手机/座机 numbers. It does NOT flag clinical dates, lab
+    standalone identifiers. It does NOT flag clinical dates, lab
     values, drug names, TNM, or molecular markers — those carry no PII regex
     signature and are left untouched (anti-anchoring §2.2a unaffected).
+  - Multi-locale: the detector runs an UNCONDITIONAL union of zh + en field
+    labels (姓名/患者姓名/patient name, 身份证/MRN/SSN, 电话/phone/mobile, …) plus
+    locale-agnostic standalone shapes (中国身份证/手机/座机 + email + US-SSN +
+    international/E.164 phone). A residue gate must over-detect, so patterns fire
+    regardless of the run's locale rather than being gated to one language. Latin
+    single-word labels (phone/cell/born/bed/address) require a real colon so they
+    do not false-fire on ordinary English prose ("cell count", "bed rest").
 
 This is a *detector*, not an auto-rewriter: medical-record redaction is a
 judgement task (phase1-ocr.md §2.4 — "not a fixed regex list"), so the fix is
@@ -64,6 +71,12 @@ MASK_TOKEN = "[PII_MASKED]"
 # --- separators -------------------------------------------------------------
 _SEP = r"\s*[:：\s]\s*"
 
+# Colon-MANDATORY separator for single-word Latin labels (phone/cell/born/bed/
+# address/name). These Latin labels are short, common words that also appear in
+# ordinary clinical prose ("cell count", "born in 1950", "bed rest"); requiring a
+# real colon prevents the space-tolerant _SEP from false-firing on English text.
+_SEP_COLON = r"\s*[:：]\s*"
+
 # A "value" that still looks like plaintext PII (NOT already the mask token and
 # not empty). We deliberately keep this loose — any non-trivial run of chars
 # after a PII label that is not the mask token is suspicious.
@@ -80,6 +93,15 @@ _PII_LABEL_PATTERNS = [
     (re.compile(r"(住院号|住院病历号|病历号|门诊号|就诊号|就诊卡号|病案号|报告单号|卡号|ID号)" + _SEP + r"(\S)"), "admission_id"),
     (re.compile(r"(床\s*号|病\s*床|床\s*位)" + _SEP + r"(\S)"), "bed_number"),
     (re.compile(r"(出生日期|出生年月)" + _SEP + r"(\S)"), "birth_date"),
+    # --- English / Latin field labels (multi-locale safety net; colon-mandatory
+    #     via _SEP_COLON to avoid false-firing on ordinary English prose) --------
+    (re.compile(r"(?i)(patient\s*name|pt\.?\s*name|full\s*name|given\s*name|family\s*name|surname)" + _SEP_COLON + r"(\S)"), "patient_name"),
+    (re.compile(r"(?i)(mrn|medical\s*record\s*(?:no\.?|number|#)|patient\s*id|account\s*(?:no\.?|number|#)|ssn|social\s*security(?:\s*(?:no\.?|number))?)" + _SEP_COLON + r"(\S)"), "id_number"),
+    (re.compile(r"(?i)(phone|mobile|cell(?:\s*phone)?|telephone|fax|contact\s*(?:no\.?|number)?)" + _SEP_COLON + r"(\S)"), "phone"),
+    (re.compile(r"(?i)(address|addr|residence|home\s*address)" + _SEP_COLON + r"(\S)"), "address"),
+    (re.compile(r"(?i)(admission\s*(?:no\.?|number|id)|encounter\s*(?:no\.?|id)|visit\s*(?:no\.?|id)|chart\s*(?:no\.?|number))" + _SEP_COLON + r"(\S)"), "admission_id"),
+    (re.compile(r"(?i)(bed(?:\s*(?:no\.?|number|#))?|ward(?:\s*(?:no\.?|number))?)" + _SEP_COLON + r"(\S)"), "bed_number"),
+    (re.compile(r"(?i)(date\s*of\s*birth|d\.?o\.?b\.?|birth\s*date|born)" + _SEP_COLON + r"(\S)"), "birth_date"),
 ]
 
 # Label-only patterns (label, then a REQUIRED trailing colon, then END of line) —
@@ -98,13 +120,26 @@ _PII_LABEL_TAIL = [
     (re.compile(r"(住院号|住院病历号|病历号|门诊号|就诊号|就诊卡号|病案号|报告单号|卡号|ID号)" + _TAIL_SEP), "admission_id"),
     (re.compile(r"(床\s*号|病\s*床|床\s*位)" + _TAIL_SEP), "bed_number"),
     (re.compile(r"(出生日期|出生年月)" + _TAIL_SEP), "birth_date"),
+    # English / Latin labels (colon already mandatory via _TAIL_SEP)
+    (re.compile(r"(?i)(patient\s*name|pt\.?\s*name|full\s*name|given\s*name|family\s*name|surname)" + _TAIL_SEP), "patient_name"),
+    (re.compile(r"(?i)(mrn|medical\s*record\s*(?:no\.?|number|#)|patient\s*id|account\s*(?:no\.?|number|#)|ssn|social\s*security(?:\s*(?:no\.?|number))?)" + _TAIL_SEP), "id_number"),
+    (re.compile(r"(?i)(phone|mobile|cell(?:\s*phone)?|telephone|fax|contact\s*(?:no\.?|number)?)" + _TAIL_SEP), "phone"),
+    (re.compile(r"(?i)(address|addr|residence|home\s*address)" + _TAIL_SEP), "address"),
+    (re.compile(r"(?i)(admission\s*(?:no\.?|number|id)|encounter\s*(?:no\.?|id)|visit\s*(?:no\.?|id)|chart\s*(?:no\.?|number))" + _TAIL_SEP), "admission_id"),
+    (re.compile(r"(?i)(bed(?:\s*(?:no\.?|number|#))?|ward(?:\s*(?:no\.?|number))?)" + _TAIL_SEP), "bed_number"),
+    (re.compile(r"(?i)(date\s*of\s*birth|d\.?o\.?b\.?|birth\s*date|born)" + _TAIL_SEP), "birth_date"),
 ]
 
-# Standalone high-precision identifiers (no label needed).
+# Standalone high-precision identifiers (no label needed). Locale-agnostic by
+# shape — these fire on any record regardless of language.
 _STANDALONE = [
-    (re.compile(r"[1-9]\d{5}(?:19|20)\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])\d{3}[\dXx]"), "id_number"),
-    (re.compile(r"(?<!\d)1[3-9]\d{9}(?!\d)"), "phone"),
-    (re.compile(r"(?<!\d)0\d{2,3}[-\s]?\d{7,8}(?!\d)"), "phone"),
+    (re.compile(r"[1-9]\d{5}(?:19|20)\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])\d{3}[\dXx]"), "id_number"),  # 中国身份证 18-digit
+    (re.compile(r"(?<!\d)1[3-9]\d{9}(?!\d)"), "phone"),                # 中国手机
+    (re.compile(r"(?<!\d)0\d{2,3}[-\s]?\d{7,8}(?!\d)"), "phone"),      # 中国座机
+    (re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+"), "email"),                # email (any locale)
+    (re.compile(r"(?<!\d)\d{3}-\d{2}-\d{4}(?!\d)"), "id_number"),      # US SSN shape
+    (re.compile(r"(?<![\w+])\+\d[\d\s().-]{6,}\d"), "phone"),          # E.164 / international (must start with +)
+    (re.compile(r"(?<!\d)\(?\d{3}\)?[-.\s]\d{3}[-.\s]\d{4}(?!\d)"), "phone"),  # US 10-digit w/ separators
 ]
 
 
@@ -148,8 +183,14 @@ def scan_line(line: str) -> list[tuple[str, str]]:
 
 
 # A value at the HEAD of the next line that looks like plaintext PII (digit run,
-# id-ish token, or a CJK name). Not the mask token, not a markdown delimiter.
-_NEXTLINE_VALUE_RE = re.compile(r"^\s*(?!\[PII_MASKED\])(\|?\s*)([0-9][0-9A-Za-z\-]{1,}|[一-龥]{2,4})")
+# id-ish token, a CJK name, a capitalised Latin name, or an email). Not the mask
+# token, not a markdown delimiter. Only consulted AFTER a PII label tail matched
+# the previous line (scan_cross_line), so the broad Latin-name arm cannot
+# false-fire on ordinary sentence-initial capitalisation.
+_NEXTLINE_VALUE_RE = re.compile(
+    r"^\s*(?!\[PII_MASKED\])(\|?\s*)"
+    r"([0-9][0-9A-Za-z\-]{1,}|[一-龥]{2,4}|[A-Z][a-z]+(?:\s+[A-Z][a-z]+)?|[\w.+-]+@[\w-]+\.[\w.-]+)"
+)
 
 
 def scan_cross_line(prev_line: str, next_line: str) -> list[tuple[str, str]]:
