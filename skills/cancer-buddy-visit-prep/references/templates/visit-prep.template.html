@@ -187,7 +187,7 @@ ol.q-list li, ul.q-list li {
 </div>
 
 <!-- ============ BLOCK 1: 医生速览 ============ -->
-<!-- 来源: profile.json (primary_cancer/histology/stage) + molecular.json (variants/msi_mmr/ihc/tmb) + treatment_lines.json 当前线 + labs.json 异常项。
+<!-- 来源: profile.json (summary.primary/summary.histology/summary.stage) + molecular.json (variants/msi_mmr/ihc/tmb) + treatment_lines.json 当前线 + labs.json 异常项。
      直接字段映射,临床实体 verbatim(../../../../references/i18n.md §4)。任一字段 null → 渲染 {{i18n.val_pending}},不捏造。 -->
 <h2>{{i18n.sec_snapshot}}</h2>
 <div class="snapshot-box section-keep">
