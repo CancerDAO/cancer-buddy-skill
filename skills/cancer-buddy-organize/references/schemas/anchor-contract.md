@@ -20,7 +20,7 @@ There are two anchor kinds:
 ### 1a. File anchor
 
 - `<bucket-relative-path>` is a path to a `.md` sidecar **relative to `<patient_dir>`**, beginning with one of the clinical-domain prefixes (`01_…` … `14_…`; infra `raw/`/`99_` are never anchored), e.g. `04_诊断与分期/病理报告/2024-03-15_病理报告_x.md`.
-- The legacy `ocr/` prefix is **deprecated and rejected** — the central `ocr/` directory no longer exists; MD sidecars live only inside their bucket alongside the image they were extracted from.
+- The legacy `ocr/` prefix is **deprecated and rejected** — the central `ocr/` staging dir is a live transient dir during a run and is deleted by Phase-2 (so it no longer exists at anchor-write time); final MD sidecars live only inside their bucket alongside the image they were extracted from.
 - The historical `02_脱敏病历/` prefix is likewise retired in favor of bucket-relative paths.
 - `<fragment>` is optional. Two forms accepted:
   - **Line range**: `#L<start>` or `#L<start>-L<end>` — points to verbatim lines in the markdown file.

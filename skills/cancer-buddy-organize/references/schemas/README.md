@@ -24,7 +24,7 @@ Every factual field that originates from a text-masked MD sidecar MUST carry a `
 conversation:<ISO8601>
 ```
 
-File-anchor paths MUST begin with an `NN_` clinical-domain bucket prefix (`01_…` … `14_`, scheme_version 3) — the infrastructure vault `raw/` and quarantine `99_无关文件/` are never anchor targets, and the central `ocr/` directory plus the legacy `02_脱敏病历/` prefix are **retired and rejected**. Sidecars now live next to their image inside the clinical-domain bucket subdirectory. The full contract (regex included) is in [anchor-contract.md](anchor-contract.md).
+File-anchor paths MUST begin with an `NN_` clinical-domain bucket prefix (`01_…` … `14_`, scheme_version 3) — the infrastructure vault `raw/` and quarantine `99_无关文件/` are never anchor targets, and the legacy `02_脱敏病历/` prefix is **retired**, and the transient central `ocr/` staging dir (live during a run, drained + deleted by Phase-2) is **not a valid anchor prefix** in final artifacts. Sidecars now live next to their image inside the clinical-domain bucket subdirectory. The full contract (regex included) is in [anchor-contract.md](anchor-contract.md).
 
 In narrative artifacts (`case_text.md`, the human-readable patient summary), the same anchors appear in `[[src:...]]` syntax — see [anchor-contract.md](anchor-contract.md).
 
