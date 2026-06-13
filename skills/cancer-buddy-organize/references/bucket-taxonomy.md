@@ -184,9 +184,9 @@ ingest-parser dispatch.
 | `text` | prose / OCR'd document | discharge summary, pathology narrative | LLM Markdown ingestion (§ phase1) |
 | `image` | imaging / scan, stub-summarized | CT series, IHC slide photo | LLM vision stub |
 | `structured` | tabular numeric report | CBC panel, biochemistry sheet | LLM table → Markdown table |
-| `omics_raw` | raw omics payload | VCF / BAM / FASTQ / expression matrix | omics ingest adapter (§ ingest-adapters) |
+| `omics_raw` | parseable omics payload | VCF / annotated TSV / expression-methylation matrix | omics ingest adapter (§ ingest-adapters) |
 | `timeseries` | longitudinal stream | wearable export, glucose log, PRO diary | timeseries ingest adapter → `longitudinal_observations[]` |
-| `binary_other` | unsupported/opaque binary | DICOM raw, proprietary export | stub + `[INGESTION_BLOCKED]`, never silently dropped |
+| `binary_other` | unsupported/opaque binary | BAM / FASTQ / DICOM raw / proprietary export | stub + `[INGESTION_BLOCKED]`, never silently dropped |
 
 A single source may emit **one bucket file + one modality**; a compound source (NGS report PDF +
 its VCF) is two `source_inventory` entries (`text` report → `06`, `omics_raw` VCF → `06`).
