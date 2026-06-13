@@ -2,7 +2,7 @@
 
 This is the `conversation-incremental` run mode of `cancer-buddy-organize`. It runs while the patient (or caregiver) is *chatting* about their condition — not when they hand over a folder of files. Its job is to catch archivable facts that surface in conversation, propose them as a reviewable diff, and write them only after the user confirms.
 
-The hard rule of this mode: **unconfirmed talk never touches formal fields.** A patient mis-speaking ("我好像是三期吧?") must not silently rewrite `profile.json.stage` and poison every downstream report. The diff card + explicit confirmation is the gate.
+The hard rule of this mode: **unconfirmed talk never touches formal fields.** A patient mis-speaking ("我好像是三期吧?") must not silently rewrite `profile.json.summary.stage` and poison every downstream report. The diff card + explicit confirmation is the gate.
 
 That gate is **not redefined here** — it is the shared confirm-gate. The "unconfirmed → no formal write" floor, the diff-card presentation contract, and the `update_log.json` provenance requirement all live in [`../../../references/confirm-gate.md`](../../../references/confirm-gate.md); cite it as authoritative. This doc keeps only what is **specific to conversation mode**: the 5 archivable-fact categories, the conversation anchor, and `patient_curated` tagging.
 
@@ -52,10 +52,10 @@ You need the current value of any field a candidate fact would change, so the di
 
 From `conversation_turn`, extract zero or more candidate facts. For each, decide its **target**:
 
-- **profile.json field** — when the fact updates a structured field. Use the dot path from [`../../../references/patient-profile-schema.md`](../../../references/patient-profile-schema.md), e.g. `stage`, `current_therapy`, `ecog`, `molecular_drivers_known[]`, `demographics.*`. Only write fields that exist in the schema.
+- **profile.json field** — when the fact updates a structured field. Use the dot path from [`../../../references/patient-profile-schema.md`](../../../references/patient-profile-schema.md), e.g. `summary.stage`, `summary.current_regimen`, `latest_status.ecog`. (Drivers now live in `molecular.json`, demographics in `patient_summary.json`, and ordered lines of therapy in `treatment_lines.json` — those are no longer profile.json fields.) Only write fields that exist in the schema.
 - **timeline row** — when the fact is a dated clinical event (a new line of therapy starting, a symptom onset, a new lab draw). One new line appended to `timeline.md`, mirrored as one entry in `timeline.json`.
 
-A single turn may yield both (e.g. "这周换奥希替尼了" → `current_therapy` field change **and** a new timeline row for the switch).
+A single turn may yield both (e.g. "这周换奥希替尼了" → `summary.current_regimen` field change **and** a new timeline row for the switch).
 
 Each candidate carries:
 - `target`: `profile_field` | `timeline_row`
@@ -141,7 +141,7 @@ Append one entry to `update_log.json`:
   "run_mode": "conversation_incremental",
   "ts": "<turn_timestamp>",
   "triggered_by": "<actor_role>",
-  "confirmed_fields": ["stage"],
+  "confirmed_fields": ["summary.stage"],
   "confirmed_timeline_rows": 1,
   "rejected_or_deferred": 1,
   "conversation_anchor": "conversation:<turn_timestamp>",
@@ -163,7 +163,7 @@ Final message MUST be pure JSON, no prose:
   "candidates_confirmed": 1,
   "candidates_corrected": 1,
   "candidates_deferred": 0,
-  "profile_fields_written": ["stage"],
+  "profile_fields_written": ["summary.stage"],
   "timeline_rows_added": 1,
   "conversation_note_path": "07_检验/conversation_notes/2026-06-07.md",
   "conversation_anchor": "conversation:2026-06-07T14:32:05Z",

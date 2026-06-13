@@ -24,7 +24,7 @@ Read [../../references/i18n.md](../../references/i18n.md). The whole handbook is
 
 ## Preflight
 
-Run [../../references/preflight.md](../../references/preflight.md) — role + disclosure + readiness grade + **review_flags red gate (Step 2.5)** + schema validity. The handbook propagates upstream extracted facts (diagnosis, stage, current_therapy, molecular_drivers, treatment_history) directly to the patient/caregiver as authoritative-sounding educational content; an unconfirmed 🔴 RED review_flag on any of those fields makes the resulting handbook misleading. Block until resolved.
+Run [../../references/preflight.md](../../references/preflight.md) — role + disclosure + readiness grade + **review_flags red gate (Step 2.5)** + schema validity. The handbook propagates upstream extracted facts (diagnosis, summary.stage, summary.current_regimen, drivers from molecular.json, treatment lines from treatment_lines.json) directly to the patient/caregiver as authoritative-sounding educational content; an unconfirmed 🔴 RED review_flag on any of those fields makes the resulting handbook misleading. Block until resolved.
 
 ## Inputs
 
@@ -46,7 +46,7 @@ See [references/handbook-template.md](references/handbook-template.md) for the f
 1. Read MTB report (full preferred, lite fallback).
 2. Extract: treatment plan, drug list, monitoring schedule, comorbidity interactions.
 3. Select relevant handbook chapters based on patient's condition (skip chemotherapy chapter if immunotherapy only, include diabetes chapter if comorbid T2DM, etc.).
-   - **Mechanism diagrams**: pull relevant diagrams from `references/mechanism-diagrams.md` based on patient's `current_therapy` type (chemo / targeted / immuno / radio).
+   - **Mechanism diagrams**: pull relevant diagrams from `references/mechanism-diagrams.md` based on patient's `summary.current_regimen` type (chemo / targeted / immuno / radio).
    - **Cancer-type module**: include the patient's primary cancer section from `references/cancer-type-modules.md`.
    - **FAQ**: pull phase-relevant questions from `references/expanded-faq.md` based on current therapy phase (newly-diagnosed / active-treatment / survivorship).
 4. Render in Markdown — all scaffold/narrative prose in `profile.json.locale`, clinical entities verbatim (§Locale) — with:

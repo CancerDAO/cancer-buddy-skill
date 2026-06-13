@@ -107,7 +107,7 @@ sidecar 的脱敏 Markdown 正文**必须由驱动 LLM(Claude / codex / OpenClaw
 | `INDEX.md` | 每文件一行(file_id/桶/类型/日期/机构/置信/MD/Raw原件/页码),按日期升序 | 路径全为桶相对 co-located 路径。 |
 | `timeline.md` / `timeline.json` | 时间序事件 + 机器可读镜像 | 每事件行 ≥1 个桶相对 `[[src:...]]` 锚点。 |
 | `case_text.md` | 分节叙述,每事实句带锚点 | 锚点契约见 2.3;dangling 锚点 → 不写文件、记 `anchor_dangling`。 |
-| `profile.json` | canonical schema(含 `locale`、`alias`,字段不变) | `current_therapy` 为 STRING 取最新;`alias` sticky 不覆写。 |
+| `profile.json` | canonical schema `cancer_buddy_profile_v3` slim 快照(含 `locale`/`alias`/`summary`/`latest_status`) | `summary.current_regimen`/`latest_status.regimen` 为 STRING 取最新;详细治疗线/分子/人口学归 `treatment_lines.json`/`molecular.json`/`patient_summary.json`;`alias` sticky 不覆写。 |
 | `AGENTS.md` | agent-facing 跨会话召回指针(填 `templates/agents-md.template.md`):身份 + 路由表 + 两层(顶层 JSON → `source_refs`/`source_inventory.json` sidecar)下钻 + 逐字引用/不编造底线 | 只注入 `{{patient_code}}`+`{{one_line_condition}}`,**verbatim 复制自 `profile.json`,无 LLM 合成**;静态体患者无关;`full` run 必产、幂等可覆写(无用户策展内容)。 |
 | `readiness.json` | 8 域评分 + grade + `blocking_gaps` + `warnings` + `review_flags` | grade 阈值:A≥.90 B≥.75 C≥.60 D≥.40 F<.40。 |
 | `review_flags.md` | 非空时写(9 类审查) | 见 2.4。 |

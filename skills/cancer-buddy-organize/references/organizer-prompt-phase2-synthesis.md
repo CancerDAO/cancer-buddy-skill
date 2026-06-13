@@ -308,36 +308,46 @@ SOURCE: <source_type> | CONFIDENCE: <level>
 
 Canonical section order: 基本信息 → 当前状态 → 诊断与分期 → 病理 → 影像 → 分子检测 → 治疗记录 → 检验 → 手术 → 会诊 → 其他. **Locale**: these section headers and the body's connective prose are scaffold → render in `locale` (e.g. `en`: Basic Info → Current Status → Diagnosis & Staging → Pathology → Imaging → Molecular → Treatment → Labs → Surgery → Consult → Other). The order is fixed; only the header wording localizes. Clinical entities inside each section stay verbatim, and every `[[src:…]]` anchor keeps the localized bucket slug it points to.
 
-### 2.4 `profile.json` (canonical schema, unchanged)
+### 2.4 `profile.json` (canonical schema `cancer_buddy_profile_v3`)
+
+Authoritative shape: [`../../../references/patient-profile-schema.md`](../../../references/patient-profile-schema.md). profile.json is the **slim first-read snapshot** — identity + locale + a denormalized `summary` + `latest_status`. Detailed structured facts are NOT duplicated here: they live in the structured JSONs (`patient_summary.json` demographics/diagnosis, `molecular.json` drivers/variants, `treatment_lines.json` ordered lines, `comorbidities.json`, `labs.json`).
 
 ```json
 {
+  "schema": "cancer_buddy_profile_v3",
   "patient_code": "PT-...",
-  "primary_cancer": "<short Chinese name>",
-  "histology": "<short Chinese name>",
-  "stage": "<AJCC TNM string>",
-  "metastasis_sites": ["..."],
-  "molecular_drivers_known": ["..."],
-  "molecular_drivers_unknown": ["..."],
-  "current_therapy": "<verbatim regimen string from latest discharge cert>",
-  "ecog": null,
-  "ecog_inferred": false,
-  "key_comorbidities": ["..."],
-  "patient_location_hint": "...",
-  "treating_hospitals": ["..."],
-  "treatment_history": [{"line": 1, "regimen": "...", "year_approx": "...", ...}],
-  "demographics": {"name": "...", "sex": "M/F", "dob": "YYYY-MM-DD", "age": 69},
-  "data_sources": [{"path": "04_诊断与分期/病理报告/2024-03-15_病理报告_中山六院.md", "confidence": "high"}],
-  "alias": "<patient_id>_<cancer_type>_<year>",
-  "locale": "<bcp47, e.g. zh / en / fr / es>"
+  "alias": "<patient_id_short>_<cancer_code>_<year>",
+  "locale": "<bcp47, e.g. zh / en / fr / es>",
+  "generated_at": "<ISO8601>",
+  "privacy": {
+    "pii_policy": "sidecar_text_masked; raw_originals_retained_under_raw",
+    "html_age_policy": "decade_band_only"
+  },
+  "anthropometrics": {"height_cm": null, "weight_kg": null, "bmi": null, "source_refs": []},
+  "summary": {
+    "one_line_condition": "<one-line human condition string>",
+    "primary": "<short cancer name>",
+    "histology": "<short histology>",
+    "stage": "<AJCC TNM string>",
+    "metastasis_sites": ["..."],
+    "current_regimen": "<verbatim LATEST regimen string>"
+  },
+  "latest_status": {
+    "regimen": "<verbatim latest regimen>",
+    "response": "<RECIST code or NE>",
+    "ecog": null,
+    "as_of": "<ISO date>",
+    "source_refs": ["03_病程与叙事文书/出院小结/2024-07-05_出院小结.md"]
+  },
+  "source_refs": ["04_诊断与分期/病理报告/2024-03-15_病理报告_中山六院.md"]
 }
 ```
 
 **`locale`** (i18n): set it to the BCP-47 tag detected at the top of this prompt (or reused from an existing `profile.json.locale`). This is the canonical write of the patient-journey locale — every later sub-skill reads it (i18n.md §3). On incremental / re-run, do NOT overwrite an existing `locale` unless the user explicitly overrode the language.
 
-`current_therapy` MUST be a STRING. Per-cycle structure goes in a parallel `current_therapy_detail` object. When the patient has multiple hospitalizations with different regimens, `current_therapy` is the LATEST one. Older regimens go in `treatment_history[]`.
+**Regimen**: `summary.current_regimen` and `latest_status.regimen` are STRINGS (the LATEST regimen when the patient has multiple hospitalizations). Per-cycle / per-line structure and older lines of therapy go in `treatment_lines.json`, NOT in profile.json. Molecular drivers go in `molecular.json`; demographics / comorbidities / treating hospitals go in `patient_summary.json` / `comorbidities.json`. profile.json carries **none** of the old flat `primary_cancer` / `molecular_drivers_known` / `treatment_history` / `demographics` / `key_comorbidities` / `data_sources` fields — those are the retired flat shape.
 
-**`alias`** (new): when `primary_cancer` AND the earliest diagnosis year are both known, set `alias = "{patient_id_short}_{cancer_code}_{year}"`, where:
+**`alias`**: when `summary.primary` AND the earliest diagnosis year are both known, set `alias = "{patient_id_short}_{cancer_code}_{year}"`, where:
 - `patient_id_short` = `patient_code` with `PT-` stripped, truncated to 6 chars. E.g. `PT-17CE02BC33` → `17CE02`.
 - `cancer_code` = the cancer-type code used by `references/checklists/` — the most widely recognized abbreviation (see `references/checklists/README.md` for the shipped set + conventions; e.g. CRC / NSCLC / BC / GC / HCC / SCLC / PDAC / OC / CCA / EC / PC / CC / UCEC / THCA / NPC / RCC / BLCA / DLBCL / HNSCC). When uncertain, omit `alias`.
 - `year` = 4-digit earliest diagnosis year (from pathology / first hospitalization).
@@ -407,11 +417,11 @@ to manual mental validation for the Phase2 structured JSONs.
 
 ### 2.7 `missing_items.json` (NEW — cancer-checklist diff)
 
-1. Map `profile.json.primary_cancer` to a cancer-type code (the most widely recognized abbreviation — see `references/checklists/README.md`). If the cancer type itself is genuinely unmappable/ambiguous, set `cancer_type: null` and `missing: []`, then add a warning `"checklist_unmapped: <primary_cancer>"`.
+1. Map `profile.json.summary.primary` to a cancer-type code (the most widely recognized abbreviation — see `references/checklists/README.md`). If the cancer type itself is genuinely unmappable/ambiguous, set `cancer_type: null` and `missing: []`, then add a warning `"checklist_unmapped: <summary.primary>"`.
 2. Resolve the checklist:
    - If `references/checklists/<cancer_type>.yaml` **exists**, load it (the shipped set covers the common cancer types).
    - If it does **NOT** exist (a less-common type not yet shipped), **generate the checklist in-session** for this `<cancer_type>` + stage, grounded in current NCCN / CSCO / ESMO standard-of-care workup, following the SAME schema as the shipped YAMLs (each item: `item` / `priority` P0|P1|P2 / `category` ∈ pathology|imaging|lab|molecular|history|consent / `reason`). Set `checklist_version: "<cancer_type>-rt<YYYY-MM-DD>"` (`rt` = runtime-generated) and add a warning `"checklist_generated_runtime: <cancer_type>"` so the run is transparent that it used a generated (not human-curated) checklist. **Do NOT silently emit `missing: []` and do NOT skip** — a real generated checklist is required here (no silent degradation). Keep it run-local (do not write into the shared `references/checklists/` package).
-3. Stage-context resolution: take `profile.json.stage`. Reduce to the coarsest matching key in the YAML's `stages` block:
+3. Stage-context resolution: take `profile.json.summary.stage`. Reduce to the coarsest matching key in the YAML's `stages` block:
    - `cI`, `cII`, `pI`, `pII` → `I-II`
    - `cIII`, `pIII`, `ypIII` → `III` or `II-III` (prefer `III` if present, else fall back)
    - `cIV`, `pIV`, `yp` with M1 → `IV`
@@ -421,8 +431,8 @@ to manual mental validation for the Phase2 structured JSONs.
    - **molecular** items: present in `molecular.json.variants[]` / `ihc[]` / `msi_mmr` / `tmb`.
    - **imaging** items: present as a `timeline.json` event with `category: imaging` matching the keyword.
    - **lab** items: present in `labs.json.panels[].analyte`.
-   - **pathology** items: present in `profile.json.histology` or `timeline.json` `category: diagnosis`.
-   - **history** items: present in `profile.json` (e.g. `ecog`).
+   - **pathology** items: present in `profile.json.summary.histology` or `timeline.json` `category: diagnosis`.
+   - **history** items: present in `profile.json` (e.g. `latest_status.ecog`).
    - **consent** items: presence of a sidecar with type `知情同意书`.
 6. Emit residual into `missing_items.json` sorted by priority. Schema: [missing_items.schema.json](references/schemas/missing_items.schema.json).
 
@@ -450,7 +460,7 @@ The internal `PT-<hex>` identity is preserved as the authoritative directory nam
 
 This is **the cross-doc audit you can do that Phase 1 cannot** — because Phase 1 only saw its slice. You see all sidecars at once **AND** you can see sibling patient directories under the patients root for cross-patient checks.
 
-For every field in profile.json (especially `stage`, `histology`, `molecular_drivers_known`, `treatment_history[]`, `current_therapy`, `ecog`, key labs, `demographics.name`), run these 9 checks:
+For every extracted clinical field — in profile.json (`summary.stage`, `summary.histology`, `summary.current_regimen`, `latest_status.ecog`) AND in the structured JSONs (`molecular.json` drivers/variants, `treatment_lines.json` lines, `labs.json` key labs, `patient_summary.json.demographics.name`) — run these 9 checks:
 
 | # | category | check |
 |---|---|---|
@@ -459,7 +469,7 @@ For every field in profile.json (especially `stage`, `histology`, `molecular_dri
 | 3 | `clinical_logic_anomaly` | "辅助化疗 ... PR" (adjuvant has no measurable disease); ECOG 0 + KPS 50; "新辅助" but timeline shows upfront resection |
 | 4 | `unverified_critical_field` | A field critical to downstream eligibility (driver mutation, stage, line of therapy, MSI, PD-L1) sourced ONLY from a progress-note narrative — no primary lab/path/imaging report present |
 | 5 | `value_trend_anomaly` | Numeric trend non-physiologic without explanation (e.g. TSH 6.49 → 0.16 → 0.80 within 8 weeks, no thyroid intervention) |
-| 6 | `cross_patient_name_collision` (**P0 per PRD**) | `demographics.name` + birth year match another patient under `patients_root`. See Step 3a below. |
+| 6 | `cross_patient_name_collision` (**P0 per PRD**) | `patient_summary.json.demographics.name` + birth year match another patient under `patients_root`. See Step 3a below. |
 | 7 | `anchor_coverage_gap` | A factual section of `case_text.md` or a row of `patient_summary.json` / `molecular.json` / etc has missing or dangling anchors |
 | 8 | `relevance_uncertain` (**段E**) | A file the Step 1·0 relevance triage couldn't confidently classify as medical-or-not — isolated to `99_无关文件/uncertain/`, NOT auto-deleted, awaiting the user's explicit 删/留. See Step 3b below. |
 | 9 | `filename_content_mismatch` | A `.rename_plan.json` entry's assigned `doc_type` / `bucket_path` did not match the sidecar content on the Step 1b·5 re-read (e.g. a file canonically named `肿瘤标志物` whose sidecar is a 生化 panel). `yellow` when auto-corrected in place, `red` when left ambiguous for the user. `field_path` = the content unit's `file_id`. See Step 1b·5. |

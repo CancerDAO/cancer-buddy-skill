@@ -36,7 +36,7 @@ Grades A / B / C → proceed silently.
 
 After the readiness grade check, read `readiness.json.review_flags[]`. For each entry where `severity == "red"` AND `user_confirmed == false`, the sub-skill MUST refuse to proceed with normal workflow.
 
-**Why this is a separate gate from grade**: the readiness grade measures *coverage* (how many fields are populated). Review flags measure *correctness* (whether populated fields are trustworthy). A patient_dir can be grade A (every field populated) and still have a 🔴 RED flag saying "current_therapy OCR'd as drug X but orders sheet says drug Y" — the data is COMPLETE but WRONG. Downstream sub-skills that consume `current_therapy`, `stage`, `molecular_drivers_known`, `treatment_history` etc. will produce confidently-wrong output if a RED flag goes unconfirmed.
+**Why this is a separate gate from grade**: the readiness grade measures *coverage* (how many fields are populated). Review flags measure *correctness* (whether populated fields are trustworthy). A patient_dir can be grade A (every field populated) and still have a 🔴 RED flag saying "current_therapy OCR'd as drug X but orders sheet says drug Y" — the data is COMPLETE but WRONG. Downstream sub-skills that consume `summary.current_regimen`, `summary.stage`, drivers (`molecular.json`), treatment lines (`treatment_lines.json`) etc. will produce confidently-wrong output if a RED flag goes unconfirmed.
 
 **Block behavior:**
 
@@ -70,7 +70,7 @@ Only after every unconfirmed RED flag is resolved (`user_confirmed = true` with 
 > 本报告基于此值生成。如该值实际有误, 报告结论需相应调整。
 ```
 
-This is non-negotiable. A sub-skill that consumes `profile.json` without checking RED flags is non-compliant. **Affected sub-skills**: anything using `current_therapy` (nutrition, mtb-lite, find-care), `stage` / `histology` (education, find-care, second-opinion), `treatment_history` (mtb-lite, second-opinion, education), `molecular_drivers_known` (mtb-lite, find-care, second-opinion).
+This is non-negotiable. A sub-skill that consumes `profile.json` without checking RED flags is non-compliant. **Affected sub-skills**: anything using `summary.current_regimen` (nutrition, mtb-lite, find-care), `summary.stage` / `summary.histology` (education, find-care, second-opinion), treatment lines (`treatment_lines.json`) (mtb-lite, second-opinion, education), drivers (`molecular.json`) (mtb-lite, find-care, second-opinion).
 
 ## Why the gate exists
 

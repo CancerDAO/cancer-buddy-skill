@@ -7,14 +7,14 @@
 This file used to contain a hardcoded ~30-row drug-food interaction table. It was deleted because:
 
 1. The model already knows the standard oncology drug-food interactions (TKI ↔ 西柚 / 华法林 ↔ 维 K 食物 / 奥沙利铂 ↔ 冷食 / 5-FU + capecitabine ↔ 柚子 / methotrexate ↔ 酒精 / etc.) from training data
-2. A hardcoded table is always behind FDA/NMPA approvals — the patient's actual `current_therapy` may not be in the table
+2. A hardcoded table is always behind FDA/NMPA approvals — the patient's actual `summary.current_regimen` may not be in the table
 3. A consistent-but-incomplete table creates false confidence: agent checks the table, finds no match, concludes "no interactions" — when in fact the table just didn't list this drug
 
 What this skill DOES require, structurally:
 
 ## Workflow
 
-1. From `profile.json.current_therapy` + `treatment_history` + any patient-volunteered supplements, **enumerate every active drug, every recent (< 1 month) drug, and every supplement**.
+1. From `profile.json.summary.current_regimen` + ordered lines of therapy in `treatment_lines.json` + any patient-volunteered supplements, **enumerate every active drug, every recent (< 1 month) drug, and every supplement**.
 2. For each drug, use your training knowledge to identify **known clinically meaningful food/supplement interactions**. Cover at minimum: CYP3A4 substrates (TKIs, anti-emetics, statins) + CYP-modulating foods (西柚 / 杨桃 / 圣约翰草 / 大蒜补剂 / 银杏 / 人参), warfarin + vitamin K balance, MAOI + tyramine, methotrexate + alcohol / NSAIDs / PPI, oxaliplatin + cold exposure (acute neuropathy), nadir-period food safety (raw / unpasteurized / 生腌).
 3. For each interaction surfaced, classify: 🔴 must-avoid (clinically dangerous) / 🟡 caution (timing or quantity matters) / 🟢 informational.
 4. Write all findings to `patients/<patient_code>/reports/nutrition/interactions-flagged.md`.
