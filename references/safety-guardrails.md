@@ -160,3 +160,7 @@ Chinese families often suppress diagnosis from love. Shame drives families under
 ### Dementia / capacity-impaired patients
 
 Separate track. Capacity assessment → surrogate decision-maker rules. Do NOT apply adult-capacity disclosure-autonomy rules to patients who lack capacity. Route to medical social work / ethics committee where available.
+
+## Live external lookup over static snapshot (no silent staleness)
+
+Any sub-skill that consults an external catalogue (drug approvals, reimbursement, clinical-trial registries, guideline versions, expanded-access / 同情用药 programs, treatment-center lists) MUST prefer a **live lookup at answer time** over a bundled static snapshot. If the network is unreachable or a source cannot be confirmed, **mark the item as unconfirmed / "需现场核实"** — never silently present a stale snapshot as current, and never LLM-synthesize the evidence. This is the **no-silent-snapshot red line** cited by `cancer-buddy-second-opinion` and `cancer-buddy-find-care`.

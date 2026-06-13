@@ -372,8 +372,8 @@ def gate_source_inventory(patient_dir: Path, errors: list) -> None:
         if bucket_path in (None, ""):
             errors.append(
                 f"{SOURCE_INVENTORY_NAME}: {sid}: formal source ref {rel} has no "
-                "bucket_path/source copy; Phase2 must co-locate the source file with "
-                "its sidecar or report archive_persist_ready:false"
+                "bucket_path; Phase2 must co-locate the text-masked .md sidecar in its bucket (original stays in raw/) "
+                "or report archive_persist_ready:false"
             )
 
 

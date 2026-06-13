@@ -61,6 +61,8 @@ ADAPTER_PROVENANCE: <decode/render/extract summary or none>
 ORIGINAL: raw/<original_subdir>/<filename>
 ```
 
+Typed ingest adapters (`omics_raw` / `timeseries`, see [ingest-adapters.md](ingest-adapters.md)) may append an OPTIONAL `MODALITY: <value>` line to this header; the authoritative modality is recorded in `source_inventory.json`, not the header.
+
 **MANDATE — no skipping.** If your slice has 25 files/content units, you produce 25 sidecars. The agent does NOT decide which files matter — Phase 2's review-flags audit and the user decide downstream.
 
 ### §2.2a Anti-anchoring (HARD CONSTRAINT)
