@@ -53,9 +53,9 @@ Phase2 结构化整理完成、Profile Card 之后自动触发。读结构化文
 |---|---|---|---|
 | header 一句话病情 | `one_line_condition` | profile.json（summary.stage + summary.histology + 关键分子 + 当前线状态 / 或直接 summary.one_line_condition） | 字段拼接：`<stage> <histology> · <driver> · <当前治疗状态>` |
 | header 报告日期 | `report_date` | 当日日期 | `YYYY-MM-DD` |
-| 患者标识 性别 | `sex` | profile.json / patient_summary demographics.sex | M→`i18n.val_male` / F→`i18n.val_female` 串值（走字符串表，不写死） |
-| 患者标识 年龄 | `age` | demographics.age | **精确年龄**：照实渲染（如 `63` / `63 岁`，单位按 locale）——临床试验匹配需要精确年龄；仅遮 DOB/生日，**不再降十年段** |
-| 患者标识 身高体重 BMI | `height_weight_bmi` | demographics.height_cm/weight_kg | `165 cm / 68 kg / 25.0`，BMI 自算（单位/数值 verbatim） |
+| 患者标识 性别 | `sex` | `patient_summary.json.demographics.sex` | M→`i18n.val_male` / F→`i18n.val_female` 串值（走字符串表，不写死） |
+| 患者标识 年龄 | `age` | `patient_summary.json.demographics.age` | **精确年龄**：照实渲染（如 `63` / `63 岁`，单位按 locale）——临床试验匹配需要精确年龄；仅遮 DOB/生日，**不再降十年段** |
+| 患者标识 身高体重 BMI | `height_weight_bmi` | `patient_summary.json.demographics.height_cm` / `weight_kg` | `165 cm / 68 kg / 25.0`，BMI 自算（单位/数值 verbatim） |
 | 患者标识 ECOG | `ecog` | demographics.ecog（+ ecog_inferred） | inferred 时在数值后追加 `i18n.val_ecog_inferred` 串值 |
 | 病情概要 | `case_summary_narrative` | **subagent 生成** ← patient_summary.json + timeline.json | 见下"叙事段" |
 | 主要病灶分布 | `lesions[]`（`lesion_site` / `lesion_detail`） | profile.json 影像字段 / case_text.md 影像段 | 每解剖部位一个数组元素；0 个就给 `[]`，引擎自动占位 |

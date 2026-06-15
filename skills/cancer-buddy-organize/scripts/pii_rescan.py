@@ -293,14 +293,17 @@ def scan_delivered_surfaces(patient_dir: Path, deny_tokens: set[str] | None = No
     if deny_tokens is None:
         deny_tokens = load_deny_tokens(patient_dir)
     out: dict[str, list[tuple[int, str, str]]] = {}
-    synthesized = set(SYNTHESIZED_SURFACES)
     for name in DELIVERED_SURFACES + SYNTHESIZED_SURFACES:
         p = patient_dir / name
         if p.is_file():
             findings = scan_delivered_file(
                 p, deny_tokens,
                 apply_filename_name=name not in _CLINICAL_PROSE_SURFACES,
-                drop_numeric_id=name in synthesized,
+                # Suppress the loose ≥11-digit shape on ALL clinical-prose surfaces (synthesized
+                # + the patient-facing HTMLs + AGENTS.md): they embed de-identified raw-filename
+                # timestamps (微信图片_<14位>.jpg) that would else false-fire and fail-close the gate.
+                # Structured delivered surfaces (INDEX/source_inventory/dotfiles/update_log) keep it.
+                drop_numeric_id=name in _CLINICAL_PROSE_SURFACES,
             )
             if findings:
                 out[name] = findings
