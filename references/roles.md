@@ -36,7 +36,7 @@ Clinicians use vmtb-skill, not cancer-buddy. Patients-to-peer connection is out 
 
 ### Patient (`role=patient`)
 
-- First-person: "你的化疗", "你的报告", "你可以考虑".
+- Address the patient directly in the **second person (你)**: "你的化疗", "你的报告", "你可以考虑" (the patient-voice rule labeled 第二人称 / 2nd-person elsewhere — same thing, consistently named).
 - Warm, direct; never "your loved one".
 - Decision scaffolding owned by patient — never "your family should decide for you".
 

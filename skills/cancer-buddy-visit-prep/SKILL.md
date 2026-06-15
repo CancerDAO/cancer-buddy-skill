@@ -35,16 +35,16 @@ Read [../../references/i18n.md](../../references/i18n.md). The pack is a patient
 4. **Map Block 1 医生速览** — direct field mapping, clinical entities verbatim; null → `val_pending`.
 5. **Derive Block 2 我要问医生的 via a subagent** (do not hardcode a keyword list): dispatch the subagent per [references/visit-prep-html-prompt.md](references/visit-prep-html-prompt.md) §4 to turn `review_flags` (→ 请医生确认), `missing_items` (→ 能否补做/补齐), `timeline` 进展 (→ 下一步), and the `visit_type` scaffold from [references/question-frameworks.md](references/question-frameworks.md) into four question groups.
 6. **Assemble Block 3 带什么** and (follow-up only) **Block 4 上次→这次变化** per the assembly prompt.
-7. **Emit `visit_prep_data.json` only — never hand-write HTML.** Write `patients/<pid>/visit_prep_data.json`, then render the template deterministically:
+7. **Emit `visit_prep_data.json` only — never hand-write HTML.** `<patient_dir>` is the absolute patient directory resolved via the standard chain `$CANCER_BUDDY_PATIENTS_DIR → $VMTB_PATIENT_DATA_ROOT → $HOME/CancerDAO/patients` (same resolution as cancer-buddy-organize) — **not** a path relative to this skill dir. Script and template paths below are relative to this skill's directory (`skills/cancer-buddy-visit-prep/`); the data + output paths are absolute under `<patient_dir>`. Write `<patient_dir>/visit_prep_data.json`, then render the template deterministically:
    ```
    python3 ../cancer-buddy-organize/scripts/render_html_template.py \
        --template references/templates/visit-prep.template.html \
-       --data patients/<pid>/visit_prep_data.json --out patients/<pid>/就诊准备包.html
+       --data <patient_dir>/visit_prep_data.json --out <patient_dir>/就诊准备包.html
    ```
    (`render_html_template.py` is the generic zero-medical-logic engine in the **cancer-buddy-organize** skill, stdlib only.)
 8. **Gate: validate the rendered HTML — it is not done until this passes (exit 0):**
    ```
-   python3 scripts/validate_visit_prep_html.py patients/<pid>/就诊准备包.html
+   python3 scripts/validate_visit_prep_html.py <patient_dir>/就诊准备包.html
    ```
    On failure, fix `visit_prep_data.json` or the template and re-render + re-validate — **never patch the output HTML by hand**.
 

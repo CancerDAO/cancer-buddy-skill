@@ -32,6 +32,10 @@ triggers=(
   "不想让对方知道"
   "数据保险箱"
   "宣教手册"
+  "找医院"
+  "MDT"
+  "就诊准备"
+  "复诊"
 )
 
 # Extract the meta description, handling BOTH single-line (`description: "..."`)

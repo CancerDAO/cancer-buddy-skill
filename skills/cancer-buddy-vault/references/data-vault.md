@@ -83,7 +83,7 @@ Vault does **not** define this schema — the authority is [`../../cancer-buddy-
       "title": "MAP regimen initiated",
       "detail": "Neoadjuvant chemotherapy, cycle 1",
       "hospital": "中山六院",
-      "source_refs": ["08_治疗/化疗记录/2024-02-01_化疗_中山六院.md#L1-L6"]
+      "source_refs": ["08_治疗/化疗/2024-02-01_化疗_中山六院.md#L1-L6"]
     }
   ]
 }

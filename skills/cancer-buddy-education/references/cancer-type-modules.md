@@ -64,7 +64,7 @@ End every cancer-type section with this standardized footer, rendered in `locale
 
 When generating handbook for a specific patient:
 
-1. Read patient's `profile.json.summary.primary` (canonical) or `primary_diagnosis.site` (legacy schema). Determine the cancer type.
+1. Read the cancer type from `profile.json.summary.primary` (canonical). If absent, fall back to `patient_summary.json.diagnosis.primary` (the structured diagnosis source). (There is no `primary_diagnosis.site` field in any current or retired profile schema — do not look for it.) Determine the cancer type.
 2. Use your oncology training to draft the 6 subsections matching the schema above. Length: 500-800 字 per cancer type.
 3. **Tailor to the patient's actual stage + line + comorbidities** — do NOT recite a generic textbook overview. If the patient is stage IV on 5L therapy, the 治疗方案概述 should focus on late-line options, not "I-II 期手术为主".
 4. **Use the patient's specific drugs verbatim** when discussing their regimen — pull from `profile.json.summary.current_regimen`. If the agent doesn't recognize the drug names from training data, do NOT make up a mechanism — write `[需向主诊医生确认 <drug> 的具体作用机制]`.
