@@ -1,38 +1,46 @@
 #!/usr/bin/env python3
-"""pii_rescan.py — deterministic PII residue gate on Phase-1 LLM sidecars.
+"""pii_rescan.py — deterministic SHAPE-floor PII backstop on Phase-1 LLM sidecars.
 
-The Phase-1 LLM Markdown ingestion worker masks PII into the literal token `[PII_MASKED]` as a
-per-line *semantic* judgement (organizer-prompt-phase1-ocr.md §2.4). That LLM
-pass is the primary redactor — but a single LLM pass can miss a phone number on
-a busy lab footer or a 身份证号 buried in a discharge header. The sidecar MD is
-the **single downstream plaintext boundary** (timeline / case_text / profile /
-段D HTML all read the MD and NEVER re-read the original source file), so any
-plaintext PII that survives in an MD leaks all the way through.
+Two independent residue layers guard the PII gate (organizer-prompt-phase1-ocr.md
+§2.5), trust-but-verify:
+  - Layer 1 — **semantic agent scan** (references/pii-rescan-prompt.md): the PRIMARY,
+    generalizing scan. Reads meaning, flags ANY identifying category — including ones
+    no regex pre-encodes (出生地/籍贯, 职业/工作单位, 家属姓名, 民族, clinician
+    signatures, 检验号/标本号 …). Owns ALL label/semantic detection.
+  - Layer 2 — **THIS script**: the deterministic, zero-network, reproducible backstop.
+    It scans ONLY for pure-shape identifiers (身份证18位 / 中国手机 / 座机 / E.164 /
+    US-SSN / ≥11位数字ID / email / host-absolute path / cloud-account path / an
+    identity-deny-list token). These are zero-false-negative shapes; the point of a
+    deterministic second opinion is to catch a leak even if both LLM passes (the §2.4
+    masker + Layer 1) share a blind spot.
 
-This script is the **门** that runs AFTER the worker writes sidecars and BEFORE
-Phase 2 consumes them. It does NOT rely on the LLM's self-report (`## PII`
-trailer) — it independently rescans the *body text* of every sidecar with a
-small deterministic PII-pattern family and flags any line that still looks like
-it carries plaintext PII. It never performs OCR.
+The Phase-1 LLM masker (§2.4) is the primary redactor. The sidecar MD is the
+**single downstream plaintext boundary** (timeline / case_text / profile / 段D HTML
+all read the MD and NEVER re-read the original source file), so any plaintext PII that
+survives leaks all the way through — hence the two-layer gate. This script runs AFTER
+the worker writes sidecars and BEFORE Phase 2 consumes them. It does NOT rely on the
+LLM's `## PII` self-report and never performs OCR. Label/semantic catching that used to
+live here (姓名:/住院号:/签名/检验号 …) moved to Layer 1 — those arms were brittle
+(could not generalize) and historically false-fired on clean records.
 
 Scope (matches phase1-ocr.md §2.4 — "touches PII tokens ONLY"):
-  - Only the OCR body is scanned. The full sidecar header block (`SOURCE:` /
-    `READ_MODE:` / `ADAPTER:` / `ADAPTER_PROVENANCE:` / `CONFIDENCE:`, plus the
-    legacy `ORIGINAL:`) and the `## PII` trailer are provenance metadata, not
-    clinical content — skipped.
-  - A line is skipped once its PII value has already been replaced by
-    `[PII_MASKED]` (i.e. label present but value is the mask → clean).
-  - Clinical fidelity wins: this gate flags label+value PII shapes and
-    standalone identifiers. It does NOT flag clinical dates, lab
-    values, drug names, TNM, or molecular markers — those carry no PII regex
-    signature and are left untouched (anti-anchoring §2.2a unaffected).
-  - Multi-locale: the detector runs an UNCONDITIONAL union of zh + en field
-    labels (姓名/患者姓名/patient name, 身份证/MRN/SSN, 电话/phone/mobile, …) plus
-    locale-agnostic standalone shapes (中国身份证/手机/座机 + email + US-SSN +
-    international/E.164 phone). A residue gate must over-detect, so patterns fire
-    regardless of the run's locale rather than being gated to one language. Latin
-    single-word labels (phone/cell/born/bed/address) require a real colon so they
-    do not false-fire on ordinary English prose ("cell count", "bed rest").
+  - For SIDECARS: only the OCR body is scanned. The full sidecar header block
+    (`SOURCE:` / `READ_MODE:` / `ADAPTER:` / `ADAPTER_PROVENANCE:` / `CONFIDENCE:`
+    / `FILE_ID:` / `MODALITY:`, plus the legacy `ORIGINAL:`) and the `## PII`
+    trailer are provenance metadata, not clinical content — skipped.
+  - For DELIVERED (non-sidecar) surfaces (INDEX.md / source_inventory.json /
+    dotfiles / 病情简要总结.html) the file is scanned WHOLE (no header exemption)
+    for name/email/absolute-path/name-in-filename leaks + a patient-identity
+    deny-list — see scan_delivered_surfaces(). These shipped artifacts were the
+    real leak path the body-only scan missed.
+  - Clinical fidelity wins: this gate flags ONLY pure-shape standalone
+    identifiers. It does NOT flag clinical dates, lab values, drug names, TNM,
+    molecular markers, or precise age — those carry no PII shape signature and are
+    left untouched (anti-anchoring §2.2a unaffected). Semantic / label-based PII
+    (姓名/住院号/出生地/职业/签名 …) is Layer 1's job (pii-rescan-prompt.md).
+  - Locale-agnostic by SHAPE: the standalone patterns (中国身份证/手机/座机 +
+    email + US-SSN + international/E.164 phone + ≥11-digit numeric id) fire on any
+    record regardless of language — a shape is a shape.
 
 This is a *detector*, not an auto-rewriter: medical-record redaction is a
 judgement task (phase1-ocr.md §2.4 — "not a fixed regex list"), so the fix is
@@ -48,11 +56,10 @@ central staging dir); if `<dir>/ocr/` does not exist, every `*.md` under the
 buckets `01_…14_` is scanned (post-Phase-2 co-located sidecars). A direct path
 to a single `.md` file scans just that file.
 
-OCR frequently splits a PII label and its value across two adjacent lines (the
-label at the tail of one line, the bare number at the head of the next). Each
-file is therefore scanned line-by-line AND with a sliding 2-line join, so a
-`住院号：` / `0001234567` straddle is still caught. A value already masked to
-`[PII_MASKED]` is never flagged.
+Each file is scanned line-by-line for the standalone shape patterns. (The former
+cross-line label/value straddle detection moved out with the label arms — a bare
+digit run on its own line is still caught by the standalone shapes, and label
+context is Layer 1's semantic job.)
 
 Output: human-readable findings to stderr; a one-line machine summary to stdout:
     PII_RESCAN: files=<N> clean=<N> with_residue=<N> findings=<N>
@@ -64,76 +71,19 @@ Exit codes:
 """
 from __future__ import annotations
 
+import json
 import re
 import sys
 from pathlib import Path
 
 MASK_TOKEN = "[PII_MASKED]"
 
-# --- separators -------------------------------------------------------------
-_SEP = r"\s*[:：\s]\s*"
-
-# Colon-MANDATORY separator for single-word Latin labels (phone/cell/born/bed/
-# address/name). These Latin labels are short, common words that also appear in
-# ordinary clinical prose ("cell count", "born in 1950", "bed rest"); requiring a
-# real colon prevents the space-tolerant _SEP from false-firing on English text.
-_SEP_COLON = r"\s*[:：]\s*"
-
-# A "value" that still looks like plaintext PII (NOT already the mask token and
-# not empty). We deliberately keep this loose — any non-trivial run of chars
-# after a PII label that is not the mask token is suspicious.
-#   - rejects: "" (empty), lines where the very next thing is the mask token
-#   - the per-line skip for `[PII_MASKED]` is handled separately below
-_PII_LABEL_PATTERNS = [
-    # patient_name: only the unambiguous FIELD labels (患者姓名 / 姓名). Bare 患者 / 病人
-    # are excluded — they are ordinary clinical-prose words ("患者神志清", "病人诉…"),
-    # not name-field labels, and including them false-fires on normal records.
-    (re.compile(r"(患者姓名|姓\s*名)" + _SEP + r"(\S)"), "patient_name"),
-    (re.compile(r"(身份证号?码?|证件号码?|护照号?码?)" + _SEP + r"(\S)"), "id_number"),
-    (re.compile(r"(电\s*话|联系电话|手\s*机|联系方式|Tel|TEL)" + _SEP + r"(\S)"), "phone"),
-    (re.compile(r"(地\s*址|住\s*址|家庭地址|通讯地址|联系地址)" + _SEP + r"(\S)"), "address"),
-    (re.compile(r"(住院号|住院病历号|病历号|门诊号|就诊号|就诊卡号|病案号|报告单号|卡号|ID号)" + _SEP + r"(\S)"), "admission_id"),
-    (re.compile(r"(床\s*号|病\s*床|床\s*位)" + _SEP + r"(\S)"), "bed_number"),
-    (re.compile(r"(出生日期|出生年月)" + _SEP + r"(\S)"), "birth_date"),
-    # --- English / Latin field labels (multi-locale safety net; colon-mandatory
-    #     via _SEP_COLON to avoid false-firing on ordinary English prose) --------
-    (re.compile(r"(?i)(patient\s*name|pt\.?\s*name|full\s*name|given\s*name|family\s*name|surname)" + _SEP_COLON + r"(\S)"), "patient_name"),
-    (re.compile(r"(?i)(mrn|medical\s*record\s*(?:no\.?|number|#)|patient\s*id|account\s*(?:no\.?|number|#)|ssn|social\s*security(?:\s*(?:no\.?|number))?|passport(?:\s*(?:no\.?|number|#))?)" + _SEP_COLON + r"(\S)"), "id_number"),
-    (re.compile(r"(?i)(phone|mobile|cell(?:\s*phone)?|telephone|fax|contact\s*(?:no\.?|number)?)" + _SEP_COLON + r"(\S)"), "phone"),
-    (re.compile(r"(?i)(address|addr|residence|home\s*address)" + _SEP_COLON + r"(\S)"), "address"),
-    (re.compile(r"(?i)(admission\s*(?:no\.?|number|id)|encounter\s*(?:no\.?|id)|visit\s*(?:no\.?|id)|chart\s*(?:no\.?|number))" + _SEP_COLON + r"(\S)"), "admission_id"),
-    (re.compile(r"(?i)(bed(?:\s*(?:no\.?|number|#))?|ward(?:\s*(?:no\.?|number))?)" + _SEP_COLON + r"(\S)"), "bed_number"),
-    (re.compile(r"(?i)(date\s*of\s*birth|d\.?o\.?b\.?|birth\s*date|born)" + _SEP_COLON + r"(\S)"), "birth_date"),
-]
-
-# Label-only patterns (label, then a REQUIRED trailing colon, then END of line) —
-# used for cross-line detection where the value spills onto the next line. The
-# colon is MANDATORY: a cross-line straddle only counts when the previous line ends
-# with a real field label like `住院号：` / `姓名：`. Without this, an ordinary
-# clinical line ending in a noun (e.g. "…既往体健患者") followed by a line starting
-# with 2–4 汉字 ("双肺纹理清晰") was being mis-flagged as a name straddle and the gate
-# failed on clean records. Keyed to the same category set as _PII_LABEL_PATTERNS.
-_TAIL_SEP = r"\s*[:：]\s*$"
-_PII_LABEL_TAIL = [
-    (re.compile(r"(患者姓名|姓\s*名)" + _TAIL_SEP), "patient_name"),
-    (re.compile(r"(身份证号?码?|证件号码?|护照号?码?)" + _TAIL_SEP), "id_number"),
-    (re.compile(r"(电\s*话|联系电话|手\s*机|联系方式|Tel|TEL)" + _TAIL_SEP), "phone"),
-    (re.compile(r"(地\s*址|住\s*址|家庭地址|通讯地址|联系地址)" + _TAIL_SEP), "address"),
-    (re.compile(r"(住院号|住院病历号|病历号|门诊号|就诊号|就诊卡号|病案号|报告单号|卡号|ID号)" + _TAIL_SEP), "admission_id"),
-    (re.compile(r"(床\s*号|病\s*床|床\s*位)" + _TAIL_SEP), "bed_number"),
-    (re.compile(r"(出生日期|出生年月)" + _TAIL_SEP), "birth_date"),
-    # English / Latin labels (colon already mandatory via _TAIL_SEP)
-    (re.compile(r"(?i)(patient\s*name|pt\.?\s*name|full\s*name|given\s*name|family\s*name|surname)" + _TAIL_SEP), "patient_name"),
-    (re.compile(r"(?i)(mrn|medical\s*record\s*(?:no\.?|number|#)|patient\s*id|account\s*(?:no\.?|number|#)|ssn|social\s*security(?:\s*(?:no\.?|number))?|passport(?:\s*(?:no\.?|number|#))?)" + _TAIL_SEP), "id_number"),
-    (re.compile(r"(?i)(phone|mobile|cell(?:\s*phone)?|telephone|fax|contact\s*(?:no\.?|number)?)" + _TAIL_SEP), "phone"),
-    (re.compile(r"(?i)(address|addr|residence|home\s*address)" + _TAIL_SEP), "address"),
-    (re.compile(r"(?i)(admission\s*(?:no\.?|number|id)|encounter\s*(?:no\.?|id)|visit\s*(?:no\.?|id)|chart\s*(?:no\.?|number))" + _TAIL_SEP), "admission_id"),
-    (re.compile(r"(?i)(bed(?:\s*(?:no\.?|number|#))?|ward(?:\s*(?:no\.?|number))?)" + _TAIL_SEP), "bed_number"),
-    (re.compile(r"(?i)(date\s*of\s*birth|d\.?o\.?b\.?|birth\s*date|born)" + _TAIL_SEP), "birth_date"),
-]
-
-# Standalone high-precision identifiers (no label needed). Locale-agnostic by
-# shape — these fire on any record regardless of language.
+# Standalone high-precision SHAPE identifiers (no label needed). Locale-agnostic by
+# shape — these fire on any record regardless of language. This is the ENTIRE
+# detector surface of the deterministic backstop: pure shapes with ~zero false
+# negatives. Label/semantic PII (姓名/住院号/出生地/职业/签名/检验号 …) is owned by
+# Layer 1 (references/pii-rescan-prompt.md), NOT here — those label arms were
+# removed because they could not generalize and historically false-fired.
 _STANDALONE = [
     (re.compile(r"[1-9]\d{5}(?:19|20)\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])\d{3}[\dXx]"), "id_number"),  # 中国身份证 18-digit
     (re.compile(r"(?<!\d)1[3-9]\d{9}(?!\d)"), "phone"),                # 中国手机
@@ -142,74 +92,24 @@ _STANDALONE = [
     (re.compile(r"(?<!\d)\d{3}-\d{2}-\d{4}(?!\d)"), "id_number"),      # US SSN shape
     (re.compile(r"(?<![\w+])\+\d[\d\s().-]{6,}\d"), "phone"),          # E.164 / international (must start with +)
     (re.compile(r"(?<!\d)\(?\d{3}\)?[-.\s]\d{3}[-.\s]\d{4}(?!\d)"), "phone"),  # US 10-digit w/ separators
+    # Long bare digit run (≥11): facility 检验号 (e.g. 24080800634), 18-digit 医疗代码 /
+    # 病案号. A residue gate over-detects: clinical lab values carry decimals/units and dates
+    # carry separators, so an 11+ digit unbroken run is an identifier, not a clinical value.
+    (re.compile(r"(?<!\d)\d{11,}(?!\d)"), "numeric_id"),
 ]
 
 
-def _value_after_label_is_masked(line: str, m: re.Match) -> bool:
-    """True if the value region after the label is already the mask token (label
-    present but value masked → *clean* line, not residue).
-
-    Handles Markdown table cells where the label and value are separated by `|`:
-    `| 患者姓名 | [PII_MASKED] |` — the captured `\\S` after the label sep is the
-    `|` pipe, so we strip leading separators/pipes before checking the mask."""
-    # group(2) is the first non-space char of the value region.
-    val_start = m.start(2)
-    tail = line[val_start:].lstrip()
-    # strip a Markdown table-cell delimiter run (`|`) + surrounding space
-    tail = re.sub(r"^\|\s*", "", tail)
-    return tail.startswith(MASK_TOKEN)
-
-
 def scan_line(line: str) -> list[tuple[str, str]]:
-    """Return list of (pii_type, matched_snippet) for residue on this line."""
+    """Return list of (pii_type, matched_snippet) for SHAPE residue on this line.
+
+    Only standalone shape identifiers — label/semantic PII is Layer 1's job. A
+    masked value (`[PII_MASKED]`) has no digits/email shape, so it never matches."""
     findings: list[tuple[str, str]] = []
-    stripped = line.strip()
-    if not stripped:
+    if not line.strip():
         return findings
-
-    # Label + plaintext value
-    for pattern, pii_type in _PII_LABEL_PATTERNS:
-        for m in pattern.finditer(line):
-            if _value_after_label_is_masked(line, m):
-                continue
-            snippet = line[m.start(): min(len(line), m.start() + 24)].strip()
-            findings.append((pii_type, snippet))
-
-    # Standalone identifiers (skip if the match sits inside a mask token region —
-    # it never will, the mask token has no digits, but guard anyway)
     for pattern, pii_type in _STANDALONE:
         for m in pattern.finditer(line):
             findings.append((pii_type, m.group(0)))
-
-    return findings
-
-
-# A value at the HEAD of the next line that looks like plaintext PII (digit run,
-# id-ish token, a CJK name, a capitalised Latin name, or an email). Not the mask
-# token, not a markdown delimiter. Only consulted AFTER a PII label tail matched
-# the previous line (scan_cross_line), so the broad Latin-name arm cannot
-# false-fire on ordinary sentence-initial capitalisation.
-_NEXTLINE_VALUE_RE = re.compile(
-    r"^\s*(?!\[PII_MASKED\])(\|?\s*)"
-    # digit-run / CJK name / Latin name (any case, incl. Latin-1 accents like Müller) / email
-    r"([0-9][0-9A-Za-z\-]{1,}|[一-龥]{2,4}|[A-Za-zÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ'.\-]+(?:\s+[A-Za-zÀ-ÖØ-öø-ÿ'.\-]+)?|[\w.+-]+@[\w-]+\.[\w.-]+)"
-)
-
-
-def scan_cross_line(prev_line: str, next_line: str) -> list[tuple[str, str]]:
-    """Detect a PII label at the tail of prev_line whose value spills onto the
-    head of next_line. Returns (pii_type, snippet) findings."""
-    findings: list[tuple[str, str]] = []
-    # strip a trailing markdown table pipe so `| 住院号 |` still matches as a tail
-    prev_for_match = re.sub(r"\|\s*$", "", prev_line.rstrip())
-    vm = _NEXTLINE_VALUE_RE.match(next_line)
-    if not vm:
-        return findings
-    for pattern, pii_type in _PII_LABEL_TAIL:
-        if pattern.search(prev_for_match):
-            snippet = (prev_line.strip()[-12:] + " ⏎ " + next_line.strip()[:16]).strip()
-            findings.append((pii_type, snippet))
-            break
     return findings
 
 
@@ -225,13 +125,13 @@ def scan_sidecar(path: Path) -> list[tuple[int, str, str]]:
     lines = text.splitlines()
     in_pii_trailer = False
     results: list[tuple[int, str, str]] = []
-    prev_body: tuple[int, str] | None = None  # (line_no, text) of last body line
     for i, line in enumerate(lines, start=1):
         # Skip the sidecar header block (provenance metadata, not OCR body).
         # The header per phase1-ocr.md is SOURCE/READ_MODE/ADAPTER/ADAPTER_PROVENANCE
-        # (+CONFIDENCE on the SOURCE line; legacy ORIGINAL:). These carry enum/provenance
-        # tokens, never PII, so skipping them avoids both noise and any header false-fire.
-        if line.startswith(("SOURCE:", "ORIGINAL:", "READ_MODE:", "ADAPTER:", "ADAPTER_PROVENANCE:", "CONFIDENCE:")):
+        # /FILE_ID/MODALITY (+CONFIDENCE on the SOURCE line; legacy ORIGINAL:). These carry
+        # enum/provenance tokens, never PII, so skipping them avoids both noise and any
+        # header false-fire (e.g. FILE_ID: a stable source_id that must not trip numeric_id).
+        if line.startswith(("SOURCE:", "ORIGINAL:", "READ_MODE:", "ADAPTER:", "ADAPTER_PROVENANCE:", "CONFIDENCE:", "FILE_ID:", "MODALITY:")):
             continue
         # `## PII` trailer is metadata — stop scanning the body once we hit it
         if re.match(r"^##\s+PII\b", line):
@@ -239,16 +139,126 @@ def scan_sidecar(path: Path) -> list[tuple[int, str, str]]:
             continue
         if in_pii_trailer:
             continue
-        # per-line label+value and standalone identifiers
+        # per-line standalone shape identifiers
         for pii_type, snippet in scan_line(line):
             results.append((i, pii_type, snippet))
-        # cross-line: PII label at tail of previous body line, value at head of
-        # this line (only fires when the value is not already masked / per-line).
-        if prev_body is not None:
-            for pii_type, snippet in scan_cross_line(prev_body[1], line):
-                results.append((i, f"{pii_type}(cross-line)", snippet))
-        prev_body = (i, line)
     return results
+
+
+# --------------------------------------------------------------------------- #
+# Delivered-surface (non-sidecar) PII scan — US-001
+#
+# The sidecar-body scan above deliberately skips header blocks and only looks at
+# OCR clinical text. But the pipeline ALSO ships machine/human artifacts that are
+# NOT sidecars — INDEX.md, source_inventory.json, the .rename_plan/.phase1_sources
+# dotfiles, update_log.json, and the patient-facing 病情简要总结.html. A real run
+# leaked the patient's name (in a `<name>-报告.pdf` filename copied verbatim into
+# original_path) and the uploader's cloud/email account (in absolute paths) into
+# exactly these files. They were never scanned because collect_sidecars() only
+# globs sidecars. This block closes that hole: these surfaces are scanned WHOLE
+# (no header exemption) for standalone identifiers, path/account leaks, name-in-
+# filename patterns, and any token on a patient-identity deny-list.
+# --------------------------------------------------------------------------- #
+DELIVERED_SURFACES = [
+    "INDEX.md",
+    "source_inventory.json",
+    ".rename_plan.json",
+    ".phase1_sources.json",
+    "update_log.json",
+    "病情简要总结.html",
+]
+
+_DENYLIST_FILE = ".identity_denylist.json"
+
+# Path / account leaks (host-absolute paths, cloud accounts, emails). Safe on EVERY
+# delivered surface incl. the patient HTML — clinical prose never contains these.
+_PATH_PII = [
+    (re.compile(r"/Users/[^/\s\"']+"), "local_user_path"),                       # absolute home → OS username
+    (re.compile(r"(?:CloudStorage|坚果云|OneDrive|Dropbox|iCloud)[^\s\"'\\]*"), "cloud_account_path"),
+]
+
+# <2-4 CJK personal name>-<Latin> prefixing a report filename: 王国洪-OncoFusion报告.
+# Applied ONLY to filename/index/provenance surfaces — NOT to the patient HTML, where
+# it FALSE-FIRES on legitimate verbatim CJK-term-hyphen-Latin oncology entities
+# (微卫星-MSI / 信迪利单抗-PD-1 / 免疫组化-IHC / 基因检测-NGS …) the producer must render,
+# fail-closing a clean record. Real patient names in the HTML are still caught by the
+# identity deny-list arm (load_deny_tokens / .identity_denylist.json); name-prefixed
+# UPLOAD filenames only ever appear in the index/provenance surfaces anyway.
+_FILENAME_PII = [
+    (re.compile(r"[一-龥]{2,4}-[A-Za-z]"), "name_in_filename"),
+]
+
+# Delivered surfaces that carry verbatim clinical prose → skip the filename-name regex.
+_CLINICAL_PROSE_SURFACES = {"病情简要总结.html"}
+
+
+def load_deny_tokens(patient_dir: Path) -> set[str]:
+    """Patient-identity deny-list (US-001 bootstrap).
+
+    `patient_summary.name` is masked to null downstream, so it cannot seed the
+    list. Two seeds that survive masking: (1) an optional `.identity_denylist.json`
+    (list of strings, or {"tokens":[...]}), written by Phase-1 before it masks; and
+    (2) CJK personal names harvested from the verbatim `raw/` filenames the patient
+    uploaded (`王国洪-OncoFusion报告.pdf` → `王国洪`). Any of these tokens appearing
+    in a delivered surface is a leak."""
+    tokens: set[str] = set()
+    f = patient_dir / _DENYLIST_FILE
+    if f.is_file():
+        try:
+            data = json.loads(f.read_text(encoding="utf-8"))
+            seq = data if isinstance(data, list) else (data.get("tokens", []) if isinstance(data, dict) else [])
+            for t in seq:
+                if isinstance(t, str) and len(t.strip()) >= 2:
+                    tokens.add(t.strip())
+        except Exception:
+            pass
+    raw = patient_dir / "raw"
+    if raw.is_dir():
+        for p in raw.rglob("*"):
+            m = re.match(r"([一-龥]{2,4})[-_]", p.name)
+            if m:
+                tokens.add(m.group(1))
+    return tokens
+
+
+def scan_delivered_file(path: Path, deny_tokens: set[str], apply_filename_name: bool = True) -> list[tuple[int, str, str]]:
+    """Scan a shipped non-sidecar file WHOLE (no header exemption).
+
+    apply_filename_name=False skips the CJK-name-in-filename regex for clinical-prose
+    surfaces (the patient HTML), where it false-fires on verbatim oncology entities;
+    the identity deny-list + path/account/standalone patterns still apply there."""
+    try:
+        text = path.read_text(encoding="utf-8")
+    except Exception as e:
+        return [(0, "unreadable", str(e))]
+    pats = list(_PATH_PII) + (list(_FILENAME_PII) if apply_filename_name else [])
+    results: list[tuple[int, str, str]] = []
+    for i, line in enumerate(text.splitlines(), start=1):
+        for pii_type, snippet in scan_line(line):
+            results.append((i, pii_type, snippet))
+        for pat, pii_type in pats:
+            for m in pat.finditer(line):
+                results.append((i, pii_type, m.group(0)[:48]))
+        for tok in deny_tokens:
+            if tok and tok in line:
+                results.append((i, "identity_denylist", tok))
+    return results
+
+
+def scan_delivered_surfaces(patient_dir: Path, deny_tokens: set[str] | None = None):
+    """Return ({filename: findings}, deny_tokens) for every present delivered surface."""
+    if deny_tokens is None:
+        deny_tokens = load_deny_tokens(patient_dir)
+    out: dict[str, list[tuple[int, str, str]]] = {}
+    for name in DELIVERED_SURFACES:
+        p = patient_dir / name
+        if p.is_file():
+            findings = scan_delivered_file(
+                p, deny_tokens, apply_filename_name=name not in _CLINICAL_PROSE_SURFACES
+            )
+            if findings:
+                out[name] = findings
+    return out, deny_tokens
 
 
 def collect_sidecars(target: Path) -> list[Path]:
@@ -270,7 +280,20 @@ def collect_sidecars(target: Path) -> list[Path]:
     for b in buckets:
         if b.is_dir():
             out.extend(sorted(b.rglob("*.md")))
-    return out
+    # 段C conversation notes carry the VERBATIM user chat quote (possible name / MRN /
+    # phone). They normally live under <NN_bucket>/conversation_notes/ (already covered
+    # above), but a lazy-archive misfile can drop them at a ROOT conversation_notes/
+    # with no NN_ prefix — scan conversation_notes/*.md WHEREVER it lands so a 段C note
+    # can never escape the PII gate.
+    out.extend(sorted(target.rglob("conversation_notes/*.md")))
+    # de-dup (a note under an NN_ bucket would match both globs)
+    seen: set[Path] = set()
+    uniq: list[Path] = []
+    for p in out:
+        if p not in seen:
+            seen.add(p)
+            uniq.append(p)
+    return uniq
 
 
 def main(argv: list[str]) -> int:
@@ -279,8 +302,12 @@ def main(argv: list[str]) -> int:
         return 2
 
     sidecars: list[Path] = []
+    dir_args: list[Path] = []
     for arg in argv[1:]:
-        sidecars.extend(collect_sidecars(Path(arg).resolve()))
+        p = Path(arg).resolve()
+        if p.is_dir() and p.name != "ocr":
+            dir_args.append(p)
+        sidecars.extend(collect_sidecars(p))
 
     # de-dup preserving order
     seen: set[Path] = set()
@@ -291,7 +318,22 @@ def main(argv: list[str]) -> int:
             uniq.append(s)
     sidecars = uniq
 
-    if not sidecars:
+    # delivered-surface scan (US-001) — only meaningful for a patient_dir arg
+    delivered_total = 0
+    delivered_seen: set[Path] = set()
+    for d in dir_args:
+        if d in delivered_seen:
+            continue
+        delivered_seen.add(d)
+        surfaces, deny = scan_delivered_surfaces(d)
+        for name, findings in surfaces.items():
+            delivered_total += len(findings)
+            print(f"\nRESIDUE (delivered surface): {d / name}", file=sys.stderr)
+            for line_no, pii_type, snippet in findings:
+                loc = f"L{line_no}" if line_no else "(file)"
+                print(f"  {loc}  [{pii_type}]  {snippet!r}", file=sys.stderr)
+
+    if not sidecars and not dir_args:
         print("ERROR: no .md sidecars found to scan", file=sys.stderr)
         return 2
 
@@ -310,17 +352,32 @@ def main(argv: list[str]) -> int:
     clean = len(sidecars) - files_with_residue
     print(
         f"PII_RESCAN: files={len(sidecars)} clean={clean} "
-        f"with_residue={files_with_residue} findings={total_findings}"
+        f"with_residue={files_with_residue} findings={total_findings} "
+        f"delivered_surface_findings={delivered_total}"
     )
 
-    if total_findings:
-        print(
-            "\nGATE FAILED: plaintext PII residue survived Phase-1 redaction. "
-            "Re-read each flagged line in context, mask the PII token(s) to "
-            f"{MASK_TOKEN} (clinical chars untouched — §2.2a / §2.4), and re-run "
-            "this gate until it reports findings=0 BEFORE proceeding to Phase 2.",
-            file=sys.stderr,
-        )
+    if total_findings or delivered_total:
+        if total_findings:
+            print(
+                "\nGATE FAILED (sidecar body): plaintext PII residue survived Phase-1 "
+                "redaction. Re-read each flagged line in context, mask the PII token(s) to "
+                f"{MASK_TOKEN} (clinical chars untouched — §2.2a / §2.4), and re-run "
+                "this gate until findings=0 BEFORE proceeding to Phase 2.",
+                file=sys.stderr,
+            )
+        if delivered_total:
+            print(
+                "\nGATE FAILED (delivered surface): PII leaked into a shipped index/"
+                "provenance/HTML artifact (filename, absolute path, account, or a "
+                "deny-listed identity token). These are NOT fixed by re-masking a "
+                "sidecar. Fix at the PRODUCER: use the de-identified raw handle (the "
+                "Phase-1 de-id raw filename / source_id) in original_path / raw_path / "
+                "INDEX — the verbatim upload name stays ONLY in raw/_FILENAME_MAPPING.md "
+                "(inside raw/, never a delivered surface); relativize any absolute path; "
+                "coarse-grain the HTML. The identifier must never reach INDEX.md / "
+                "source_inventory.json / dotfiles / 病情简要总结.html. Then re-run until findings=0.",
+                file=sys.stderr,
+            )
         return 1
 
     return 0

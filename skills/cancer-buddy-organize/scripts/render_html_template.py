@@ -30,10 +30,12 @@ Marker syntax (matching references/templates/*.template.html):
          "资料缺失" placeholder shown only when the data block is empty), so a
          section can ALWAYS render *something* without the engine deleting it.
 
-All three are evaluated recursively (loops/conditionals may nest). HTML comments
-themselves are preserved in output (they carry no PII) except the marker lines,
-which are consumed. After rendering, the engine self-checks that no live
-`{{...}}` placeholder remains (ignoring text inside HTML comments).
+All three are evaluated recursively (loops/conditionals may nest). After loop/
+conditional expansion, the engine strips ALL HTML comments from the output —
+both the consumed marker lines and any authoring notes (e.g. `<!-- 来源: ... -->`)
+— so no template scaffolding ships in the patient-facing HTML. The ONE comment
+kept is the provenance line (see below), which is stamped fresh afterwards. After
+rendering, the engine self-checks that no live `{{...}}` placeholder remains.
 
 Provenance: the rendered output carries, just before </body>, a comment
     <!-- rendered-by: render_html_template.py | template_sha256: <hex> -->
@@ -64,6 +66,10 @@ from pathlib import Path
 # RAW template text, so validate_case_summary_html.py (and the final report) can
 # prove the HTML was machine-rendered from the template rather than hand-written.
 PROVENANCE_FMT = "<!-- rendered-by: render_html_template.py | template_sha256: {sha} -->"
+
+# Stable token that uniquely identifies the provenance comment, used by the
+# comment-stripping pass to skip it while removing every other authoring comment.
+PROVENANCE_MARKER = "template_sha256:"
 
 
 def template_sha256(template_text: str) -> str:
@@ -123,6 +129,16 @@ def resolve_placeholder(key: str, local, root) -> str:
 
     # explicit "" → author wants empty; render it, no fallback.
     if isinstance(val, str) and val == "":
+        return ""
+
+    # Class-attribute placeholders (key ends in "_class": lab_class /
+    # line_marker_class / line_badge_class) carry a CSS class, never prose. A
+    # missing/null value means "no extra class" and MUST render "" — never the
+    # "资料缺失" fallback, which would leak into class="lab-item 资料缺失" and make
+    # validate_case_summary_html reject the whole HTML (used-class ⊄ template),
+    # fail-closing the entire patient summary. Belt to the producer-prompt's
+    # suspenders (which tells the 段D worker to set these to "" explicitly).
+    if key.endswith("_class") and (val is _MISSING or val is None):
         return ""
 
     if val is _MISSING or val is None:
@@ -288,10 +304,26 @@ def residual_placeholders(rendered: str):
 
 
 # ----- CLI -------------------------------------------------------------------
+def strip_authoring_comments(rendered: str) -> str:
+    """Remove ALL HTML comments from the rendered output EXCEPT the provenance
+    comment (identified by PROVENANCE_MARKER). Authoring comments (e.g. the
+    `<!-- LOOP labs -->`, `<!-- 来源: labs.json ... -->`, `<!-- RENDER_IF ... -->`
+    scaffolding and any human notes) carry no patient value and MUST NOT ship in
+    the final patient-facing HTML. Run this AFTER loop/conditional expansion so
+    only inert leftover comments remain; the provenance line is left untouched."""
+    def _drop(m: re.Match) -> str:
+        return m.group(0) if PROVENANCE_MARKER in m.group(0) else ""
+    return COMMENT_RE.sub(_drop, rendered)
+
+
 def render(template_text: str, data: dict) -> str:
     if not isinstance(data, dict):
         raise ValueError("data root must be a JSON object")
     rendered = render_segment(template_text, data, data)
+    # Strip authoring comments AFTER loop/conditional expansion (so block markers
+    # are already consumed and only stray comments remain), and BEFORE stamping
+    # provenance so the provenance comment is added fresh and is never at risk.
+    rendered = strip_authoring_comments(rendered)
     provenance = PROVENANCE_FMT.format(sha=template_sha256(template_text))
     if "</body>" in rendered:
         rendered = rendered.replace("</body>", f"{provenance}\n</body>", 1)

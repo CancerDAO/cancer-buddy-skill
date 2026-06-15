@@ -28,6 +28,7 @@
               "additionalProperties": false,
               "properties": {
                 "date": { "type": "string", "format": "date" },
+                "date_kind": { "type": ["string", "null"], "enum": ["采集", "报告", null], "description": "Optional disambiguation of what `date` denotes: 采集 (specimen-collection date) vs 报告 (report-issued date). Null/omitted when unknown — back-compat: not required." },
                 "value": { "type": ["number", "string", "null"] },
                 "flag": { "type": ["string", "null"], "enum": ["H", "L", "HH", "LL", null] },
                 "source_refs": {

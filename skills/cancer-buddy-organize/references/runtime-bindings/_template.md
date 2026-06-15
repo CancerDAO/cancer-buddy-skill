@@ -23,6 +23,7 @@
 - **契约要求**:最终 sidecar Markdown 正文必须由 LLM 生成 (文本脱敏 MD: inline `[PII_MASKED]` + `## PII` trailer)。图片/扫描件由 LLM 视觉读;PDF/DOCX/表格/文本可先适配,但 LLM 负责最终转写、PII 判断和 Markdown 结构。
 - **填法**:`<描述如何把 adapted input 交给 LLM,例如 codex -i、host file context、OpenClaw file tool>`。
 - **禁止**:不得把纯 OCR/parser 的字符输出直接写成临床正文,也不得用它替代 LLM 做 PII 判断。它们只能做 adapter 或机械文件处理。
+- **`[HEADER]` sidecar 头字段集**:SOURCE / READ_MODE / ADAPTER / ADAPTER_PROVENANCE / CONFIDENCE / FILE_ID (stable source_id, rename-survivable) / optional MODALITY / ORIGINAL。
 
 ## 3. 格式适配
 
@@ -41,6 +42,7 @@
 - **契约要求**:输出 canonical patient_dir 产物;每个上传原件逐字保存进 `raw/` vault(按上传原样,永不像素脱敏、永不删除)。
 - **填法**:`<Phase2 产物写本地/对象存储/数据库;如何把原件逐字写进 raw/;如何生成 source_inventory(每条 content unit 带 raw_path + file_id + page_range);persist 到哪>`。
 - **`raw/` vault**:每条 content unit 通过 `source_inventory.json.raw_path` deep-link 回到 `raw/`(多文档源带 `page_range`)。文本脱敏只发生在 sidecar 正文。
+- **`[DEID]` raw/ 文件名**:raw/ keeps every uploaded original's BYTES verbatim (never byte-altered, never pixel-redacted, never deleted); the on-disk FILENAME is DE-IDENTIFIED by Phase 1 (identity token stripped; if the whole basename is the identity, fall back to `<source_id>.<ext>`) so a patient-named upload (e.g. 王国洪-报告.pdf) never leaks into a scanned/shared surface. The verbatim original filename is preserved ONLY in `raw/_FILENAME_MAPPING.md` (inside raw/, excluded from export, never a delivered/scanned surface).
 
 ## 6. 填完自检
 
@@ -48,3 +50,4 @@
 - `source_inventory.json` 覆盖每个输入源,每条 content unit 带 `raw_path` + 文本脱敏 sidecar。
 - HTML 在文本脱敏 MD/JSON 后生成。
 - 临床实体 verbatim;schema/anchor/PII gates 通过。
+- **`[GATE]` 验收门**:Acceptance gate = run `validate_structured_outputs.py`; its currently-implemented check set is authoritative (do NOT freeze a narrower list)。The run must also complete Phase 2.5 extraction-faithfulness (no unresolved CRITICAL), and any shareable copy must go through `export_share.py` (excludes raw/, gated by this script)。

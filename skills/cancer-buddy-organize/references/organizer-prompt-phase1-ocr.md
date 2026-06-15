@@ -33,10 +33,16 @@ mkdir -p "$patient_dir/ocr" "$patient_dir/raw/$original_subdir"
 
 Use Glob/Bash to inventory `slice_input_path`. For each source file/content unit, three actions:
 
-**A. Audit-trail mirror (always):**
+**A. Audit-trail mirror (always) — bytes verbatim, FILENAME de-identified:**
 ```bash
-cp "$slice_input_path/<file>" "$patient_dir/raw/$original_subdir/<file>"
+# bytes are mirrored verbatim; the on-disk FILENAME is de-identified so a
+# patient-named upload (e.g. 王国洪-报告.pdf) never leaks the name into the
+# scanned/shared index surfaces (source_inventory.json / INDEX.md) downstream.
+cp "$slice_input_path/<file>" "$patient_dir/raw/$original_subdir/<deid_name>"
 ```
+- **De-identify the mirrored filename**: if the upload basename carries a patient/family **identity token** — a leading CJK personal-name (`王国洪-…`), a `<name>-<report>` prefix, or any name you would mask in §2.4 — mirror it under a name-stripped form (drop the identity token; if the whole basename is the identity, fall back to `<source_id>.<ext>`). A name-free upload basename is kept as-is. **Bytes are never altered** (still verbatim, never pixel-redacted); only the filename is de-identified.
+- **Record the verbatim original name** in `raw/_FILENAME_MAPPING.md` (a table `verbatim_upload_name | deid_raw_name | source_id`). This file lives **inside `raw/`** — it is excluded from `export_share`, is never a delivered/scanned surface, and is the single place the human-readable original name is preserved.
+- **Seed the identity deny-list**: append every patient/family identity token you mask (patient name, 家属 names, uploader account) to `<patient_dir>/.identity_denylist.json` (`{"tokens": [...]}`). This is the authoritative seed for the deterministic delivered-surface PII gate (`pii_rescan.py`), so a name that leaks via OCR'd body text or a non-CJK form is still caught even though the raw filename is now de-identified.
 
 **B. Adapt the source into an LLM-readable input (format adapter only):**
 ```bash
@@ -58,8 +64,11 @@ SOURCE: <source_type> | CONFIDENCE: <see §2.3>
 READ_MODE: <model_vision|llm_file_context|llm_rendered_pages|llm_text_payload|stub_unreadable>
 ADAPTER: <none|temp_raster|pdf_pages|docx_payload|spreadsheet_payload|text_payload|archive_unpacked|unsupported_stub>
 ADAPTER_PROVENANCE: <decode/render/extract summary or none>
+FILE_ID: <source_id>
 ORIGINAL: raw/<original_subdir>/<filename>
 ```
+
+`FILE_ID` is MANDATORY: it is the stable `source_id` (the same id keyed in `source_inventory.json`) so this sidecar stays linkable to its source even after the raw file is renamed — the `ORIGINAL:` path can drift on rename, `FILE_ID` does not. It is provenance metadata, not clinical content and not PII: `pii_rescan.py` skips header lines (§2.5), so it is never scanned or masked.
 
 Typed ingest adapters (`omics_raw` / `timeseries`, see [ingest-adapters.md](ingest-adapters.md)) may append an OPTIONAL `MODALITY: <value>` line to this header; the authoritative modality is recorded in `source_inventory.json`, not the header.
 
@@ -77,6 +86,20 @@ When you OCR a document containing **drug names, dosing, TNM staging, molecular 
 
 The single biggest historical failure mode of this skill: a consistent-but-wrong OCR (all docs in a hospitalization read the same wrong drug name because the first one was misread). Catch it at the per-image OCR layer by refusing to "smooth".
 
+### §2.2b Numeric-table OCR fidelity (HARD CONSTRAINT)
+
+When you transcribe a **lab / 检验 / 医嘱 TABLE**, you MUST keep each source row aligned as one Markdown row:
+
+```
+项目 | 值 | 单位 | 参考 | 标记
+```
+
+- ❌ NEVER emit a detached "项目名块" (a list of test names) followed by a separate "数值块" (a list of values). Splitting names and values into two blocks is the root cause of value↔row misalignment — a value silently shifts onto the neighbouring test's row (e.g. a tumor marker `25.30↑` read off the wrong row became the adjacent `4.68` and was flagged normal → a falsely reassuring downtrend). Transcribe one complete row at a time, left-to-right, so 项目↔值↔单位↔参考↔标记 stay bound to the same physical row.
+- ✅ If the image's columns cannot be confidently aligned per-row (skewed scan, merged cells, wrapped text, faint grid lines), mark that table block CONFIDENCE low (§2.3 per-block) and emit `[OCR_UNCERTAIN]` for the affected cells **rather than guessing the alignment**. A guessed alignment that looks plausible is worse than an honest `[OCR_UNCERTAIN]`.
+- ✅ Preserve the `标记` column verbatim (`H`/`L`/`↑`/`↓`/`HH`/`LL` etc.). A dropped or shifted abnormal flag is a clinical safety loss — do not omit it even when the value "looks normal".
+
+**Drug DOSE + UNIT are high-risk fields — re-read them a second time before finalizing.** Dose/unit OCR errors are clinically dangerous and easy to miss on a single pass: confusions like `5ml` vs `6ml`, `0.6g 静脉滴注` vs `0.68 前脉滴注`. After transcribing any 医嘱/处方 dose+unit, re-read that exact span from the image a second time and confirm the digits, decimal point, and unit before committing it to the sidecar. If the two reads disagree, emit `[OCR_UNCERTAIN: read1 | read2]`.
+
 ### §2.3 CONFIDENCE (RULE-BASED, do NOT self-assess)
 
 | Condition | CONFIDENCE |
@@ -88,6 +111,16 @@ The single biggest historical failure mode of this skill: a consistent-but-wrong
 | `discharge_summary` / `formal_rx` / `pathology_report` / NGS panel / CT-MRI narrative AND ≥ 2 documents in your slice agree on key fields verbatim | high |
 
 Phase 2 may downgrade `high` to `medium` if it discovers a cross-slice contradiction during the Step 3 review_flags audit. That's not your problem — write the best per-slice CONFIDENCE you can.
+
+**Per-block CONFIDENCE for numeric tables.** The header `CONFIDENCE:` is the whole-file default and remains MANDATORY for every sidecar. For a sidecar that contains one or more numeric tables (§2.2b lab/检验/医嘱), you MAY ALSO record a CONFIDENCE **per table block**, immediately above that block, when a single table's alignment is shakier than the rest of the file:
+
+```
+CONFIDENCE: low — table columns could not be aligned per-row
+项目 | 值 | 单位 | 参考 | 标记
+...
+```
+
+A table block marked `CONFIDENCE: low` triggers a **structured re-read pass** before the sidecar is finalized: re-read that table block alone, row by row (§2.2b 项目↔值↔单位↔参考↔标记 one physical row at a time), and either resolve the alignment or leave `[OCR_UNCERTAIN]` on the cells you still cannot bind. Only finalize the sidecar after the re-read. Non-table sidecars keep the single whole-file `CONFIDENCE:` header and need no per-block markers.
 
 ### §2.4 PII redaction (MANDATORY)
 
@@ -103,6 +136,10 @@ Replace every occurrence of the following with the literal token `[PII_MASKED]`:
 - signatory personal names of any kind — 主诊/经治/主管/审核/报告/记录/操作医师签名, nurse signatures, 家属签名 (replace the name, keep the role label, e.g. `主治医师签名: [PII_MASKED]`)
 - national ID / 身份证号
 - date of birth / 出生日期 (the patient's birth date specifically — NOT clinical event dates)
+- specimen / test serials — 标本编号 / 检验号 / 样本号 / 条码 (replace the serial value, keep the label, e.g. `标本编号: [PII_MASKED]`)
+- postal code — 邮政编码 / 邮编
+
+> The specimen-serial and postal-code categories above are flagged by the §2.5 **semantic agent scan** (Layer 1, [`pii-rescan-prompt.md`](pii-rescan-prompt.md)) — they are label/semantic, not pure shape, so the deterministic backstop no longer owns them — and leaving any of them in plaintext fails the gate and the slice cannot proceed. Mask the serial/code value only — the surrounding clinical text, the test result value, units, 参考, and 标记 (§2.2a/§2.2b precedence) stay verbatim.
 
 > Name/DOB are masked in the sidecar BODY as above. Separately, any residual or partially-masked patient name + birth-year may be recorded ONLY into `patient_summary.json.demographics` (`name`/`dob`) for the P0 `cross_patient_name_collision` check (organizer-prompt-phase2-synthesis.md Step 3a) — never surfaced in any patient-facing artifact; when fully masked these are null and the check skips.
 
@@ -123,19 +160,23 @@ Phase 2 reads this `## PII` section only as category context. If you masked noth
 
 ### §2.5 PII rescan gate (MANDATORY — do NOT rely on a single LLM pass)
 
-After you have written every sidecar in your slice, run the deterministic residue scanner over them. A single semantic redaction pass (§2.4) can miss a phone number on a busy lab footer or a 住院号 that landed on the next line — the sidecar is the **single downstream plaintext boundary**, so we do not trust one self-pass to be airtight. The gate is rule-based and independent of your `## PII` self-report:
+After you have written every sidecar in your slice, run **both** independent residue layers over them. A single semantic redaction pass (§2.4) can miss a phone number on a busy lab footer, a 出生地/职业 buried in a discharge header, or a 住院号 that landed on the next line — the sidecar is the **single downstream plaintext boundary**, so we do not trust one self-pass to be airtight. Neither layer reads your `## PII` self-report.
+
+**Layer 1 — semantic agent scan (primary, generalizes):** run the scan defined in [`pii-rescan-prompt.md`](pii-rescan-prompt.md) over your slice's sidecar bodies. It reads meaning and flags **any** identifying category — including ones no regex pre-encodes (出生地/籍贯、职业/工作单位、家属姓名、民族、转诊医师签名、检验号/标本号…). Returns structured findings + `clean`.
+
+**Layer 2 — deterministic shape backstop (independent, zero-network):**
 
 ```bash
 python3 scripts/pii_rescan.py "$patient_dir/ocr"
 ```
 
-(Or point it at your slice's specific sidecar files if you only wrote a subset.) It scans the OCR **body** of each sidecar — skipping the `SOURCE:`/`ORIGINAL:` header and the `## PII` trailer — for plaintext PII that survived: label+value shapes (`患者姓名: 张伟`, `住院号: 12345`, 床号, 出生日期…), standalone 身份证号 / 手机 / 座机 numbers, and label/value pairs that straddle two lines. Exit `0` = clean; exit `1` = residue found (it prints each `file:line [category] snippet`).
+(Or point it at your slice's specific sidecar files if you only wrote a subset.) It scans the OCR **body** — skipping the provenance header block (`SOURCE:`/`READ_MODE:`/`ADAPTER:`/`ADAPTER_PROVENANCE:`/`CONFIDENCE:`/`FILE_ID:`/`MODALITY:`/`ORIGINAL:`) and the `## PII` trailer — for **pure-shape** identifiers only: 身份证18位 / 中国手机 / 座机 / E.164 / US-SSN / ≥11位数字ID / email. These are zero-false-negative shapes; their job is to be an independent second opinion that catches a leak even if both LLM passes share a blind spot. Label/semantic detection now lives in Layer 1, not here. Exit `0` = clean; exit `1` = residue found (`file:line [category] snippet`).
 
-**If the gate reports `findings > 0`:** for each flagged line, re-open the sidecar, re-read that line **in context**, and mask the leaked PII token(s) to `[PII_MASKED]` — **clinical characters untouched** (§2.2a / §2.4 still bind: never touch a drug name, lab value, TNM, molecular marker, or clinical date while patching). Update the `## PII` trailer for any newly-masked category. Then **re-run the gate**. Repeat until it reports `findings=0`. Do NOT auto-regex-replace — the fix is a per-line judgement so you don't eat a clinical char adjacent to the matched span.
+**If EITHER layer reports a finding:** for each flagged line, re-open the sidecar, re-read it **in context**, and mask the leaked PII token(s) to `[PII_MASKED]` — **clinical characters untouched** (§2.2a / §2.4 still bind: never touch a drug name, lab value, TNM, molecular marker, or clinical date while patching). Update the `## PII` trailer for any newly-masked category. Then **re-run both layers**. Repeat until **both** report clean. Do NOT auto-regex-replace — the fix is a per-line judgement so you don't eat a clinical char adjacent to the matched span.
 
-**Hard gate:** you may NOT return `continuation_needed: false` (i.e. signal your slice is done for Phase 2) until `pii_rescan.py` passes (`findings=0`) on the sidecars you wrote. A slice with surviving plaintext PII does not proceed to Phase 2.
+**Hard gate:** you may NOT return `continuation_needed: false` (i.e. signal your slice is done for Phase 2) until **both layers** pass on the sidecars you wrote. A slice with surviving plaintext PII does not proceed to Phase 2.
 
-> The scanner is a deterministic backstop, not the redactor. The redaction itself is your §2.4 semantic pass; this gate only catches what slipped through and forces a re-mask. Text masking is the only desensitization of the archived data — the original in `raw/` is kept verbatim.
+> Neither layer is the redactor. The redaction itself is your §2.4 semantic pass; these two gates only catch what slipped through and force a re-mask (Layer 1 = generalizing semantic check, Layer 2 = independent deterministic shape check — trust-but-verify). Text masking is the only desensitization of the archived data — the original in `raw/` is kept verbatim.
 
 ## Step 3 — Return JSON
 
@@ -158,7 +199,7 @@ Final message MUST be pure JSON, no prose:
 }
 ```
 
-`pii_rescan_passed` MUST be `true` whenever `continuation_needed` is `false` — it is your attestation that §2.5's `pii_rescan.py` reported `findings=0` on the sidecars you wrote. If you must return `continuation_needed: true` (context filled), set `pii_rescan_passed` for the portion you completed and let the continuation worker re-run the gate over the full set.
+`pii_rescan_passed` MUST be `true` whenever `continuation_needed` is `false` — it is your attestation that **both** §2.5 layers (the semantic agent scan AND `pii_rescan.py`) reported clean on the sidecars you wrote. If you must return `continuation_needed: true` (context filled), set `pii_rescan_passed` for the portion you completed and let the continuation worker re-run both layers over the full set.
 
 `continuation_needed: true` ONLY when context fills before processing every file in your slice — set `continuation_resume_from` to the next unprocessed source-file basename. The caller dispatches a fresh worker that skips files already in `<patient_dir>/ocr/` and resumes.
 
@@ -170,7 +211,7 @@ Final message MUST be pure JSON, no prose:
 - NEVER write INDEX.md / timeline.md / case_text.md / profile.json / readiness.json / review_flags.md / review_summary.md — those are Phase 2's responsibility. Writing any of them creates a race condition.
 - NEVER overwrite existing sidecars with lower mtime than source (idempotent re-run).
 - SOURCE/CONFIDENCE tags MANDATORY on every sidecar (including stubs).
-- MANDATORY PII rescan gate (§2.5): run `pii_rescan.py`, re-mask any residue, re-run until `findings=0` BEFORE signalling slice-done. Don't trust a single LLM pass.
+- MANDATORY PII rescan gate (§2.5): run **both layers** (semantic agent scan [`pii-rescan-prompt.md`](pii-rescan-prompt.md) + deterministic `pii_rescan.py`), re-mask any residue, re-run until **both** clean BEFORE signalling slice-done. Don't trust a single LLM pass.
 - NO budget cap. If context fills, return `continuation_needed: true` with the resume point.
 
 ## Runtime adaptation (binding layer — read [`organize-contract.md`](organize-contract.md) §Phase1)

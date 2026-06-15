@@ -19,7 +19,16 @@
 ```text
 for src in source_inventory:
   source_id = stable_id(src)
-  copy original verbatim into patient_dir/raw/
+  # raw/ keeps every uploaded original's BYTES verbatim (never byte-altered, never
+  # pixel-redacted, never deleted); the on-disk FILENAME is DE-IDENTIFIED by Phase 1
+  # (identity token stripped; if the whole basename is the identity, fall back to
+  # <source_id>.<ext>) so a patient-named upload (e.g. 王国洪-报告.pdf) never leaks into
+  # a scanned/shared surface. The verbatim original filename is preserved ONLY in
+  # raw/_FILENAME_MAPPING.md (inside raw/, excluded from export, never a
+  # delivered/scanned surface).
+  copy original BYTES verbatim into patient_dir/raw/<de-identified-filename>
+  append "<de-identified-filename> ← <verbatim-original-name>" to patient_dir/raw/_FILENAME_MAPPING.md
+  seed stripped identity token into patient_dir/.identity_denylist.json
   adapter_input = adapt_for_llm(src)
   sidecar = codex_llm_ingest(source_id, adapter_input)
   write patient_dir/ocr/<source_id>.md            # text-masked MD sidecar (only desensitization of archived data)
@@ -33,7 +42,7 @@ Codex `-i` 喂的是匿名图像字节时,平台必须维护 `source_id ↔ 原�
 - 图片/扫描件: `codex exec -i <adapted-raster>` 让 Codex 视觉直接读,输出文本脱敏 MD。
 - PDF/DOCX/spreadsheet/text:平台可构造 LLM-readable file context 或 payload,再让 Codex 输出文本脱敏 MD (inline `[PII_MASKED]` + `## PII` trailer)。
 - 纯 OCR/parser 字符流不能直接写 sidecar 临床正文,也不能替代 Codex 做 PII 判断。它们只允许做 adapter 或机械文件处理。
-- sidecar header 必须含 `READ_MODE`, `ADAPTER`, `ADAPTER_PROVENANCE`, `ORIGINAL`。`ORIGINAL`/`raw_path` 指向 `raw/` 下的逐字原件,不是临时 adapter 文件。
+- sidecar header 必须含 `SOURCE` / `READ_MODE` / `ADAPTER` / `ADAPTER_PROVENANCE` / `CONFIDENCE` / `FILE_ID` (stable source_id, rename-survivable) / optional `MODALITY` / `ORIGINAL`。`ORIGINAL`/`raw_path` 指向 `raw/` 下的逐字原件,不是临时 adapter 文件。
 
 ## 3. 格式适配
 
@@ -64,9 +73,9 @@ Phase2 产:
 
 Storage model:
 
-- `raw/` 是每个上传原件的逐字 vault,按上传原样保存,永不像素脱敏、永不删除。每条 content unit 通过 `source_inventory.json.raw_path` deep-link 回到 `raw/`(多文档源带 `page_range`)。
+- `raw/` keeps every uploaded original's BYTES verbatim (never byte-altered, never pixel-redacted, never deleted); the on-disk FILENAME is DE-IDENTIFIED by Phase 1 (identity token stripped; if the whole basename is the identity, fall back to `<source_id>.<ext>`) so a patient-named upload (e.g. 王国洪-报告.pdf) never leaks into a scanned/shared surface. The verbatim original filename is preserved ONLY in `raw/_FILENAME_MAPPING.md` (inside `raw/`, excluded from export, never a delivered/scanned surface)。每条 content unit 通过 `source_inventory.json.raw_path` deep-link 回到 `raw/`(多文档源带 `page_range`)。
 - `病情简要总结.html` 从文本脱敏 JSON/MD 生成。
-- 文本脱敏发生在 sidecar 正文(`pii_rescan.py` 重扫),sidecar 因此是下游唯一读取源、无明文 PII。
+- The text-masked sidecar body is the primary downstream plaintext boundary; ADDITIONALLY the delivered surfaces (INDEX.md / source_inventory.json / update_log.json / dotfiles / 病情简要总结.html) are scanned by `pii_rescan.py` for name / path / account leaks. De-identification therefore covers the sidecar body AND every delivered surface.
 - Persist:text-masked bucket files、co-located text-masked MD、`raw/` 逐字原件、JSON/HTML/logs。
 
 ## 6. 段D HTML
@@ -88,6 +97,6 @@ Codex never hand-writes HTML.
 
 ## 7. 验收
 
-- `validate_structured_outputs.py <patient_dir>` passes only when structured JSON/anchors + PII rescan of text sidecars + source_inventory (every content unit has `raw_path` + text-masked sidecar) + HTML shape pass. 它不再检查任何 source/image redaction 状态。
+- `validate_structured_outputs.py <patient_dir>` is the acceptance gate; **its currently-implemented check set is authoritative** (contract §5 invariant #8 — do not freeze a narrower enumeration here). As of this writing it runs: structured JSON schema + anchors; PII rescan of text sidecars **and delivered surfaces** (INDEX.md / source_inventory.json / dotfiles / 病情简要总结.html, deny-list seeded); `gate_numeric_integrity` (flag↔reference_range + dropped-abnormal); source_inventory completeness (every content unit has a de-identified `raw_path` + text-masked sidecar); HTML shape. It does not check any source/image redaction state. Additionally the run must complete the **Phase 2.5 faithfulness check** (no unresolved CRITICAL) and any shareable copy must go through `export_share.py` (excludes `raw/`, gated by this script).
 - `source_inventory.json` must cover every input source, and every content unit must carry a `raw_path` deep-link into `raw/` plus a text-masked sidecar.
 - Local OCR is never a sidecar text-source option in this binding.

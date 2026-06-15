@@ -4,21 +4,31 @@ Phase2 结构化整理完成、Profile Card 之后自动触发。读结构化文
 
 ## 红线（违反即非法输出，哪怕临床内容全对）
 
-- 你**只产 `case_summary_data.json`**：各字段值 + 病情概要叙事串 + lesion/molecular/labs/治疗线/path 数组 + i18n locale 串表 + 各空段 fallback 文案。
+- 你**只产 `case_summary_data.json`**：各字段值 + 病情概要叙事串 + lesion/molecular/labs/治疗线/path 数组 + **`caveats[]` 数据说明数组**（见下"Call parameters"）+ i18n locale 串表（含 `sec_caveats`）+ 各空段 fallback 文案。
 - 你**绝不手写、拼接、改写任何 HTML / CSS / DOM**。HTML 由 `render_html_template.py` 从 `case-summary.template.html` 确定性生成，你不碰模板、不碰标签、不碰 class、不碰样式。
 - **任何自定义 HTML / CSS / DOM 结构都是非法输出**——哪怕临床内容完全正确。模板是唯一真相源；防过拟合靠"引擎零医学逻辑 + 数据驱动 0..N"。
 - 渲染完后，引擎会自检"去 HTML 注释后无残留 `{{...}}`"。残留即报错（exit 1），说明 `case_summary_data.json` 漏了 key——补数据，不要去改模板。
 - 渲染完还要过 `scripts/validate_case_summary_html.py`（形不变量：style 块逐字节一致、无越界 class、无 PII、骨架齐、provenance 对得上）。**renderer 或 validator 任一 exit≠0，就不交付这份 HTML**（fail-closed，见"输出"§4）。validator 只查形、与具体病人无关，**绝不断言某化验/某 section 内容存在**。
 
+## Call parameters（来自编排器 SKILL.md Step 12）
+
+除 `patient_dir` 外，编排器可能追加两个列表参数，二者都**只影响患者向 HTML，不改结构化 JSON**：
+
+- **`unfaithful_values`**（Phase 2.5 忠实度检查的 CRITICAL `not_faithful` 列表，元素 `{file, json_path, value}`，可能为 `[]`）：对列表里的**每一个**值，你在组装 `case_summary_data.json` 时**必须把对应字段置 `null`（→ 模板渲染 `资料缺失`），并且绝不在病情概要叙事里复述该值**。坏值仍留在结构化 JSON 里（已被 flag，待用户更正）——你只负责让患者向 HTML 不显示它。`.case_summary_data.json` 由你创建，所以"丢弃"发生在你这一步，不存在"渲染前再 null"的时机。
+  - **数组元素要素感知（硬约束，否则整份 HTML fail-closed）**：若被丢弃的值属于某数组元素（`labs[].lab_value` / `molecular_rows[].molecular_value` / `treatment_lines[].*`），**只把该 value 字段置 `null`，保留整个元素并渲成"资料缺失"行——绝不删除整个数组元素**；并且**务必把同元素里所有会进入 `class` 属性的兄弟字段显式置为空字符串 `""`（不是省略、不是 `null`）**：`labs[].lab_class`、`treatment_lines[].line_marker_class` / `line_badge_class` 等。原因：省略/`null` 会触发引擎 `__default__` 回退，把"资料缺失"注入 `class="lab-item 资料缺失"`，`validate_case_summary_html.py` 报越界 class（exit 1）→ 整份病情简要总结 fail-closed 不交付。
+- **`adjudications`**（Step 3c 对 load-bearing `cross_doc_contradiction` 的来源优先级裁决列表，元素含被裁决字段 + 胜出来源类，可能为 `[]`）：对每一条，你在 `caveats[]` 里追加一个 `{ "caveat_text": "<本 locale 渲染的 (来源存在差异，已按X裁决)，X=胜出来源类>" }`。脚手架文案按 locale 渲染，临床实体 verbatim，**绝不把该 note 内联进任何 verbatim 临床值串**（那会破坏照抄规则）；它只作为"数据说明"脚注另起一段。无裁决则不追加。同时把 `i18n.sec_caveats` 填成该 locale 的"数据说明"串。
+- **`lab_trend_caveats`**（US-006 化验/肿瘤标志物**趋势** OCR 提示列表，可能为 `[]`）：对每一条，你在 `caveats[]` 里追加一个 `{ "caveat_text": "<本 locale 渲染的 (数值来自照片 OCR，请以检验原件核对)>" }`；**并且**：当病情概要叙事里陈述了某化验/标志物**趋势**（升/降/序列）时，必须在该句后追加同一条 locale OCR 提示——因为叙事读的是 `patient_summary.json`+`timeline.json`，不会自动带上 case_text 的提示。无趋势提示则不追加。
+- 三个来源（`unfaithful_values` 丢弃 / `adjudications` 裁决 / `lab_trend_caveats` OCR 趋势）共同决定 `caveats[]`：全空 → `caveats: []` → 模板"数据说明"脚注整段不显示。
+
 ## locale（i18n）— 先读再填
 
 先读 `profile.json.locale`（organize 已在 Phase2 写入）。整张 HTML 的**脚手架按该 locale 出**，**临床实体一律 verbatim**（药名/基因/变异/TNM/数值单位/VAF 记法照抄，禁止翻译 —— 误译=医疗风险，见 [`../../../references/i18n.md`](../../../references/i18n.md) §4）。
 
-模板顶部有一张 **i18n 字符串表注释块**（section 标题 / 免责声明 / 字段标签 / "待主治医师补充"占位 / 性别值 / 国籍值 / ECOG 推断注 / "待启动" 等）。你把这些串填进 `case_summary_data.json` 的 `i18n` 对象（key→该 locale 的串），引擎再替换模板里的 `{{i18n.<key>}}`：
+模板顶部有一张 **i18n 字符串表注释块**（section 标题 / 免责声明 / 字段标签 / "待主治医师补充"占位 / 性别值 / ECOG 推断注 / "待启动" 等）。你把这些串填进 `case_summary_data.json` 的 `i18n` 对象（key→该 locale 的串），引擎再替换模板里的 `{{i18n.<key>}}`：
 
 1. 按 `profile.json.locale` 选该 locale 的列，把每个 `i18n.<key>` 填成表里对应字符串；`html_lang` 填该 locale 的 `<html lang>` 值。
 2. locale 不在表中（如 `fr`/`es`）→ 按 `en` 列语义在目标语言生成等义脚手架字符串（同义同语气），临床术语保持原文，**不要硬编码单语言串**。
-3. 字段值里凡映射到固定脚手架的（性别 M→`i18n.val_male`/F→`i18n.val_female`、国籍→`i18n.val_nationality`、缺字段→`i18n.val_pending`、ECOG inferred 注→`i18n.val_ecog_inferred`、待启动→`i18n.val_to_start`）一律取自该 i18n 串，不在数据里写死中文。
+3. 字段值里凡映射到固定脚手架的（性别 M→`i18n.val_male`/F→`i18n.val_female`、缺字段→`i18n.val_pending`、ECOG inferred 注→`i18n.val_ecog_inferred`、待启动→`i18n.val_to_start`）一律取自该 i18n 串，不在数据里写死中文。
 4. 你不动 CSS / DOM；引擎按模板 1:1 渲染，只替换 `{{占位符}}` / 展开 `<!-- LOOP -->` / 判定 `<!-- RENDER_IF -->`。
 
 ## 输入
@@ -41,11 +51,10 @@ Phase2 结构化整理完成、Profile Card 之后自动触发。读结构化文
 
 | 模板 section | JSON key | 来源 | 处理方式 |
 |---|---|---|---|
-| header 一句话病情 | `one_line_condition` | profile.json（diagnosis/stage + 关键分子 + 当前线状态） | 字段拼接：`<stage> <histology> · <driver> · <当前治疗状态>` |
+| header 一句话病情 | `one_line_condition` | profile.json（summary.stage + summary.histology + 关键分子 + 当前线状态 / 或直接 summary.one_line_condition） | 字段拼接：`<stage> <histology> · <driver> · <当前治疗状态>` |
 | header 报告日期 | `report_date` | 当日日期 | `YYYY-MM-DD` |
 | 患者标识 性别 | `sex` | profile.json / patient_summary demographics.sex | M→`i18n.val_male` / F→`i18n.val_female` 串值（走字符串表，不写死） |
-| 患者标识 年龄 | `age_band` | demographics.age | **粗粒度**：归一到十年段，如 60+（绝不落真实年龄/生日） |
-| 患者标识 国籍 | `nationality` | patient_location_hint | 海外站统一填 `i18n.val_nationality` 串值，不落具体国家/城市 |
+| 患者标识 年龄 | `age` | demographics.age | **精确年龄**：照实渲染（如 `63` / `63 岁`，单位按 locale）——临床试验匹配需要精确年龄；仅遮 DOB/生日，**不再降十年段** |
 | 患者标识 身高体重 BMI | `height_weight_bmi` | demographics.height_cm/weight_kg | `165 cm / 68 kg / 25.0`，BMI 自算（单位/数值 verbatim） |
 | 患者标识 ECOG | `ecog` | demographics.ecog（+ ecog_inferred） | inferred 时在数值后追加 `i18n.val_ecog_inferred` 串值 |
 | 病情概要 | `case_summary_narrative` | **subagent 生成** ← patient_summary.json + timeline.json | 见下"叙事段" |
@@ -63,12 +72,12 @@ Phase2 结构化整理完成、Profile Card 之后自动触发。读结构化文
 除"病情概要"叙事段外，所有 section 都是结构化 JSON → 占位符的直接映射，不做语义改写、不增删临床事实。
 
 ### header
-- `{{one_line_condition}}`：拼 diagnosis.stage + diagnosis.histology + 主驱动变异（molecular.variants[0]）+ current_status 简述。临床实体 verbatim，连接词按 locale。例（zh）：`IV 期胰腺导管腺癌 · KRAS G12D · 一线 FOLFIRINOX 后 · 二线桥接治疗前`。
+- `{{one_line_condition}}`：有 `profile.json.summary.one_line_condition` 时**逐字照抄**该预计算值（与 AGENTS.md 用的同一个值）；仅当它为 null 时，再从 `profile.json.summary.stage` + `profile.json.summary.histology` + 主驱动变异（molecular.variants[0]）+ current_status 简述重新拼接。current_status 简述取自 `patient_summary.json.current_status`，或 `profile.json.latest_status`——注意 `current_status` 不在 profile.json 里。临床实体 verbatim，连接词按 locale。例（zh）：`IV 期胰腺导管腺癌 · KRAS G12D · 一线 FOLFIRINOX 后 · 二线桥接治疗前`。
 - 免责声明走 `{{i18n.disclaimer}}`（按 locale 出，文案语义固定，不增删内容）。
 
-### 患者标识（粗粒度脱敏，硬约束）
-- 性别填 `i18n.val_male`/`i18n.val_female` 串值；年龄**只输出十年段**（`age // 10 * 10` 后加 `+`，如 63→`60+`，53→`50+`）——精确年龄一律降到粗粒度 band，绝不落真实年龄/生日；国籍填 `i18n.val_nationality` 串值。
-- 绝不输出真名、真实出生日期、住院号、城市。BMI = `weight_kg / (height_cm/100)^2`，保留一位小数（数值/单位 verbatim）。
+### 患者标识（脱敏硬约束）
+- 性别填 `i18n.val_male`/`i18n.val_female` 串值；年龄**照实输出精确年龄**（`demographics.age`，如 `63` / `63 岁`，单位按 locale）——临床试验匹配需要精确年龄，**不再降十年段**；但**仍绝不输出出生日期/生日（DOB）**，只给整数年龄。
+- 绝不输出真名、真实出生日期（DOB）、住院号、城市、国籍、**出生地/籍贯、职业/工作单位**——这些与临床决策无关且属可识别信息，一律不出现在患者标识或任何字段里。BMI = `weight_kg / (height_cm/100)^2`，保留一位小数（数值/单位 verbatim）。
 
 ### 主要病灶分布
 - 遍历 profile.json 影像字段（原发灶 / 各转移部位 / 淋巴结）；若影像结构化字段缺，交 subagent 从 `case_text.md` 影像段抽取病灶清单（仅抽取，不增补医学判断）。
@@ -80,11 +89,12 @@ Phase2 结构化整理完成、Profile Card 之后自动触发。读结构化文
 - DDR 与其他行：剩余 variants（BRCA / CHEK2 / VUS 等）。
 - 组织病理行：ihc / 病理描述字段。
 - 字段照抄，VAF/突变记法不改字符。
+- **IHC 记法（硬约束，否则信息错乱）**：免疫组化每个 marker 的判读结果一律按病理报告标准记法 `marker（value）` 渲染，把结果用括号包住（locale=zh 用全角 `（）`，其它 locale 用半角 `(...)`）——`molecular.json` 里 `{"marker":"HER2","value":"0"}` → `HER2（0）`，绝不渲成 `HER2 0`（裸值会与相邻 marker 串读乱，如 `EGFR 2+ HER2 0` 分不清）。整行示例：`EGFR（2+）；HER2（0）；Ki-67（约5%+）；MLH1（+）；panTRK（-）`。括号内的判读值 verbatim 照抄，分隔用本 locale 的分号。
 
 ### 关键实验室指标（配色规则）
 对 labs.json 每个 analyte 取最近一次值，按相对参考上限（ULN）倍数判 class：
 
-- 正常范围内 → `{{lab_class}}` 留空（无 class）。
+- 正常范围内 → `lab_class` 设为**显式空字符串 `""`**（不要省略 key、不要 `null`——否则 `__default__` 回退把"资料缺失"注入 class 属性，validator 越界报错）。
 - 异常但 < 3× ULN → `abnormal`（浅红）。
 - 严重（≥ 3× ULN，或临床显著严重缺乏/危急值）→ `severe`（深红）。
 - 倍数从 labs.json 的 `value` 与 `reference_range` 计算；reference_range 缺失时用 `flag`（H/L→abnormal，HH/LL→severe）。
@@ -94,7 +104,7 @@ Phase2 结构化整理完成、Profile Card 之后自动触发。读结构化文
 - 遍历 treatment_lines.lines（按 line 升序）。
 - 已结束或进行中的线：`{{line_marker_class}}` 留空（红框），`{{line_badge_class}}`=`pd`。
 - `ended_at` 为 null 且未启动（待启动）：`{{line_marker_class}}`=`pending`（黄框），`{{line_badge_class}}`=`pending`，`{{line_date_range}}`=`{{i18n.val_to_start}}`。
-- `{{line_label}}`：一线/二线/三线 等序词按 locale 出（line 整数→该 locale 的序数表述）。
+- `{{line_label}}`：**用治疗意图渲染，绝不自动编序数**。取 `treatment_lines.json` 每条线的 `intent` 字段，按 locale 映射为临床意图标签：`neoadjuvant`→新辅助、`adjuvant`→术后辅助、`perioperative`→围手术期、`palliative`→姑息治疗、`maintenance`→维持治疗、`definitive`/`radical`→根治、`consolidation`→巩固。**禁止从 `line` 整数推导"一线/二线/三线"序数**——围手术期/新辅助治疗本身已是一线，再把后续晚期线编号成"一线/二线"临床不准确。`intent` 缺失时用中性时段标签（按 locale 的"第 N 段治疗"/"Phase N"），按 `started_at` 先后排，不臆断线序；若病历**逐字写明**了线序（如"姑息一线"）则 verbatim 照抄该原文，不另行推算。
 - `{{line_regimen}}`=regimen 照抄（临床实体 verbatim）；`{{line_note}}`=best_response + reason_for_change + 影像转归（取自 timeline 对应区间，照抄不增补；连接词按 locale）。
 - 口述/未经机构确认的信息要在 note 按 locale 注明等义于"待治疗机构出具/待主治医师确认"。
 
@@ -106,10 +116,12 @@ Phase2 结构化整理完成、Profile Card 之后自动触发。读结构化文
 
 `{{case_summary_narrative}}` 是唯一需要语义生成的段落。交 subagent 处理，prompt 要点：
 
-- 输入：patient_summary.json + timeline.json（脱敏后）。
+- 输入：patient_summary.json + timeline.json（脱敏后）**＋ 必须把 `unfaithful_values` 与 `lab_trend_caveats` 两个 Call 参数也传给该 subagent**（patient_summary/timeline 里仍带着未忠实值，叙事 subagent 默认看不到 Phase 2.5 的判定）。
 - **输出语言按 `profile.json.locale`**（叙事是脚手架 → output in `<locale>`；临床实体 verbatim per i18n.md §4）。
 - 输出 3–5 句客观叙事，结构：诊断名 + 确诊时间 → 已用治疗线及转归（影像/标志物变化）→ 当前处境与下一步计划（如待启动某线 / 申请某药）。
-- 硬约束：只复述 JSON 已有事实，**禁止新增任何医学判断、预后、治疗建议**；禁止出现真名/生日/医院全称（机构粗粒度化，按 locale 出，如"某北美学术癌症中心""a North American academic cancer center"）；JSON 缺关键字段时该句省略，不编造；药名/基因/变异/TNM/数值单位一律原文不译。
+- 硬约束：只复述 JSON 已有事实，**禁止新增任何医学判断、预后、治疗建议**；禁止出现真名/生日（DOB）/医院全称/**出生地/籍贯/职业/工作单位/家庭住址**（机构粗粒度化，按 locale 出，如"某北美学术癌症中心""a North American academic cancer center"；精确年龄可保留）；JSON 缺关键字段时该句省略，不编造；药名/基因/变异/TNM/数值单位一律原文不译。
+- **忠实度硬约束（US-003）**：`unfaithful_values` 列出的任何值（含被它污染的 stage/标志物/剂量）**绝不出现在叙事里**——当作缺失跳过该句，不复述、不改写。
+- **OCR 趋势提示（US-006）**：叙事一旦陈述某化验/肿瘤标志物**趋势**（升/降/序列），必须在该句后追加 `lab_trend_caveats` 对应的本 locale OCR 提示（如"（数值来自照片 OCR，请以检验原件核对）"）。
 - 不写硬编码模板句拼接 keyword list，交 subagent 按上述要点自然生成。
 
 ## 缺字段处理（fallback 文案进 data，不进模板）
