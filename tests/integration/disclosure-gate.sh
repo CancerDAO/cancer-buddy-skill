@@ -28,7 +28,7 @@ affected = ["organize", "vault", "education", "mind", "nutrition",
 # behavior-DIRECTION regex per companion (None = presence-only). See header for the rule.
 direction = {
     "organize":       r"\bwarn",                       # warn ... breaks suppression
-    "vault":          r"\bredacted\b|\bmasked\b",      # redacted/masked (\b excludes unredacted/unmasked)
+    "vault":          r"(?s)(?=.*(?:\bredacted\b|\bmasked\b))(?=.*export)",  # cell must say BOTH redacted/masked AND export (suppressed export redacted, not just the view)
     "education":      r"\brefuse",                      # refuse patient handbook
     "mind":           r"\bcontinue",                    # continue screening
     "nutrition":      r"not\s+surfaced",               # cancer-type NOT surfaced (flip drops 'not')

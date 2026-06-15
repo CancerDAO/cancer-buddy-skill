@@ -149,6 +149,8 @@ Phase2 结构化整理完成、Profile Card 之后自动触发。读结构化文
 
    HTML 文件名固定中文，下游按固定名取，不随 locale 改名。引擎 exit 0 = 无残留 `{{...}}`；exit 1 = data 漏 key（补 `case_summary_data.json`，**不要去改模板**）。
 
+   > **dated 快照是 orchestrator/host 文件级步骤,不在本 data-only producer 范围内**：每次(重)渲染后，编排层（SKILL.md Step 12 / `organize-contract.md` 步骤 4）须把 `病情简要总结.html` 复制一份不可变快照到 `case_summary_versions/病情简要总结_<date>.html`（同日重渲后缀 `_2`/`_3`），re-render 永不销毁患者已分享的旧版本。本 producer 只产 data JSON + 跑渲染/校验，不做 `cp`（data-only 子代理无文件级快照职责）——见 `organize-contract.md` 步骤 4。
+
 3. 跑"形"不变量校验器（模板固定、与病人无关的骨架检查 —— style 块逐字节一致、无越界 CSS class、无残留 `{{...}}`、无 PII / 无精确年龄、骨架 section 齐、provenance template_sha256 与本次模板一致）：
 
    ```

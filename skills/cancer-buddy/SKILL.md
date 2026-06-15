@@ -78,7 +78,7 @@ description: |
 
 1. **先读 `patients/<patient_code>/profile.json` 的 `locale`**（如果 patient_dir 已存在）。有值就直接用它出所有话术，**不重新检测**。
 2. profile 不存在或 `locale` 为 null → 从**用户开口消息的语言**检测（这是 LLM 判断，不跑硬编码字符集/keyword 语言表；读消息自己判）。给出 BCP-47 标签（`zh` / `en` / `fr` / `es` / `de` / …）。
-3. 检测到后**在路由前持久化**：写 `profile.json.locale = "<bcp47>"`（若 profile 尚不存在，由随后的 organize 经 `cb-organizer` 落盘；router 已检测出的 locale 作为 organize 的输入 locale，organize 不再重测）。
+3. **路由前的开口消息 locale 只是临时值**，仅用于路由前那句回复。若 profile 尚不存在 → **router 不落盘 `locale`**；改由随后的 organize（经 `cb-organizer`）按**病历记录的主要语言**检测并写 `profile.json.locale`（这是 i18n.md §2 的权威规则——记录语言为准，可能纠正开口消息的临时值，例如英文照护者咨询中文病历→canonical locale 仍按病历定）。纯聊天类子技能（无 organize 落盘、确实需要时）才用对话语言检测并持久化。
 4. **本技能所有患者可见文案按这个 locale 出**：身份询问选项、"我能带你去哪些地方"表、路由交接话术（"我去找 `<子技能>` 帮你处理 `<任务>`"）、MTB 路由回复、"我不做的事"清单、收尾清单——脚手架/叙事一律本地化。
 5. **临床实体逐字保留**（药名/基因/变异/TNM/数值+单位/biomarker），无论 locale 为何都不翻译——误译=医疗风险（见 `../../references/safety-guardrails.md` →"临床实体禁译"）。原文旁可选加 locale 通俗解释（走 `../../references/terminology.md`），但原词不删不换。
 6. 用户中途说"用英文回我" / "说中文" 等显式切换 → 更新 `profile.json.locale` 并往后照此出文案，**显式 override 永远压过自动检测**。

@@ -28,11 +28,17 @@ Scope (matches phase1-ocr.md §2.4 — "touches PII tokens ONLY"):
     (`SOURCE:` / `READ_MODE:` / `ADAPTER:` / `ADAPTER_PROVENANCE:` / `CONFIDENCE:`
     / `FILE_ID:` / `MODALITY:`, plus the legacy `ORIGINAL:`) and the `## PII`
     trailer are provenance metadata, not clinical content — skipped.
-  - For DELIVERED (non-sidecar) surfaces (INDEX.md / source_inventory.json /
-    dotfiles / 病情简要总结.html) the file is scanned WHOLE (no header exemption)
-    for name/email/absolute-path/name-in-filename leaks + a patient-identity
-    deny-list — see scan_delivered_surfaces(). These shipped artifacts were the
-    real leak path the body-only scan missed.
+  - For DELIVERED (non-sidecar) surfaces (DELIVERED_SURFACES — INDEX.md /
+    source_inventory.json / .rename_plan.json / .phase1_sources.json / update_log.json /
+    病情简要总结.html) AND SYNTHESIZED surfaces (SYNTHESIZED_SURFACES — case_text.md /
+    profile.json / patient_summary.json / timeline.md / review_summary.md /
+    review_flags.md) the file is scanned WHOLE (no header exemption) for
+    email/absolute-path/account/standalone-shape leaks + a patient-identity deny-list —
+    see scan_delivered_surfaces(). These shipped/synthesized artifacts were the real leak
+    path the body-only scan missed (a real run leaked 身份证 + 手机 into case_text.md and
+    the real name into profile.json). On synthesized surfaces the loose ≥11-digit shape is
+    suppressed (de-identified raw-filename timestamps like 微信图片_<14位>.jpg would else
+    false-fire); semantic categories there (出生地/职业/民族…) are Layer-1's job.
   - Clinical fidelity wins: this gate flags ONLY pure-shape standalone
     identifiers. It does NOT flag clinical dates, lab values, drug names, TNM,
     molecular markers, or precise age — those carry no PII shape signature and are
@@ -168,6 +174,23 @@ DELIVERED_SURFACES = [
     "病情简要总结.html",
 ]
 
+# Synthesized downstream surfaces — built by Phase 2 from the masked sidecars, then read
+# by downstream sub-skills AND shipped by export_share.py. A real run leaked the 患者
+# 身份证 + 手机 (pure SHAPES) into case_text.md and the real name into profile.json's
+# mis-named `name_redacted` field — and NEITHER was scanned, because they are neither
+# bucket sidecars nor in DELIVERED_SURFACES. The deterministic shape floor now scans
+# them too (closes the shape/denylist export hole). NOTE: purely-SEMANTIC leaks here
+# (出生地/籍贯/职业/民族 — no shape signature) are still Layer-1's job (pii-rescan-prompt.md);
+# this floor only adds the shape/denylist backstop on these files.
+SYNTHESIZED_SURFACES = [
+    "case_text.md",
+    "profile.json",
+    "patient_summary.json",
+    "timeline.md",
+    "review_summary.md",
+    "review_flags.md",
+]
+
 _DENYLIST_FILE = ".identity_denylist.json"
 
 # Path / account leaks (host-absolute paths, cloud accounts, emails). Safe on EVERY
@@ -188,8 +211,11 @@ _FILENAME_PII = [
     (re.compile(r"[一-龥]{2,4}-[A-Za-z]"), "name_in_filename"),
 ]
 
-# Delivered surfaces that carry verbatim clinical prose → skip the filename-name regex.
-_CLINICAL_PROSE_SURFACES = {"病情简要总结.html"}
+# Surfaces that carry verbatim clinical prose → skip the filename-name regex (it
+# false-fires on legitimate CJK-term-hyphen-Latin oncology entities like 微卫星-MSI).
+# The patient HTML + every synthesized clinical surface qualify; identity deny-list +
+# path/account/standalone shape patterns still apply to them.
+_CLINICAL_PROSE_SURFACES = {"病情简要总结.html", *SYNTHESIZED_SURFACES}
 
 
 def load_deny_tokens(patient_dir: Path) -> set[str]:
@@ -221,12 +247,20 @@ def load_deny_tokens(patient_dir: Path) -> set[str]:
     return tokens
 
 
-def scan_delivered_file(path: Path, deny_tokens: set[str], apply_filename_name: bool = True) -> list[tuple[int, str, str]]:
+def scan_delivered_file(path: Path, deny_tokens: set[str], apply_filename_name: bool = True,
+                        drop_numeric_id: bool = False) -> list[tuple[int, str, str]]:
     """Scan a shipped non-sidecar file WHOLE (no header exemption).
 
     apply_filename_name=False skips the CJK-name-in-filename regex for clinical-prose
-    surfaces (the patient HTML), where it false-fires on verbatim oncology entities;
-    the identity deny-list + path/account/standalone patterns still apply there."""
+    surfaces (the patient HTML + synthesized surfaces), where it false-fires on verbatim
+    oncology entities; the identity deny-list + path/account/standalone patterns still apply.
+
+    drop_numeric_id=True suppresses the loose ≥11-digit `numeric_id` shape on synthesized
+    surfaces — they legitimately embed de-identified raw filenames like
+    `微信图片_20260220175937.jpg` (a 14-digit timestamp, NOT PII) that would false-fire and
+    fail-close the gate on every patient. The structured 身份证 (id_number), phone, and email
+    shapes stay active, so a real 身份证/手机/住院号 leak is still caught; bare ≥11-digit facility
+    serials in these files are Layer-1's (semantic) responsibility."""
     try:
         text = path.read_text(encoding="utf-8")
     except Exception as e:
@@ -235,6 +269,8 @@ def scan_delivered_file(path: Path, deny_tokens: set[str], apply_filename_name: 
     results: list[tuple[int, str, str]] = []
     for i, line in enumerate(text.splitlines(), start=1):
         for pii_type, snippet in scan_line(line):
+            if drop_numeric_id and pii_type == "numeric_id":
+                continue
             results.append((i, pii_type, snippet))
         for pat, pii_type in pats:
             for m in pat.finditer(line):
@@ -246,15 +282,19 @@ def scan_delivered_file(path: Path, deny_tokens: set[str], apply_filename_name: 
 
 
 def scan_delivered_surfaces(patient_dir: Path, deny_tokens: set[str] | None = None):
-    """Return ({filename: findings}, deny_tokens) for every present delivered surface."""
+    """Return ({filename: findings}, deny_tokens) for every present delivered AND
+    synthesized surface (whole-file shape/path/account/deny-list scan)."""
     if deny_tokens is None:
         deny_tokens = load_deny_tokens(patient_dir)
     out: dict[str, list[tuple[int, str, str]]] = {}
-    for name in DELIVERED_SURFACES:
+    synthesized = set(SYNTHESIZED_SURFACES)
+    for name in DELIVERED_SURFACES + SYNTHESIZED_SURFACES:
         p = patient_dir / name
         if p.is_file():
             findings = scan_delivered_file(
-                p, deny_tokens, apply_filename_name=name not in _CLINICAL_PROSE_SURFACES
+                p, deny_tokens,
+                apply_filename_name=name not in _CLINICAL_PROSE_SURFACES,
+                drop_numeric_id=name in synthesized,
             )
             if findings:
                 out[name] = findings

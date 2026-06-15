@@ -20,17 +20,20 @@ Gate sections (each contributes to one aggregated exit code):
       markdown file. A file that is absent is skipped (longitudinal is optional).
 
   [2] PII residue rescan — Layer 2 (pii_rescan.py, deterministic SHAPE floor):
-      Independently re-scan every text-masked MD sidecar AND the delivered
-      (non-sidecar) surfaces — INDEX.md / source_inventory.json / dotfiles /
-      病情简要总结.html — for pure-SHAPE leaks (身份证/手机/座机/email/SSN/≥11位
-      数字/绝对路径/云账号/deny-list token, seeded from raw/ filenames). This is the
-      deterministic, zero-network half of the two-layer PII gate. The PRIMARY,
+      Independently re-scan every text-masked MD sidecar, the delivered
+      (non-sidecar) surfaces (DELIVERED_SURFACES — INDEX.md / source_inventory.json /
+      .rename_plan.json / .phase1_sources.json / update_log.json / 病情简要总结.html),
+      AND the synthesized surfaces (SYNTHESIZED_SURFACES — case_text.md / profile.json /
+      patient_summary.json / timeline.md / review_summary.md / review_flags.md) for
+      pure-SHAPE leaks (身份证/手机/座机/email/SSN/≥11位数字/绝对路径/云账号/deny-list
+      token, seeded from raw/ filenames; the loose ≥11-digit shape is suppressed on the
+      synthesized surfaces to avoid false-firing on de-identified raw-filename timestamps).
+      This is the deterministic, zero-network half of the two-layer PII gate. The PRIMARY,
       generalizing half is Layer 1 — the semantic agent scan
       (references/pii-rescan-prompt.md), dispatched by the orchestrator (SKILL.md
       Step 11.5), which catches label/semantic categories (姓名/出生地/职业/家属名/
-      签名/检验号…) over sidecars + synthesized surfaces + delivered surfaces. This
-      script enforces only Layer 2; the orchestrator enforces Layer 1 separately.
-      Text-only; no OCR/image dependency in the acceptance gate.
+      签名/检验号…) over the same surfaces. This script enforces only Layer 2; the
+      orchestrator enforces Layer 1 separately. Text-only; no OCR/image dependency.
 
   [2b] Numeric integrity (gate_numeric_integrity) — deterministic, no medical
       judgement: labs flag ↔ reference_range consistency (an out-of-range value
@@ -245,11 +248,15 @@ def gate_pii_rescan(patient_dir: Path, errors: list) -> None:
         )
 
     # US-001: the sidecar scan above intentionally skips header blocks and only
-    # covers OCR bodies. Delivered (non-sidecar) artifacts — INDEX.md /
-    # source_inventory.json / dotfiles / 病情简要总结.html — are NOT exempt: a real
-    # run leaked the patient name (in a `<name>-报告.pdf` filename copied into
-    # original_path) and the uploader's cloud/email account (absolute paths) into
-    # exactly these surfaces. Scan them whole, seeded by a patient-identity deny-list.
+    # covers OCR bodies. Delivered (non-sidecar) artifacts (DELIVERED_SURFACES —
+    # INDEX.md / source_inventory.json / .rename_plan.json / .phase1_sources.json /
+    # update_log.json / 病情简要总结.html) AND synthesized surfaces (SYNTHESIZED_SURFACES —
+    # case_text.md / profile.json / patient_summary.json / timeline.md / review_summary.md /
+    # review_flags.md) are NOT exempt: real runs leaked the patient name (in a
+    # `<name>-报告.pdf` filename copied into original_path), the uploader's cloud/email
+    # account (absolute paths), AND 身份证 + 手机 into case_text.md / a real name into
+    # profile.json. scan_delivered_surfaces scans both lists whole (Layer-2 shape floor),
+    # seeded by a patient-identity deny-list.
     try:
         surfaces, _deny = pii_rescan.scan_delivered_surfaces(patient_dir)
     except Exception as e:
