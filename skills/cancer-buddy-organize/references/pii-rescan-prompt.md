@@ -52,4 +52,4 @@ dispatch 时机：Phase-1 槽位 gate（phase1-ocr.md §2.5）、Phase-2 验收�
 本层是 agent 语义判断，由编排 agent（Claude）自身执行，不需要外部 API。若以外部模型 headless 执行，遵 `reference_minimax_llm` 调用约定；模型不可达 → **报错，不静默跳过**（隐私门不因离线放行，见 `feedback_no_offline_only`）。
 
 ## 与 shape 兜底的分工
-本层负责**语义 + 标签**检测（泛化任意类别）；`pii_rescan.py` 只保留**零假阴性的纯形状** pattern（email / 中国手机座机 / 身份证18位 / US-SSN / E.164 / ≥11位数字ID / `/Users/` 绝对路径 / 云账号路径 / identity-denylist token）作为独立确定性兜底。两层覆盖互补：本层抓"按含义才认得出"的（出生地/职业/家属名/检验号/签名…），兜底抓"形状即铁证"的（手机号/身份证/邮箱…）。
+本层负责**语义 + 标签**检测（泛化任意类别）；`pii_rescan.py` 只保留**零假阴性的纯形状** pattern 作为独立确定性兜底，且**按面分层**：sidecar 正文只跑纯形状（email / 中国手机座机 / 身份证18位 / US-SSN / E.164 / ≥11位数字ID）；`/Users/` 绝对路径 / 云账号路径 / identity-denylist token 仅在已交付面 + 合成面（`scan_delivered_file`）生效（这些不会出现在 OCR 正文里）。两层覆盖互补：本层抓"按含义才认得出"的（出生地/职业/家属名/检验号/签名…），兜底抓"形状即铁证"的（手机号/身份证/邮箱…）。

@@ -33,9 +33,12 @@ triggers=(
   "数据保险箱"
   "宣教手册"
   "找医院"
+  "找医生"
   "MDT"
+  "临床试验"
   "就诊准备"
   "复诊"
+  "看医生"
 )
 
 # Extract the meta description, handling BOTH single-line (`description: "..."`)

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Verify cancer-buddy-mind SKILL.md contains non-overridable crisis rule
-# and surfaces all 6 hotline numbers from crisis-resources.md
+# and surfaces all hotline numbers from crisis-resources.md (the authoritative table; do not hardcode a count)
 set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 MIND_SKILL="$REPO_ROOT/skills/cancer-buddy-mind/SKILL.md"
@@ -17,8 +17,9 @@ if (( hotline_count < 3 )); then
   errs=$((errs+1))
 fi
 
-# 3. 400-161-9995 national hotline must be present
-grep -q '400-161-9995' "$CRISIS_REF" || { echo "FAIL: national hotline missing"; errs=$((errs+1)); }
+# 3. canonical national line 12356 + 希望24热线 400-161-9995 must be present
+grep -q '12356' "$CRISIS_REF" || { echo "FAIL: canonical national line 12356 missing"; errs=$((errs+1)); }
+grep -q '400-161-9995' "$CRISIS_REF" || { echo "FAIL: 希望24热线 400-161-9995 missing"; errs=$((errs+1)); }
 
 # 4. Reference cross-check: SKILL.md cites crisis-resources.md
 grep -q 'crisis-resources.md' "$MIND_SKILL" || { echo "FAIL: mind SKILL.md doesn't reference crisis-resources.md"; errs=$((errs+1)); }
