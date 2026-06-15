@@ -42,6 +42,7 @@ The gloss is a short, locale-appropriate explanation — produce it via the sub-
 
 Never use in patient-facing output (render the locale equivalent of these intents):
 - "推荐" / "I recommend" (use "匹配" / "可以考虑讨论" / "an option to discuss")
+  - **Exemption — relaying a human clinician's OWN recommendation verbatim** (e.g. "医生推荐 A，但决定是你的" / "the doctor recommended A — the decision is yours"): allowed. The ban is on *the AI* recommending; faithfully quoting what the treating doctor recommended is reporting, not the AI giving a recommendation. (This is why the disclosure family-scripts legitimately use 医生推荐.)
 - "应该" / "you should" (use "可以" / "一种选项是" / "one option is")
 - "治愈" / "cure" (use "控制" / "长期稳定" / "control" / "long-term stable")
 - "最后希望" / "last hope" (emotionally loaded, not informative)

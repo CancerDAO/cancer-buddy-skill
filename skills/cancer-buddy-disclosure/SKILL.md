@@ -25,7 +25,7 @@ Read [../../references/i18n.md](../../references/i18n.md). Before producing any 
 - Patient struggling to tell family (inverted case — young patient, aging parents / spouse / children)
 - Other family member learned and is conflicted about respecting or breaking the suppression
 - Patient spontaneously asks family "我是不是癌症？" / "我是不是要死了？"
-- Any sub-skill detects disclosure-state issue and routes here (e.g. comfort / survivorship / explore hitting a `suppressed` state for `active_role = patient`)
+- Any sub-skill detects a disclosure-state issue and routes here (e.g. a public companion, or — when installed — the private `cancer-buddy-pro-skill` clinical workflows comfort / survivorship / explore, which are NOT installable from this public package, hitting a `suppressed` state for `active_role = patient`)
 - User says 要不要告诉 / 不想让 Ta 知道 / Ta 不知道自己得癌 / 瞒着 / 告诉 / 知情同意 / 他爸妈不让说 / 披露 / disclosure
 
 ## Preflight
