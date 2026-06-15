@@ -154,7 +154,8 @@ Each organize run that touched the gate appends relevance actions to `update_log
     "auto_deleted": ["99_无关文件/high_confidence/IMG_0042.jpg"],
     "reclassified": [
       {"from": "99_无关文件/high_confidence/IMG_0051.jpg",
-       "to": "08_治疗/化疗/2024-05-02_临时医嘱_中山六院.jpg"}
+       "to": "08_治疗/化疗/2024-05-02_临时医嘱_中山六院.md",
+       "raw_original": "raw/...（原图逐字留 raw/，不进桶）"}
     ],
     "held_uncertain": ["99_无关文件/uncertain/IMG_0077.jpg"]
   }

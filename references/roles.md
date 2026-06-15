@@ -7,7 +7,7 @@ This file is the authoritative source for how cancer-buddy handles different use
 | Role | ID | Who | Typical entry phrase |
 |---|---|---|---|
 | Patient | `patient` | 患者本人 | "我确诊了 X 癌" / "我的报告" / "我该怎么办" |
-| Primary caregiver | `caregiver` | 配偶 / 成年子女 / 主要照护者 | "我爸确诊了" / "我妈在化疗" / "我来帮我家人管这件事" |
+| Primary caregiver | `caregiver` | 配偶 / 成年子女 / 主照护者 | "我爸确诊了" / "我妈在化疗" / "我来帮我家人管这件事" |
 | Other family | `family` | 兄弟姐妹 / 远亲 / 朋友 | "我哥刚确诊我能帮上什么忙" / "想了解我外婆的病情" |
 
 Clinicians use vmtb-skill, not cancer-buddy. Patients-to-peer connection is out of v2 scope.
@@ -36,7 +36,7 @@ Clinicians use vmtb-skill, not cancer-buddy. Patients-to-peer connection is out 
 
 ### Patient (`role=patient`)
 
-- Address the patient directly in the **second person (你)**: "你的化疗", "你的报告", "你可以考虑" (the patient-voice rule labeled 第二人称 / 2nd-person elsewhere — same thing, consistently named).
+- Address the patient directly in the **second person (你)**: "你的化疗", "你的报告", "你可以考虑". (Per-skill docs may call this 第二人称 / 2nd-person / patient-voice — all denote this same 你-addressing rule; the grammatical-person *label* is not standardized across skills, but the behavior is.)
 - Warm, direct; never "your loved one".
 - Decision scaffolding owned by patient — never "your family should decide for you".
 

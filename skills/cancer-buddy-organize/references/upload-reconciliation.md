@@ -54,7 +54,7 @@
    [替换]  [两份都留]  [先忽略]
 
 ② 这张写的分期是 IV 期，但档案里现在是 III 期(conflict ⚠️)
-   依据: 新图诊断段 "cT4N1M1 IV期"，档案 profile.json.stage = "III"
+   依据: 新图诊断段 "cT4N1M1 IV期"，档案 profile.json.summary.stage = "III"
    ⚠️ 与现有事实矛盾，我不会自动改，请你定:
    [以新图为准·替换]  [两份都留·待医生裁决]  [先忽略·保留现状]
 ```
@@ -75,7 +75,7 @@ headless 宿主(无 inline 回合)用 **confirm-as-product** 满足同一门:把
 ### 3a. 替换(supersede 确认)
 
 旧文档不是删,是**归档留底**:
-- 把被取代的旧桶内文件(图 + 其 `.md` 旁车)**移到** `_superseded_<ts>/`(`<ts>` = 本次重传的 ISO8601,如 `_superseded_2026-06-07T14:32:05Z/`,保留原桶相对子路径),**或**原地标 `superseded`(在旧 `.md` front-matter 加 `superseded_by: <新文件路径>` + `superseded_at`)。二选一,默认移到 `_superseded_<ts>/` 以保桶内整洁。
+- 把被取代的旧**桶内 `.md` 旁车**(桶里只有 `.md`,原图始终在 `raw/`——见 `organize-contract.md` §5 #1 / `bucket-taxonomy.md` §2.2/§4)**移到** `_superseded_<ts>/`(`<ts>` = 本次重传的 ISO8601,如 `_superseded_2026-06-07T14:32:05Z/`,保留原桶相对子路径),**或**原地标 `superseded`(在旧 `.md` front-matter 加 `superseded_by: <新文件路径>` + `superseded_at`)。二选一,默认移到 `_superseded_<ts>/` 以保桶内整洁。对应旧原图在 `raw/` **逐字保留**(永不进桶、永不删)。
 - 新图纳入正确的桶(canonical 重命名 + OCR → 文本脱敏 MD,走 phase2 既有机制);其原图原样保留在 `raw/`。
 - **锚点更新**:所有指向旧文件的 `[[src:<旧桶相对路径>.md#L..]]` 迁到新文件路径;若旧文件被移到 `_superseded_<ts>/`,旧路径锚点视为 dangling,按 [`schemas/anchor-contract.md`](schemas/anchor-contract.md) §3 处理 —— 迁移到新锚点,不留悬空。
 - 涉及的结构化字段经 diff 卡确认后更新,provenance 用新文件的 file anchor。
@@ -107,9 +107,9 @@ headless 宿主(无 inline 回合)用 **confirm-as-product** 满足同一门:把
   "uploaded_files": ["<新图原始名/路径>"],
   "resolutions": [
     {"upload": "IMG_0042.jpg", "relation": "supersede", "action": "replace",
-     "superseded": "04_诊断与分期/病理报告/2024-03-15_病理报告_中山六院.jpg",
-     "superseded_to": "_superseded_2026-06-07T14:32:05Z/04_诊断与分期/病理报告/...",
-     "new_path": "04_诊断与分期/病理报告/2024-03-15_病理报告_中山六院.jpg"},
+     "superseded": "04_诊断与分期/病理报告/2024-03-15_病理报告_中山六院.md",
+     "superseded_to": "_superseded_2026-06-07T14:32:05Z/04_诊断与分期/病理报告/2024-03-15_病理报告_中山六院.md",
+     "new_path": "04_诊断与分期/病理报告/2024-03-15_病理报告_中山六院.md"},
     {"upload": "IMG_0043.jpg", "relation": "conflict", "action": "coexist",
      "note": "新图 IV 期 vs 档案 III 期，两份都留待医生裁决"},
     {"upload": "IMG_0044.jpg", "relation": "new", "action": "ignore"}

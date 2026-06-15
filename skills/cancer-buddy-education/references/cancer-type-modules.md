@@ -55,9 +55,9 @@ Standard follow-up cadence for this disease + stage. Time intervals (every 3 mon
 3-6 specific symptoms that warrant immediate medical attention (not a generic "fever > 38°C"). Disease-specific (e.g. for HCC: 黄疸、腹水增加、呕血; for lung cancer: 突发胸痛、大咯血、新发偏瘫).
 ```
 
-End every cancer-type section with this standardized footer, rendered in `locale` (the disclaimer meaning is preserved in every locale; zh shown):
+End every cancer-type section with the **single mandatory footer defined in `SKILL.md` ("Mandatory footer")** — do not invent a per-section variant. Render it in `locale` (disclaimer meaning preserved in every locale; zh canonical):
 ```
-本内容为信息参考，具体方案与调整必须与主诊医生确认。
+本手册为信息参考，任何治疗调整必须与主诊医生确认。
 ```
 
 ## How to compose a section
