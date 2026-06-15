@@ -67,7 +67,7 @@ Scaffold localization: a generative artifact (manifest narrative, missing-data r
 ## Role behavior
 
 - **Role = patient**: owner view. Can set any sharing level, export, delete.
-  - *Disclosure*: disclosure_state=suppressed + patient → render redacted view (diagnosis fields masked).
+  - *Disclosure*: disclosure_state=suppressed + patient → redacted view **AND redacted export** — diagnosis fields masked; treatment_history entries shown with drug names but no cancer-type label. The patient may export, but the emitted bundle (`vault_export.json` / encrypted zip) is redacted identically to the view (per `../../references/disclosure-behavior.md` — never leak a suppressed diagnosis, on screen OR in an exported file).
 - **Role = caregiver**: authorized view. Read+write OK; sharing-level changes require `patients/<patient_code>/role.json.history` confirming patient previously set role=caregiver. Export allowed.
 - **Role = family**: 📊 anonymized view only. Name / birthday / MRN stripped, diagnosis-intervals relative to diagnosis date, no free-text notes. Cannot change sharing settings.
 

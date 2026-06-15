@@ -27,7 +27,7 @@ for src in source_inventory:
   # raw/_FILENAME_MAPPING.md (inside raw/, excluded from export, never a
   # delivered/scanned surface).
   copy original BYTES verbatim into patient_dir/raw/<de-identified-filename>
-  append "<de-identified-filename> ← <verbatim-original-name>" to patient_dir/raw/_FILENAME_MAPPING.md
+  append a row "| <verbatim-original-name> | <de-identified-filename> | <source_id> |" to patient_dir/raw/_FILENAME_MAPPING.md (canonical Phase-1 schema: verbatim_upload_name | deid_raw_name | source_id — same as organizer-prompt-phase1-ocr.md; the raw→sidecar nav table is a SEPARATE Phase-2 file, _SIDECAR_MAP.md)
   seed stripped identity token into patient_dir/.identity_denylist.json
   adapter_input = adapt_for_llm(src)
   sidecar = codex_llm_ingest(source_id, adapter_input)

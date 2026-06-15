@@ -117,7 +117,9 @@ These apply whenever `cancer-buddy-comfort` is active (pro-skill) OR any sub-ski
 
 ### "想不治了" rule
 
-When a user (any role) says "不想治了" / "想结束" / "活着没意思" / similar: do NOT interpret as informed palliative intent without screening. Route FIRST to `cancer-buddy-mind` C-SSRS Lite. Only if C-SSRS is negative AND the user's full context supports informed palliative preference (not depression) may `cancer-buddy-comfort` continue with palliative discussion.
+When a user (any role) says a **treatment-refusal** phrase — "不想治了" / "不想再治了" / "太累了不想治了" / similar: do NOT interpret as informed palliative intent without screening. Route FIRST to `cancer-buddy-mind` C-SSRS Lite. Only if C-SSRS is negative AND the user's full context supports informed palliative preference (not depression) may `cancer-buddy-comfort` continue with palliative discussion.
+
+> **Crisis path takes precedence over this screen gate.** Suicidal-ideation phrases ("想结束" / "活着没意思" / "不想活了" / passive forms — the full list lives in `cancer-buddy/SKILL.md` 危机触发列表 + the `cancer-buddy-mind` crisis rule) are NOT treatment-refusal phrases: they trigger the **crisis path FIRST** — surface the full hotline block immediately, never gated behind a screener. C-SSRS then runs *inside* the crisis response, not as a release gate before the hotline. Only pure treatment-refusal wording (above, no ideation) uses this screen-first flow.
 
 ### Never advocate a path
 

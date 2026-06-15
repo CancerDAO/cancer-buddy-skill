@@ -38,8 +38,13 @@ Run validator:
 python3 -c "
 import json
 p = json.load(open('$CANCER_BUDDY_PATIENTS_DIR/<pid>/profile.json'))
-for k in ('patient_id','diagnosis','molecular','treatment_history'):
-    assert k in p, f'missing {k}'
+assert p.get('schema') == 'cancer_buddy_profile_v3', f\"bad schema: {p.get('schema')}\"
+for k in ('patient_code','summary','latest_status'):
+    assert k in p, f'missing top-level {k}'
+for k in ('primary','histology','stage'):
+    assert k in p['summary'], f'missing summary.{k}'
+# NB: molecular lives in molecular.json, treatment history in treatment_lines.json —
+# NOT top-level profile fields in v3 (the retired flat shape had patient_id/diagnosis/molecular/treatment_history).
 print('profile.json OK')
 "
 ```

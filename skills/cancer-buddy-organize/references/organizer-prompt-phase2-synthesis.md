@@ -204,21 +204,24 @@ done < <(jq -c '.files[]' "$patient_dir/.rename_plan.json")
 
 `mv -n` refuses to overwrite → idempotent re-runs. The `raw/` vault keeps every original's **verbatim bytes** (the single copy) — never byte-altered, copied into a bucket, or pixel-redacted. The on-disk **filename is de-identified** by Phase 1 (identity tokens stripped so a patient-named upload never leaks into a scanned/shared surface); the verbatim original filename is preserved in `raw/_FILENAME_MAPPING.md` (inside `raw/`, excluded from export).
 
-### Step 1d — `_FILENAME_MAPPING.md` backfill
+### Step 1d — `_SIDECAR_MAP.md` backfill (raw→sidecar nav; NOT the verbatim audit table)
 
-Write `<patient_dir>/raw/_FILENAME_MAPPING.md` — the audit reverse-lookup from the `raw/` original to the canonical `.md` sidecar that carries its text (the original itself stays in `raw/`; no canonical copy exists in the bucket). This is mandatory even when every original filename is ASCII (non-ASCII names from 中文/格鲁吉亚文/Cyrillic/emoji sources render as blanks in Finder):
+Write `<patient_dir>/raw/_SIDECAR_MAP.md` — the raw→sidecar navigation table (de-identified `raw/` filename → canonical `.md` sidecar → bucket). This is mandatory even when every original filename is ASCII (non-ASCII names from 中文/格鲁吉亚文/Cyrillic/emoji sources render as blanks in Finder).
+
+> **DO NOT write or overwrite `raw/_FILENAME_MAPPING.md` here.** That file is the **verbatim-upload-name audit table** owned by **Phase 1** (`organizer-prompt-phase1-ocr.md`, schema `verbatim_upload_name | deid_raw_name | source_id`) — it is the **single surviving copy** of each patient-named upload (e.g. `王国洪-报告.pdf`). Phase 2 only has the *de-identified* `raw_path` (the verbatim name is gone by now), so it CANNOT and MUST NOT rewrite that file — doing so would destroy the only audit reverse-lookup to the real upload name. Phase 2's reverse-lookup (raw→sidecar→bucket) is a **separate** concern and lives in its **own** file `_SIDECAR_MAP.md`:
 
 ```bash
 {
-  echo "# Filename Mapping — raw/ original ↔ canonical sidecar"
+  echo "# Sidecar Map — raw/ de-identified original ↔ canonical sidecar"
   echo ""
-  echo "> 原始 basename 保留作审计追溯;Finder 渲染异常或非 ASCII 字符可能显示为空 — 用本表反查。原件只在 raw/,桶里只有同名 .md sidecar。"
+  echo "> de-identified raw/ basename → 同名 .md sidecar → 所在桶。原件只在 raw/,桶里只有同名 .md sidecar。"
+  echo "> 真实上传名(verbatim)的审计反查在 raw/_FILENAME_MAPPING.md(Phase 1 所写),本表不含 verbatim 名。"
   echo ""
-  echo "| 原始文件 (raw/) | 对应 sidecar (.md) | 所在桶 |"
+  echo "| 原始文件 (raw/, 去标识) | 对应 sidecar (.md) | 所在桶 |"
   echo "|---|---|---|"
   jq -r '.files[] | "| `\(.raw_path)` | `\(.md_dest)` | `\(.bucket_path)/` |"' \
      "$patient_dir/.rename_plan.json"
-} > "$patient_dir/raw/_FILENAME_MAPPING.md"
+} > "$patient_dir/raw/_SIDECAR_MAP.md"
 ```
 
 ### Step 1e — Delete the central `ocr/` staging dir

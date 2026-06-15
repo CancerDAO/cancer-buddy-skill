@@ -121,5 +121,46 @@ PY
 [ "$out" = "0" ] && ok || no "in-range value flag=null must NOT block (got $out)"
 
 # ---------------------------------------------------------------------------
+# 5. pii_rescan synthesized-surface scan (case_text.md / profile.json / timeline.md …)
+#    — Layer-2 shape floor now scans these too; must catch a 身份证/phone leak in
+#    case_text.md but NOT false-fire on a de-identified raw filename's compacted
+#    timestamp (微信图片_<14digits>.jpg). Closes the real export leak path.
+# ---------------------------------------------------------------------------
+synth="$tmp/synth"; mkdir -p "$synth"
+cat > "$synth/case_text.md" <<'EOF'
+# 病例综合文本
+患者男, 身份证: 330722198202133629, 联系 18091816777。
+诊断: 结肠腺癌 IV 期。来源: 10_原始文件/微信图片_20260220175937.jpg。
+EOF
+cat > "$synth/profile.json" <<'EOF'
+{ "schema":"cancer_buddy_profile_v3","patient_code":"PT-T5",
+  "generated_at":"2026-02-20T17:59:37Z",
+  "summary":{"primary":"结肠癌","histology":"腺癌","stage":"IV"},
+  "source_refs":["10_原始文件/微信图片_20260220175937.jpg"] }
+EOF
+python3 - "$ORG" "$synth" <<'PY'
+import sys; sys.path.insert(0, sys.argv[1]+"/scripts")
+import importlib, pathlib
+p = importlib.import_module("pii_rescan")
+surfaces, _ = p.scan_delivered_surfaces(pathlib.Path(sys.argv[2]))
+ct = [t for (_l,t,_s) in surfaces.get("case_text.md", [])]
+pf = surfaces.get("profile.json", [])
+import json
+print(json.dumps({"case_text_types": ct, "profile_findings": len(pf)}))
+PY
+out=$(python3 - "$ORG" "$synth" <<'PY'
+import sys; sys.path.insert(0, sys.argv[1]+"/scripts")
+import importlib, pathlib
+p = importlib.import_module("pii_rescan")
+surfaces, _ = p.scan_delivered_surfaces(pathlib.Path(sys.argv[2]))
+ct = {t for (_l,t,_s) in surfaces.get("case_text.md", [])}
+pf = surfaces.get("profile.json", [])
+ok = ("id_number" in ct) and ("phone" in ct) and (len(pf) == 0)
+print("1" if ok else "0")
+PY
+)
+[ "$out" = "1" ] && ok || no "synthesized-surface scan: must catch 身份证+phone in case_text.md, no FP on profile.json timestamp (got $out)"
+
+# ---------------------------------------------------------------------------
 echo "organize-fidelity-gates: pass=$pass fail=$fail"
 [ "$fail" -eq 0 ]
