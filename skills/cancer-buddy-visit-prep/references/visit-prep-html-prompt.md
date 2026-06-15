@@ -75,8 +75,8 @@ Map structured fields straight into the snapshot, verbatim — no interpretation
 |---|---|
 | `{{one_line_condition}}` | one-sentence condition line from `profile.json` (`summary.primary` + `summary.histology` + `summary.stage` + headline driver), e.g. `非小细胞肺癌 腺癌 IIIA (cT3N2M0)，EGFR L858R`. |
 | `{{snapshot_diagnosis}}` | `summary.primary` / `summary.histology` / `summary.stage` joined verbatim. |
-| `{{snapshot_molecular}}` | from `molecular.json`: variants (`gene` + `variant`), `msi_mmr.status`, key `ihc[]`, `tmb` — verbatim, comma-joined. |
-| `{{snapshot_current_line}}` | current line from `treatment_lines.json` (latest line with no `ended_at`, or `profile.summary.current_regimen`): `regimen` + line number, verbatim. |
+| `{{snapshot_molecular}}` | from `molecular.json`: variants (`gene` + `variant`), `msi_mmr.status`, key `ihc[]`, `tmb` — verbatim, comma-joined. **IHC markers use the pathology notation `marker（value）`** (zh full-width `（）`, other locales `(...)`) so `{"marker":"HER2","value":"0"}` → `HER2（0）`, never bare `HER2 0` (same rule as `case-summary-html-prompt.md` §核心分子检测 — avoids the `EGFR 2+ HER2 0` ambiguity). |
+| `{{snapshot_current_line}}` | current line from `treatment_lines.json` (latest line with no `ended_at`, or `profile.summary.current_regimen`): `regimen` + clinical **intent** label (`intent` → 新辅助/术后辅助/围手术期/姑息治疗/维持治疗/根治), verbatim. **Do NOT emit an auto "一线/二线" ordinal from the `line` integer** (same rule as case-summary — perioperative therapy is itself first-line, so ordinals are clinically inaccurate); verbatim-copy a documented line wording only if the record states one. |
 | `{{snapshot_key_labs}}` | from `labs.json`: latest value of each panel whose newest value has `flag` ∈ {H, L, HH, LL}, as `analyte value unit (date)` verbatim. |
 
 Any source field null/absent → set that scalar to `null` (the renderer substitutes `fallbacks.__default__` = the locale `val_pending` string). Never fabricate a value.

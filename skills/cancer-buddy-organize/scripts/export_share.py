@@ -6,7 +6,8 @@ service / family member needs a copy that ships ZERO raw identity — but the
 organize design deliberately keeps every uploaded original **verbatim** in
 `raw/`, never pixel-redacted (see references/bucket-taxonomy.md §4-§5: the only
 desensitization of the archived data is the text masking in the `.md` sidecars,
-plus the decade-band coarse-graining in the patient-facing 段D HTML). The raw
+plus the patient-facing 段D HTML coarse-graining — precise age retained for
+clinical-trial matching, but name/DOB/birthplace/occupation masked). The raw
 images still carry the patient's name, IDs, hospital headers, barcodes —
 unredacted by design.
 
