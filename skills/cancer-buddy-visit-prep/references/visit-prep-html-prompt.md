@@ -4,17 +4,17 @@ This skill **only assembles existing data and organizes questions** — it never
 
 ## ⛔ Red lines — how the HTML gets built
 
-1. **The LLM produces exactly one artifact: `visit_prep_data.json`** — a flat JSON data object (the field contract in §3–§6 below). **The LLM never writes, edits, or hand-assembles any HTML.**
+1. **The LLM produces exactly one artifact: `.visit_prep_data.json`** — a flat JSON data object (the field contract in §3–§6 below). **The LLM never writes, edits, or hand-assembles any HTML.**
 2. **The HTML is produced only by the deterministic renderer**, never by the model:
    ```
    python3 ../cancer-buddy-organize/scripts/render_html_template.py \
        --template references/templates/visit-prep.template.html \
-       --data <patient_dir>/visit_prep_data.json \
+       --data <patient_dir>/.visit_prep_data.json \
        --out  <patient_dir>/就诊准备包.html
    ```
    (`render_html_template.py` lives in the **cancer-buddy-organize** skill — `skills/cancer-buddy-organize/scripts/render_html_template.py` — and is a generic, zero-medical-logic template engine shared across cancer-buddy HTML artifacts. Stdlib only; runs in any Claude Code / codex / sandbox host.)
 3. **The render is not done until `validate_visit_prep_html.py` passes** (exit 0) — see §9. A pack that has not passed the validator is **not** a finished pack.
-4. **Hand-writing, hand-patching, or post-editing the rendered HTML is forbidden.** If something is wrong, fix `visit_prep_data.json` or the template and re-render — never touch the output HTML by hand.
+4. **Hand-writing, hand-patching, or post-editing the rendered HTML is forbidden.** If something is wrong, fix `.visit_prep_data.json` or the template and re-render — never touch the output HTML by hand.
 
 These red lines exist so the pixel-exact patient-facing template is never deformed by free-text generation, and so over-fitting to one patient (e.g. silently dropping a section a patient happens not to have) is structurally impossible: the renderer renders 0..N of whatever the data carries; the template's `RENDER_IF_NOT` placeholders keep every block visible.
 
@@ -32,7 +32,7 @@ Read these from `patients/<pid>/` (all already produced by organize; read-only �
 
 Never read `raw/` or any non-de-identified source. If a file is absent, treat its fields as missing (render the locale `val_pending` string) — do not fabricate.
 
-## Shape of `visit_prep_data.json`
+## Shape of `.visit_prep_data.json`
 
 A flat JSON object. The renderer's grammar is: `{{i18n.<k>}}` → `data.i18n.<k>`; `{{scalar}}` → `data.<scalar>`; `<!-- LOOP arr -->…<!-- END LOOP -->` repeats once per element of `data.arr` (an **array of objects**, each item field resolved as `{{field}}`); `<!-- RENDER_IF k -->` / `<!-- RENDER_IF_NOT k -->` render their span when `data.k` is truthy / falsy.
 
@@ -126,12 +126,12 @@ Each empty sub-block → its array is `[]`; the template's `RENDER_IF_NOT` shows
 
 ## 8. Output — render via script, never by hand
 
-1. Write `visit_prep_data.json` (the §-shape object above) to `patients/<pid>/visit_prep_data.json`.
+1. Write `.visit_prep_data.json` (the §-shape object above) to `patients/<pid>/.visit_prep_data.json`.
 2. Render with the generic engine (do **not** hand-write HTML — see the Red lines at the top):
    ```
    python3 ../cancer-buddy-organize/scripts/render_html_template.py \
        --template references/templates/visit-prep.template.html \
-       --data  patients/<pid>/visit_prep_data.json \
+       --data  patients/<pid>/.visit_prep_data.json \
        --out   patients/<pid>/就诊准备包.html
    ```
    The renderer exits non-zero if any `{{…}}` placeholder survives (a data-contract gap) — fix the JSON, never the HTML, and re-render.
@@ -144,4 +144,4 @@ Run the form-invariant validator; **exit 0 is the definition of "rendered HTML d
 python3 scripts/validate_visit_prep_html.py patients/<pid>/就诊准备包.html
 ```
 
-It asserts only *form* invariants fixed by the template (style byte-identical to the template, every class ⊆ the template's classes, no residual `{{…}}` / `LOOP` / `RENDER_IF` markers, no PII — DOB still barred, but **precise age is allowed** (clinical-trial matching + 就诊场景 need it), skeleton present) — it makes **no content-existence assertions**, so a patient with zero labs / zero review-flags / zero changes still passes. If it fails, fix `visit_prep_data.json` or the template and re-render + re-validate. A pack that has not passed this validator is not a finished pack.
+It asserts only *form* invariants fixed by the template (style byte-identical to the template, every class ⊆ the template's classes, no residual `{{…}}` / `LOOP` / `RENDER_IF` markers, no PII — DOB still barred, but **precise age is allowed** (clinical-trial matching + 就诊场景 need it), skeleton present) — it makes **no content-existence assertions**, so a patient with zero labs / zero review-flags / zero changes still passes. If it fails, fix `.visit_prep_data.json` or the template and re-render + re-validate. A pack that has not passed this validator is not a finished pack.

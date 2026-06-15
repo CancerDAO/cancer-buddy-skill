@@ -68,6 +68,7 @@ if str(SCRIPT_DIR) not in sys.path:
 EXCLUDE_TOPLEVEL = {
     "raw",
     ".case_summary_data.json",
+    ".visit_prep_data.json",
     ".rename_plan.json",
     ".phase1_sources.json",
     ".identity_denylist.json",

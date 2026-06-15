@@ -35,18 +35,18 @@ Read [../../references/i18n.md](../../references/i18n.md). The pack is a patient
 4. **Map Block 1 医生速览** — direct field mapping, clinical entities verbatim; null → `val_pending`.
 5. **Derive Block 2 我要问医生的 via a subagent** (do not hardcode a keyword list): dispatch the subagent per [references/visit-prep-html-prompt.md](references/visit-prep-html-prompt.md) §4 to turn `review_flags` (→ 请医生确认), `missing_items` (→ 能否补做/补齐), `timeline` 进展 (→ 下一步), and the `visit_type` scaffold from [references/question-frameworks.md](references/question-frameworks.md) into four question groups.
 6. **Assemble Block 3 带什么** and (follow-up only) **Block 4 上次→这次变化** per the assembly prompt.
-7. **Emit `visit_prep_data.json` only — never hand-write HTML.** `<patient_dir>` is the absolute patient directory resolved via the standard chain `$CANCER_BUDDY_PATIENTS_DIR → $VMTB_PATIENT_DATA_ROOT → $HOME/CancerDAO/patients` (same resolution as cancer-buddy-organize) — **not** a path relative to this skill dir. Script and template paths below are relative to this skill's directory (`skills/cancer-buddy-visit-prep/`); the data + output paths are absolute under `<patient_dir>`. Write `<patient_dir>/visit_prep_data.json`, then render the template deterministically:
+7. **Emit `.visit_prep_data.json` only — never hand-write HTML.** `<patient_dir>` is the absolute patient directory resolved via the standard chain `$CANCER_BUDDY_PATIENTS_DIR → $VMTB_PATIENT_DATA_ROOT → $HOME/CancerDAO/patients` (same resolution as cancer-buddy-organize) — **not** a path relative to this skill dir. Script and template paths below are relative to this skill's directory (`skills/cancer-buddy-visit-prep/`); the data + output paths are absolute under `<patient_dir>`. Write `<patient_dir>/.visit_prep_data.json`, then render the template deterministically:
    ```
    python3 ../cancer-buddy-organize/scripts/render_html_template.py \
        --template references/templates/visit-prep.template.html \
-       --data <patient_dir>/visit_prep_data.json --out <patient_dir>/就诊准备包.html
+       --data <patient_dir>/.visit_prep_data.json --out <patient_dir>/就诊准备包.html
    ```
    (`render_html_template.py` is the generic zero-medical-logic engine in the **cancer-buddy-organize** skill, stdlib only.)
 8. **Gate: validate the rendered HTML — it is not done until this passes (exit 0):**
    ```
    python3 scripts/validate_visit_prep_html.py <patient_dir>/就诊准备包.html
    ```
-   On failure, fix `visit_prep_data.json` or the template and re-render + re-validate — **never patch the output HTML by hand**.
+   On failure, fix `.visit_prep_data.json` or the template and re-render + re-validate — **never patch the output HTML by hand**.
 
 Full assembly contract: [references/visit-prep-html-prompt.md](references/visit-prep-html-prompt.md).
 
@@ -59,7 +59,7 @@ Apply [../../references/safety-guardrails.md](../../references/safety-guardrails
 - **Never fabricate** — any null/absent field renders the locale `val_pending` string ("资料缺失 / 待补充"), not an invented value.
 - **Read-only on de-identified sources** — no formal-field writes, no confirm-gate involvement, never read `raw/`.
 - **Clinical entities verbatim**, scaffold localized to `profile.json.locale` ([../../references/i18n.md](../../references/i18n.md) §4).
-- **HTML is rendered by the template engine + must pass the validator — never hand-written.** The LLM produces `visit_prep_data.json` only; `render_html_template.py` fills the template; the pack is "done" only after `validate_visit_prep_html.py` exits 0. Hand-writing or post-editing the rendered HTML is forbidden.
+- **HTML is rendered by the template engine + must pass the validator — never hand-written.** The LLM produces `.visit_prep_data.json` only; `render_html_template.py` fills the template; the pack is "done" only after `validate_visit_prep_html.py` exits 0. Hand-writing or post-editing the rendered HTML is forbidden.
 
 ## Role behavior
 
@@ -73,7 +73,7 @@ Authoritative matrix in [`../../references/roles.md`](../../references/roles.md)
 
 ## References
 
-- [references/visit-prep-html-prompt.md](references/visit-prep-html-prompt.md) — assembly prompt (emit `visit_prep_data.json`; question list via subagent; render + validate gate)
+- [references/visit-prep-html-prompt.md](references/visit-prep-html-prompt.md) — assembly prompt (emit `.visit_prep_data.json`; question list via subagent; render + validate gate)
 - [references/question-frameworks.md](references/question-frameworks.md) — 初诊 / 复诊 / 换线决策 question scaffolds
 - [references/templates/visit-prep.template.html](references/templates/visit-prep.template.html) — one-page 4-block template + locale string table
 - [scripts/validate_visit_prep_html.py](scripts/validate_visit_prep_html.py) — form-invariant validator (style byte-exact / class ⊆ template / no residual markers / no PII — DOB barred but precise age allowed / skeleton); content-agnostic

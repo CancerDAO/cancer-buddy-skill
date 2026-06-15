@@ -10,7 +10,7 @@ dispatch 时机：Phase-1 槽位 gate（phase1-ocr.md §2.5）、Phase-2 验收�
 
 ### 扫描对象
 - **sidecar MD 正文**：`<patient_dir>` 下各 `NN_` 桶内 `*.md` 的正文（Phase-1 阶段则是 `<patient_dir>/ocr/*.md`）。**跳过** sidecar 头块（`SOURCE:`/`READ_MODE:`/`ADAPTER:`/`ADAPTER_PROVENANCE:`/`CONFIDENCE:`/`FILE_ID:`/`MODALITY:`/旧 `ORIGINAL:`）与 `## PII` 尾注——它们是 provenance，不是临床正文。
-- **已交付面**（整文件扫，无头块豁免）：`INDEX.md`、`source_inventory.json`、`.rename_plan.json`、`.phase1_sources.json`、`update_log.json`、`病情简要总结.html`。
+- **已交付面**（整文件扫，无头块豁免）：`INDEX.md`、`source_inventory.json`、`.rename_plan.json`、`.phase1_sources.json`、`update_log.json`、`病情简要总结.html`、`就诊准备包.html`、`AGENTS.md`。
 - **合成下游正文面**（整文件扫）：`case_text.md`、`timeline.md`、`profile.json`、`patient_summary.json`、`review_summary.md`、`review_flags.md`。它们由 sidecar 合成，下游/患者向读它们、且 export 会打包它们。**两层都扫这些**：Layer 2（`pii_rescan.py` 的 `SYNTHESIZED_SURFACES`）跑确定性 shape 兜底（身份证/手机/座机/住院号-shape/email——抓真实漏出的 shape-PII，但对去标识原件名里的紧凑时间戳 `微信图片_<14位>.jpg` 抑制 `numeric_id` 以免误杀）；本层（Layer 1）负责"按含义才认得出"的 PII（出生地/籍贯/职业/民族/家属名…）——这些没有 shape 签名，**只有本层能拦**。这正是 sidecar masker 漏过、case_text/profile 泄漏的根因面，两层互补覆盖。
 - 值已是 `[PII_MASKED]` 的（标签在、值已遮）→ 干净，跳过。
 

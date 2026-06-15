@@ -93,7 +93,8 @@ For each file, assign exactly one relevance class:
 ```bash
 # 99_ slug is localized per i18n.md §6 (zh: 99_无关文件 / en: 99_unrelated); NN_ prefix stable.
 # high_confidence / uncertain are ASCII keys — same across locales.
-mkdir -p "$patient_dir/99_无关文件/high_confidence" "$patient_dir/99_无关文件/uncertain"
+q99="99_无关文件"; [ "$(jq -r .locale "$patient_dir/profile.json" 2>/dev/null)" != zh ] && q99="99_unrelated"
+mkdir -p "$patient_dir/$q99/high_confidence" "$patient_dir/$q99/uncertain"
 # for each non-medical-high-confidence file: mv its bucket-copy candidate into high_confidence/
 # for each borderline file:                  mv it into uncertain/ AND add a relevance_uncertain flag
 ```
@@ -434,7 +435,7 @@ You may run the acceptance gate:
 ```bash
 python3 scripts/validate_structured_outputs.py "$patient_dir"
 ```
-It checks the structured JSONs + anchors, PII residue rescan of the text sidecars,
+It checks the structured JSONs + anchors, PII residue rescan of the text sidecars AND the delivered + synthesized surfaces (INDEX.md / source_inventory.json / dotfiles / update_log.json / 病情简要总结.html / 就诊准备包.html / AGENTS.md + case_text.md / profile.json / patient_summary.json / timeline.md / review_summary.md / review_flags.md — `pii_rescan.py` is the source of truth),
 `source_inventory.json` (every content unit carries a `raw_path` + a text-masked
 sidecar), and the case-summary HTML shape. If it fails because a formally cited
 source is `persist:false`, that is a Phase2 bug: restore the source to
