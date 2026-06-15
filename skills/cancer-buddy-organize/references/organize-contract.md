@@ -8,17 +8,18 @@
 
 ## 0. 契约总览
 
-organize 是 5 个纯函数步骤的有序组合。每步以 inputs → outputs(JSON / 文件产物)描述,带一组不变量。前三步是同一次 organize run 内的主链;段D HTML 可在脱敏 MD/JSON 完成后生成。上传原件**逐字保存在 `raw/` 保险库**,永不像素打码、永不删除——文本级脱敏只发生在 sidecar 正文(见 `bucket-taxonomy.md` §5)。
+organize 是 6 个纯函数步骤的有序组合。每步以 inputs → outputs(JSON / 文件产物)描述,带一组不变量。前三步是同一次 organize run 内的主链;**抽取忠实度门(Phase 2.5)在确认门之后、段D 渲染之前**;段D HTML 在 Phase 2.5 完成(无未决 CRITICAL)后生成。上传原件**逐字保存在 `raw/` 保险库**,永不像素打码、永不删除——文本级脱敏只发生在 sidecar 正文(见 `bucket-taxonomy.md` §5)。
 
 | # | 步骤 | 纯函数语义 | 主要产物 |
 |---|---|---|---|
 | 1 | Phase1 — LLM Markdown ingestion | `(一个源文件或 content unit, 稳定 source_id, LLM-readable adapter input) → 一个文本脱敏 sidecar MD` | `<source>` 的文本脱敏 MD(`SOURCE/READ_MODE/ADAPTER/CONFIDENCE` 头 + LLM 脱敏正文 + `## PII` trailer) |
 | 2 | Phase2 — 综合 | `(全部 sidecar, source_inventory, source_id↔原名映射) → canonical 输出集` | 14 临床域桶(`01_…14_`)+ 2 infra 桶(`raw/`/`99_`)+ `source_inventory.json`(含 `modality` + `raw_path` 回链)+ `INDEX.md` + `profile.json` + 条件性 `longitudinal_observations.json` + `timeline.*` + `case_text.md` + `readiness.json` + `review_summary.md` + `review_flags.md`(非空时)+ 6 结构化 JSON + `missing_items.json` + `update_log.json` + 桶相对锚点 |
 | 3 | 确认门(产物化) | `(待写正式字段/待删文件) → 待确认项数据;经确认 → 写/删` | 待确认项数据(候选结构);确认后才落正式字段或不可逆删除 |
-| 4 | 段D — HTML 渲染(Phase2 之后) | `(脱敏 JSON/MD) → case_summary_data.json → 病情简要总结.html` | 模板脚本渲染的 HTML;不读原始文件 |
+| 3.5 | 抽取忠实度门(Phase 2.5) | `(结构化 JSON, 各值的 source_refs sidecar) → 每值 faithfulness verdict` | per-value verdict 列表 + `unfaithful_values`;CRITICAL not_faithful 的 load-bearing 值由 段D producer 从患者向 HTML 丢弃(→资料缺失,含 `one_line_condition` 内嵌分量的重拼)+ 🔴 `unverified_critical_field` flag(见 §5 #9) |
+| 4 | 段D — HTML 渲染(Phase 2.5 之后) | `(脱敏 JSON/MD, unfaithful_values, lab_trend_caveats) → case_summary_data.json → 病情简要总结.html` | 模板脚本渲染的 HTML;不读原始文件;不渲染/复述任何 unfaithful 值 |
 | 5 | AGENTS.md — 召回指针(确认/修正之后) | `(确认后的 profile.json) → AGENTS.md` | 2 占位符 verbatim 复制自 `profile.json`,无 LLM 合成;在 确认门 + Profile Card 之后写(反映用户刚修正的字段),**不被 段D 结果 gate**;`full` run 必产、幂等可覆写 |
 
-**步骤间数据流的前置**:Phase2 开始前,其覆盖范围内**所有源文件/content unit 的 sidecar 必须就绪**(契约要求"就绪",不要求"如何就绪")。Phase2 产出 `source_inventory.json`(每个 content unit 带 `raw_path` 回链其 `raw/` 中的逐字原件)。段D HTML 只读脱敏 JSON/MD,不读图。
+**步骤间数据流的前置**:Phase2 开始前,其覆盖范围内**所有源文件/content unit 的 sidecar 必须就绪**(契约要求"就绪",不要求"如何就绪")。Phase2 产出 `source_inventory.json`(每个 content unit 带 `raw_path` 回链其 `raw/` 中的逐字原件)。段D HTML 只读脱敏 JSON/MD,不读图,**且必须在 Phase 2.5(步骤 3.5)完成、无未决 CRITICAL not_faithful 之后才渲染**——unfaithful 值在 producer 构建 `case_summary_data.json` 时丢弃(含 `profile.json.summary.one_line_condition` 内嵌分量的重拼),绝不进患者向产物。
 
 ---
 
@@ -45,8 +46,11 @@ organize 是 5 个纯函数步骤的有序组合。每步以 inputs → outputs(
 	   SOURCE: <source_type> | READ_MODE: <model_vision|llm_file_context|llm_rendered_pages|llm_text_payload|stub_unreadable> | CONFIDENCE: <low|medium|high>
 	   ADAPTER: <none|temp_raster|pdf_pages|docx_payload|spreadsheet_payload|text_payload|archive_unpacked|unsupported_stub>
 	   ADAPTER_PROVENANCE: <short provenance or none>
+	   FILE_ID: <稳定 source_id,与 source_inventory.json 一致 —— 重命名后仍可回链>
 	   ORIGINAL: <指回该源文件字节级原件的稳定引用>
 	   ```
+   （`MODALITY:` 行可选 —— 仅 typed adapter(omics/timeseries)追加;authoritative modality 在 `source_inventory.json`。`FILE_ID:`/`MODALITY:` 均为 provenance 元数据,PII rescan 跳过这些头行。）
+   - 头的字段 SET(`SOURCE`/`READ_MODE`/`ADAPTER`/`ADAPTER_PROVENANCE`/`CONFIDENCE`/`FILE_ID` + 可选 `MODALITY`/`ORIGINAL`)与各 line-prefix 是**binding**;但字段在物理行上的分组/顺序(几行、谁与谁同行、先后)是 **NON-normative** —— binding/prompt 可自由排布(如 phase1-ocr.md 的分行),只要字段集与前缀齐全、下游可逐前缀解析即可。
    - `CONFIDENCE` 是**规则判定**,不是自评:命中 `[OCR_UNCERTAIN]`/`[CANDIDATES]`、手写/瓶贴/涂写 → `low`;单一来源无旁证 → `medium`;正式文书(出院小结/正式处方/病理/NGS/CT-MRI 叙述)且 ≥2 文档关键字段逐字一致 → `high`;默认 `medium`。详见 phase1-ocr.md §2.3。
 2. **LLM 生成的脱敏 Markdown 正文**:
 	   - text/mixed/pathology → **全文逐字转录**(表格转 Markdown 表;医嘱按 date|order|qty|sig|exec_status;出院证转 heading+治疗摘要+诊断+医嘱+签名 verbatim)。
@@ -56,7 +60,7 @@ organize 是 5 个纯函数步骤的有序组合。每步以 inputs → outputs(
 
 ### 1.3 强制脱敏(P0,无豁免)
 
-sidecar 是**整条下游管线的唯一读取源**(timeline / case_text / profile / 段D HTML 都只读它、永不回读原图)。因此 PII 必须在此层**无条件**遮成 `[PII_MASKED]`,任何明文 PII 漏到 MD 就会一路泄到下游。遮蔽对象、判断方式(逐行语义判断,非固定正则名单)按 phase1-ocr.md §2.4。
+sidecar 是 **OCR 正文层的主要(primary)明文边界**(timeline / case_text / profile / 段D HTML 的临床正文都只读它、永不回读原图)。因此临床正文里的 PII 必须在此层**无条件**遮成 `[PII_MASKED]`,任何明文 PII 漏到 MD 就会一路泄到下游。PII 复扫为**两层独立门**(trust-but-verify):**Layer 1** = 语义 agent 主扫(`pii-rescan-prompt.md`),按含义泛化标记**任意**可识别类别(出生地/籍贯/职业/家属姓名/民族/签名/检验号…),覆盖 sidecar 正文 + 合成下游面(case_text/profile/patient_summary…)+ 已交付面;**Layer 2** = `pii_rescan.py` 确定性**纯 shape 兜底**(身份证/手机/座机/email/SSN/≥11位数字/绝对路径/云账号/denylist),作独立第二意见。任一层命中即 fail-closed。**已交付面**(INDEX.md / source_inventory.json / update_log.json / dotfiles / 病情简要总结.html)携带未经 sidecar masker 处理的原始文件名 + 路径(见 §5 不变量 #1),两层都扫。遮蔽对象、判断方式(逐行语义判断,非固定正则名单)按 phase1-ocr.md §2.4。
 
 **脱敏只动 PII token,绝不动任何临床字符**:不"纠正"/规范化/改写药名、剂量、TNM、分子标记、检验值、临床事件日期。拿不准是出生日期还是临床日期 → 当临床(保 verbatim);临床保真优先于过度遮蔽。
 
@@ -109,7 +113,7 @@ sidecar 的脱敏 Markdown 正文**必须由驱动 LLM(Claude / codex / OpenClaw
 | `timeline.md` / `timeline.json` | 时间序事件 + 机器可读镜像 | 每事件行 ≥1 个桶相对 `[[src:...]]` 锚点。 |
 | `case_text.md` | 分节叙述,每事实句带锚点 | 锚点契约见 2.3;dangling 锚点 → 不写文件、记 `anchor_dangling`。 |
 | `profile.json` | canonical schema `cancer_buddy_profile_v3` slim 快照(含 `locale`/`alias`/`summary`/`latest_status`) | `summary.current_regimen`/`latest_status.regimen` 为 STRING 取最新;详细治疗线/分子/人口学归 `treatment_lines.json`/`molecular.json`/`patient_summary.json`;`alias` sticky 不覆写。 |
-| `AGENTS.md` | agent-facing 跨会话召回指针(填 `templates/agents-md.template.md`):身份 + 路由表 + 两层(顶层 JSON → `source_refs`/`source_inventory.json` sidecar)下钻 + 逐字引用/不编造底线 | 只注入 `{{patient_code}}`+`{{one_line_condition}}`,**verbatim 复制自 `profile.json`,无 LLM 合成**;静态体患者无关;**由 §2 概览 Step 5 的 Phase2-之后 orchestrator 步骤写(确认/修正后的 profile.json),非 Phase2 synthesis worker**;`full` run 必产、幂等可覆写(无用户策展内容)。 |
+| `AGENTS.md` | agent-facing 跨会话召回指针(填 `templates/agents-md.template.md`):身份 + 路由表 + 两层(顶层 JSON → `source_refs`/`source_inventory.json` sidecar)下钻 + 逐字引用/不编造底线 | 只注入 `{{patient_code}}`+`{{one_line_condition}}`,**verbatim 复制自 `profile.json`,无 LLM 合成**;静态体患者无关;**由 §0 总览 Step 5 的 Phase2-之后 orchestrator 步骤写(确认/修正后的 profile.json),非 Phase2 synthesis worker**;`full` run 必产、幂等可覆写(无用户策展内容)。 |
 | `readiness.json` | 8 域评分 + grade + `blocking_gaps` + `warnings` + `review_flags` | grade 阈值:A≥.90 B≥.75 C≥.60 D≥.40 F<.40。 |
 | `review_flags.md` | 非空时写(9 类审查) | 见 2.4。 |
 | 6 结构化 JSON | `patient_summary/timeline/molecular/treatment_lines/labs/comorbidities` | 每事实字段带 `source_refs`;过 schema gate 才写,失败记 `schema_validation_failed`。 |
@@ -178,7 +182,7 @@ organize 的产出分两类,**职责必须分离**,任何 binding 不得混:
 - **确定性、机械、与病人无关的 → 走脚本**,不靠 LLM"自觉"做对:
   - **段D 渲染**:LLM 只产 `case_summary_data.json`(渲染模型:scalar + 0..N 行数组)+ 叙事串;**HTML 由 `scripts/render_html_template.py` 机械渲染**(读模板 → 填占位 / LOOP / RENDER_IF → 落 `病情简要总结.html`)。**LLM 绝不手写 HTML**——手写 HTML 会漂移样式、误删 section、注入幻觉 class。渲染器是**零医学/零病例逻辑的通用模板引擎**:data 驱动,有几个 lab/lesion/治疗线就渲几个(0..N);空 section 渲"资料缺失"占位、**不删 section**;无第三方依赖(仅 Python 标准库,Claude Code / codex 沙箱 / 任意 host 都能跑)。
   - **段D 形校验**:`scripts/validate_case_summary_html.py` 只查**"形"不变量**(模板固定、与病人无关:`<style>` 与模板逐字一致、用到的 class ⊆ 模板 class、无残留 `{{}}`、无明文 PII、无精确年龄、骨架 section 齐)。**禁止断言具体内容存在**(如"必须有 `.lab-grid`"会误杀无化验的病人)——渲染器是 0..N,无化验的病人合法地没有 `.lab-item`。
-  - **PII 复扫**:`scripts/pii_rescan.py` 在 Phase1 写完 sidecar、Phase2 消费前**机械复扫** MD 正文残留明文 PII(不信 LLM 的 `## PII` 自报)。它是**检测器不是改写器**——命中交 agent 回看上下文重新打码(重打码是语义判断),复扫到清为止。
+  - **PII 复扫(两层)**:**Layer 1** = 语义 agent 主扫(`pii-rescan-prompt.md`)按含义泛化标记任意可识别类别,覆盖 sidecar 正文 + 合成下游面(case_text/profile/patient_summary…)+ 已交付面;**Layer 2** = `scripts/pii_rescan.py` 确定性**纯 shape 兜底**——机械复扫 sidecar MD 正文 + 已交付面(INDEX.md / source_inventory.json / update_log.json / dotfiles / 病情简要总结.html;deny-list 由 `.identity_denylist.json` 种子)的 shape 类残留(身份证/手机/座机/email/SSN/≥11位数字/host 绝对路径/云账号/denylist token;不信 LLM 的 `## PII` 自报),export 时再跑一次。两层任一命中即 fail-closed。皆为**检测器不是改写器**——正文命中交 agent 回看重新打码;已交付面命中在 PRODUCER 端改用去标识 handle(见 #1),复扫到清为止。label/语义类别(姓名/住院号/出生地/职业/签名/检验号…)归 Layer 1,不再由 Layer 2 的正则承担。
 
 > 为什么这条是契约级而非 binding 偏好:把确定性产出交给 LLM"自觉做对"是本 skill 的系统性风险源(样式漂移、section 误删、PII 自报漏报、HTML 幻觉)。确定性步骤必须由 data 驱动的脚本钉死,LLM 只供它无法机械化的语义判断与 QA。
 
@@ -190,15 +194,17 @@ organize 的产出分两类,**职责必须分离**,任何 binding 不得混:
 
 无论哪个 host 驱动,以下行为不变量必须成立(它们是验收 §11 与"CC 不退化"的判据):
 
-1. **sidecar 是唯一明文边界**:下游(Phase2 / 段D)只读脱敏 MD,永不回读原图;明文 PII 不得越过 Phase1 文本层。
+1. **sidecar 是 OCR 正文层的唯一明文边界**:下游(Phase2 / 段D)只读脱敏 MD,永不回读原图;明文 PII 不得越过 Phase1 文本层。**此外,PII 复扫还覆盖"已交付面"**——`INDEX.md` / `source_inventory.json` / `update_log.json` / dotfiles / `病情简要总结.html`——禁止真名/邮箱/家属标识/host-绝对路径经文件名或 provenance 字段泄漏(`pii_rescan.py` delivered-surface 扫描 + 路径必须相对/basename;原 §4b "仅扫正文" 已扩展)。
 2. **进桶 + 原件逐字存 `raw/`**:每文件 co-located 进桶;每个上传原件逐字保存在 `raw/` 保险库(永不像素打码、永不删除),sidecar 通过 `source_inventory.json.raw_path` 回链——任何 binding 不得退化回"丢原图 / 不进桶"。
 3. **未确认不落正式字段 / 不可逆删除**(§3 确认门),无论 inline 还是 confirm-as-product。
 4. **临床保真 > 一切便利**:任何步骤、任何 binding 都不得翻译/规范化/平滑临床实体。
 5. **逻辑/schema/产物结构零改动**:换 binding 只换"谁执行机制",§1–§2 的 inputs/outputs/schema 不变。
 6. **sidecar 正文和 PII 判断 = LLM 输出**(§1.5):图片/扫描件走 LLM 原生视觉;PDF/DOCX/表格/文本可先格式适配给 LLM;纯 OCR/parser 不是 sidecar 临床正文来源,也不是 PII 判断来源。
-7. **归档数据唯一脱敏 = sidecar 文本遮蔽**:`raw/` 中的原件逐字保存、永不像素打码;下游产物只从文本脱敏 sidecar 构建,故保持去标识。
-8. **确定性产出走脚本,不靠 LLM 自觉**(§4b):段D HTML 由 `render_html_template.py` 渲染(LLM 不手写 HTML)、形校验 / PII 复扫 全是机械步;LLM 只供语义判断和 QA。
-9. **输出根单一**(§4c):一次 run 全部产物落一个 `patient_dir`,别名是指针不是副本。
+7. **归档数据去标识 = sidecar 文本遮蔽 + 已交付面复扫**:`raw/` 中的原件 BYTES 逐字保存、永不像素打码,但 raw/ 文件名由 Phase1 去标识(见 #1/[DEID]);临床正文去标识靠 sidecar 文本遮蔽;**已交付面(INDEX.md / source_inventory.json / update_log.json / dotfiles / 病情简要总结.html)另由 `pii_rescan.py` delivered-surface 扫描覆盖真名/路径/账号**——它们携带未过 sidecar masker 的原始文件名+路径,不能假设"只从 sidecar 构建故已去标识"。
+8. **确定性产出走脚本,不靠 LLM 自觉**(§4b):段D HTML 由 `render_html_template.py` 渲染(LLM 不手写 HTML)、形校验 / PII 复扫 / 数值不变量(`gate_numeric_integrity`:flag↔参考区间 + 掉异常值)全是机械步;LLM 只供语义判断和 QA。验收门以 `validate_structured_outputs.py` 实际运行的检查集为准(而非本文写死的枚举),避免漂移。
+9. **抽取忠实度门(Phase 2.5,语义)**:结构化数值须经一次"回看 source_refs sidecar"的 LLM 忠实度复核;CRITICAL not_faithful 的 load-bearing 值由 段D producer 从患者向 HTML 丢弃(→资料缺失)并记 🔴 red `unverified_critical_field` review_flag——绝不静默上屏。
+10. **安全导出 = 排除而非涂抹**:对外可分享副本由 `export_share.py` 产出,**排除 `raw/`** + 先过验收门;`raw/` 永不像素打码,靠排除保证不外泄。
+11. **输出根单一**(§4c):一次 run 全部产物落一个 `patient_dir`,别名是指针不是副本。
 
 ---
 

@@ -18,7 +18,9 @@ Checks:
       international(E.164) phone, and no PII label (zh 姓名/住院号/门诊号/病案号/检验号/
       报告号/床号/身份证/电话 OR en patient name/MRN/patient id/SSN/phone/...) followed
       by an un-masked value. Runs an unconditional zh∪en∪locale-agnostic union.
-  (e) No precise age — zh \\d{1,3}岁 OR en "<n> years old" / "<n> yo" / "Age: <n>".
+  (e) (removed) Precise age is now ALLOWED — clinical-trial matching needs the
+      exact age. DOB / birthplace / occupation stay barred upstream (producer +
+      pii_rescan), not in this shape gate.
   (f) Skeleton present — .header + .footer + an <h2> for every template section
       (the template always renders every section, even when empty).
   (g) Provenance — the render_html_template.py `template_sha256:` comment is
@@ -87,14 +89,12 @@ _SSN_RE = re.compile(r"(?<!\d)\d{3}-\d{2}-\d{4}(?!\d)")
 _INTL_PHONE_RE = re.compile(r"(?<![\w+])\+\d[\d\s().-]{6,}\d")
 _US_PHONE_RE = re.compile(r"(?<!\d)\(?\d{3}\)?[-.\s]\d{3}[-.\s]\d{4}(?!\d)")
 
-# (e) precise age — zh 岁 OR en forms ("63 years old", "63-year-old", "63 yo",
-#     "aged 63", "Age 63", "Age: 63"). Colon optional; decade bands like "50+" allowed
-#     (negative lookahead). Kept identical in coverage to the sibling visit-prep guard.
-_AGE_RE = re.compile(
-    r"(?i)(?:\d{1,3}\s*岁"
-    r"|\b\d{1,3}[\s-]*(?:years?[\s-]*old|yrs?[\s-]*old|y/?o)\b"
-    r"|\bage[d]?\s*[:：]?\s*\d{1,3}\b(?!\s*\+))"
-)
+# (e) precise age is intentionally NOT guarded here anymore — the case summary now
+#     retains the exact age (clinical-trial matching needs it). DOB / birthplace /
+#     occupation remain barred, enforced upstream at the producer + pii_rescan.
+#     The sibling validate_visit_prep_html.py dropped the same guard in the same
+#     change, so the two remain ALIGNED (both age-permissive, DOB still barred). Do
+#     NOT re-add an exact-age guard to either without doing the same to the other.
 
 # (g) provenance comment emitted by render_html_template.py
 _PROVENANCE_RE = re.compile(r"template_sha256:\s*([0-9a-f]{64})", re.IGNORECASE)
@@ -221,10 +221,10 @@ def check(html: str, template: str, errors: list[str]) -> str | None:
     if _US_PHONE_RE.search(scan):
         errors.append("(d) PII: US phone-number pattern present")
 
-    # (e) precise age
-    am = _AGE_RE.search(scan)
-    if am:
-        errors.append(f"(e) precise age present: {am.group(0)!r}")
+    # (e) precise age is now ALLOWED — clinical-trial matching needs the exact age.
+    # Only DOB/birthplace/occupation stay barred, and those are enforced upstream
+    # (case-summary-html-prompt.md producer rules + pii_rescan PII scan), not here.
+    # The former \d{1,3}岁 / "<n> years old" guard was removed intentionally.
 
     # (f) skeleton present
     for cls in _REQUIRED_CLASSES:

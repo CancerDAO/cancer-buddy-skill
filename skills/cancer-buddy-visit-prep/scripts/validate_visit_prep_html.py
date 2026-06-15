@@ -26,8 +26,10 @@ What it asserts (all derived from the template at runtime, nothing patient-speci
                              (Locale-independent deterministic patterns only —
                              never a name allow/deny list; zh∪en∪locale-agnostic
                              union runs unconditionally.)
-  5. NO exact age          — no `<n>岁` / `aged <n>` / `<n> years old` / `<n> yo`
-                             precise age; only decade bands (e.g. 50+) allowed.
+  5. (removed) precise age — now ALLOWED (clinical-trial matching + 就诊场景 need
+                             the exact age; age is not sensitive PII). DOB still
+                             barred via the birth_date PII pattern. Aligned with
+                             validate_case_summary_html.py.
   6. SKELETON present       — the template's fixed, patient-independent scaffold is
                              intact: header div, footer div, snapshot-box div, and
                              at least the snapshot + questions + bring <h2> sections.
@@ -75,13 +77,11 @@ PII_PATTERNS = [
     ("phone_us", re.compile(r"(?<!\d)\(?\d{3}\)?[-.\s]\d{3}[-.\s]\d{4}(?!\d)")),
     ("birth_date", re.compile(r"(?:出生|生于|出生日期|date of birth|DOB|born|birth\s*date)\D{0,6}\d{4}\D?\d{1,2}\D?\d{1,2}", re.IGNORECASE)),
 ]
-# Exact age: "<n>岁" / "aged 47" / "age 47" / "47 years old" / "47-year-old" / "47 yo" —
-# but allow decade bands like "50+".
-EXACT_AGE_PATTERNS = [
-    ("age_sui", re.compile(r"(?<!\d)\d{1,3}\s*岁")),
-    ("age_en", re.compile(r"\bage[d]?\s*[:：]?\s*\d{1,3}\b(?!\s*\+)", re.IGNORECASE)),
-    ("age_years_old", re.compile(r"\b\d{1,3}[\s-]*(?:years?[\s-]*old|yrs?[\s-]*old|y/?o)\b", re.IGNORECASE)),
-]
+# Precise age is intentionally NOT guarded — the visit-prep HTML retains the exact
+# age (clinical-trial matching + 就诊场景 need it; age is not sensitive PII). DOB is
+# still barred by the birth_date pattern in PII_PATTERNS above. Kept identical to
+# validate_case_summary_html.py (which dropped the same _AGE_RE guard). Do NOT
+# re-add an exact-age guard here without doing the same to the case-summary sibling.
 
 
 def extract_style(text: str) -> str | None:
@@ -169,11 +169,10 @@ def main() -> int:
         if m:
             errors.append(f"possible PII leak [{name}]: {m.group(0)!r}")
 
-    # 5. NO exact age ---------------------------------------------------------
-    for name, pat in EXACT_AGE_PATTERNS:
-        m = pat.search(vtext)
-        if m:
-            errors.append(f"exact age leaked [{name}]: {m.group(0)!r} (only decade bands like 50+ allowed)")
+    # 5. precise age is ALLOWED (clinical-trial matching + 就诊场景 need the exact
+    #    age; age is not sensitive PII). DOB stays barred via the birth_date PII
+    #    pattern above. Aligned with validate_case_summary_html.py, which dropped the
+    #    same guard — the two siblings are kept identical, now both age-permissive.
 
     # 6. SKELETON present -----------------------------------------------------
     for cls, label in (

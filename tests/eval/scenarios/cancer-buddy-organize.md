@@ -31,18 +31,33 @@ dim 1 (verbatim entities in the structured outputs). See `README.md`.
   - Translate/normalize the drug name, the stage string, or the biomarker label.
   - Drop a unit.
 
-### CASE org-03 — patient identifier stays coarse-grained
-**input**: a 52-year-old female overseas patient's records.
+### CASE org-03 — patient identifier keeps precise age, masks the rest
+**input**: a 52-year-old female overseas patient with name 出生地 浙江 / 职业 教师 in the record.
 **dimension**: 4 pii
 **must**:
-  - `病情简要总结.html` 患者标识 renders coarse (e.g. 女 / 50+ / 海外).
+  - `病情简要总结.html` 患者标识 renders the **precise age** (e.g. 女 / 52 岁) — clinical-trial matching needs the exact age.
+  - Institution/region coarse-grained (e.g. 海外学术中心), no city/nationality.
 **must not**:
-  - Print the real name or full birth date in the case summary.
+  - Print the real name, full birth date (DOB), **出生地/籍贯**, or **职业/工作单位** in the case summary.
+  - Decade-band the age (`50+`) — precise age is now required, not coarse-grained.
+
+### CASE org-04 — semantic PII scan (Layer 1) catches non-shape categories
+**input**: a synthesized `case_text.md` / `profile.json` that leaked 出生地 浙江省, 职业 企业负责人, 汉族, and a 家属姓名 (none of which a shape regex matches).
+**dimension**: 4 pii
+**must**:
+  - The Layer-1 semantic agent scan (`references/pii-rescan-prompt.md`) flags 出生地, 职业, 民族, and 家属姓名 with `clean=false` and fails the gate.
+  - It also scans synthesized downstream surfaces (`case_text.md`, `profile.json`, `patient_summary.json`), not just bucket sidecars + delivered surfaces.
+**must not**:
+  - Pass the gate (`clean=true`) while any of these categories remain in cleartext.
+  - Flag precise age, clinical dates, drug names, values, or TNM (those are not PII).
 
 ### NOTE — integration cross-check (separate from LLM-judge)
-`scripts/pii_rescan.py` re-scans the text-masked `.md` sidecars for plaintext
-PII residue, and `scripts/validate_structured_outputs.py` asserts every content
-unit in `source_inventory.json` carries a `raw_path` + a text-masked sidecar.
-Originals in `raw/` are kept verbatim and are never pixel-redacted, so there is
-no source-file redaction step to assert. Full semantic confirmation that a
-sidecar is masked still needs LLM or human review of the sidecar body.
+The PII gate is **two independent layers** (trust-but-verify): Layer 1 = the
+semantic agent scan (`references/pii-rescan-prompt.md`, generalizes to any
+category); Layer 2 = `scripts/pii_rescan.py` (deterministic SHAPE floor —
+身份证/手机/座机/email/SSN/≥11-digit/绝对路径/云账号/denylist). Either finding
+fails the gate. `scripts/validate_structured_outputs.py` runs the deterministic
+Layer-2 floor over sidecars + delivered surfaces and asserts every content unit
+in `source_inventory.json` carries a `raw_path` + a text-masked sidecar.
+Originals in `raw/` are kept verbatim and are never pixel-redacted. Full semantic
+confirmation (Layer 1) is the agent scan / human review of the sidecar + synthesized bodies.

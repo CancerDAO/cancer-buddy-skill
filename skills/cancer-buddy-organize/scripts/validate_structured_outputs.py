@@ -19,11 +19,24 @@ Gate sections (each contributes to one aggregated exit code):
       verify every source_refs[] / source_ref anchor resolves to an existing
       markdown file. A file that is absent is skipped (longitudinal is optional).
 
-  [2] PII residue rescan (pii_rescan.py):
-      Independently re-scan every text-masked MD sidecar for plaintext PII that
-      survived Phase-1 masking. The sidecar is the only downstream plaintext
-      boundary, so residue here leaks everywhere. This is text-only; no OCR/image
-      dependency is allowed in the acceptance gate.
+  [2] PII residue rescan — Layer 2 (pii_rescan.py, deterministic SHAPE floor):
+      Independently re-scan every text-masked MD sidecar AND the delivered
+      (non-sidecar) surfaces — INDEX.md / source_inventory.json / dotfiles /
+      病情简要总结.html — for pure-SHAPE leaks (身份证/手机/座机/email/SSN/≥11位
+      数字/绝对路径/云账号/deny-list token, seeded from raw/ filenames). This is the
+      deterministic, zero-network half of the two-layer PII gate. The PRIMARY,
+      generalizing half is Layer 1 — the semantic agent scan
+      (references/pii-rescan-prompt.md), dispatched by the orchestrator (SKILL.md
+      Step 11.5), which catches label/semantic categories (姓名/出生地/职业/家属名/
+      签名/检验号…) over sidecars + synthesized surfaces + delivered surfaces. This
+      script enforces only Layer 2; the orchestrator enforces Layer 1 separately.
+      Text-only; no OCR/image dependency in the acceptance gate.
+
+  [2b] Numeric integrity (gate_numeric_integrity) — deterministic, no medical
+      judgement: labs flag ↔ reference_range consistency (an out-of-range value
+      with flag=null is blocked) + dropped-abnormal (a cited sidecar abnormal row
+      whose value is absent from labs.json is blocked). Semantic faithfulness
+      (column-shift etc.) is the separate Phase-2.5 faithfulness sub-skill's job.
 
   [3] Source inventory:
       source_inventory.json MUST exist and every content unit must have a
@@ -214,9 +227,6 @@ def gate_pii_rescan(patient_dir: Path, errors: list) -> None:
         return
 
     sidecars = pii_rescan.collect_sidecars(patient_dir)
-    if not sidecars:
-        # No sidecars yet (e.g. mid-run) — not this gate's job to demand them.
-        return
     total = 0
     for sc in sidecars:
         findings = pii_rescan.scan_sidecar(sc)
@@ -233,6 +243,158 @@ def gate_pii_rescan(patient_dir: Path, errors: list) -> None:
             f"pii_rescan: {total} plaintext-PII residue finding(s) in sidecars — "
             "re-mask to [PII_MASKED] (clinical chars untouched) and re-run"
         )
+
+    # US-001: the sidecar scan above intentionally skips header blocks and only
+    # covers OCR bodies. Delivered (non-sidecar) artifacts — INDEX.md /
+    # source_inventory.json / dotfiles / 病情简要总结.html — are NOT exempt: a real
+    # run leaked the patient name (in a `<name>-报告.pdf` filename copied into
+    # original_path) and the uploader's cloud/email account (absolute paths) into
+    # exactly these surfaces. Scan them whole, seeded by a patient-identity deny-list.
+    try:
+        surfaces, _deny = pii_rescan.scan_delivered_surfaces(patient_dir)
+    except Exception as e:
+        errors.append(f"pii_rescan(delivered): could not scan delivered surfaces: {e}")
+        surfaces = {}
+    delivered_total = 0
+    for name, findings in surfaces.items():
+        for line_no, pii_type, snippet in findings:
+            delivered_total += 1
+            loc = f"L{line_no}" if line_no else "(file)"
+            errors.append(f"pii_rescan(delivered): {name} {loc} [{pii_type}] {snippet!r}")
+    if delivered_total:
+        errors.append(
+            f"pii_rescan(delivered): {delivered_total} PII leak(s) in shipped index/"
+            "provenance/HTML artifacts — relativize paths / strip name-bearing basenames / "
+            "coarse-grain the HTML so no identity, account, or absolute local path ships"
+        )
+
+
+# --------------------------------------------------------------------------- #
+# [2b] numeric integrity (US-002) — deterministic, NO medical judgement
+#
+# This gate makes ZERO clinical decisions: it never invents a threshold, never
+# carries a disease/drug keyword table. It only checks two FORM invariants that
+# are true regardless of patient:
+#   (a) flag ↔ reference_range consistency: a numeric lab value that sits outside
+#       its OWN stated reference_range must carry the matching H/L flag. An
+#       out-of-range value with flag=null is "an abnormal value silently marked
+#       normal" — the column-shift / mis-extraction failure mode (a falsely
+#       reassuring tumor-marker downtrend). Block.
+#   (b) dropped-abnormal: a cited sidecar table row that carries an abnormal
+#       marker (↑/↓/H/L) for an analyte symbol that labs.json tracks, whose
+#       number is absent from that panel's values[], is a dropped abnormal value.
+#       Conservative (exact uppercase analyte-symbol match) to avoid false blocks
+#       on garbled OCR; semantic coverage is the US-003 faithfulness sub-skill's job.
+# --------------------------------------------------------------------------- #
+_RANGE_BAND = re.compile(r"^\s*([0-9]+(?:\.[0-9]+)?)\s*[-–—~～]\s*([0-9]+(?:\.[0-9]+)?)\s*$")
+_RANGE_LE = re.compile(r"^\s*[<≤]\s*([0-9]+(?:\.[0-9]+)?)\s*$")
+_RANGE_GE = re.compile(r"^\s*[>≥]\s*([0-9]+(?:\.[0-9]+)?)\s*$")
+_EPS = 1e-9
+
+
+def _parse_range(rng):
+    """Return (low, high) floats (or None for an open side); None if unparseable."""
+    if not isinstance(rng, str):
+        return None
+    m = _RANGE_BAND.match(rng)
+    if m:
+        return (float(m.group(1)), float(m.group(2)))
+    m = _RANGE_LE.match(rng)
+    if m:
+        return (None, float(m.group(1)))
+    m = _RANGE_GE.match(rng)
+    if m:
+        return (float(m.group(1)), None)
+    return None
+
+
+def gate_numeric_integrity(patient_dir: Path, errors: list) -> None:
+    labs_path = patient_dir / "labs.json"
+    if not labs_path.is_file():
+        return
+    try:
+        labs = json.loads(labs_path.read_text(encoding="utf-8"))
+    except Exception:
+        return  # the structured gate already reports parse failures
+    panels = labs.get("panels") if isinstance(labs, dict) else None
+    if not isinstance(panels, list):
+        return
+
+    # (a) flag ↔ reference_range
+    for panel in panels:
+        if not isinstance(panel, dict):
+            continue
+        analyte = panel.get("analyte", "<?>")
+        band = _parse_range(panel.get("reference_range"))
+        if not band:
+            continue
+        low, high = band
+        for v in panel.get("values", []) or []:
+            if not isinstance(v, dict):
+                continue
+            val = v.get("value")
+            if not isinstance(val, (int, float)):
+                continue  # string/null values carry no numeric invariant
+            flag = v.get("flag")
+            date = v.get("date", "?")
+            if high is not None and val > high + _EPS and flag not in ("H", "HH"):
+                errors.append(
+                    f"numeric_integrity: labs '{analyte}' {date} value {val} > reference "
+                    f"high {high} but flag={flag!r} (abnormal value silently marked normal)"
+                )
+            if low is not None and val < low - _EPS and flag not in ("L", "LL"):
+                errors.append(
+                    f"numeric_integrity: labs '{analyte}' {date} value {val} < reference "
+                    f"low {low} but flag={flag!r} (abnormal value silently marked normal)"
+                )
+
+    # (b) dropped-abnormal (conservative) — scan each cited sidecar for abnormal
+    # rows whose analyte symbol labs.json tracks but whose number is missing.
+    symbol_re = re.compile(r"\b([A-Z][A-Z0-9]{1,8}(?:-[0-9]{1,3})?)\b")
+    abnormal_marker = re.compile(r"[↑↓]|\bH\b|\bL\b|\bHH\b|\bLL\b")
+    num_re = re.compile(r"(?<![\d.])([0-9]+(?:\.[0-9]+)?)(?![\d.])")
+    # index: symbol -> set of numeric values present in labs.json for that symbol
+    present: dict[str, set[float]] = {}
+    cited: set[str] = set()
+    for panel in panels:
+        if not isinstance(panel, dict):
+            continue
+        for sym in symbol_re.findall((panel.get("analyte") or "").upper()):
+            present.setdefault(sym, set())
+            for v in panel.get("values", []) or []:
+                if isinstance(v, dict) and isinstance(v.get("value"), (int, float)):
+                    present[sym].add(float(v["value"]))
+                for r in (v.get("source_refs") or []) if isinstance(v, dict) else []:
+                    rel = _anchor_sidecar_path(r)
+                    if rel:
+                        cited.add(rel)
+    if not present:
+        return
+    for rel in sorted(cited):
+        sc = patient_dir / rel
+        if not sc.is_file():
+            continue
+        try:
+            for ln, line in enumerate(sc.read_text(encoding="utf-8", errors="replace").splitlines(), 1):
+                if not abnormal_marker.search(line):
+                    continue
+                syms = [s for s in symbol_re.findall(line) if s in present]
+                if not syms:
+                    continue
+                nums = [float(x) for x in num_re.findall(line)]
+                for sym in syms:
+                    missing = [n for n in nums if n not in present[sym] and n > 0]
+                    # require the number to look like a result (not a tiny index/row id)
+                    missing = [n for n in missing if n >= 1.0]
+                    if missing:
+                        errors.append(
+                            f"numeric_integrity: dropped-abnormal — sidecar {rel} L{ln} shows "
+                            f"abnormal '{sym}' with value(s) {missing} absent from labs.json "
+                            f"panel for {sym}"
+                        )
+                        break
+        except Exception:
+            continue
 
 
 # --------------------------------------------------------------------------- #
@@ -423,6 +585,7 @@ def main() -> int:
     errors: list[str] = []
     gate_structured(patient_dir, errors)
     gate_pii_rescan(patient_dir, errors)
+    gate_numeric_integrity(patient_dir, errors)
     gate_source_inventory(patient_dir, errors)
     gate_case_summary_html(patient_dir, errors)
 

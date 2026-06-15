@@ -76,7 +76,7 @@ Authoritative matrix in [`../../references/roles.md`](../../references/roles.md)
 - [references/visit-prep-html-prompt.md](references/visit-prep-html-prompt.md) — assembly prompt (emit `visit_prep_data.json`; question list via subagent; render + validate gate)
 - [references/question-frameworks.md](references/question-frameworks.md) — 初诊 / 复诊 / 换线决策 question scaffolds
 - [references/templates/visit-prep.template.html](references/templates/visit-prep.template.html) — one-page 4-block template + locale string table
-- [scripts/validate_visit_prep_html.py](scripts/validate_visit_prep_html.py) — form-invariant validator (style byte-exact / class ⊆ template / no residual markers / no PII / no exact age / skeleton); content-agnostic
+- [scripts/validate_visit_prep_html.py](scripts/validate_visit_prep_html.py) — form-invariant validator (style byte-exact / class ⊆ template / no residual markers / no PII — DOB barred but precise age allowed / skeleton); content-agnostic
 - [../cancer-buddy-organize/scripts/render_html_template.py](../cancer-buddy-organize/scripts/render_html_template.py) — generic zero-medical-logic template engine (shared, stdlib only)
 - [../../references/i18n.md](../../references/i18n.md) — shared locale layer (detect / persist / verbatim-clinical)
 - [../../references/safety-guardrails.md](../../references/safety-guardrails.md) — safety red lines

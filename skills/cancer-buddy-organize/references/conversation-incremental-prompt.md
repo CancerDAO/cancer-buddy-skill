@@ -105,17 +105,24 @@ First, decide **which clinical domain** the confirmed fact belongs to, then file
 
 Only when the fact fits **no clinical domain** (a general life note, an undirected remark) does it fall back to the `14_` domain (患者自管补充 / patient_supplement) `conversation_notes/`.
 
-Append to a dated note under the chosen domain's `conversation_notes/` subdir. **Resolve `$domain_dir` by globbing the bucket that ALREADY EXISTS in this archive by its `NN_` prefix** (organize created all 14 buckets in the archive's locale on the first run) — this lands the note inside the real, locale-correct bucket and never creates a second, differently-named (e.g. phantom Chinese) directory:
+Append to a dated note under the chosen domain's `conversation_notes/` subdir. **Resolve `$domain_dir` by globbing the bucket by its `NN_` prefix; if it does NOT exist yet, create it under the locale-correct pinned slug** — organize now uses **lazy bucket creation** (setup makes only `ocr/`+`raw/`; a clinical bucket exists only if a prior run filed a sidecar there), so on a typical 段C archive the target bucket is usually ABSENT and MUST be created, never silently misfiled to the patient-dir root:
 
 ```bash
 nn=07   # the two-digit prefix from the LLM domain judgment above (14 = no-domain fallback)
 domain_dir=$(basename "$(ls -d "$patient_dir/${nn}_"*/ 2>/dev/null | head -1)")
-# $domain_dir is now the archive's actual localized slug (07_检验 OR 07_labs OR …) — NOT hardcoded
+# Lazy-archive guard: bucket not materialized yet → use the pinned slug for this
+# locale (zh slug e.g. 07_检验 when profile.json.locale=zh; en slug e.g. 07_labs for
+# every other locale) per i18n.md §6 / bucket-taxonomy.md §1.1a. NEVER leave it empty
+# (empty → mkdir -p "$patient_dir//conversation_notes" collapses to the ROOT and the
+# note escapes the NN_-keyed PII gate + every NN_-prefix consumer).
+[ -z "$domain_dir" ] && domain_dir="<localized NN_ slug for nn from profile.json.locale>"
 mkdir -p "$patient_dir/$domain_dir/conversation_notes"
 # write to <domain_dir>/conversation_notes/<turn_timestamp-date>.md
 ```
 
-The note file carries a `tags: [patient_curated]` front-matter marker and the verbatim user quote + the confirmed structured value. This file is the **archive**, not the citation target — facts cite the conversation anchor, not this file (see anchor-contract §1b). The note still carries the **conversation** anchor, never a file anchor, because the source is the dialogue turn — domain routing only chooses where the archive lands, it does not change the provenance class.
+**PII (MANDATORY — 段C has no Phase-1 masker, so do it here):** before writing the verbatim user quote into the note, mask PII in the quote to `[PII_MASKED]` per the **same open-ended category judgment as `organizer-prompt-phase1-ocr.md` §2.4** (patient/family name, MRN/住院号/门诊号, phone, address, bed, signatory names, ID, DOB, specimen_id 检验号/标本编号, postal code, 出生地/籍贯, 职业/工作单位, 民族 …) — clinical entities stay verbatim (§2.2a). Then run **both §2.5 layers** on the note: the Layer-1 semantic agent scan (`pii-rescan-prompt.md`) AND `python3 scripts/pii_rescan.py "$patient_dir/$domain_dir/conversation_notes/<file>.md"`, re-masking until **both** are clean. Filing under an `NN_` bucket (above) ALSO ensures a later full/incremental acceptance-gate rescan covers it; the gate additionally scans `conversation_notes/*.md` wherever it lands as defense-in-depth.
+
+The note file carries a `tags: [patient_curated]` front-matter marker and the **PII-masked** user quote + the confirmed structured value. This file is the **archive**, not the citation target — facts cite the conversation anchor, not this file (see anchor-contract §1b). The note still carries the **conversation** anchor, never a file anchor, because the source is the dialogue turn — domain routing only chooses where the archive lands, it does not change the provenance class.
 
 **4b. Update the formal field / timeline (only after confirm):**
 

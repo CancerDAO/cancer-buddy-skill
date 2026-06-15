@@ -64,7 +64,7 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "value": { "type": ["number", "null"] },
+        "value": { "type": ["number", "string", "null"], "description": "Numeric TMB (e.g. 7.9) OR a verbatim count/categorical label when the source gives no per-Mb figure (e.g. '79 Muts', 'TMB-L', '肿瘤突变负荷 偏低'). Mirrors labs values[].value which is also number|string|null." },
         "unit": { "type": ["string", "null"], "enum": ["mut/Mb", null] },
         "source_refs": {
           "type": "array",

@@ -8,7 +8,7 @@
   "additionalProperties": false,
   "properties": {
     "schema": { "const": "source_inventory_v1" },
-    "patient_dir": { "type": "string", "description": "Absolute path to <patient_dir>. All relative paths below resolve under this directory." },
+    "patient_dir": { "type": "string", "description": "Relative path or placeholder for <patient_dir> (e.g. \".\" or the patient-dir basename) — not an absolute path, so the inventory stays portable and never leaks a host filesystem path. All relative paths below resolve under this directory." },
     "generated_at": { "type": "string", "format": "date-time" },
     "files": {
       "type": "array",
@@ -20,7 +20,7 @@
         "properties": {
           "file_id": { "type": "string", "description": "Stable id of this content unit (1:1 with the sidecar/MD), e.g. f001. N content units may share one source_id when a single upload yields multiple sidecars. See bucket-taxonomy.md §4." },
           "source_id": { "type": "string", "description": "Stable per-upload id, e.g. s001. 1:1 with an uploaded original in raw/; N content units may share it." },
-          "original_path": { "type": "string", "description": "Original user-supplied path or archive-relative path recorded for audit. May be absolute or logical; never used as an anchor." },
+          "original_path": { "type": "string", "description": "De-identified raw handle (the Phase-1 de-id raw filename / source_id) recorded for audit; never used as an anchor. MUST be relative/de-identified — never a host-absolute path (/Users/...), cloud URL, email-attachment path, OR an identity-bearing upload basename (e.g. NOT '王国洪-报告.pdf'). The verbatim upload filename is preserved only in raw/_FILENAME_MAPPING.md (inside raw/, excluded from export). source_inventory.json is a delivered/shared surface; the delivered-surface PII rescan (pii_rescan.py) hard-fails name/path leaks here." },
           "raw_path": { "type": "string", "pattern": "^raw/.+", "description": "Path to the verbatim un-redacted original under patient_dir/raw/ (hidden, never-anchored vault). Original sub-folder structure and basename preserved. Never pixel-redacted. The frontend deep-links a sidecar back to its original here. See bucket-taxonomy.md §4." },
           "page_range": { "type": ["string", "null"], "description": "Which pages of a multi-document source this content unit covers, e.g. \"3-5\". Null when the sidecar covers the whole file." },
           "bucket_path": { "type": ["string", "null"], "description": "Canonical bucket-relative path of the text-masked .md SIDECAR after Phase2 classification (clinical domain 01_…14_). The original is NOT copied here — it stays once in raw/ (see raw_path). Null before classification or for isolated unrelated files." },

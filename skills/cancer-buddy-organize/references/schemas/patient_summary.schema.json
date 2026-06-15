@@ -40,8 +40,7 @@
         "diagnosed_at": { "type": ["string", "null"], "format": "date" },
         "stage": { "type": ["string", "null"] },
         "metastasis_sites": { "type": "array", "items": { "type": "string" } },
-        "source_refs": { "$ref": "#/$defs/source_refs" },
-        "confidence": { "type": ["number", "null"], "minimum": 0, "maximum": 1 }
+        "source_refs": { "$ref": "#/$defs/source_refs" }
       }
     },
     "current_status": {
@@ -85,8 +84,16 @@
     },
     "confidence": {
       "type": "object",
-      "description": "Per-key extraction confidence (0–1), populated by synthesis worker.",
-      "additionalProperties": { "type": "number", "minimum": 0, "maximum": 1 }
+      "description": "Per-key extraction confidence (0–1), populated by synthesis worker. SINGLE SOURCE OF TRUTH for all per-section confidence — individual section objects (e.g. diagnosis) must NOT carry their own inner confidence. Keys are constrained to a canonical closed set matching the structured-file names, eliminating labs vs lab_values drift; all keys optional.",
+      "additionalProperties": false,
+      "properties": {
+        "diagnosis": { "type": "number", "minimum": 0, "maximum": 1 },
+        "stage": { "type": "number", "minimum": 0, "maximum": 1 },
+        "current_status": { "type": "number", "minimum": 0, "maximum": 1 },
+        "labs": { "type": "number", "minimum": 0, "maximum": 1 },
+        "molecular": { "type": "number", "minimum": 0, "maximum": 1 },
+        "treatment_lines": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
     }
   },
   "$defs": {

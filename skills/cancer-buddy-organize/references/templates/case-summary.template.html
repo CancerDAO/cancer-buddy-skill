@@ -16,7 +16,6 @@
   | report_date_label    | 报告日期                                     | Report date                                               |
   | sec_identity         | 患者标识                                     | Patient Identity                                          |
   | lbl_sex_age          | 性别 / 年龄                                  | Sex / Age                                                 |
-  | lbl_nationality      | 国籍                                        | Nationality                                               |
   | lbl_hwbmi            | 身高 / 体重 / BMI                            | Height / Weight / BMI                                     |
   | lbl_ecog             | ECOG 体能评分                               | ECOG performance status                                   |
   | sec_summary          | 病情概要                                     | Clinical Summary                                          |
@@ -25,7 +24,7 @@
   | sec_labs             | 关键实验室指标                               | Key Laboratory Values                                     |
   | sec_treatment        | 治疗史                                       | Treatment History                                         |
   | sec_path             | 当前治疗路径                                 | Current Treatment Path                                    |
-  | val_nationality      | 海外                                        | Overseas                                                  |
+  | sec_caveats          | 数据说明                                     | Data Notes                                                |
   | val_male             | 男                                          | Male                                                      |
   | val_female           | 女                                          | Female                                                    |
   | val_pending          | 待主治医师补充 / 资料缺失                     | To be supplemented by attending physician / data missing  |
@@ -238,15 +237,14 @@ th {
 </div>
 
 <!-- ============ SECTION 2: 患者标识 ============ -->
-<!-- 来源: profile.json / patient_summary.json。粗粒度脱敏:性别+年龄段(50+)+国籍(海外),不落真名真生日。null 字段渲染"待主治医师补充 / 资料缺失"。 -->
+<!-- 来源: profile.json / patient_summary.json。脱敏:性别+精确年龄(临床试验匹配需要),不落真名/真生日(DOB)/国籍/出生地/职业。null 字段渲染"待主治医师补充 / 资料缺失"。 -->
 <h2>{{i18n.sec_identity}}</h2>
 <table class="kv-table">
   <tr>
-    <td>{{i18n.lbl_sex_age}}</td><td>{{sex}} / {{age_band}}</td>
-    <td>{{i18n.lbl_nationality}}</td><td>{{nationality}}</td>
+    <td>{{i18n.lbl_sex_age}}</td><td>{{sex}} / {{age}}</td>
+    <td>{{i18n.lbl_hwbmi}}</td><td>{{height_weight_bmi}}</td>
   </tr>
   <tr>
-    <td>{{i18n.lbl_hwbmi}}</td><td>{{height_weight_bmi}}</td>
     <td>{{i18n.lbl_ecog}}</td><td>{{ecog}}</td>
   </tr>
 </table>
@@ -340,6 +338,15 @@ th {
   {{i18n.val_pending}}
   <!-- END RENDER_IF -->
 </div>
+
+<!-- ============ 数据说明 (caveats) — 脚注,非 section,无 <h2>(不改骨架计数) ============ -->
+<!-- 来源: Step-3c 来源裁决 + Phase-2.5 忠实度。仅在 caveats 非空时渲染该脚注;脚手架本地化,临床实体 verbatim,绝不内联进 verbatim 值。复用 footer class,不引入新 class。 -->
+<!-- RENDER_IF caveats -->
+<div class="footer">
+  <strong>{{i18n.sec_caveats}}：</strong>
+  <!-- LOOP caveats -->{{caveat_text}}；<!-- END LOOP -->
+</div>
+<!-- END RENDER_IF -->
 
 <!-- ============ FOOTER ============ -->
 <div class="footer">

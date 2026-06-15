@@ -23,6 +23,7 @@
 - sidecar 正文必须由 Claude/driver LLM 读取 adapted input 后写出(文本脱敏 MD: inline `[PII_MASKED]` + `## PII` trailer)。
 - 图片/扫描件: `Read` 视觉。PDF/DOCX/表格/文本: 可先转成模型可读输入,但最终 Markdown 正文、PII 判断 (inline `[PII_MASKED]` + `## PII` trailer)、表格转写仍由 LLM 输出。
 - 纯 OCR/parser 字符流不能直接写 sidecar 临床正文,也不能替代 LLM 做 PII 判断。它们只能做格式适配或机械文件处理。
+- sidecar 头部字段集: SOURCE / READ_MODE / ADAPTER / ADAPTER_PROVENANCE / CONFIDENCE / FILE_ID (stable source_id, rename-survivable) / optional MODALITY / ORIGINAL。
 
 ## 3. 格式适配
 
@@ -40,13 +41,14 @@
 ## 5. 存储
 
 - Phase2 写 canonical `patient_dir`: 14 clinical domains, co-located text-masked MD, `source_inventory.json`(每条 content unit 带 `raw_path` deep-link + `file_id` + `page_range`), structured JSON, HTML 等。
-- `raw/` 是每个上传原件的逐字 vault,按上传原样保存,永不像素脱敏、永不删除。
+- `raw/` keeps every uploaded original's BYTES verbatim (never byte-altered, never pixel-redacted, never deleted); the on-disk FILENAME is DE-IDENTIFIED by Phase 1 (identity token stripped; if the whole basename is the identity, fall back to <source_id>.<ext>) so a patient-named upload (e.g. 王国洪-报告.pdf) never leaks into a scanned/shared surface. The verbatim original filename is preserved ONLY in raw/_FILENAME_MAPPING.md (inside raw/, excluded from export, never a delivered/scanned surface).
 - `病情简要总结.html` 在文本脱敏 MD/JSON 后生成。
-- sidecar `ORIGINAL`/`raw_path` 指向 `raw/` 下的逐字原件。
+- sidecar `ORIGINAL`/`raw_path` 指向 `raw/` 下的逐字原件(de-identified filename)。
 
 ## 6. 不变量
 
-- sidecar(文本脱敏 MD)是下游唯一读取源;Phase2/段D 不读明文原文件。
+- Acceptance gate = run validate_structured_outputs.py; its currently-implemented check set is authoritative. It runs: structured JSON schema + anchors; PII rescan of sidecars AND delivered surfaces (deny-list seeded from .identity_denylist.json); gate_numeric_integrity (flag↔reference_range + dropped-abnormal); source_inventory completeness (every content unit has a de-identified raw_path + text-masked sidecar); case-summary HTML shape. The run must also complete Phase 2.5 extraction-faithfulness (no unresolved CRITICAL), and any shareable copy must go through export_share.py (excludes raw/, gated by this script).
+- The text-masked sidecar body is the primary downstream plaintext boundary; ADDITIONALLY the delivered surfaces (INDEX.md / source_inventory.json / update_log.json / dotfiles / 病情简要总结.html) are scanned by pii_rescan.py for name / path / account leaks. De-identification therefore covers the sidecar body AND every delivered surface。(Phase2/段D 不读明文原文件。)
 - 临床实体 verbatim,不翻译/规范化/平滑。
 - `source_inventory.json` 覆盖每个输入源,每条 content unit 带 `raw_path` + 文本脱敏 sidecar。
 - LLM 可生成 MD/JSON/HTML 前置数据 (含 sidecar 正文 inline `[PII_MASKED]` + `## PII` trailer);确定性 HTML 渲染、PII rescan 由脚本执行。

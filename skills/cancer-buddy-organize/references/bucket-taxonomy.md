@@ -146,11 +146,17 @@ slug (see `../../../references/i18n.md §6`). The `zh` slug is the on-disk folde
 | `14_患者自管补充` | 自测 | `self_test` |
 | `14_患者自管补充` | conversation_notes | `conversation_notes` |
 
+### 1.1b Empty-bucket policy (lazy creation — never pre-scaffold an empty domain)
+
+**A clinical bucket is created on disk only when a sidecar is actually filed into it** (Phase 2 `mkdir -p <bucket>` immediately before writing each sidecar; setup creates **only `ocr/` + `raw/`**, never the 14 domains up front — see `SKILL.md` Step 2). The reason is a patient-safety one: **an empty folder must not imply "no such record exists".** A pre-created empty `09_手术与操作/` reads to a human (and to a downstream skill scanning the tree) as "no surgery" — which is a silent, dangerous lie when the discharge summary states a resection was performed but the operative note simply wasn't among the uploaded files. With lazy creation, an absent `09_手术与操作/` truthfully means **"no surgery document was filed"**, and the authoritative channel for "a record is expected for this domain but missing" is `missing_items.json` (cancer-type checklist diff), **not** an empty folder.
+
+If a host binding insists on pre-creating buckets, it MUST, at the end of the run, for every bucket left empty, **either remove it OR annotate it in `INDEX.md`** as `该桶为空：源材料未提供原始X`（X = that domain, e.g. 手术记录）— an empty folder may never sit silently in the tree implying the record exists or that its domain was checked and found clear. The lazy-create path above is the default because it makes this invariant hold structurally.
+
 ### 1.2 Infrastructure buckets (hidden, never anchored)
 
 | key | `zh` slug | `en` slug | visible? | anchored? | role |
 |---|---|---|---|---|---|
-| `raw/` | `raw` | `raw` | **no (HIDDEN)** | never | **un-redacted vault of every uploaded original**, one copy per upload, stored at `raw/<original_subdir>/<original-basename>` — the original sub-folder structure + basename preserved verbatim (NO `<source_id>__` prefix; the `file_id`↔`raw_path` link lives in `source_inventory.json`, not in the filename). The frontend deep-links a sidecar back to its original here (see §4). **Never pixel-redacted** (image-level 段B redaction is removed — see §5). |
+| `raw/` | `raw` | `raw` | **no (HIDDEN)** | never | **un-redacted vault of every uploaded original**, one copy per upload, stored at `raw/<original_subdir>/<de-identified-basename>`. raw/ keeps every uploaded original's BYTES verbatim (never byte-altered, never pixel-redacted, never deleted); the on-disk FILENAME is DE-IDENTIFIED by Phase 1 (identity token stripped; if the whole basename is the identity, fall back to `<source_id>.<ext>`) so a patient-named upload (e.g. 王国洪-报告.pdf) never leaks into a scanned/shared surface. The verbatim original filename is preserved ONLY in raw/_FILENAME_MAPPING.md (inside raw/, excluded from export, never a delivered/scanned surface). The original sub-folder structure is preserved; the `file_id`↔`raw_path` link lives in `source_inventory.json`. The frontend deep-links a sidecar back to its original here (see §4). **Never pixel-redacted** (image-level 段B redaction is removed — see §5). |
 | `99_` | `99_无关文件` | `99_unrelated` | **no (quarantine)** | never | `high_confidence/ uncertain/` relevance quarantine, outside the clinical scheme. |
 
 `raw/` and `99_` are **never patient-visible scaffold** and **never anchor targets** (anchors point
@@ -182,8 +188,10 @@ The 14-domain scheme is filed by **LLM judgment of content** (`organizer-prompt-
 
 ## 2. Modality tag (orthogonal attribute)
 
-Every filed source records a `modality` in `source_inventory.json` and in the sidecar header
-(`MODALITY:` field). It describes the **data nature**, independent of the clinical domain, and drives
+Every filed source records a `modality` in `source_inventory.json` (the authoritative location); typed
+ingest adapters (omics/timeseries) MAY additionally echo it as an OPTIONAL `MODALITY:` line in the
+sidecar header (per organizer-prompt-phase1-ocr.md — the header field is optional, `source_inventory.json`
+is authoritative). It describes the **data nature**, independent of the clinical domain, and drives
 ingest-parser dispatch.
 
 | `modality` | meaning | example | ingest path |
@@ -226,8 +234,13 @@ This is the substrate for **单时间点 → 多时间点 → 纵向曲线 → �
 
 ## 4. Source ↔ sidecar mapping (frontend deep-link)
 
-Every uploaded original lives once under `raw/`, preserving its original sub-folder structure and
-basename (`raw/<original_subdir>/<original-name>`). Every clinical `.md` sidecar is one **content unit**
+Every uploaded original lives once under `raw/`, preserving its original sub-folder structure
+(`raw/<original_subdir>/<de-identified-basename>`). raw/ keeps every uploaded original's BYTES verbatim
+(never byte-altered, never pixel-redacted, never deleted); the on-disk FILENAME is DE-IDENTIFIED by
+Phase 1 (identity token stripped; if the whole basename is the identity, fall back to
+`<source_id>.<ext>`) so a patient-named upload (e.g. 王国洪-报告.pdf) never leaks into a scanned/shared
+surface. The verbatim original filename is preserved ONLY in raw/_FILENAME_MAPPING.md (inside raw/,
+excluded from export, never a delivered/scanned surface). Every clinical `.md` sidecar is one **content unit**
 (one document type extracted from a source). The 1:1 code is `file_id`; the link between a sidecar and
 its original is carried in `source_inventory.json` (one row per content unit) and surfaced in `INDEX.md`:
 
@@ -236,7 +249,7 @@ content unit := {
   file_id:    "<stable id, 1:1 with this sidecar>",   # e.g. f001
   source_id:  "<id of the upload it came from>",        # e.g. s001  (N content units may share one source_id)
   sidecar_path: "04_诊断与分期/病理报告/2024-03-15_病理报告_中山六院.md",
-  raw_path:   "raw/2024-Q1/discharge_2024-03-15.pdf",   # the un-redacted original in raw/, original name kept
+  raw_path:   "raw/2024-Q1/discharge_2024-03-15.pdf",   # the un-redacted original (bytes verbatim) in raw/, de-identified filename; verbatim name only in raw/_FILENAME_MAPPING.md
   page_range: "3-5"                                      # which pages of a multi-document source; null if whole file
 }
 ```

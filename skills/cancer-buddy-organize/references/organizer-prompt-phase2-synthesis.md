@@ -136,10 +136,12 @@ unknown-date_化验单_unknown-org.pdf
 
 After you've judged every file, write the plan to `<patient_dir>/.rename_plan.json`. `ocr_sidecar_old` is the file's current path under the temporary `ocr/` staging dir; `md_dest` is the bucket-relative destination of the text-masked MD (**the only thing that lands in the bucket** — the uploaded original stays in `raw/`):
 
+`patient_dir` here is the **basename of the patient directory** (e.g. `PT-XXXX`), NOT an absolute path — never write `/Users/...` or any cloud/email path into a producer artifact. All in-archive references are relative: `raw_path` stays `raw/...`, every other path is bucket-relative.
+
 ```json
 {
   "schema": "phase2_rename_plan_v1",
-  "patient_dir": "/abs/PT-XXXX",
+  "patient_dir": "PT-XXXX",
   "files": [
     {
       "id": "f001",
@@ -162,7 +164,7 @@ After you've judged every file, write the plan to `<patient_dir>/.rename_plan.js
 }
 ```
 
-`pii_hint` lists the PII categories Phase 1 masked in this file's MD (read them from the sidecar's `## PII` section if present, else infer from doc_type — e.g. 出院小结/诊断证明 typically carry `patient_name` + `admission_id`). This is category context only and applies to the **text sidecar**; the uploaded original in `raw/` is kept verbatim and never pixel-redacted. `read_mode` / `adapter` / `adapter_provenance` come from the sidecar header and are provenance only; adapter output is never a clinical text source. `raw_path` is the verbatim original under `raw/` — **the original lives only there** (uploaded bytes + name); the bucket holds only the text-masked `.md` sidecar, which deep-links back to `raw_path`. `id` is the content unit's `file_id` (1:1 with the sidecar); `page_range` is the page span of a multi-document source (else null).
+`pii_hint` lists the PII categories Phase 1 masked in this file's MD (read them from the sidecar's `## PII` section if present, else infer from doc_type — e.g. 出院小结/诊断证明 typically carry `patient_name` + `admission_id`). This is category context only and applies to the **text sidecar**; the uploaded original in `raw/` is kept verbatim and never pixel-redacted. `read_mode` / `adapter` / `adapter_provenance` come from the sidecar header and are provenance only; adapter output is never a clinical text source. `raw_path` is the original under `raw/` — **the original bytes live only there** (verbatim bytes under a de-identified filename; the verbatim original filename is in `raw/_FILENAME_MAPPING.md`); the bucket holds only the text-masked `.md` sidecar, which deep-links back to `raw_path`. `id` is the content unit's `file_id` (1:1 with the sidecar); `page_range` is the page span of a multi-document source (else null).
 
 ### Step 1b·5 — Second-check the plan against content (filename_content_mismatch)
 
@@ -200,7 +202,7 @@ while IFS= read -r entry; do
 done < <(jq -c '.files[]' "$patient_dir/.rename_plan.json")
 ```
 
-`mv -n` refuses to overwrite → idempotent re-runs. The `raw/` vault keeps its original basenames and verbatim bytes (the single copy of every original) — never renamed, copied into a bucket, or pixel-redacted.
+`mv -n` refuses to overwrite → idempotent re-runs. The `raw/` vault keeps every original's **verbatim bytes** (the single copy) — never byte-altered, copied into a bucket, or pixel-redacted. The on-disk **filename is de-identified** by Phase 1 (identity tokens stripped so a patient-named upload never leaks into a scanned/shared surface); the verbatim original filename is preserved in `raw/_FILENAME_MAPPING.md` (inside `raw/`, excluded from export).
 
 ### Step 1d — `_FILENAME_MAPPING.md` backfill
 
@@ -242,12 +244,14 @@ If `ocr_drain_incomplete` fires, add `"ocr_drain_incomplete: <basename>"` for ea
 
 **`raw_path` always deep-links to the verbatim original under `raw/`.** Uploaded originals are kept verbatim and are never pixel-redacted (see `bucket-taxonomy.md` §4–§5) — the only desensitization of the archived data is the text masking in the `.md` sidecar. One upload may yield several content units (e.g. a PDF that is discharge summary + labs): each gets its own `file_id` + `page_range`, all sharing the same `source_id` and `raw_path`.
 
+**Paths are RELATIVE / de-identified — never absolute, never cloud/email, never an identity-bearing upload name.** `patient_dir` is written as the bare basename (e.g. `PT-XXXX`); `original_path` and `raw_path` reference the **de-identified raw handle** (the Phase-1 de-id raw filename, e.g. `raw/<original_subdir>/<deid_name>` / its basename) — **never the verbatim upload basename when it carries an identity token** (e.g. NOT `王国洪-报告.pdf`; the verbatim name lives only in `raw/_FILENAME_MAPPING.md`). `bucket_path` / `sidecar_path` are bucket-relative. NEVER serialize a `/Users/...` (or any host-absolute) path, a cloud-storage URL, an email-attachment path, or a patient/family name into this artifact — `source_inventory.json` + `INDEX.md` are delivered/shared surfaces and the delivered-surface PII rescan (`pii_rescan.py`) hard-fails such leaks.
+
 **Do not use `persist:false` as a shortcut.** Any medical source whose sidecar is referenced by `timeline.md`, `case_text.md`, `review_summary.md`, `review_flags.md`, or any structured JSON `source_refs[]` is part of the formal archive and MUST remain `persist:true`. `persist:false` is reserved only for isolated unrelated sources that are not cited by formal outputs.
 
 ```json
 {
   "schema": "source_inventory_v1",
-  "patient_dir": "/abs/PT-XXXX",
+  "patient_dir": "PT-XXXX",
   "generated_at": "2026-06-09T00:00:00Z",
   "files": [
     {
@@ -306,6 +310,12 @@ SOURCE: <source_type> | CONFIDENCE: <level>
 - **Coverage**: every factual sentence needs at least one anchor. Pure narrative transitions ("以下按时间顺序...") and pure headers do not.
 - Before writing the file, resolve every file anchor to `<patient_dir>/<bucket-relative-path>` and verify the MD sidecar exists in its bucket. If any anchor points to a non-existent file (or still uses the `ocr/` prefix), write nothing and emit `anchor_dangling` warning.
 
+**OCR-uncertainty caveat on any lab / tumor-marker TREND** (US-006): whenever you write a **trend** for a lab or tumor marker (a directional read across ≥2 timepoints — "CEA 下降", "肌酐持续升高", a serial value list framed as 趋势), append a short locale-rendered caveat that the numbers came from **照片 OCR** and should be **以原件为准复核** (e.g. `(数值来自照片 OCR，请以检验原件核对)`). It must reach **both** patient-facing surfaces — and there is **no automatic propagation**, so you must write it to each explicitly:
+   - **`case_text.md`** (检验 section): append the caveat inline beside the trend.
+   - **`病情简要总结.html`**: the 段D 病情概要 narrative is generated from `patient_summary.json` + `timeline.json` (NOT from case_text's 检验 section), so the case_text caveat does NOT flow there by itself. Emit one trend-caveat record into the Step-12 段D producer's **`lab_trend_caveats` Call parameter** (parallel to `adjudications`); the producer renders it as a `caveats[]` footnote AND appends the inline OCR caveat whenever the narrative states a marker/lab trend.
+
+   This is distinct from a "缺原始报告" gap note: the report photo exists, but a column-shift / mis-read row can flip a trend's direction (the CEA column-shift failure: 25.30↑ mis-read as the neighbouring 4.68 → a falsely reassuring downtrend). Do **NOT** fabricate this caveat when there is no trend — a single isolated value with no directional claim does not get it.
+
 Canonical section order: 基本信息 → 当前状态 → 诊断与分期 → 病理 → 影像 → 分子检测 → 治疗记录 → 检验 → 手术 → 会诊 → 其他. **Locale**: these section headers and the body's connective prose are scaffold → render in `locale` (e.g. `en`: Basic Info → Current Status → Diagnosis & Staging → Pathology → Imaging → Molecular → Treatment → Labs → Surgery → Consult → Other). The order is fixed; only the header wording localizes. Clinical entities inside each section stay verbatim, and every `[[src:…]]` anchor keeps the localized bucket slug it points to.
 
 ### 2.4 `profile.json` (canonical schema `cancer_buddy_profile_v3`)
@@ -321,7 +331,7 @@ Authoritative shape: [`../../../references/patient-profile-schema.md`](../../../
   "generated_at": "<ISO8601>",
   "privacy": {
     "pii_policy": "sidecar_text_masked; raw_originals_retained_under_raw",
-    "html_age_policy": "decade_band_only"
+    "html_age_policy": "precise_age_retained; dob_birthplace_occupation_masked"
   },
   "anthropometrics": {"height_cm": null, "weight_kg": null, "bmi": null, "source_refs": []},
   "summary": {
@@ -404,6 +414,13 @@ Validation rule of thumb you can apply mentally without a library (full regex in
 For Phase2-only validation, validate each structured JSON against its own schema
 before writing and check anchors as above.
 
+**Per-field fidelity rules (organize 是整理不是分析 — extract what the source literally says, never impute):**
+
+- **`molecular.json` variants `evidence_tier`** — keep it `null` (the schema-legal "未分级" value) at the organize stage. Organize files and extracts; it does NOT grade clinical evidence. NEVER invent `I` / `II` / `III` / `IV`, and NEVER write any other string. Tier population is deferred to vMTB, which does the actionability analysis. If the source NGS report itself prints an explicit tier, you may still record `null` here — organize does not promote a vendor's tier into the schema field; only vMTB populates `evidence_tier`.
+- **`molecular.json` `tmb.unit`** — must stay `null` (with a `review_flag`) whenever the source states only a raw count or a categorical label, e.g. `"79 Muts"`, `"TMB-L"`, `"TMB 低"`, `"肿瘤突变负荷 偏低"`. NEVER convert a count to `"mut/Mb"` unless the source itself gives an explicit per-Mb denominator (e.g. literally `"7.9 muts/Mb"` or a stated panel size you can read off the report). Imputing a per-Mb value from a bare count is fabrication. Set `tmb.value` to the verbatim figure/label, `tmb.unit: null`, and raise a `value_trend_anomaly`-adjacent flag — use category `unverified_critical_field` with `field_path: "molecular.tmb.unit"`, `issue: "源仅给出计数/分级 (e.g. 79 Muts / TMB-L)，无 per-Mb 分母，unit 保持 null，未折算 mut/Mb。"`.
+- **`labs.json` values[].date semantics** — set `values[].date` to the **采集日期** (specimen-collection date) when the report states it; fall back to the **报告日期** (report-issued date) ONLY when 采集 is absent. Record which one you used in a new `date_kind` field per value: `"采集"` or `"报告"` (the labs schema carries `date_kind`; assume it exists). This keeps a downstream trend honest — two markers drawn the same day but reported on different days must not look like a time series. When neither date is extractable, omit the value's date (do not back-fill from a sibling row).
+- **`patient_summary.json` `confidence`** — populate the top-level `confidence` map using EXACTLY the canonical closed key set `{diagnosis, stage, current_status, labs, molecular, treatment_lines}` (each a number 0..1, all optional — omit a key rather than guess). This top-level map is the SINGLE SOURCE OF TRUTH for per-section confidence: do NOT emit a per-section / inner `confidence` (e.g. inside the `diagnosis` object); the schema pins this set with `additionalProperties: false`, so any other key — or an inner per-section confidence — fails validation.
+
 ### 2.6a `longitudinal_observations.json` (conditional — only when timeseries / trended data exists)
 
 When any source carries `modality: timeseries` (wearable / PRO / device logs) **OR** a `structured` source is genuinely trended (serial lab / vital values across ≥2 timepoints), write `<patient_dir>/longitudinal_observations.json` (schema `longitudinal_observations_v1`, [longitudinal_observations.schema.json](references/schemas/longitudinal_observations.schema.json)) beside `profile.json`. Each parsed point is one `observations[]` entry: `{obs_type ∈ vital|lab|symptom|pro|adherence|activity, metric (verbatim, e.g. "HbA1c"), value, unit (verbatim, "" when unitless), timestamp (ISO-8601), modality, source_ref}` — `source_ref` is the bucket-relative anchor back to the filed raw export under `10_随访与监测`. This is the substrate for 单时间点 → 纵向曲线 → 治疗反应轨迹; `profile.json.latest_status` keeps only the latest snapshot and points consumers here for the trajectory.
@@ -472,7 +489,7 @@ For every extracted clinical field — in profile.json (`summary.stage`, `summar
 | # | category | check |
 |---|---|---|
 | 1 | `format_violation` | AJCC TNM prefix MUST ∈ {c, p, yp, r, a}; RECIST codes MUST ∈ {CR, PR, SD, PD, NE}; drug name should match a known generic/brand |
-| 2 | `cross_doc_contradiction` | Same field has conflicting values across 2+ sidecars (e.g. discharge cert says drug X, orders sheet says drug Y) |
+| 2 | `cross_doc_contradiction` | Same field has conflicting values across 2+ sidecars (e.g. discharge cert says drug X, orders sheet says drug Y). When the conflicting field is **load-bearing** (手术/关键日期, 分期, 分子标记, 剂量, 家族史) you must additionally **adjudicate by source priority and annotate the patient-visible layer** — see Step 3c. |
 | 3 | `clinical_logic_anomaly` | "辅助化疗 ... PR" (adjuvant has no measurable disease); ECOG 0 + KPS 50; "新辅助" but timeline shows upfront resection |
 | 4 | `unverified_critical_field` | A field critical to downstream eligibility (driver mutation, stage, line of therapy, MSI, PD-L1) sourced ONLY from a progress-note narrative — no primary lab/path/imaging report present |
 | 5 | `value_trend_anomaly` | Numeric trend non-physiologic without explanation (e.g. TSH 6.49 → 0.16 → 0.80 within 8 weeks, no thyroid intervention) |
@@ -531,6 +548,29 @@ For every file the Step 1·0 relevance triage diverted to `99_无关文件/uncer
 
 `severity` is `yellow`, not `red`: an isolated file gates no eligibility/dosing decision (it's not in the archive), but the user must still decide. Also append one warning per uncertain file to `readiness.json.warnings`: `"relevance_uncertain: 99_无关文件/uncertain/<filename> — 待用户确认删/留"`. **High-confidence non-medical files get NO review_flag** — they auto-delete on no-confirm and are surfaced collectively in the SKILL.md disposition notice; only the borderline batch (the files we *hold*) needs per-file flags. Relevance triage does NOT lower the 8-domain readiness score (无关文件 are not missing clinical data).
 
+### Step 3c — adjudicate + annotate a load-bearing `cross_doc_contradiction`
+
+A `cross_doc_contradiction` on a **load-bearing fact** — 手术/关键日期, 分期 (stage), 分子标记 (driver/IHC/MSI/PD-L1), 剂量 (dose), 家族史 (family history) — cannot be left as just a flag: a downstream consumer (and the patient) will read SOME value, so a silently-chosen one is a safety hazard. When two+ sidecars disagree on such a field you MUST do all three:
+
+1. **Keep emitting the `🔴 red` `cross_doc_contradiction` review_flag** (this step never replaces the flag; it adds to it). Record both values + their sources in `source_evidence`.
+2. **Adjudicate by explicit source priority** — pick the value from the higher-priority source:
+   - **原始报告 (NGS / 病理 / 影像原件)** > **病理 / 诊断证明** > **病程 / 入院记录转述**.
+   - Tie within a tier → choose the **more complete / more legible** source (fuller report body, clearer scan, fewer OCR ambiguities).
+   - In the flag, record the **chosen value**, the **losing value(s)**, and a one-line **reason** (which priority rule decided it). Put the chosen value into the structured JSONs / profile.json; put the losing value into the flag only — never into a downstream field.
+3. **Annotate the patient-visible layer — via the explicit caveat carrier, NOT by inlining into a verbatim value.** Two carriers, because the patient HTML renders clinical entities verbatim (照抄) and a note inlined into a verbatim string would violate that rule:
+   - **`case_text.md`** (prose, not verbatim-only): append the note `(来源存在差异，已按X裁决)` beside the adjudicated fact, where `X` names the winning source class (e.g. `已按病理裁决` / `已按 NGS 原件裁决`).
+   - **`病情简要总结.html`**: do NOT inline the note into the value. Instead emit one **adjudication record** into the Step-12 段D producer's `adjudications` Call parameter; the producer renders it as a `caveats[]` footnote entry (`case_summary_data.caveats[].caveat_text`) BESIDE the summary (template `数据说明` section), so the verbatim value stays clean while the caveat still reaches the patient.
+   The patient-facing layer must NEVER show a silently-chosen value as if it were uncontested — the `caveats` footnote (HTML) + the inline note (case_text) + the 🔴 flag (Step 10) are the three honest surfaces.
+
+**Critical anti-propagation rule:** a single mis-OCR'd or conflicting date adjudicated here MUST NOT silently propagate. After you pick the winning 手术/关键日期, re-derive every dependent field from the **winning** value — `molecular.json` IHC `test_date`, `treatment_lines.json` line dates, `timeline.*` events, and the patient HTML — so the losing date never survives anywhere downstream. (This is exactly the surgery-date-conflict failure mode: one wrong sidecar date silently flowed into IHC dates, treatment_lines, timeline, and the patient HTML.)
+
+**Worked example — conflicting surgery date:**
+- Sidecar A (`03_病程与叙事文书/入院记录`) transcribes 手术日期 `1月2日`; Sidecar B (`09_手术与操作/手术记录` or `04_诊断与分期/病理报告`, more complete original) says `1月12日`.
+- Priority: 病理/手术原件 > 入院记录转述 → **pick `1月12日`** (re-keyed to ISO, e.g. `2024-01-12`).
+- Emit `🔴 cross_doc_contradiction`, `field_path: "treatment_lines[0].started_at"` (a real schema field — use the matching `timeline.json` surgery-event date too; there is no `treatment_lines[].surgery_date` field), `current_value: "1月12日 (2024-01-12)"`, `source_evidence: ["09_手术与操作/手术记录/...md#L..", "03_病程与叙事文书/入院记录/...md#L.."]`, `issue: "手术日期跨 sidecar 冲突 1月2日(入院记录转述) vs 1月12日(手术/病理原件)。"`, `rationale_for_suggestion: "原件 > 转述，取更完整来源 1月12日。"`.
+- In `case_text.md` 手术 section, render the inline note `手术日期 2024-01-12 (来源存在差异，已按手术/病理原件裁决)`; for the patient HTML, add an `adjudications` record so the 段D producer emits a `caveats[]` footnote `手术日期：来源存在差异，已按手术/病理原件裁决` — never inline it into a verbatim value.
+- Propagate `2024-01-12` (not `1月2日`) into IHC `test_date`, `treatment_lines.started_at`, `timeline`, and the HTML — never the losing date.
+
 ### Each flag's JSON shape
 
 ```json
@@ -558,7 +598,7 @@ If `review_flags` non-empty → write `review_flags.md` — the human-readable r
 
 ## Step 4 — review_summary.md (ALWAYS WRITTEN)
 
-1-page checklist with verbatim source citations. Catches consistent-but-wrong OCR that review_flags structurally cannot. **Locale**: this file is patient-facing — render every section header, label, instruction and the 5 check items in `locale` (i18n.md §4/§5); the `zh` wording below is the template, translate the scaffold to the detected locale (e.g. `en`: "📋 Review Checklist", "🩺 Diagnosis & Staging", "✅ Your check points"). Extracted values (drug names, TNM, molecular drivers, labs) and `[[src:…]]` anchors stay verbatim. Format:
+1-page checklist with verbatim source citations. Catches consistent-but-wrong OCR that review_flags structurally cannot. **Locale**: this file is patient-facing — render every section header, label, instruction and the check items in `locale` (i18n.md §4/§5); the `zh` wording below is the template, translate the scaffold to the detected locale (e.g. `en`: "📋 Review Checklist", "🩺 Diagnosis & Staging", "✅ Your check points"). Extracted values (drug names, TNM, molecular drivers, labs) and `[[src:…]]` anchors stay verbatim. Format:
 
 ```markdown
 # 📋 整理结果速查清单 — <patient_code> (alias: <alias if set>)
@@ -575,6 +615,10 @@ If `review_flags` non-empty → write `review_flags.md` — the human-readable r
 ## 🧬 分子检测
 - 已知驱动 / 来源类型 (原始 NGS PDF / 仅入院记录追述) / 关键缺项
 
+## 🔬 检验 / 肿瘤标志物趋势 (照片 OCR — 需复核)
+- 写出任何被解读为「趋势」的标志物/检验序列 (e.g. CEA / 肌酐 / 尿酸 走向) + 各点 [[src:...]] anchors
+- ⚠️ **需复核 (lab-OCR alignment)**: 这些数值与升降趋势来自照片 OCR，可能因串行/串列、错读相邻单元格而方向反转 (e.g. 25.30↑ 被读成相邻的 4.68 → 假性下降)。请对着检验**原件**逐行核对数值、↑↓ 标记与采集日期再据此判断。无趋势 (仅单点) 时不写本节。
+
 ## 📝 关键既往治疗 (按 line 排序, verbatim + 来源)
 
 ## 🏥 共病 / 既往
@@ -585,12 +629,13 @@ If `review_flags` non-empty → write `review_flags.md` — the human-readable r
 - profile.json / readiness.json / patient_summary.json / timeline.json / molecular.json / treatment_lines.json / labs.json / comorbidities.json / missing_items.json
 - alias (if set): <alias>
 
-## ✅ 用户检查要点 (5 项)
+## ✅ 用户检查要点 (6 项)
 1. ⬜ 当前治疗药名拼写正确
 2. ⬜ 剂量数字正确
 3. ⬜ TNM 前缀正确 (c/p/yp/r/a)
 4. ⬜ 分子驱动有原始 NGS 报告佐证
 5. ⬜ 既往 line 编号正确
+6. ⬜ 检验/标志物趋势数值与 ↑↓ 与原件一致 (照片 OCR 可能错读相邻行列致方向反转) — 仅当本次有趋势时勾选
 
 ---
 **生成时间**: <ISO>
