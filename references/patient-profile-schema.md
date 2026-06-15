@@ -57,7 +57,7 @@ Format: `PT-<hex>`, e.g. `PT-17CE02BC33`.
   "generated_at": "2024-07-06T08:00:00Z",
   "privacy": {
     "pii_policy": "sidecar_text_masked; raw_originals_retained_under_raw",
-    "html_age_policy": "decade_band_only"
+    "html_age_policy": "precise_age_retained; dob_birthplace_occupation_masked"
   },
   "anthropometrics": {
     "height_cm": 170,
@@ -94,7 +94,7 @@ Block-by-block contract:
 - `alias` (required): sticky human-readable business alias (e.g. `48C507_CRC_2022`), stable across re-organizes — used in UI/filenames where `patient_code` is too opaque.
 - `locale` (required, BCP-47 — `en` / `fr` / `es` / `zh` / `de` / …): the language all patient-facing **scaffold** (section titles, field labels, narrative connectives, user copy, date formats) is rendered in. **Auto-detected once, persisted here, reused for the whole patient journey** — organize detects it from the medical records' primary patient-facing language; chat sub-skills detect from the conversation language when no profile exists yet. Every sub-skill reads `locale` first and only re-detects when it's absent. Clinical entities (drug names / genes / variants / TNM / numbers / units) are **never** translated regardless of locale. An explicit user override ("answer me in English") updates this field and wins over detection. Full contract: `references/i18n.md`.
 - `generated_at` (required): ISO8601 timestamp of the organize run that wrote this file.
-- `privacy` (required): the desensitization policy in force — `pii_policy` (e.g. `sidecar_text_masked; raw_originals_retained_under_raw`) and `html_age_policy` (e.g. `decade_band_only`, controlling how age is rendered in patient-facing HTML).
+- `privacy` (required): the desensitization policy in force — `pii_policy` (e.g. `sidecar_text_masked; raw_originals_retained_under_raw`) and `html_age_policy` (e.g. `precise_age_retained; dob_birthplace_occupation_masked` — the patient-facing HTML keeps the precise age for clinical-trial matching while masking name/DOB/birthplace/occupation).
 - `anthropometrics` (optional): `height_cm` / `weight_kg` / `bmi` plus `source_refs[]`. Null block when no body metrics are known.
 - `summary` (required): the **slim denormalized snapshot** of the diagnosis — `one_line_condition` (one-line human condition string), `primary` (primary cancer), `histology`, `stage`, `metastasis_sites[]`, `current_regimen`. This is a convenience copy of facts authoritatively held in `patient_summary.json` (see below).
 - `latest_status` (required): current treatment state — `regimen`, `response` (e.g. RECIST code or `NE`), `ecog`, `as_of` (ISO date), plus `source_refs[]`.
