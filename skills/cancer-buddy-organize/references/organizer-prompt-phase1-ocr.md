@@ -176,7 +176,7 @@ python3 scripts/pii_rescan.py "$patient_dir/ocr"
 
 **Hard gate:** you may NOT return `continuation_needed: false` (i.e. signal your slice is done for Phase 2) until **both layers** pass on the sidecars you wrote. A slice with surviving plaintext PII does not proceed to Phase 2.
 
-> Neither layer is the redactor. The redaction itself is your §2.4 semantic pass; these two gates only catch what slipped through and force a re-mask (Layer 1 = generalizing semantic check, Layer 2 = independent deterministic shape check — trust-but-verify). Text masking is the only desensitization of the archived data — the original in `raw/` is kept verbatim.
+> Neither layer is the redactor. The redaction itself is your §2.4 semantic pass; these two gates only catch what slipped through and force a re-mask (Layer 1 = generalizing semantic check, Layer 2 = independent deterministic shape check — trust-but-verify). Text masking is the only CONTENT-level desensitization of the archived data — the original BYTES in `raw/` are kept verbatim (its on-disk filename is separately de-identified by Phase 1).
 
 ## Step 3 — Return JSON
 

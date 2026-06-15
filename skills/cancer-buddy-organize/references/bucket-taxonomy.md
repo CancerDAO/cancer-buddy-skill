@@ -258,8 +258,7 @@ content unit := {
   `raw/` file, **multiple sidecars** each with its own `file_id`, all sharing `source_id`, each with a
   distinct `page_range`. The frontend renders the `.md` and offers a "view original" button →
   `raw_path` (deep-linked to `page_range` when present).
-- `file_id` is 1:1 with a sidecar; `source_id` is 1:1 with an upload. `_FILENAME_MAPPING.md` (under
-  `raw/`) is the human-readable reverse lookup; `source_inventory.json` is the machine-readable one.
+- `file_id` is 1:1 with a sidecar; `source_id` is 1:1 with an upload. Two distinct `raw/` audit files (never the same file): **`_FILENAME_MAPPING.md`** = Phase-1 verbatim-name audit table (`verbatim_upload_name | deid_raw_name | source_id` — the ONLY surviving copy of the real upload name, excluded from export); **`_SIDECAR_MAP.md`** = Phase-2 de-identified raw→sidecar→bucket nav table (no verbatim name). `source_inventory.json` is the machine-readable reverse lookup.
 
 ## 5. Redaction policy (image-level 段B removed)
 

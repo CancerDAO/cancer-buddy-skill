@@ -22,7 +22,7 @@ description: "查找能做特定治疗资源的医院、专科医生和临床试
 
 **这不是 MTB，不是治疗方案推荐，不是临床判断。**
 
-- 不评估"这个方案适不适合你" → 那是 cancer-buddy-pro-skill / 主诊医生
+- 不评估"这个方案适不适合你" → 那是 cancer-buddy-pro-skill（内部版，非公开包）/ 主诊医生
 - 不解读基因报告的临床意义 → 同上
 - 不判断"该不该换线" → 同上
 - 不做 criterion 级（入排标准逐条）的患者×试验匹配 → 那是配套的 [`clinical-trial-matching`](https://github.com/CancerDAO/clinical-trial-matching-skill) skill

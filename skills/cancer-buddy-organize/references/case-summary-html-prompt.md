@@ -1,6 +1,6 @@
 # 病情简要总结 HTML 生成 prompt（段 D）
 
-Phase2 结构化整理完成、Profile Card 之后自动触发。读结构化文本脱敏 JSON → **只产出一份 `case_summary_data.json` 数据对象** → 跑确定性模板引擎 `scripts/render_html_template.py` 填模板 → 跑 `scripts/validate_case_summary_html.py` 过"形"不变量 → 不过则不出文件 → 落 `<patient_dir>/病情简要总结.html`。上传原件逐字保存在 `raw/`,永不像素打码;对**归档数据**的唯一脱敏是 sidecar 文本遮蔽,而本 段D 患者向 HTML 另在**输出侧**把患者标识粗粒度化(**保留精确年龄**供临床试验匹配,但不出真名/生日 DOB/出生地/职业)——见下文 §患者标识。
+Phase2 结构化整理完成、Profile Card 之后自动触发。读结构化文本脱敏 JSON → **只产出一份 `case_summary_data.json` 数据对象** → 跑确定性模板引擎 `scripts/render_html_template.py` 填模板 → 跑 `scripts/validate_case_summary_html.py` 过"形"不变量 → 不过则不出文件 → 落 `<patient_dir>/病情简要总结.html`。上传原件逐字保存在 `raw/`,永不像素打码;对**归档数据**的唯一**内容级**脱敏是 sidecar 文本遮蔽(raw/ 文件名另由 Phase1 去标识),而本 段D 患者向 HTML 另在**输出侧**把患者标识粗粒度化(**保留精确年龄**供临床试验匹配,但不出真名/生日 DOB/出生地/职业)——见下文 §患者标识。
 
 ## 红线（违反即非法输出，哪怕临床内容全对）
 
@@ -24,7 +24,7 @@ Phase2 结构化整理完成、Profile Card 之后自动触发。读结构化文
 
 先读 `profile.json.locale`（organize 已在 Phase2 写入）。整张 HTML 的**脚手架按该 locale 出**，**临床实体一律 verbatim**（药名/基因/变异/TNM/数值单位/VAF 记法照抄，禁止翻译 —— 误译=医疗风险，见 [`../../../references/i18n.md`](../../../references/i18n.md) §4）。
 
-模板顶部有一张 **i18n 字符串表注释块**（section 标题 / 免责声明 / 字段标签 / "待主治医师补充"占位 / 性别值 / ECOG 推断注 / "待启动" 等）。你把这些串填进 `case_summary_data.json` 的 `i18n` 对象（key→该 locale 的串），引擎再替换模板里的 `{{i18n.<key>}}`：
+模板顶部有一张 **i18n 字符串表注释块**（section 标题 / 免责声明 / 字段标签 / "待主诊医生补充"占位 / 性别值 / ECOG 推断注 / "待启动" 等）。你把这些串填进 `case_summary_data.json` 的 `i18n` 对象（key→该 locale 的串），引擎再替换模板里的 `{{i18n.<key>}}`：
 
 1. 按 `profile.json.locale` 选该 locale 的列，把每个 `i18n.<key>` 填成表里对应字符串；`html_lang` 填该 locale 的 `<html lang>` 值。
 2. locale 不在表中（如 `fr`/`es`）→ 按 `en` 列语义在目标语言生成等义脚手架字符串（同义同语气），临床术语保持原文，**不要硬编码单语言串**。
@@ -104,9 +104,9 @@ Phase2 结构化整理完成、Profile Card 之后自动触发。读结构化文
 - 遍历 treatment_lines.lines（按 line 升序）。
 - 已结束或进行中的线：`{{line_marker_class}}` 留空（红框），`{{line_badge_class}}`=`pd`。
 - `ended_at` 为 null 且未启动（待启动）：`{{line_marker_class}}`=`pending`（黄框），`{{line_badge_class}}`=`pending`，`{{line_date_range}}`=`{{i18n.val_to_start}}`。
-- `{{line_label}}`：**用治疗意图渲染，绝不自动编序数**。取 `treatment_lines.json` 每条线的 `intent` 字段，按 locale 映射为临床意图标签：`neoadjuvant`→新辅助、`adjuvant`→术后辅助、`perioperative`→围手术期、`palliative`→姑息治疗、`maintenance`→维持治疗、`definitive`/`radical`→根治、`consolidation`→巩固。**禁止从 `line` 整数推导"一线/二线/三线"序数**——围手术期/新辅助治疗本身已是一线，再把后续晚期线编号成"一线/二线"临床不准确。`intent` 缺失时用中性时段标签（按 locale 的"第 N 段治疗"/"Phase N"），按 `started_at` 先后排，不臆断线序；若病历**逐字写明**了线序（如"姑息一线"）则 verbatim 照抄该原文，不另行推算。
+- `{{line_label}}`：**用治疗意图渲染，绝不自动编序数**。取 `treatment_lines.json` 每条线的 `intent` 字段，按 locale 映射为临床意图标签：`neoadjuvant`→新辅助、`adjuvant`→术后辅助、`perioperative`→围手术期、`palliative`→姑息治疗、`maintenance`→维持治疗、`definitive`→根治、`consolidation`→巩固（`intent` 取值即 `treatment_lines.schema.json` 的 7 项 enum，无 `radical` 这一项——根治意图统一记 `definitive`）。**禁止从 `line` 整数推导"一线/二线/三线"序数**——围手术期/新辅助治疗本身已是一线，再把后续晚期线编号成"一线/二线"临床不准确。`intent` 缺失时用中性时段标签（按 locale 的"第 N 段治疗"/"Phase N"），按 `started_at` 先后排，不臆断线序；若病历**逐字写明**了线序（如"姑息一线"）则 verbatim 照抄该原文，不另行推算。
 - `{{line_regimen}}`=regimen 照抄（临床实体 verbatim）；`{{line_note}}`=best_response + reason_for_change + 影像转归（取自 timeline 对应区间，照抄不增补；连接词按 locale）。
-- 口述/未经机构确认的信息要在 note 按 locale 注明等义于"待治疗机构出具/待主治医师确认"。
+- 口述/未经机构确认的信息要在 note 按 locale 注明等义于"待治疗机构出具/待主诊医生确认"。
 
 ### 当前治疗路径
 - treatment_lines 中当前线 + profile 计划字段，逐条渲染。每条：`<span class="label">标签：</span>内容`，条间 `<br>`，末条不加 `<br>`。

@@ -14,7 +14,7 @@ What this file contains now is a **template scaffold** that the agent fills usin
 
 ## Locale
 
-Render all section headings, prose, daily-life advice and red-flag wording in `profile.json.locale` (detect + persist per `../../references/i18n.md` if absent). Keep clinical entities verbatim in every locale: cancer-subtype acronyms (NSCLC, SCLC, TNBC, MSI-H), drug names, genes/variants, TNM/stage, response codes, numbers + units. The 6 fixed subsection headings are scaffold — they have a stable key per row and a per-locale rendering (table below); this is the only allowed fixed string mapping in this file. Everything else is generated prose, written directly in `locale`.
+Render all section headings, prose, daily-life advice and red-flag wording in `profile.json.locale` (detect + persist per `../../../references/i18n.md` if absent). Keep clinical entities verbatim in every locale: cancer-subtype acronyms (NSCLC, SCLC, TNBC, MSI-H), drug names, genes/variants, TNM/stage, response codes, numbers + units. The 6 fixed subsection headings are scaffold — they have a stable key per row and a per-locale rendering (table below); this is the only allowed fixed string mapping in this file. Everything else is generated prose, written directly in `locale`.
 
 ### Subsection heading table (stable key → per-locale slug)
 
@@ -82,5 +82,5 @@ When you encounter a cancer subtype, regimen, or molecular target that you don't
 
 - Length: ~500-800 字 (or the equivalent reading length in `locale`) per cancer type, readable in 5-8 minutes by a layperson
 - Reading level: junior-high (zh: 初中文化), avoid medical Latinate jargon (zh: use 化疗 not 系统性细胞毒性药物治疗; apply the same plain-language principle in every locale) — but clinical entity names stay verbatim
-- Footer: the disclaimer (zh: `本内容为信息参考，具体方案与调整必须与主诊医生确认。`) rendered in `locale` — present on every section, no exceptions
+- Footer: the **single mandatory footer defined in `SKILL.md`** (zh: `本手册为信息参考，任何治疗调整必须与主诊医生确认。`) rendered in `locale` — present on every section, no exceptions; do not invent a per-section variant
 - Override on RED review_flag: must NOT proceed if upstream organize flagged summary.primary / summary.stage / summary.current_regimen / molecular driver (`molecular.json`) as 🔴 unconfirmed (preflight Step 2.5 enforces this; this is the second sanity check)

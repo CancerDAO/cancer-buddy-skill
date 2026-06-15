@@ -6,7 +6,7 @@ the patient/family can read without medical training.
 
 ## Locale
 
-Read `profile.json.locale` (detect + persist per `../../references/i18n.md` if
+Read `profile.json.locale` (detect + persist per `../../../references/i18n.md` if
 absent). The diagrams and explanations below are the **`zh` source rendering**.
 When the patient's `locale` is not `zh`:
 
