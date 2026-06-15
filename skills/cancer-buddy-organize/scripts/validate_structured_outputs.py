@@ -547,7 +547,7 @@ def gate_source_inventory(patient_dir: Path, errors: list) -> None:
 
 
 # --------------------------------------------------------------------------- #
-# [5] case-summary HTML shape + provenance
+# [4] case-summary HTML shape + provenance
 # --------------------------------------------------------------------------- #
 def gate_case_summary_html(patient_dir: Path, errors: list) -> None:
     html_path = patient_dir / CASE_SUMMARY_HTML_NAME

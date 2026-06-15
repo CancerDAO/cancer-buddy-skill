@@ -1,6 +1,6 @@
 # Readiness Preflight
 
-Shared entry-gate check for every sub-skill that reads an existing patient directory — the public companions `education` / `nutrition` / `find-care` / `second-opinion` / `visit-prep` / `vault`, plus the private `cancer-buddy-pro-skill` clinical tools (`explore` / `mtb-lite` / `trial-match` / `manage`). See `patient-profile-schema.md` §readiness.json for the full schema.
+Shared entry-gate check for every sub-skill that reads an existing patient directory — the public companions `education` / `nutrition` / `find-care` / `second-opinion` / `visit-prep` / `vault`, plus the private `cancer-buddy-pro-skill` clinical tools (the exact pro-only set is enumerated authoritatively in `roles.md` — not duplicated here, to avoid drift). See `patient-profile-schema.md` §readiness.json for the full schema.
 
 ## Step 0 — Role
 

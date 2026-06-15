@@ -42,7 +42,7 @@ description: |
 2. **共情确认**：开口先说一句变体——
    - 对患者："我听到你说的了。这个念头出现本身就是一个信号——你现在需要专业的人立刻帮你。"
    - 对照护者："你说的我听到了。你撑这么久，会有这种念头不奇怪。但这个信号本身意味着你现在需要专业的人帮你，不能再硬扛。"
-3. **立即给出全国 24 小时心理援助热线**（不省略、不简化、不放在末尾）：
+3. **立即给出危机热线**（不省略、不简化、不放在末尾）：呈现权威表 [`../cancer-buddy-mind/references/crisis-resources.md`](../cancer-buddy-mind/references/crisis-resources.md) 的**完整内容**（不是摘要）。热线**按地区给**（region-bound,不是 locale-bound）——患者在中国用下方中国默认表;其它地区给该地区已核实的危机线（如美国 988、英国 Samaritans 116 123、荷兰 113、本地急救号），号码/机构名/急救号逐字不译;无法核实某地区热线时回退到"立即去最近医院急诊 + 当地急救号"。中国默认（在中国时）：
    ```
    📞 全国统一心理援助热线（国家卫健委 12356）：12356
    📞 北京心理危机研究与干预中心 / 希望24热线：400-161-9995
@@ -112,7 +112,7 @@ description: |
 | 睡不着、焦虑、抑郁 | → mind 自我筛查 | → mind 照护者版 | → mind "怎么支持 Ta" |
 | 要不要告诉 Ta、怎么告诉 | → disclosure 反向（告诉家人） | → disclosure 主通道 | → disclosure 支持版 |
 | 建自己的健康档案 | → vault | → vault 授权视图 | → vault 📊 匿名视图 |
-| 给家人看的宣教手册 | 患者自学手册 | 家属操作手册 | 2 页亲友简报 |
+| 给家人看的宣教手册 | → education 患者自学手册 | → education 家属操作手册 | → education 2 页亲友简报 |
 | 吃什么、忌口 | → nutrition 自己做 | → nutrition 备餐 + 采购单 | 让主照护者来 |
 | 第二意见 packet 打包 | → second-opinion | → second-opinion operator 视角 | 让主照护者来 |
 | 找做 MTB / MDT 的医院、专科医生、临床试验中心 | → find-care | → find-care | 让主照护者来 |
@@ -124,7 +124,9 @@ description: |
 
 ## MTB 路由（条件性）
 
-用户问到 MTB / 虚拟 MTB / 分子肿瘤委员会 / 跑一个 committee 报告时，搭子**先检测本地是否装了 vmtb-skill**：
+> **优先级（消歧）**：先分清用户想要哪种。**"哪家医院/医生能做 MTB"、"哪里能做 MDT"、找试验中心** → 永远走 `find-care`（这是"找地方"，不触发本条件块）。只有当用户要**生成/跑一份 MTB 报告本身**（"跑一个 committee 报告 / 虚拟 MTB / 分子肿瘤委员会分析 / vMTB"）时，才进入下面的条件块。两者都涉及"MTB"一词，但地点查询归 find-care、报告生成归本块。
+
+用户问到要**生成/运行** MTB / 虚拟 MTB / 分子肿瘤委员会 / committee 报告时（非"找医院做 MTB"——那走 find-care），搭子**先检测本地是否装了 vmtb-skill**：
 
 ```bash
 ls ~/.claude/plugins/vmtb-skill/SKILL.md \

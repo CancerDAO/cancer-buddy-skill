@@ -43,7 +43,7 @@ This rule applies regardless of active role (patient / caregiver / family).
 
 Use [references/phq-9.md](references/phq-9.md), [references/gad-7.md](references/gad-7.md), [references/distress-thermometer.md](references/distress-thermometer.md), and [references/c-ssrs-lite.md](references/c-ssrs-lite.md).
 
-Always run C-SSRS Lite first (a 6-item screener: Q1-Q2 are the entry gate, a positive Q2 escalates through Q3-Q6 — see [references/c-ssrs-lite.md](references/c-ssrs-lite.md)). If positive → crisis rule. If negative → proceed with PHQ-9 or GAD-7 based on primary complaint.
+Always run C-SSRS Lite first (a 6-item screener — see [references/c-ssrs-lite.md](references/c-ssrs-lite.md); the escalation trigger is **any positive item, including a positive Q1 passive / wish-to-die ideation**, per that file's "any yes → crisis rule" — Q1-Q2 order the questions but Q1 alone positive still escalates). If ANY item is positive → crisis rule. If all negative → proceed with PHQ-9 or GAD-7 based on primary complaint.
 
 ## Three-tier response
 

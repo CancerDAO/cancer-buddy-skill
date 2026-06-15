@@ -12,7 +12,7 @@
   |----------------------|---------------------------------------------|-----------------------------------------------------------|
   | html_lang            | zh-CN                                       | en                                                        |
   | doc_title            | 病情简要总结                                 | Case Summary                                              |
-  | disclaimer           | 仅用于临床交流参考，不替代主治医师的判断       | For clinical-communication reference only; does not replace the attending physician's judgment |
+  | disclaimer           | 仅用于临床交流参考，不替代主诊医生的判断       | For clinical-communication reference only; does not replace the attending physician's judgment |
   | report_date_label    | 报告日期                                     | Report date                                               |
   | sec_identity         | 患者标识                                     | Patient Identity                                          |
   | lbl_sex_age          | 性别 / 年龄                                  | Sex / Age                                                 |
@@ -27,8 +27,8 @@
   | sec_caveats          | 数据说明                                     | Data Notes                                                |
   | val_male             | 男                                          | Male                                                      |
   | val_female           | 女                                          | Female                                                    |
-  | val_pending          | 待主治医师补充 / 资料缺失                     | To be supplemented by attending physician / data missing  |
-  | val_ecog_inferred    | （推断，待主治医师正式签署）                   | (inferred, pending formal sign-off by attending physician) |
+  | val_pending          | 待主诊医生补充 / 资料缺失                     | To be supplemented by attending physician / data missing  |
+  | val_ecog_inferred    | （推断，待主诊医生正式签署）                   | (inferred, pending formal sign-off by attending physician) |
   | val_to_start         | 待启动                                       | Not yet started                                           |
   | footer_doc           | 病情简要总结                                 | Case Summary                                              |
   ================================================================
@@ -237,7 +237,7 @@ th {
 </div>
 
 <!-- ============ SECTION 2: 患者标识 ============ -->
-<!-- 来源: profile.json / patient_summary.json。脱敏:性别+精确年龄(临床试验匹配需要),不落真名/真生日(DOB)/国籍/出生地/职业。null 字段渲染"待主治医师补充 / 资料缺失"。 -->
+<!-- 来源: profile.json / patient_summary.json。脱敏:性别+精确年龄(临床试验匹配需要),不落真名/真生日(DOB)/国籍/出生地/职业。null 字段渲染"待主诊医生补充 / 资料缺失"。 -->
 <h2>{{i18n.sec_identity}}</h2>
 <table class="kv-table">
   <tr>
@@ -255,7 +255,7 @@ th {
 <p class="case-summary">{{case_summary_narrative}}</p>
 
 <!-- ============ SECTION 4: 主要病灶分布 ============ -->
-<!-- 来源: profile.json 影像字段 / case_text.md 影像段。逐行 LOOP:每个解剖部位一行(原发灶/肝转移/肺转移/淋巴结...)。无影像数据则整段渲染"待主治医师补充 / 资料缺失"。 -->
+<!-- 来源: profile.json 影像字段 / case_text.md 影像段。逐行 LOOP:每个解剖部位一行(原发灶/肝转移/肺转移/淋巴结...)。无影像数据则整段渲染"待主诊医生补充 / 资料缺失"。 -->
 <h2>{{i18n.sec_lesions}}</h2>
 <table class="lesion-table">
   <!-- LOOP lesions: 每个部位一行 -->
@@ -271,7 +271,7 @@ th {
 </table>
 
 <!-- ============ SECTION 5: 核心分子检测 ============ -->
-<!-- 来源: molecular.json (variants / msi_mmr / ihc / tmb / 组织病理)。逐行映射。无分子数据则整段渲染"待主治医师补充 / 资料缺失"。 -->
+<!-- 来源: molecular.json (variants / msi_mmr / ihc / tmb / 组织病理)。逐行映射。无分子数据则整段渲染"待主诊医生补充 / 资料缺失"。 -->
 <h2>{{i18n.sec_molecular}}</h2>
 <table class="kv-table">
   <!-- LOOP molecular_rows: 每个分子维度一行(驱动突变/免疫表型/DDR 与其他/组织病理) -->
@@ -287,7 +287,7 @@ th {
 </table>
 
 <!-- ============ SECTION 6: 关键实验室指标 ============ -->
-<!-- 来源: labs.json。每项按 ULN 倍数 → class:正常=无 class,异常=abnormal,严重(>=3x ULN 或临床显著)=severe。LOOP labs,4 列网格自动换行。无 labs 则整段渲染"待主治医师补充 / 资料缺失"。 -->
+<!-- 来源: labs.json。每项按 ULN 倍数 → class:正常=无 class,异常=abnormal,严重(>=3x ULN 或临床显著)=severe。LOOP labs,4 列网格自动换行。无 labs 则整段渲染"待主诊医生补充 / 资料缺失"。 -->
 <h2>{{i18n.sec_labs}}（{{labs_period}}）</h2>
 <div class="lab-grid">
   <!-- LOOP labs: class ∈ {"", "abnormal", "severe"} -->
@@ -328,7 +328,7 @@ th {
 </div>
 
 <!-- ============ SECTION 8: 当前治疗路径 ============ -->
-<!-- 来源: treatment_lines.json 当前线 + profile.json。逐条 LOOP:每条用 <span class="label">标签：</span>内容 + <br> 分隔。标签如"当前较可能的路径：""桥接：""备选试验路径："。无当前路径则整段渲染"待主治医师补充 / 资料缺失"。 -->
+<!-- 来源: treatment_lines.json 当前线 + profile.json。逐条 LOOP:每条用 <span class="label">标签：</span>内容 + <br> 分隔。标签如"当前较可能的路径：""桥接：""备选试验路径："。无当前路径则整段渲染"待主诊医生补充 / 资料缺失"。 -->
 <h2>{{i18n.sec_path}}</h2>
 <div class="path-box">
   <!-- LOOP path_items: 每条一行,末条不加 <br> -->
