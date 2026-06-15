@@ -96,5 +96,5 @@ See `records-index.md`. Key items: [biopsy report, latest imaging CD, molecular 
 - Tables for any structured data (treatment history, labs)
 - Dates always YYYY-MM-DD or YYYY-MM (date format follows `reviewer_locale` convention only if the center requires it; default ISO)
 - Measurements in SI units (cm, kg, mL, mmol/L) — unit tokens are clinical entities, stay verbatim
-- Drug doses in brand-neutral generic names (osimertinib not Tagrisso), verbatim in source form
+- Drug names kept **verbatim in the source form** the record used (generic OR brand — never normalize brand→generic or vice versa; clinical entities stay verbatim per `../../../references/i18n.md` §4). Doses verbatim with units.
 - Keep under 2 printed pages — use bullets, not prose, where possible

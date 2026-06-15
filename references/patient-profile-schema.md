@@ -66,7 +66,7 @@ Format: `PT-<hex>`, e.g. `PT-17CE02BC33`.
     "source_refs": ["conversation:2024-07-05"]
   },
   "summary": {
-    "one_line_condition": "60余岁男性，乙状结肠腺癌 IV 期（肝/肺/淋巴结转移），术后辅助化疗中",
+    "one_line_condition": "63岁男性，乙状结肠腺癌 IV 期（肝/肺/淋巴结转移），术后辅助化疗中",
     "primary": "乙状结肠恶性肿瘤",
     "histology": "中分化腺癌",
     "stage": "ypT4aN2aM1 IV期",

@@ -37,7 +37,8 @@ fi
 # B. verbatim national hotline present.
 [[ -f "$CRISIS" ]] || fail "crisis-resources.md not found"
 if [[ -f "$CRISIS" ]]; then
-  grep -q '400-161-9995' "$CRISIS" || fail "crisis-resources.md: national hotline 400-161-9995 missing (verbatim)"
+  grep -q '12356' "$CRISIS" || fail "crisis-resources.md: canonical national line 12356 (国家卫健委全国统一) missing (verbatim)"
+  grep -q '400-161-9995' "$CRISIS" || fail "crisis-resources.md: 希望24热线 400-161-9995 missing (verbatim)"
   hot=$(grep -coE '[0-9]{3,4}-[0-9]{6,8}' "$CRISIS" || true)
   (( hot >= 3 )) || fail "crisis-resources.md: fewer than 3 verbatim hotline numbers (found $hot)"
 fi

@@ -172,6 +172,12 @@ DELIVERED_SURFACES = [
     ".phase1_sources.json",
     "update_log.json",
     "病情简要总结.html",
+    "AGENTS.md",  # agent-facing recall pointer; embeds profile.json one_line_condition — shipped, so scan it
+    # visit-prep ships its patient-facing HTML into the same patient_dir; it is gated by
+    # validate_visit_prep_html.py at production time, but the export boundary (export_share →
+    # validate_structured_outputs) must ALSO shape-scan it so a later standalone export can't
+    # ship un-rescanned PII. (Its data JSON visit_prep_data.json is intermediate render state.)
+    "就诊准备包.html",
 ]
 
 # Synthesized downstream surfaces — built by Phase 2 from the masked sidecars, then read
@@ -215,7 +221,7 @@ _FILENAME_PII = [
 # false-fires on legitimate CJK-term-hyphen-Latin oncology entities like 微卫星-MSI).
 # The patient HTML + every synthesized clinical surface qualify; identity deny-list +
 # path/account/standalone shape patterns still apply to them.
-_CLINICAL_PROSE_SURFACES = {"病情简要总结.html", *SYNTHESIZED_SURFACES}
+_CLINICAL_PROSE_SURFACES = {"病情简要总结.html", "就诊准备包.html", "AGENTS.md", *SYNTHESIZED_SURFACES}
 
 
 def load_deny_tokens(patient_dir: Path) -> set[str]:
