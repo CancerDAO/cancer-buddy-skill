@@ -38,7 +38,7 @@ TCM herbal medications have more variable evidence than Western pharmacology, an
 ## Project convention (workflow rules, not clinical facts)
 
 - Output path: `patients/<patient_code>/reports/nutrition/interactions-flagged.md`
-- Severity colors: 🔴 / 🟡 / 🟢 (override schema: see `../../../../references/preflight.md` §Step 2.5)
+- Severity colors: 🔴 / 🟡 / 🟢 (override schema: see `../../../references/preflight.md` §Step 2.5)
 - Patient menu top-of-page: any 🔴 interaction must be the first thing the patient sees
 
 ## Last resort

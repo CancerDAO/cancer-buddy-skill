@@ -4,7 +4,7 @@
 
 Generate patient-friendly educational materials from clinical data.
 
-> **Locale**: read `profile.json.locale` (detect + persist per `../../references/i18n.md` if absent). Render every section title, label, and narrative below in that locale; keep clinical entities (drug names, genes/variants, TNM/stage, numbers + units, biomarker labels) verbatim. The section names listed here are the `zh` rendering — output the same meaning in the patient's locale.
+> **Locale**: read `profile.json.locale` (detect + persist per `../../../references/i18n.md` if absent). Render every section title, label, and narrative below in that locale; keep clinical entities (drug names, genes/variants, TNM/stage, numbers + units, biomarker labels) verbatim. The section names listed here are the `zh` rendering — output the same meaning in the patient's locale.
 
 1. Take vMTB report or Patient Profile as input
 2. Select relevant chapters based on patient's condition and comorbidities

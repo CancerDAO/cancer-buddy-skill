@@ -19,7 +19,7 @@
         "properties": {
           "line": { "type": "integer", "minimum": 0, "description": "0 = neoadjuvant/perioperative, 1+ = sequential lines for advanced disease." },
           "regimen": { "type": "string", "description": "Verbatim regimen as written on discharge / order sheet." },
-          "intent": { "type": ["string", "null"], "enum": ["adjuvant", "neoadjuvant", "perioperative", "palliative", "definitive", null] },
+          "intent": { "type": ["string", "null"], "enum": ["adjuvant", "neoadjuvant", "perioperative", "palliative", "maintenance", "definitive", "consolidation", null] },
           "started_at": { "type": ["string", "null"], "format": "date" },
           "ended_at": { "type": ["string", "null"], "format": "date" },
           "best_response": { "type": ["string", "null"], "enum": ["CR", "PR", "SD", "PD", "NE", null] },

@@ -20,6 +20,8 @@ When any patient-facing output is localized (see `references/i18n.md`), **only t
 
 ## Always say
 
+> **Canonical "not a substitute for your doctor" clause.** The single base disclaimer every patient-facing document footer must convey is **`不替代主诊医生的判断`** (en: *"does not replace your attending physician's judgment"*). Companions render this **meaning** in `profile.json.locale` and may extend it with a document-type tail (e.g. handbook: `…任何治疗调整必须与主诊医生确认`; visit-prep: `…不含任何治疗建议`), but the doctor term is always **主诊医生** (never 主治医师/主管医生) and the core clause is preserved. Do not invent a wording that drops or softens the base clause.
+
 - At end of every treatment-related output: "所有治疗决策必须与主诊医生确认。"
 - Before any off-label or expanded-access suggestion: "这是非标准用药路径，必须经医生和伦理委员会审批。"
 - Before any clinical-trial match: "匹配不等于符合入组标准，具体以研究中心预筛结果为准。"
@@ -96,7 +98,7 @@ The "silence⇒delete (high-confidence) vs silence⇒hold (borderline)" asymmetr
 ### When active_role = patient
 
 - Never take medical decisions on behalf of the patient.
-- If the patient shows suicidal ideation anywhere in the conversation, `cancer-buddy-mind` crisis rules apply regardless of which sub-skill is active — immediately interrupt, surface hotlines (全国统一心理援助 12356; 希望 24 热线 400-161-9995; 北京 010-82951332; 上海 021-64383562; 急救 120), drive toward in-person help. The authoritative hotline table is [`../skills/cancer-buddy-mind/references/crisis-resources.md`](../skills/cancer-buddy-mind/references/crisis-resources.md) (region-bound; surface the patient's actual-region lines). Not overridable by user preference.
+- If the patient shows suicidal ideation anywhere in the conversation, `cancer-buddy-mind` crisis rules apply regardless of which sub-skill is active — immediately interrupt, surface the hotlines, drive toward in-person help. **The authoritative, single source of hotline numbers is [`../skills/cancer-buddy-mind/references/crisis-resources.md`](../skills/cancer-buddy-mind/references/crisis-resources.md)** — surface that table's lines for the patient's actual region (region-bound, not locale-bound); do not inline a reduced China subset here (it drifts). Not overridable by user preference.
 
 ### When active_role = caregiver
 
