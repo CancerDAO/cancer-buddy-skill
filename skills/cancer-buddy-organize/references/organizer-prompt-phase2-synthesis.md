@@ -377,12 +377,114 @@ Pure JSON, no prose:
 }
 ```
 
+## Step 6 — Generate standardized case summaries (ALWAYS REQUIRED)
+
+Read `../../references/case-summary-template.md` (relative to this skill) for the authoritative module definitions. Then write **both** files using `profile.json`, `timeline.md`, `case_text.md`, and all OCR sidecars as source material.
+
+### 6.1 `case_summary_brief.md`
+
+Modules to include: 1 (精简) + 2 + 6 (仅线别概要，每线 1-2 句) + 7。
+Target length: ≤ 800 字正文，不含标题。
+
+```markdown
+# 病例简要总结 — <patient_code>
+> 生成时间：<ISO> | 数据截止：<最新文件日期> | Readiness: <grade>
+
+## 基本信息
+[Module 1 精简版：姓名/年龄/性别/ECOG，条件字段按癌种写]
+
+## 病情概要
+[Module 2 全部必写条目]
+
+## 治疗史（概要）
+[Module 6 每线一句：时间 + 方案 + 疗效结论 + 停药原因]
+
+## 当前状态与下一步
+[Module 7 当前治疗状态 + 待解决问题]
+
+---
+_来源：cancer-buddy-organize Phase-2 | 模板版本：case-summary-template.md v1.0_
+_本总结由 AI 自动生成，所有临床决策须与主诊医生确认。_
+```
+
+### 6.2 `case_summary_detailed.md`
+
+All 7 modules in full. Target length: 8-10 pages equivalent in Markdown. Each data point must include source citation (`来源：<文件名>` inline or as footnote).
+
+```markdown
+# 病例详细总结 — <patient_code>
+> 生成时间：<ISO> | 数据截止：<最新文件日期> | Readiness: <grade> (<score>/100)
+> review_flags：🔴 <n> | 🟡 <n> | 🟢 <n>（未解决红旗请先确认再使用本总结）
+
+## 模块 1｜基本信息
+[Module 1 完整版]
+
+## 模块 2｜病情概要
+[Module 2]
+
+## 模块 3｜分子检测与标志物
+[Module 3 — 每项标注来源文件]
+
+## 模块 4｜影像学评估摘要
+[Module 4 — 最新影像优先，附趋势对比]
+
+## 模块 5｜实验室指标摘要
+[Module 5 — 只列异常值和关键值]
+
+## 模块 6｜治疗史
+[Module 6 完整版 — 每线完整叙述含毒副反应]
+
+## 模块 7｜治疗路径总结
+[Module 7]
+
+## 附录｜未解决问题清单
+[从 review_flags 🔴 red 项 + 模块 3/5 的"未检测"/"Pending" 字段汇总]
+- [ ] <字段>：<缺失类型>（<建议行动>）
+
+## 附录｜信息来源索引
+[按模块列出每条数据的来源文件路径]
+
+---
+_来源：cancer-buddy-organize Phase-2 | 模板版本：case-summary-template.md v1.0_
+_本总结由 AI 自动生成，所有临床决策须与主诊医生确认。_
+```
+
+### 6.3 Missing-field handling (mandatory, from template §三)
+
+For every expected field in all 7 modules, apply the three-step lookup before writing "缺失":
+1. Search OCR sidecars again (full text, not just extracted profile.json fields).
+2. Classify the miss type: Pending / 应做未做 / 客观无法获得 / OCR未提取到.
+3. Write the explicit label per the template table — never silently omit.
+
+Any "应做未做" finding that affects downstream eligibility (driver mutations, MSI, key staging) → also add to `review_flags[]` as 🔴 red `unverified_critical_field`.
+
+### 6.4 Conflict resolution
+
+When profile.json fields conflict across sources, follow template §四 priority:
+`病理 > 分子标志物 > 影像 > 叙述 > 症状`
+Annotate conflicts inline in detailed summary AND record in review_flags if not already flagged.
+
+### 6.5 Update return JSON (Step 5 addendum)
+
+Add these keys to the Step 5 JSON output:
+```json
+{
+  "case_summary_brief_path": "/.../case_summary_brief.md",
+  "case_summary_detailed_path": "/.../case_summary_detailed.md",
+  "case_summary_missing_fields": ["EGFR突变状态：未检测", "PD-L1：Pending"]
+}
+```
+
+---
+
 ## Rules
 
 - NEVER invent medical facts. Read what sidecars say, don't fill in plausible-sounding gaps.
 - NEVER skip the §3 review_flags audit — even if you find nothing, write `"review_flags": []`.
 - NEVER skip writing review_summary.md — required even when grade is A and review_flags is empty.
+- NEVER skip Step 6 — both `case_summary_brief.md` and `case_summary_detailed.md` are required outputs.
+- NEVER omit a missing field silently — always use the explicit label from template §三.
 - NEVER rename files in Step 1 — Step 1 copies with original basenames; canonical naming is Step 1.5's judgment + Step 1.6's mechanical mv.
 - NEVER skip Step 1.5 — that's where PRD §6.B file naming (`日期_类型_机构.<ext>`) gets enforced. The fix here is "structure the prompt so the judgment is explicit + the mechanical part is atomic", NOT "hand it to a regex script". Hardcoded vocab (cancer list, doc-type patterns, hospital regex) generalizes badly to real archives — read the OCR semantically.
 - `coverage_complete: false` is acceptable as long as you list the missing files; caller will retry-mini-Phase1 + re-run you.
-- Output pure JSON only at the end — narrative goes in case_text.md / timeline.md / review_flags.md / review_summary.md.
+- Output pure JSON only at the end — narrative goes in case_text.md / timeline.md / review_flags.md / review_summary.md / case_summary_brief.md / case_summary_detailed.md.
