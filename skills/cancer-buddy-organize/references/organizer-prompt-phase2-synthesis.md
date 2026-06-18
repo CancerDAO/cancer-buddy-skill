@@ -244,81 +244,144 @@ Canonical schema (top-level fields, all OPTIONAL — null when truly unknown, ne
 
 When the patient has hospitalizations with DIFFERENT regimens (because of a treatment switch), `current_therapy` is the LATEST one (most recent discharge cert). Older regimens go in `treatment_history[]`.
 
-### 2.5 `readiness.json` — 三层癌种感知评分
+### 2.5 `readiness.json` — 用途门控 + 合成质量自报
 
-**原则：低覆盖度不拒绝交付，只驱动行动指引。grade 是内部路由字段，绝不出现在任何用户侧文档中。**
+**原则：低覆盖度不拒绝交付，只驱动行动指引。不使用数字分数或字母等级——它们精度虚假、对用户无意义。路由和展示统一读 `use_case_gates`。**
 
-#### Tier 1 — 必需（缺任何一项 → `tier1_gaps[]` 非空 → 阻断下游，但仍生成当次报告）
+#### Tier 1 — 通用必需项（适用所有癌种）
 
-适用所有癌种：
+缺任何一项 → `tier1_gaps[]` 非空 → `clinic_visit` 门控为 `not_ready`，但**仍生成当次报告**。
+
 - 病理报告（含组织学类型确认）
-- 分期文件（影像报告 + 临床分期判断）
+- 分期文件（影像报告 + 临床分期判断，不接受仅来自门诊叙述）
 - 基础血液学：血常规 + 肝肾功能
 
-#### Tier 2 — 癌种特异（缺项计入 `tier2_gaps[]`，不阻断，但降低分析精度）
+#### Tier 2 — 癌种特异项
 
-| 癌种 | 必看项 |
+缺项计入 `tier2_gaps[]`，不阻断基础报告生成，但影响 `second_opinion` 和 `trial_match` 门控。
+
+| 癌种 | 关键项（缺失影响治疗决策） |
 |---|---|
 | 子宫颈癌 | HPV基因分型、盆腔MRI、宫颈活检病理（LVSI状态）、CA125/SCC基线 |
 | 肺腺癌 | EGFR/ALK/ROS1/KRAS/MET/RET/BRAF、PD-L1 TPS/CPS、胸腹CT、脑MRI |
 | 肺鳞癌 | PD-L1、FGFR1扩增、胸腹CT |
 | 乳腺癌 | ER/PR/HER2（IHC+FISH）、BRCA1/2胚系、乳腺MRI |
-| 结直肠癌 | KRAS/NRAS/BRAF V600E、MMR-IHC、MSI、HER2 |
+| 结直肠癌 | KRAS/NRAS/BRAF V600E、MMR-IHC、MSI、HER2（RAS/RAF全套） |
 | 肝细胞癌 | AFP基线、HBV DNA定量、Child-Pugh分级 |
 | 胃癌 | HER2 FISH、PD-L1 CPS、EBV原位杂交 |
-| 胰腺癌 | BRCA1/2胚系、KRAS、CA19-9基线 |
-| 其他/未确认 | 按临床诊断字段推断癌种后查此表；若无法推断，Tier 2 留空 |
+| 胰腺癌 | BRCA1/2胚系、KRAS G12C/D、CA19-9基线 |
+| 其他/未确认 | 按 profile.primary_cancer 推断癌种查此表；若 primary_cancer 为 null，Tier 2 留空不惩罚 |
 
-#### Tier 3 — 加分项（不扣分，不阻断）
+> Tier 2 中的 NGS综合面板、TMB、MSI、多学科会诊记录，仅在晚期/复发或免疫治疗场景下纳入 tier2_gaps；早期患者不计为缺口。
 
-- NGS综合面板（仅晚期/复发患者必要）
-- TMB/MSI（免疫治疗考量时）
-- PD-L1（二线免疫治疗前才必需，早期可选）
-- 多学科会诊记录
+#### 四个用途门控的判断规则
 
-#### 评分计算
+**basic_summary** — 门控条件（同时满足才是 `ready`）：
+- `profile.primary_cancer` 非 null
+- 至少一份一手检查文件存在（来源不能只有患者自述）
 
-```
-tier1_score = (已有Tier1项数) / (应有Tier1项数)  — 所有癌种通用3项
-tier2_score = (已有Tier2项数) / (该癌种Tier2项数)  — 癌种特异
-score = round(tier1_score * 0.6 + tier2_score * 0.4, 2) * 100  — 0-100整数
-grade: A≥90, B≥75, C≥60, D≥40, F<40
-```
+**clinic_visit** — 门控条件（`ready`）：
+- Tier 1 全部覆盖（tier1_gaps 为空）
+- `profile.current_therapy` 非 null 且有 sidecar 引用
+- 至少一项关键异常指标有原始检验单支持（source_type = primary_report）
 
-**Bootstrapping**（尚无病理确认癌种时）：用 `profile.primary_cancer` provisional值查Tier 2表；若该字段也为null，Tier 2 items = 0，tier2_score = 1.0（不惩罚），全靠 Tier 1 驱动。
+`ready_with_gaps`：Tier 1 覆盖，但 current_therapy 缺 sidecar 引用 或 关键指标无原始检验单。
+
+**second_opinion** — 门控条件（`ready`）：
+- clinic_visit 已 ready
+- 病理报告原件存在（source_type = primary_report，非仅门诊叙述）
+- 该癌种 Tier 2 分子检测项，已覆盖 ≥ 50% 或全部明确标注为"未检测，建议完善"
+
+`ready_with_gaps`：clinic_visit ready，病理存在，但分子覆盖 < 50% 且部分未明确标注。
+
+**trial_match** — 门控条件（`ready`）：
+- second_opinion 已 ready
+- ECOG 评分有记录且来源可信
+- 治疗线数已明确（line_of_therapy 非 null）
+- 近 3 个月器官功能指标（肝肾血常规）有原始检验单
+
+#### readiness.json schema（v3）
 
 ```json
 {
-  "schema_version": "2",
-  "score": "<0-100 整数，内部字段>",
-  "grade": "<A|B|C|D|F，内部字段>",
-  "cancer_type_used_for_tier2": "<从 profile.primary_cancer 取值；若为 null 则 Tier2 items=0>",
+  "schema_version": "3",
+  "cancer_type_used_for_tier2": "<从 profile.primary_cancer 取值；null 则 Tier2 留空>",
+
+  "use_case_gates": {
+    "basic_summary":   "ready | not_ready",
+    "clinic_visit":    "ready | ready_with_gaps | not_ready",
+    "second_opinion":  "ready | ready_with_gaps | not_ready",
+    "trial_match":     "ready | not_ready"
+  },
+
+  "gate_blocking_reasons": {
+    "clinic_visit":   ["<具体缺口，如：分期未确认（仅见门诊叙述，无影像报告）>"],
+    "second_opinion": ["<如：Tier 2 分子检测覆盖 2/5，缺 KRAS/MSI/HER2>"],
+    "trial_match":    ["<如：ECOG 未记录>", "<如：近期肝肾功能无原始检验单>"]
+  },
+
   "tier1_gaps": [
     {
-      "item": "<缺失的通用必需项，如：病理报告 | 分期文件（影像报告）| 血常规+肝肾功能>",
-      "reason": "<该缺失对下游分析的具体影响，从 OCR 内容推断，不得捏造>"
+      "item": "<缺失的通用必需项>",
+      "reason": "<该缺失对下游分析的具体影响>",
+      "action_category": "现医院补检 | 调阅历史档案 | 转诊专项检查 | 组织已不可及",
+      "action_detail": "<具体建议，如：可向现就诊医院申请补开血常规+肝肾功能>",
+      "source_type": "primary_report | clinical_note | patient_narrative | absent"
     }
   ],
+
   "tier2_gaps": [
     {
       "item": "<该癌种 Tier2 表中缺失的项>",
-      "priority": "high|medium",
-      "reason": "<临床意义，来自 Tier2 表中对应说明>"
+      "priority": "high | medium",
+      "reason": "<临床意义>",
+      "action_category": "现医院补检 | 调阅历史档案 | 转诊专项检查 | 组织已不可及",
+      "action_detail": "<具体建议>"
     }
   ],
+
   "tier2_covered": [
     {
       "item": "<已覆盖的 Tier2 项>",
-      "evidence": "ocr/<canonical sidecar文件名>.md"
+      "source_type": "primary_report | clinical_note | patient_narrative",
+      "source_file": "ocr/<sidecar文件名>.md"
     }
   ],
-  "blocking_gaps": ["<tier1_gaps 非空时，此处列出所有 tier1 item 名称>"],
+
+  "synthesis_quality": {
+    "key_fields_with_primary_source": "<N>/<M>（关键临床字段中，source_type=primary_report 的数量/总数）",
+    "internal_consistency_checks": {
+      "molecular_coverage_consistent": "<true|false — tier2_covered 与 profile.molecular_drivers_known 是否一致>",
+      "treatment_timeline_coherent":   "<true|false — treatment_history 日期是否单调递增且无重叠>",
+      "lab_trend_vs_response_consistent": "<true|false — 若 CEA/AFP 等连续上升，treatment_response 不应为 CR/PR>",
+      "staging_predates_surgery":      "<true|false — 分期日期早于手术日期>",
+      "line_count_consistent":         "<true|false — treatment_history 线数与 profile.line_of_therapy 匹配>"
+    },
+    "unverifiable_fields": [
+      "<字段路径，如 molecular.kras_status — 值来自 clinical_note，无原始基因检测报告，准确性无法自验>"
+    ]
+  },
+
+  "adversarial_review_needed": "<true|false>",
+  "adversarial_review_triggers": [
+    "<触发原因，如：kras_status source_type=clinical_note>",
+    "<如：review_flags 存在 red flag RF-001>"
+  ],
+
+  "blocking_gaps": ["<tier1_gaps 非空时列出 item 名称，供下游读取>"],
   "warnings": [],
-  "review_flags": []
+  "review_flags": [],
+  "coverage_complete": "<true|false>"
 }
 ```
 
-**注意：`score`、`grade`、`tier1_score`、`tier2_score` 全部为内部字段，仅供 `preflight.md` 路由使用。禁止出现在 `review_summary.md`、`case_summary_brief.md`、`case_summary_detailed.md` 或任何用户侧文档中。**
+**`adversarial_review_needed` 设为 true 的条件（满足任一即触发）：**
+- `unverifiable_fields` 非空（有关键字段来源不可信）
+- `review_flags` 中存在 severity=red 的条目
+- `use_case_gates.second_opinion` 或 `trial_match` 为 ready/ready_with_gaps（高风险用途，值得额外验证）
+- `internal_consistency_checks` 中任一项为 false
+
+**禁止出现在任何用户侧文档中的字段：** `synthesis_quality`、`adversarial_review_needed`、`adversarial_review_triggers`、`unverifiable_fields`、`gate_blocking_reasons`（原始形式）。用户只看 `use_case_gates` 对应的白话展示和 `tier1_gaps/tier2_gaps` 的 item + action_detail。
 
 ## Step 3 — review_flags audit (REQUIRED, may be empty)
 
