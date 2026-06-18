@@ -841,7 +841,7 @@ _本总结由 AI 自动生成，不替代主诊医生判断。_
 - [ ] `patient` 中 name/age/sex/ecog/hospital/diagnosis/report_date/patient_id/patient_code 全部存在
 - [ ] `labs` 每个元素含 date/category/item/value/reference/flag/note 七个字段
 - [ ] `molecular` 每个元素含 item/status/priority/note 四个字段
-- [ ] `gaps.critical/recommended/covered` 每个元素含 item/reason
+- [ ] `gaps.critical/recommended` 每个元素含 item/reason/action_category/action_detail 四个字段；`gaps.covered` 每个元素含 item/reason
 - [ ] `review_flags` 每个元素含 id/severity/issue
 - [ ] JSON 格式有效（无多余逗号、无中文引号）
 

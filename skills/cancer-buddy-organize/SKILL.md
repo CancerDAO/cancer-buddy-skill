@@ -29,7 +29,7 @@ Written under `patients/<patient_code>/`:
 - `INDEX.md` (first line: `# patient_code: <code>`)
 - `profile.json` (conforms to `../../references/patient-profile-schema.md`)
 - `timeline.md` (human-readable treatment timeline)
-- `readiness.json` — coverage grade + `review_flags[]` (MTB readiness + suspicious-value audit)
+- `readiness.json` — `use_case_gates`（用途门控）+ `tier1/tier2_gaps`（含 action_category）+ `review_flags[]`（可疑值审计）+ `synthesis_quality`（合成质量自报）
 - `review_flags.md` — auto-generated human-readable rendering of `readiness.json.review_flags[]` (only written when array non-empty)
 - `review_summary.md` — **always written**: 1-page checklist of extracted key fields with verbatim source citations, for user spot-check (catches consistent-but-wrong OCR that review_flags can't)
 - `case_text.md` (consolidated narrative — raw OCR text organized by section)
@@ -102,34 +102,52 @@ Written under `patients/<patient_code>/`:
 
 7. **Verify outputs** — parse Phase 2's returned JSON; confirm `profile.json` exists and required fields (`patient_code`, `primary_cancer`, `histology`, `stage`) are populated. If any are missing or null, surface to the user as a blocker before routing to any other sub-skill.
 
-8. **呈现行动指引（不展示 grade/score）** — 从 Phase 2 返回 JSON 取 `tier1_gaps[]` 和 `tier2_gaps[]`。
+8. **呈现用途门控 + 行动指引** — 从 readiness.json 读取 `use_case_gates` 和 `tier1_gaps[]` / `tier2_gaps[]`。
 
-   **原则：无论覆盖度高低，都生成并交付报告。缺失的字段转化为行动指引，不降级，不拒绝。**
+   **原则：无论覆盖度高低，都生成并交付报告。缺失字段转化为行动指引，不降级，不拒绝。绝不向用户展示任何数字分数或字母等级。**
 
-   - `tier1_gaps` 非空 → 向用户展示：
-     > "以下记录对完整分析非常重要，建议尽快补充（补充后可重新运行整理）："
-     > [紧急] <每个 tier1_gaps 条目，说明缺什么以及影响什么>
-   - `tier2_gaps` 有 priority:high 条目 → 追加：
-     > "以下记录有助于提升分析精准度："
-     > [建议] <priority:high 的 tier2_gaps>
-   - 所有 gaps 为空 → 展示：
-     > "已覆盖完整，可直接使用下游功能。"
+   向用户展示用途门控状态（白话，不展示字段名）：
 
-   **绝不向用户展示 grade 字母（A/B/C/D/F）或 score 数字。**
+   | use_case_gates 值 | 向用户展示 |
+   |---|---|
+   | basic_summary: not_ready | "当前资料过少，暂时无法生成有意义的总结，建议先补充以下文件：[tier1_gaps]" |
+   | clinic_visit: not_ready | "当前资料尚不足以支持门诊就医参考，核心缺口：[gate_blocking_reasons.clinic_visit]" |
+   | clinic_visit: ready_with_gaps | "可用于门诊就医参考，以下补充项有助于提升精准度：[tier2_gaps priority:high]" |
+   | clinic_visit: ready | "当前资料已满足门诊就医参考要求。" |
+   | second_opinion: not_ready | "如需外院第二意见，还需补充：[gate_blocking_reasons.second_opinion]" |
+   | second_opinion: ready_with_gaps | "基本满足外院第二意见要求，以下项目补充后更完整：[tier2_gaps]" |
+   | second_opinion: ready | "资料已满足外院第二意见要求。" |
+   | trial_match: not_ready | "如需临床试验匹配，还需：[gate_blocking_reasons.trial_match]" |
+   | trial_match: ready | "资料满足临床试验匹配要求。" |
 
-9. **Display review_summary.md (MANDATORY, ALWAYS)** — read the file at `review_summary_path` and display its full content to the user. This is the **first** thing the user sees after organize — before profile card, before review_flags. It is a 1-page spot-check of extracted key fields with verbatim source citations.
+   展示 tier1_gaps 时，附上每条的 `action_detail`（具体操作建议）；展示 tier2_gaps priority:high 时同理。`action_category` 不需要逐字展示，已内嵌在 action_detail 里。
 
-   Why this is the first display: many real OCR errors produce **internally consistent wrong values** (e.g. all 7 documents in one hospitalization OCR'd to the same wrong drug name). The 5-check `review_flags` audit cannot detect those — but a human reading `review_summary.md` can spot a wrong character in 30 seconds.
+9. **触发 Phase 3 反驳式审查（条件性）** — 读取 `readiness.adversarial_review_needed`：
 
-   After displaying, prompt the user: "请核对上面 5 个检查要点。任何字段需要修正,直接告诉我哪个字段 + 正确值,我会更新 profile.json 并重新生成清单。"
+   **若为 true**：
+   1. 从 `readiness.unverifiable_fields` 和 `review_flags`（severity=red）确定高风险字段列表
+   2. 对每个高风险字段，读取 `readiness.tier2_covered` 或 `profile.json` 中对应的 `source_file`
+   3. 读取那些 sidecar 文件的内容
+   4. 以 [references/organizer-prompt-phase3-adversarial.md](references/organizer-prompt-phase3-adversarial.md) 为 prompt，dispatch Phase 3 Worker，传入 `high_risk_sidecars` 列表
+   5. Phase 3 完成后，重新读取更新后的 `readiness.json`（review_flags 已追加 Phase 3 发现的新 flag）
 
-10. **Surface review_flags (MANDATORY)** — if `review_flags_total > 0`, read `review_flags.md` and display its content to the user immediately after `review_summary.md`. This is a hard gate, not optional polish:
-    - **If any critical flag present**: tell the user "进入下游 skill 之前请先逐条确认或 override 这些 待确认项 — 它们会直接影响后续分析与推荐 (若装有 pro-skill: trial-match / mtb-lite / vmtb)"
-    - **If only 建议/提示项**: present them as "建议核对", do not block downstream routing
-    - **If `review_flags_total: 0`**: still tell the user "所有提取字段已通过 5 项可疑值检查 (格式/跨文档矛盾/临床逻辑/原始证据/数值趋势), 无待确认项 — 但仍请核对上面的 review_summary.md 速查清单"
-    - The user's resolution per flag (`accept_suggestion` / `keep_original` / `custom_value` / `defer`) is logged back into `readiness.json.review_flags[i].user_confirmed = true` plus a `resolution` sub-object.
+   **若为 false**：跳过，直接进入 Step 10。
 
-11. **Output profile card** — display the Patient Profile Card ([references/profile-card.md](references/profile-card.md)) to the patient using the `terminology.md` format rules (中英 + 通俗解释). The card's "🔍 待人工确认" section pulls from `readiness.json.review_flags[]`.
+   Phase 3 是轻量核查，token 消耗约为 Phase 2 的 10-15%，只在高风险场景下触发。
+
+10. **Display review_summary.md (MANDATORY, ALWAYS)** — read the file at `review_summary_path` and display its full content to the user. This is the **first** thing the user sees after organize — before profile card, before review_flags. It is a 1-page spot-check of extracted key fields with verbatim source citations.
+
+    Why this is the first display: many real OCR errors produce **internally consistent wrong values** (e.g. all 7 documents in one hospitalization OCR'd to the same wrong drug name). The 5-check `review_flags` audit cannot detect those — but a human reading `review_summary.md` can spot a wrong character in 30 seconds.
+
+    After displaying, prompt the user: "请核对上面 5 个检查要点。任何字段需要修正,直接告诉我哪个字段 + 正确值,我会更新 profile.json 并重新生成清单。"
+
+11. **Surface review_flags (MANDATORY)** — if `review_flags_total > 0`, read `review_flags.md` and display its content to the user immediately after `review_summary.md`. This is a hard gate, not optional polish:
+    - **待确认项（severity=red）存在时**：告知用户 "进入下游 skill 之前请先逐条确认或 override 这些待确认项 — 它们会直接影响后续分析与推荐（若装有 pro-skill: trial-match / mtb-lite / vmtb）"。若 flag 由 Phase 3 产生，附注 "（已经过独立核查）"。
+    - **仅有建议/提示项**：作为 "建议核对" 展示，不阻断下游路由
+    - **review_flags_total = 0**：仍告知用户 "所有提取字段已通过 5 项可疑值检查（格式/跨文档矛盾/临床逻辑/原始证据/数值趋势），无待确认项 — 但仍请核对上面的 review_summary.md 速查清单"
+    - 用户对每个 flag 的处置（`accept_suggestion` / `keep_original` / `custom_value` / `defer`）记录回 `readiness.json.review_flags[i].user_confirmed = true` 及 `resolution` 子对象
+
+12. **Output profile card** — display the Patient Profile Card ([references/profile-card.md](references/profile-card.md)) to the patient using the `terminology.md` format rules (中英 + 通俗解释). The card's "待人工确认" section pulls from `readiness.json.review_flags[]`.
 
     **Downstream gate**: do NOT route the user to any downstream sub-skill (education / find-care / vault, or any 若装有 pro-skill analysis route) while any critical review_flag is unconfirmed. A wrong drug name at this stage poisons every downstream report.
 

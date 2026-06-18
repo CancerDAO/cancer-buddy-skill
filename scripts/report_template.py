@@ -358,16 +358,42 @@ def add_gaps_section(doc, gaps):
     recommended = gaps.get("recommended", [])
     covered = gaps.get("covered", [])
 
-    def add_gap_item(item_name, reason, text_color):
+    ACTION_LABEL = {
+        "现医院补检":  "现医院可补检",
+        "调阅历史档案": "需调阅历史档案",
+        "转诊专项检查": "需转诊专项检查",
+        "组织已不可及": "组织标本不可及",
+    }
+
+    def add_gap_item(g, text_color):
+        item_name     = g.get("item", "")
+        reason        = g.get("reason", "")
+        action_cat    = g.get("action_category", "")
+        action_detail = g.get("action_detail", "")
+
+        # 条目主行：项目名 + 原因
         p = doc.add_paragraph()
         p.paragraph_format.left_indent = Cm(0.5)
         p.paragraph_format.space_before = Pt(2)
-        p.paragraph_format.space_after = Pt(2)
+        p.paragraph_format.space_after = Pt(0)
         r1 = p.add_run(f"▸  {item_name}")
         _set_font(r1, 10, bold=True, color=text_color)
         if reason:
             r2 = p.add_run(f"  —  {reason}")
             _set_font(r2, 9.5, color=RGBColor(0x55, 0x55, 0x55))
+
+        # 行动指引行（仅当有 action_detail 时展示）
+        if action_detail:
+            p2 = doc.add_paragraph()
+            p2.paragraph_format.left_indent = Cm(1.1)
+            p2.paragraph_format.space_before = Pt(1)
+            p2.paragraph_format.space_after = Pt(3)
+            label = ACTION_LABEL.get(action_cat, action_cat)
+            if label:
+                rl = p2.add_run(f"[{label}]  ")
+                _set_font(rl, 9, bold=True, color=RGBColor(0x44, 0x44, 0x44))
+            rd = p2.add_run(action_detail)
+            _set_font(rd, 9, color=RGBColor(0x44, 0x44, 0x44))
 
     if critical:
         p = doc.add_paragraph()
@@ -375,7 +401,7 @@ def add_gaps_section(doc, gaps):
         _set_font(r, 10, bold=True, color=ALERT_T)
         p.paragraph_format.space_before = Pt(6)
         for g in critical:
-            add_gap_item(g.get("item", ""), g.get("reason", ""), ALERT_T)
+            add_gap_item(g, ALERT_T)
 
     if recommended:
         p = doc.add_paragraph()
@@ -383,7 +409,7 @@ def add_gaps_section(doc, gaps):
         _set_font(r, 10, bold=True, color=WARN_T)
         p.paragraph_format.space_before = Pt(8)
         for g in recommended:
-            add_gap_item(g.get("item", ""), g.get("reason", ""), WARN_T)
+            add_gap_item(g, WARN_T)
 
     if covered:
         p = doc.add_paragraph()
@@ -391,7 +417,18 @@ def add_gaps_section(doc, gaps):
         _set_font(r, 10, bold=True, color=OK_T)
         p.paragraph_format.space_before = Pt(8)
         for g in covered:
-            add_gap_item(g.get("item", ""), g.get("reason", ""), OK_T)
+            # covered 条目无 action，沿用简版
+            item_name = g.get("item", "")
+            reason    = g.get("reason", "")
+            p2 = doc.add_paragraph()
+            p2.paragraph_format.left_indent = Cm(0.5)
+            p2.paragraph_format.space_before = Pt(2)
+            p2.paragraph_format.space_after = Pt(2)
+            r1 = p2.add_run(f"▸  {item_name}")
+            _set_font(r1, 10, bold=True, color=OK_T)
+            if reason:
+                r2 = p2.add_run(f"  —  {reason}")
+                _set_font(r2, 9.5, color=RGBColor(0x55, 0x55, 0x55))
 
     doc.add_paragraph()
 

@@ -205,14 +205,18 @@
 "gaps": {
   "critical": [
     {
-      "item":   "<关键缺失记录名称（对应 tier1_gaps）>",
-      "reason": "<缺失后对分析的具体影响，不超过30字>"
+      "item":            "<关键缺失记录名称（对应 tier1_gaps）>",
+      "reason":          "<缺失后对分析的具体影响，不超过30字>",
+      "action_category": "现医院补检 | 调阅历史档案 | 转诊专项检查 | 组织已不可及",
+      "action_detail":   "<具体操作建议，如：可向现就诊医院申请补开血常规+肝肾功能>"
     }
   ],
   "recommended": [
     {
-      "item":   "<建议补充的检测或文件（对应 tier2_gaps）>",
-      "reason": "<补充后可带来的精准度提升，不超过30字>"
+      "item":            "<建议补充的检测或文件（对应 tier2_gaps）>",
+      "reason":          "<补充后可带来的精准度提升，不超过30字>",
+      "action_category": "现医院补检 | 调阅历史档案 | 转诊专项检查 | 组织已不可及",
+      "action_detail":   "<具体操作建议，如：KRAS/MSI可在华西医院病理科申请补做>"
     }
   ],
   "covered": [
@@ -228,7 +232,7 @@
 - `recommended` → 【建议】有助于提升精准度（对应 `tier2_gaps`）
 - `covered` → 【已覆盖】已充分覆盖（对应 `tier2_covered`）
 
-每个元素必须有 `item`（项目名）和 `reason`（具体说明，不超过30字）。
+`critical` 和 `recommended` 的每个元素必须有 `item`、`reason`、`action_category`、`action_detail` 四个字段。`action_category` 四选一，`action_detail` 写具体操作步骤（不超过40字），使患者/照护者知道下一步该联系谁、去哪里。
 
 ---
 
