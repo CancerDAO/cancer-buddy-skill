@@ -77,7 +77,16 @@ Written under `patients/<patient_code>/`:
 
    Loop per-slice until all slices report `continuation_needed: false`. Slices that finished cleanly do NOT need re-dispatch; only laggards. This is more efficient than re-dispatching the whole organize.
 
-5. **Dispatch Phase 2 Synthesis Worker** — after every Phase 1 worker reports `continuation_needed: false`, dispatch a SINGLE `general-purpose` subagent for synthesis:
+5. **询问输出格式（Phase 2 dispatch 前）** — 在所有 Phase 1 worker 完成后、派遣 Phase 2 之前，向用户发送一条消息：
+
+   > "病历整理完成，即将生成报告。请问您希望以哪种格式输出报告？"
+   > 1. **Markdown**（.md，可直接阅读）
+   > 2. **Word 文档**（.docx，可进一步编辑）
+   > 3. **PDF**（.pdf，适合打印或发送）
+
+   等待用户回复，将选择（`"markdown"` / `"docx"` / `"pdf"`）作为 `output_format` 参数传入 Phase 2 的 call parameters。若用户未回复超时，默认使用 `"markdown"`。
+
+5b. **Dispatch Phase 2 Synthesis Worker** — after every Phase 1 worker reports `continuation_needed: false`, dispatch a SINGLE `general-purpose` subagent for synthesis:
 
    - `subagent_type: general-purpose`
    - `description: "Organize synthesis"`
@@ -93,7 +102,20 @@ Written under `patients/<patient_code>/`:
 
 7. **Verify outputs** — parse Phase 2's returned JSON; confirm `profile.json` exists and required fields (`patient_code`, `primary_cancer`, `histology`, `stage`) are populated. If any are missing or null, surface to the user as a blocker before routing to any other sub-skill.
 
-8. **Grade readiness** — from Phase 2's returned JSON take `readiness_grade` + `readiness_score`. If grade is F or D, present the information-gap checklist 🔴🟡🟢 (derived from `blocking_gaps`) to the patient.
+8. **呈现行动指引（不展示 grade/score）** — 从 Phase 2 返回 JSON 取 `tier1_gaps[]` 和 `tier2_gaps[]`。
+
+   **原则：无论覆盖度高低，都生成并交付报告。缺失的字段转化为行动指引，不降级，不拒绝。**
+
+   - `tier1_gaps` 非空 → 向用户展示：
+     > "以下记录对完整分析非常重要，建议尽快补充（补充后可重新运行整理）："
+     > [紧急] <每个 tier1_gaps 条目，说明缺什么以及影响什么>
+   - `tier2_gaps` 有 priority:high 条目 → 追加：
+     > "以下记录有助于提升分析精准度："
+     > [建议] <priority:high 的 tier2_gaps>
+   - 所有 gaps 为空 → 展示：
+     > "已覆盖完整，可直接使用下游功能。"
+
+   **绝不向用户展示 grade 字母（A/B/C/D/F）或 score 数字。**
 
 9. **Display review_summary.md (MANDATORY, ALWAYS)** — read the file at `review_summary_path` and display its full content to the user. This is the **first** thing the user sees after organize — before profile card, before review_flags. It is a 1-page spot-check of extracted key fields with verbatim source citations.
 
@@ -102,14 +124,14 @@ Written under `patients/<patient_code>/`:
    After displaying, prompt the user: "请核对上面 5 个检查要点。任何字段需要修正,直接告诉我哪个字段 + 正确值,我会更新 profile.json 并重新生成清单。"
 
 10. **Surface review_flags (MANDATORY)** — if `review_flags_total > 0`, read `review_flags.md` and display its content to the user immediately after `review_summary.md`. This is a hard gate, not optional polish:
-    - **If any 🔴 red flag present**: tell the user "进入下游 skill 之前请先逐条确认或 override 这些 🔴 项 — 它们会直接影响后续分析与推荐 (若装有 pro-skill: trial-match / mtb-lite / vmtb)"
-    - **If only 🟡/🟢 flags**: present them as "建议核对", do not block downstream routing
+    - **If any critical flag present**: tell the user "进入下游 skill 之前请先逐条确认或 override 这些 待确认项 — 它们会直接影响后续分析与推荐 (若装有 pro-skill: trial-match / mtb-lite / vmtb)"
+    - **If only 建议/提示项**: present them as "建议核对", do not block downstream routing
     - **If `review_flags_total: 0`**: still tell the user "所有提取字段已通过 5 项可疑值检查 (格式/跨文档矛盾/临床逻辑/原始证据/数值趋势), 无待确认项 — 但仍请核对上面的 review_summary.md 速查清单"
     - The user's resolution per flag (`accept_suggestion` / `keep_original` / `custom_value` / `defer`) is logged back into `readiness.json.review_flags[i].user_confirmed = true` plus a `resolution` sub-object.
 
 11. **Output profile card** — display the Patient Profile Card ([references/profile-card.md](references/profile-card.md)) to the patient using the `terminology.md` format rules (中英 + 通俗解释). The card's "🔍 待人工确认" section pulls from `readiness.json.review_flags[]`.
 
-    **Downstream gate**: do NOT route the user to any downstream sub-skill (education / find-care / vault, or any 若装有 pro-skill analysis route) while any 🔴 red review_flag is unconfirmed. A wrong drug name at this stage poisons every downstream report.
+    **Downstream gate**: do NOT route the user to any downstream sub-skill (education / find-care / vault, or any 若装有 pro-skill analysis route) while any critical review_flag is unconfirmed. A wrong drug name at this stage poisons every downstream report.
 
 ## Why fan-out + reduce instead of single-pass
 

@@ -26,9 +26,17 @@ If role is `caregiver` or `family`: disclosure state does not gate behavior (the
    > `先让抗癌搭子整理病历再继续：请触发 cancer-buddy-organize。`
    Do NOT proceed to the sub-skill's main workflow.
 
-2. **Grade below C** — if `readiness.grade` ∈ {`D`, `F`}, stop and prompt:
-   > `目前数据完备度 <grade>（<score>/100），缺项：<blocking_gaps>。建议先补齐这些资料，或重新触发 cancer-buddy-organize 做一次深度挖掘，再跑这一步。`
-   Only proceed if the user explicitly insists (record the override in the report footer).
+2. **Tier 1 gaps present** — if `readiness.json.tier1_gaps[]` is non-empty, prompt:
+   > `当前病历还缺少以下关键记录，可能影响本次分析的准确性：`
+   > `<for each tier1_gap: 🔴 item — reason>`
+   > `您可以：① 先补充这些记录后重新整理，② 或直接继续（本次报告会标注哪些字段待确认）`
+
+   **重要：不得拒绝继续；这只是告知，不是阻断。** 若用户选择继续，在本次报告页脚追加：
+   > `⚠️ 本报告生成时以下 Tier 1 记录尚缺：<list>。相关字段已标注"待补充"，结论请谨慎参考。`
+
+   **注意：禁止向用户展示 grade 字母（A/B/C/D/F）或 score 数字（如 32/100）。这两个字段仅供内部路由使用。**
+
+   （若下游 sub-skill 存在硬性数据依赖而无法产出任何结论，可提示"缺少 XX 无法运行此功能"，但必须说明具体缺什么，不得用 grade 代替。）
 
 Grades A / B / C → proceed silently.
 

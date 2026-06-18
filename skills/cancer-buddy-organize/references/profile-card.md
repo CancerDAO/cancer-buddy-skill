@@ -45,21 +45,21 @@
 
 【信息缺口 | INFORMATION GAPS】
   (覆盖度 — 缺什么. 来源: readiness.json.blocking_gaps)
-  🔴 关键缺失 (影响治疗决策):
+  【紧急缺失】（影响治疗决策）:
     - ___
-  🟡 建议补充 (提升精准度):
+  【建议补充】（提升精准度）:
     - ___
-  🟢 已充分:
+  【已充分覆盖】:
     - ___
 
 【待人工确认 | REVIEW FLAGS】
   (可信度 — 已提取但可疑. 来源: readiness.json.review_flags[])
-  🔴 影响下游推荐 (进入 trial-match / mtb-lite 前必须确认):
+  【待确认】（进入下游分析前必须确认）:
     - [RF-NNN] field=___, 现写="___", 可疑点: ___
       建议: ___ ⬜ 接受 / ⬜ 保留原写 / ⬜ 自定义
-  🟡 建议核对:
+  【建议核对】:
     - ___
-  🟢 提示:
+  【提示】:
     - ___
 ═══════════════════════════════════════════════
 ```
@@ -67,6 +67,6 @@
 ## Display rules
 
 - "信息缺口" 是覆盖度（缺什么），"待人工确认" 是可信度（写得对不对）—— 两个是不同失败模式，必须分开展示
-- 当 `readiness.json.review_flags[]` 为空数组 → 显示 "✅ 所有提取字段已通过 5 项可疑值检查"
-- 当存在 🔴 项 → 在 Card 末尾追加: "进入下游 skill 之前请先逐条确认 🔴 项, 它们会直接影响推荐结果"
+- 当 `readiness.json.review_flags[]` 为空数组 → 显示 "所有提取字段已通过 5 项可疑值检查"
+- 存在待确认项时 → 在 Card 末尾追加: "进入下游 skill 之前请先逐条确认待确认项, 它们会直接影响推荐结果"
 - 用户的逐项决定 (accept_suggestion / keep_original / custom_value / defer) 写回 `review_flags[i].user_confirmed`

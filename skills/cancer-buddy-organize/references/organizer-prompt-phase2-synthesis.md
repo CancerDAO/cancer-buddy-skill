@@ -111,9 +111,9 @@ Write a single `.rename_plan.json` at the patient_dir root with this shape (you 
 ```json
 {
   "patient_dir_rename": {
-    "cancer_label": "宫颈癌 | null",
-    "first_dx_yyyymm": "2024-03 | null",
-    "proposed": "宫颈癌_2024-03_<hash4>",
+    "cancer_label": "<癌种，如：肺腺癌> | null",
+    "first_dx_yyyymm": "YYYY-MM | null",
+    "proposed": "<癌种>_YYYY-MM_<hash4>",
     "fallback_used": false
   },
   "file_renames": [
@@ -244,31 +244,81 @@ Canonical schema (top-level fields, all OPTIONAL — null when truly unknown, ne
 
 When the patient has hospitalizations with DIFFERENT regimens (because of a treatment switch), `current_therapy` is the LATEST one (most recent discharge cert). Older regimens go in `treatment_history[]`.
 
-### 2.5 `readiness.json`
+### 2.5 `readiness.json` — 三层癌种感知评分
 
-8-domain hybrid:
+**原则：低覆盖度不拒绝交付，只驱动行动指引。grade 是内部路由字段，绝不出现在任何用户侧文档中。**
+
+#### Tier 1 — 必需（缺任何一项 → `tier1_gaps[]` 非空 → 阻断下游，但仍生成当次报告）
+
+适用所有癌种：
+- 病理报告（含组织学类型确认）
+- 分期文件（影像报告 + 临床分期判断）
+- 基础血液学：血常规 + 肝肾功能
+
+#### Tier 2 — 癌种特异（缺项计入 `tier2_gaps[]`，不阻断，但降低分析精度）
+
+| 癌种 | 必看项 |
+|---|---|
+| 子宫颈癌 | HPV基因分型、盆腔MRI、宫颈活检病理（LVSI状态）、CA125/SCC基线 |
+| 肺腺癌 | EGFR/ALK/ROS1/KRAS/MET/RET/BRAF、PD-L1 TPS/CPS、胸腹CT、脑MRI |
+| 肺鳞癌 | PD-L1、FGFR1扩增、胸腹CT |
+| 乳腺癌 | ER/PR/HER2（IHC+FISH）、BRCA1/2胚系、乳腺MRI |
+| 结直肠癌 | KRAS/NRAS/BRAF V600E、MMR-IHC、MSI、HER2 |
+| 肝细胞癌 | AFP基线、HBV DNA定量、Child-Pugh分级 |
+| 胃癌 | HER2 FISH、PD-L1 CPS、EBV原位杂交 |
+| 胰腺癌 | BRCA1/2胚系、KRAS、CA19-9基线 |
+| 其他/未确认 | 按临床诊断字段推断癌种后查此表；若无法推断，Tier 2 留空 |
+
+#### Tier 3 — 加分项（不扣分，不阻断）
+
+- NGS综合面板（仅晚期/复发患者必要）
+- TMB/MSI（免疫治疗考量时）
+- PD-L1（二线免疫治疗前才必需，早期可选）
+- 多学科会诊记录
+
+#### 评分计算
+
+```
+tier1_score = (已有Tier1项数) / (应有Tier1项数)  — 所有癌种通用3项
+tier2_score = (已有Tier2项数) / (该癌种Tier2项数)  — 癌种特异
+score = round(tier1_score * 0.6 + tier2_score * 0.4, 2) * 100  — 0-100整数
+grade: A≥90, B≥75, C≥60, D≥40, F<40
+```
+
+**Bootstrapping**（尚无病理确认癌种时）：用 `profile.primary_cancer` provisional值查Tier 2表；若该字段也为null，Tier 2 items = 0，tier2_score = 1.0（不惩罚），全靠 Tier 1 驱动。
+
 ```json
 {
-  "schema_version": "1",
-  "score": <0-100>,
-  "grade": "<A|B|C|D|F>",
-  "domains": {
-    "diagnosis": {"score": 0-1, "evidence": [...], "gaps": [...]},
-    "staging": {...},
-    "pathology": {...},
-    "molecular": {...},
-    "treatment_history": {...},
-    "imaging": {...},
-    "labs": {...},
-    "comorbidities_ecog": {...}
-  },
-  "blocking_gaps": [{"domain": "...", "reason": "..."}],
-  "warnings": [...],
-  "review_flags": [<see Step 3>]
+  "schema_version": "2",
+  "score": "<0-100 整数，内部字段>",
+  "grade": "<A|B|C|D|F，内部字段>",
+  "cancer_type_used_for_tier2": "<从 profile.primary_cancer 取值；若为 null 则 Tier2 items=0>",
+  "tier1_gaps": [
+    {
+      "item": "<缺失的通用必需项，如：病理报告 | 分期文件（影像报告）| 血常规+肝肾功能>",
+      "reason": "<该缺失对下游分析的具体影响，从 OCR 内容推断，不得捏造>"
+    }
+  ],
+  "tier2_gaps": [
+    {
+      "item": "<该癌种 Tier2 表中缺失的项>",
+      "priority": "high|medium",
+      "reason": "<临床意义，来自 Tier2 表中对应说明>"
+    }
+  ],
+  "tier2_covered": [
+    {
+      "item": "<已覆盖的 Tier2 项>",
+      "evidence": "ocr/<canonical sidecar文件名>.md"
+    }
+  ],
+  "blocking_gaps": ["<tier1_gaps 非空时，此处列出所有 tier1 item 名称>"],
+  "warnings": [],
+  "review_flags": []
 }
 ```
 
-Grade mapping: A ≥ 0.90, B ≥ 0.75, C ≥ 0.60, D ≥ 0.40, F < 0.40.
+**注意：`score`、`grade`、`tier1_score`、`tier2_score` 全部为内部字段，仅供 `preflight.md` 路由使用。禁止出现在 `review_summary.md`、`case_summary_brief.md`、`case_summary_detailed.md` 或任何用户侧文档中。**
 
 ## Step 3 — review_flags audit (REQUIRED, may be empty)
 
@@ -302,52 +352,119 @@ For each trip:
 ```
 
 **Severity calibration:**
-- 🔴 `red` — changes downstream rec (eligibility, line counting, dosing)
-- 🟡 `yellow` — should be reviewed, doesn't break downstream
-- 🟢 `green` — informational
+- `critical` — changes downstream rec (eligibility, line counting, dosing)
+- `recommended` — should be reviewed, doesn't break downstream
+- `informational` — informational
 
 If `review_flags` non-empty → write `review_flags.md` (companion artifact, see template in legacy organizer-prompt.md §4.6b).
 
 ## Step 4 — review_summary.md (ALWAYS WRITTEN)
 
-1-page checklist with verbatim source citations. Catches consistent-but-wrong OCR that review_flags structurally cannot. Format:
+速查清单：帮用户在 30 秒内核对关键提取字段，发现一致性错误（这类错误 review_flags 结构性检查发现不了）。
+
+**禁止出现的内容：** readiness grade、score、域得分、任何形式的"达标/不达标"评价。
+**必须出现的内容：** 每个关键字段 + 其 verbatim 出处行 + 建议补充清单。
 
 ```markdown
-# 📋 整理结果速查清单 — <patient_code>
+# 整理结果速查清单 — <patient_code>
 
-> 这份清单列出 organize 提取出的关键字段 + 它们各自来自原文哪一行。
-> 看到任何字段写得不对 → 直接告诉我, 我会修正并重新跑下游。
+> 这份清单列出本次整理提取出的关键字段及其原文来源。
+> **看到任何字段不对 → 直接告诉我字段名 + 正确值，我会修正 profile.json 并重新生成报告。**
+
+---
 
 ## 🩺 诊断 & 分期
-- 癌种 / 组织学 / 分期 / 转移部位 + source citations
 
-## 💊 当前治疗 (最容易 OCR 错的字段)
-- 方案 verbatim from 出院诊断证明书 + 同次住院其他文档对照(临时医嘱/长期医嘱/入院记录) + 拆解后字段
+| 字段 | 提取值 | 来源原文 |
+|------|--------|---------|
+| 临床诊断 | ... | 来自：<文件名>，"<verbatim原文片段>" |
+| 组织学类型 | ...（或 **Pending — 缺病理报告**） | ... |
+| FIGO/TNM 分期 | ...（或 **Pending — 缺分期文件**） | ... |
+| 转移部位 | ...（或 未知） | ... |
+| 关键肿瘤标志物 | ... ↑/↓（参考值 ...） | 来自：<文件名>，第X行 |
 
-## 🧬 分子检测
-- 已知驱动 / 来源类型 (原始 NGS PDF / 仅入院记录追述) / 关键缺项
+---
 
-## 📝 关键既往治疗 (按 line 排序, verbatim + 来源)
+## 当前治疗
 
-## 🏥 共病 / 既往
+| 字段 | 提取值 | 来源原文 |
+|------|--------|---------|
+| 当前方案 | ...（或 **Pending — 本批无治疗记录**） | ... |
+| ECOG 评分 | ...（或 Pending） | ... |
+| 申请/主诊医生 | ... | ... |
+| 住院科室 | ... | ... |
+
+---
+
+## 分子检测
+
+| 检测项 | 状态 | 来源 |
+|--------|------|------|
+| <按癌种Tier2表列出每一项> | 已检测/未检测/Pending | ... |
+
+---
+
+## 关键既往治疗
+
+（无治疗记录时写：**本批资料为入院检验，无治疗记录可提取**）
+
+| 线别 | 方案 | 时间 | 疗效 | 来源 |
+|------|------|------|------|------|
+
+---
+
+## 共病与器官功能
+
+| 项目 | 结果 | 参考值 | 临床意义 |
+|------|------|--------|---------|
+| （仅列异常值和关键指标，正常批量合并写"血型/凝血/感染筛查均正常"） |
+
+---
 
 ## 🆔 基本信息
 
-## ✅ 用户检查要点 (5 项)
-1. ⬜ 当前治疗药名拼写正确
-2. ⬜ 剂量数字正确
-3. ⬜ TNM 前缀正确 (c/p/yp/r/a)
-4. ⬜ 分子驱动有原始 NGS 报告佐证
-5. ⬜ 既往 line 编号正确
+| 字段 | 提取值 | 来源 |
+|------|--------|------|
+| 姓名 | ... | ... |
+| 性别/年龄 | ... | ... |
+| 住院号 | ...（如有 OCR_UNCERTAIN 标注） | ... |
+| 病员号 | ... | ... |
+| 就诊医院 | ... | ... |
 
 ---
-**生成时间**: <ISO>
-**OCR sidecar 总数**: <count>
-**整体 readiness**: <grade> (<score>/100)
-**review_flags 总数**: <total> (🔴 <red> | 🟡 <yellow> | 🟢 <green>)
+
+## 建议补充的记录
+
+> 以下记录有助于完善分析，**按优先级排列**。缺失不影响本次报告的生成，但会限制后续功能（找医院、方案参考）的精准度。
+
+### 【紧急】对后续分析至关重要（建议尽快补充）
+<从 tier1_gaps[] 翻译，每项一行，说明"缺少XX会影响YY">
+- 示例：**病理活检报告** — 当前诊断为临床诊断，需病理确认组织学类型后才能精准匹配方案
+
+### 【建议】有助于提升分析精准度
+<从 tier2_gaps[] 翻译，按 priority:high 优先>
+- 示例：**盆腔 MRI** — 评估局部浸润范围，影响分期准确性
+
+### 【已覆盖】已充分覆盖
+<从 tier2_covered[] + 已有Tier1项 翻译>
+- 示例：肿瘤标志物基线（SCC、CA125、CEA 等）、凝血功能、感染筛查
+
+---
+
+## 请核对以下 5 项（最容易 OCR 出错）
+
+1. ⬜ **当前治疗药名**拼写是否正确（如有）
+2. ⬜ **关键数字**（剂量、标志物数值）是否与原始报告一致
+3. ⬜ **TNM 分期前缀**是否正确（c/p/yp/r/a，如有）
+4. ⬜ **分子检测结论**是否有原始 NGS/病理报告佐证（而非仅来自入院记录叙述）
+5. ⬜ **住院号/病员号**末位是否清晰可辨（OCR_UNCERTAIN 项请对照原件）
+
+---
+
+_生成时间：<ISO> | 本次分析基于 <count> 份文件 | 待确认 <n> · 建议核对 <n> · 已通过 <n>_
 ```
 
-MUST be written every time, even when grade is A and review_flags is `[]`.
+MUST be written every time, even when tier1_gaps is empty and review_flags is `[]`.
 
 ## Step 5 — Return JSON
 
@@ -367,7 +484,9 @@ Pure JSON, no prose:
   "missing_sidecars": [],
   "readiness_grade": "B",
   "readiness_score": 78,
-  "blocking_gaps": ["..."],
+  "tier1_gaps": [],
+  "tier2_gaps": [{"item": "<癌种特异标志物名称>", "priority": "high"}],
+  "blocking_gaps": [],
   "warnings": [],
   "review_flags_total": 5,
   "review_flags_red": 1,
@@ -379,112 +498,348 @@ Pure JSON, no prose:
 
 ## Step 6 — Generate standardized case summaries (ALWAYS REQUIRED)
 
-Read `../../references/case-summary-template.md` (relative to this skill) for the authoritative module definitions. Then write **both** files using `profile.json`, `timeline.md`, `case_text.md`, and all OCR sidecars as source material.
+**原则：低覆盖度不降级报告。用现有数据生成最好的报告，用精确标签（Pending/未检测/客观无法获得）标出缺失字段，用"建议补充"清单引导行动。**
 
-### 6.1 `case_summary_brief.md`
+### 6.0 — 确定输出格式（REQUIRED）
 
-Modules to include: 1 (精简) + 2 + 6 (仅线别概要，每线 1-2 句) + 7。
-Target length: ≤ 800 字正文，不含标题。
+调用参数中应包含 `output_format`（由 SKILL.md 在 Phase 2 dispatch 前询问用户后传入）：
+- `"markdown"` → 只写 `.md` 文件
+- `"docx"` → 写 `.md` 文件 **且** 生成 `.docx`（见 §6.7–6.8）
+- `"pdf"` → 写 `.md` 文件 **且** 生成 `.pdf`（通过 pdf skill 转换）
+
+**所有格式的内容和数据必须完全相同，格式不同只体现在文件容器。**
+无论格式如何，markdown 文件始终生成（作为数据存档）。
+
+### 6.1 — 一致性要求（CRITICAL）
+
+相同的输入 OCR sidecars 必须产生相同的输出。为此：
+
+1. **字段提取顺序固定**：按 §6.2 / §6.3 中每个模块列出的字段顺序逐一提取，不跳过，不重排。
+2. **缺失字段标签固定**：严格使用 `case-summary-template.md §三` 的四种标签，不自由发挥：
+   - `Pending（已送检，待回报）`
+   - `未检测，建议完善`
+   - `未取得（原就诊医院：XX，可联系调阅）`
+   - `见原始报告 <文件名>`（OCR未提取到时）
+3. **数值引用 verbatim**：从 OCR sidecar 直接引用数值和单位，不做换算或重新表述。
+4. **来源引用格式固定**：`来源：<canonical文件名>` — 使用 Step 1.6 重命名后的文件名。
+5. **不得添加未经 OCR 支持的推断**：除非明确标注 `（推断，无原始报告佐证）`。
+
+### 6.2 — `case_summary_brief.md`
+
+模块：1（精简）+ 2 + 6（每线1-2句概要）+ 7。目标：≤ 800 字正文。
+
+**严格按此结构输出，不得增删节标题，不得合并或拆分模块：**
 
 ```markdown
 # 病例简要总结 — <patient_code>
-> 生成时间：<ISO> | 数据截止：<最新文件日期> | Readiness: <grade>
 
-## 基本信息
-[Module 1 精简版：姓名/年龄/性别/ECOG，条件字段按癌种写]
-
-## 病情概要
-[Module 2 全部必写条目]
-
-## 治疗史（概要）
-[Module 6 每线一句：时间 + 方案 + 疗效结论 + 停药原因]
-
-## 当前状态与下一步
-[Module 7 当前治疗状态 + 待解决问题]
+> 生成时间：<ISO 8601> | 数据截止：<最新文件日期 YYYY-MM-DD> | 本次分析基于 <N> 份文件
+> 待确认 <n> · 建议核对 <n> · 已通过 <n>（待确认项请在使用本总结做决策前先行核实）
 
 ---
+
+## 模块 1｜基本信息
+
+| 字段 | 值 |
+|------|----|
+| 姓名 | <value 或 未提供> |
+| 年龄 / 性别 | <value> |
+| ECOG 评分 | <value 或 Pending（待医生评估）> |
+| 就诊医院 | <value> |
+| 临床诊断 | <value> |
+
+---
+
+## 模块 2｜病情概要
+
+- **确诊时间**：<YYYY-MM 或 未知>
+- **原发部位**：<value 或 待病理确认>
+- **病理类型**：<value 或 未检测，建议完善>
+- **分期**：<分期系统 + 具体分期 或 Pending — 缺分期文件>
+- **初诊 or 复发**：<value 或 不详>
+- **转移部位**：<部位列表 或 无远处转移 或 未知（缺影像报告）>
+- **目前治疗状态**：<value 或 Pending — 本批资料为入院检验，无治疗记录>
+
+---
+
+## 模块 6｜治疗史（概要）
+
+<无治疗记录时写：**本批资料为入院检验，无治疗记录可提取。建议补充出院小结或化疗医嘱。**>
+
+<有记录时，每线一行>
+- **一线**（<时间>）：<方案> → 疗效：<result 或 不详> / 停药原因：<reason 或 不详>
+
+---
+
+## 模块 7｜当前状态与下一步
+
+### 待解决问题
+<从 tier1_gaps + tier2_gaps + review_flags 待确认项汇总，用 checklist 格式>
+- [ ] <问题>：<缺失类型>（<建议行动>）
+
+### 当前治疗状态
+<一句话描述，无记录时写"入院检验阶段，治疗方案待确认">
+
+### 建议补充记录（按优先级）
+
+**【紧急】至关重要**：
+<从 tier1_gaps 翻译>
+
+**【建议】有助提升精准度**：
+<从 tier2_gaps priority:high 翻译>
+
+---
+
 _来源：cancer-buddy-organize Phase-2 | 模板版本：case-summary-template.md v1.0_
-_本总结由 AI 自动生成，所有临床决策须与主诊医生确认。_
+_本总结由 AI 自动生成，不替代主诊医生判断。_
 ```
 
-### 6.2 `case_summary_detailed.md`
+### 6.3 — `case_summary_detailed.md`
 
-All 7 modules in full. Target length: 8-10 pages equivalent in Markdown. Each data point must include source citation (`来源：<文件名>` inline or as footnote).
+全部 7 个模块 + 附录。每个数据点必须包含来源引用。目标：8-10 页等效 Markdown。
+
+**严格按此结构输出：**
 
 ```markdown
 # 病例详细总结 — <patient_code>
-> 生成时间：<ISO> | 数据截止：<最新文件日期> | Readiness: <grade> (<score>/100)
-> review_flags：🔴 <n> | 🟡 <n> | 🟢 <n>（未解决红旗请先确认再使用本总结）
 
-## 模块 1｜基本信息
-[Module 1 完整版]
-
-## 模块 2｜病情概要
-[Module 2]
-
-## 模块 3｜分子检测与标志物
-[Module 3 — 每项标注来源文件]
-
-## 模块 4｜影像学评估摘要
-[Module 4 — 最新影像优先，附趋势对比]
-
-## 模块 5｜实验室指标摘要
-[Module 5 — 只列异常值和关键值]
-
-## 模块 6｜治疗史
-[Module 6 完整版 — 每线完整叙述含毒副反应]
-
-## 模块 7｜治疗路径总结
-[Module 7]
-
-## 附录｜未解决问题清单
-[从 review_flags 🔴 red 项 + 模块 3/5 的"未检测"/"Pending" 字段汇总]
-- [ ] <字段>：<缺失类型>（<建议行动>）
-
-## 附录｜信息来源索引
-[按模块列出每条数据的来源文件路径]
+> 生成时间：<ISO 8601> | 数据截止：<最新文件日期 YYYY-MM-DD> | 本次分析基于 <N> 份文件
+> 待确认 <n> · 建议核对 <n> · 已通过 <n>（待确认项请在使用本总结做决策前先行核实）
 
 ---
+
+## 模块 1｜基本信息
+
+| 字段 | 值 | 来源 |
+|------|----|------|
+| 姓名 | ... | ... |
+| 年龄 | ... | ... |
+| 性别 | ... | ... |
+| ECOG 评分 | <value 或 待医生评估> | ... |
+| 吸烟史 | <仅肺癌填写，其他癌种不列此行> | ... |
+| 既往史 | <仅心功能不全/自身免疫病等临床相关时填，否则不列> | ... |
+| 体重/BMI | <仅化疗剂量计算需要时填，否则不列> | ... |
+
+---
+
+## 模块 2｜病情概要
+
+（字段列表与 brief 相同，detailed 版每项需标来源文件）
+
+---
+
+## 模块 3｜分子检测与标志物
+
+**通用指标（适用所有实体瘤）**
+
+| 项目 | 结果 | 来源 | 备注 |
+|------|------|------|------|
+| Ki-67 | <value 或 未检测，建议完善> | ... | ... |
+| PD-L1（TPS%/CPS） | ... | ... | ... |
+| MMR 状态 | ... | ... | ... |
+| MSI | ... | ... | ... |
+| TMB | ... | ... | ... |
+
+**癌种特异指标**（按 §2.5 Tier 2 表列出该癌种所有项，无一遗漏）
+
+| 项目 | 结果 | 来源 | 优先级 |
+|------|------|------|--------|
+| <item> | <value 或 未检测，建议完善 或 Pending 或 未取得> | ... | 紧急/建议 |
+
+---
+
+## 模块 4｜影像学评估摘要
+
+<无影像报告时写：**影像报告：未取得（本批资料为检验报告）。建议补充：盆腔MRI、胸腹CT。**>
+
+<有记录时按 template §模块4 格式：日期 + 机构 + 原发灶 + 淋巴结 + 转移 + 趋势对比>
+
+---
+
+## 模块 5｜实验室指标摘要
+
+**只列异常值和关键值（正常批量合并）：**
+
+| 日期 | 类别 | 项目 | 结果 | 参考值 | 临床意义 |
+|------|------|------|------|--------|---------|
+| YYYY-MM-DD | 肿瘤标志物 | <标志物名称> | **<数值> ↑** | <参考区间> | <一句话临床意义> |
+| YYYY-MM-DD | 凝血 / 感染筛查 | （批量）| 全部正常 | — | — |
+
+---
+
+## 模块 6｜治疗史
+
+<按 template §模块6 格式，每线一段落：线别 / 时间区间 / 方案+剂量 / 周期数 / 疗效 / 停药原因 / 关键毒副反应>
+
+<无记录时：**本批资料为入院检验，无化疗/手术/放疗记录可提取。建议补充出院小结或化疗医嘱。**>
+
+---
+
+## 模块 7｜治疗路径总结
+
+### 待解决问题
+- [ ] <from tier1_gaps + tier2_gaps + review_flags 待确认>
+
+### 当前治疗状态
+<一句话>
+
+### 下一步可探索方向（非推荐，需医生评估）
+- 继续评估现状 / 补充分期检查
+- 若装有 pro-skill：trial-match / mtb-lite 可在补齐关键资料后运行
+
+---
+
+## 附录 A｜建议补充记录
+
+### 【紧急】至关重要（补充后可解锁下游分析）
+<从 tier1_gaps 翻译>
+
+### 【建议】有助提升精准度
+<从 tier2_gaps 翻译>
+
+### 【已覆盖】已充分覆盖
+<从 tier2_covered 翻译>
+
+---
+
+## 附录 B｜未解决问题清单
+
+（汇总 review_flags 待确认 + 模块 3/5 "未检测"/"Pending" 字段）
+
+- [ ] <字段>：<缺失类型> — <建议行动>
+
+---
+
+## 附录 C｜信息来源索引
+
+| 模块 | 数据点 | 来源文件 |
+|------|--------|---------|
+
+---
+
 _来源：cancer-buddy-organize Phase-2 | 模板版本：case-summary-template.md v1.0_
-_本总结由 AI 自动生成，所有临床决策须与主诊医生确认。_
+_本总结由 AI 自动生成，不替代主诊医生判断。_
 ```
 
-### 6.3 Missing-field handling (mandatory, from template §三)
+### 6.4 — 缺失字段处理（来自 template §三，强制执行）
 
-For every expected field in all 7 modules, apply the three-step lookup before writing "缺失":
-1. Search OCR sidecars again (full text, not just extracted profile.json fields).
-2. Classify the miss type: Pending / 应做未做 / 客观无法获得 / OCR未提取到.
-3. Write the explicit label per the template table — never silently omit.
+按三步处理，**不得静默跳过任何预期字段**：
+1. 重新检索 OCR sidecars 全文（包括叙述性句子）
+2. 判断缺失类型（四选一，见表）
+3. 写入精确标签
 
-Any "应做未做" finding that affects downstream eligibility (driver mutations, MSI, key staging) → also add to `review_flags[]` as 🔴 red `unverified_critical_field`.
+| 缺失类型 | 标签 | 触发 review_flag |
+|---------|------|----------------|
+| OCR 未提取到（sidecar 存在但字段空） | `见原始报告 <文件名>` | recommended |
+| 已送检，结果未回 | `Pending（已送检，待回报）` | covered |
+| 应做未做（临床上该有） | `未检测，建议完善` | critical（影响下游时） |
+| 客观无法获得（转诊未带） | `未取得（原就诊医院：XX，可联系调阅）` | recommended |
 
-### 6.4 Conflict resolution
+### 6.5 — 冲突处理（来自 template §四）
 
-When profile.json fields conflict across sources, follow template §四 priority:
-`病理 > 分子标志物 > 影像 > 叙述 > 症状`
-Annotate conflicts inline in detailed summary AND record in review_flags if not already flagged.
+`病理 > 分子标志物报告 > 影像报告 > 入院记录叙述 > 症状描述`
 
-### 6.5 Update return JSON (Step 5 addendum)
+冲突时在 detailed 版正文内标注，并加入 review_flags（若未已记录）。
 
-Add these keys to the Step 5 JSON output:
+### 6.6 — 更新 Step 5 返回 JSON
+
 ```json
 {
   "case_summary_brief_path": "/.../case_summary_brief.md",
+  "case_summary_brief_docx": "/.../case_summary_brief.docx",
   "case_summary_detailed_path": "/.../case_summary_detailed.md",
-  "case_summary_missing_fields": ["EGFR突变状态：未检测", "PD-L1：Pending"]
+  "case_summary_detailed_docx": "/.../case_summary_detailed.docx",
+  "output_format": "docx",
+  "case_summary_missing_fields": ["病理报告：未检测，建议完善", "盆腔MRI：未取得"]
 }
 ```
 
+`*_docx` 字段仅在 output_format 为 `"docx"` 时存在。
+
 ---
 
-## Rules
+### 6.7 — 生成 `report_data.json`（output_format = "docx" 时执行）
 
-- NEVER invent medical facts. Read what sidecars say, don't fill in plausible-sounding gaps.
-- NEVER skip the §3 review_flags audit — even if you find nothing, write `"review_flags": []`.
-- NEVER skip writing review_summary.md — required even when grade is A and review_flags is empty.
-- NEVER skip Step 6 — both `case_summary_brief.md` and `case_summary_detailed.md` are required outputs.
-- NEVER omit a missing field silently — always use the explicit label from template §三.
-- NEVER rename files in Step 1 — Step 1 copies with original basenames; canonical naming is Step 1.5's judgment + Step 1.6's mechanical mv.
-- NEVER skip Step 1.5 — that's where PRD §6.B file naming (`日期_类型_机构.<ext>`) gets enforced. The fix here is "structure the prompt so the judgment is explicit + the mechanical part is atomic", NOT "hand it to a regex script". Hardcoded vocab (cancer list, doc-type patterns, hospital regex) generalizes badly to real archives — read the OCR semantically.
-- `coverage_complete: false` is acceptable as long as you list the missing files; caller will retry-mini-Phase1 + re-run you.
-- Output pure JSON only at the end — narrative goes in case_text.md / timeline.md / review_flags.md / review_summary.md / case_summary_brief.md / case_summary_detailed.md.
+> 本步骤仅在用户选择 Word 或 PDF 格式时执行。
+
+从已提取的所有数据构建 `report_data.json`，写入 `<patient_dir>/report_data.json`。
+**必须严格遵循 `references/report-data-schema.md` 中定义的字段结构和缺失值写法。**
+
+关键规则：
+1. 所有字段必须存在，找不到的值填 `"未取得"` 或 `"待医生评估"`，**不允许 `null`**
+2. `labs` 中每个异常值单独一行（`flag: "high"` 或 `"low"`）；同类别全部正常的可合并一行
+3. `molecular` 中每个检测项单独一行，`priority` 严格按 report-data-schema.md 规则填写
+4. `gaps.critical` 对应 `tier1_gaps`，`gaps.recommended` 对应 `tier2_gaps`，`gaps.covered` 对应 `tier2_covered`
+5. `review_flags` 中仅列 severity 为 `"red"` 或 `"yellow"` 的项（green 不列）
+6. `generated_at` 格式：`"YYYY-MM-DDTHH:MM:SS"`
+7. `sources` 列表：详细版每个关键数据点（labs 中异常项、molecular 所有项）各有一条记录
+
+**验证 checklist（写完 JSON 后逐项确认）：**
+- [ ] `patient` 中 name/age/sex/ecog/hospital/diagnosis/report_date/patient_id/patient_code 全部存在
+- [ ] `labs` 每个元素含 date/category/item/value/reference/flag/note 七个字段
+- [ ] `molecular` 每个元素含 item/status/priority/note 四个字段
+- [ ] `gaps.critical/recommended/covered` 每个元素含 item/reason
+- [ ] `review_flags` 每个元素含 id/severity/issue
+- [ ] JSON 格式有效（无多余逗号、无中文引号）
+
+### 6.8 — 调用 `report_template.py` 生成 docx / pdf
+
+> 本步骤在 §6.7 完成并验证 JSON 有效后执行。
+
+```bash
+SKILL_DIR="<cancer-buddy-skill 根目录的绝对路径>"
+PATIENT_DIR="<patient_dir>"
+
+# ── 步骤 A：生成 docx（所有格式都需要，pdf 以此为转换源）──────────
+python3 "$SKILL_DIR/scripts/report_template.py" \
+  "$PATIENT_DIR/report_data.json" \
+  "$PATIENT_DIR/case_summary_brief.docx" \
+  --type brief
+
+python3 "$SKILL_DIR/scripts/report_template.py" \
+  "$PATIENT_DIR/report_data.json" \
+  "$PATIENT_DIR/case_summary_detailed.docx" \
+  --type detailed
+
+# ── 步骤 B：仅当 output_format == "pdf" 时执行 ──────────────────────
+# B-1. 设置字体替换规则（微软雅黑 → Noto Sans CJK SC）
+#      Linux 无微软雅黑；不做替换 LibreOffice 会选错字体导致文字重叠。
+mkdir -p ~/.config/fontconfig/conf.d
+cat > ~/.config/fontconfig/conf.d/99-msfonts-substitute.conf << 'FCEOF'
+<?xml version="1.0"?>
+<!DOCTYPE fontconfig SYSTEM "fonts.dtd">
+<fontconfig>
+  <match>
+    <test name="family" compare="eq"><string>微软雅黑</string></test>
+    <edit name="family" mode="prepend" binding="strong">
+      <string>Noto Sans CJK SC</string>
+    </edit>
+  </match>
+  <match>
+    <test name="family" compare="eq"><string>Microsoft YaHei</string></test>
+    <edit name="family" mode="prepend" binding="strong">
+      <string>Noto Sans CJK SC</string>
+    </edit>
+  </match>
+  <match>
+    <test name="family" compare="eq"><string>Arial</string></test>
+    <edit name="family" mode="prepend" binding="strong">
+      <string>Liberation Sans</string>
+    </edit>
+  </match>
+</fontconfig>
+FCEOF
+fc-cache -f ~/.config/fontconfig/ 2>/dev/null
+
+# B-2. docx → pdf（输出到 /tmp 再复制，避免 Windows NTFS 文件锁覆盖失败）
+TMPDIR=$(mktemp -d)
+libreoffice --headless --convert-to pdf \
+  --outdir "$TMPDIR" \
+  "$PATIENT_DIR/case_summary_brief.docx" 2>&1
+
+libreoffice --headless --convert-to pdf \
+  --outdir "$TMPDIR" \
+  "$PATIENT_DIR/case_summary_detailed.docx" 2>&1
+
+# B-3. 复制到 patient_dir（若目标已存在且无法覆盖，用 _new 后缀）
+for F in br

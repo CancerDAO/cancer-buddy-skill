@@ -164,22 +164,26 @@ This is an **explicit, named exception** to the [Field-change discipline](#field
 
 ## readiness.json
 
+**⚠️ 内部字段声明：`score`、`grade` 仅供 `preflight.md` 路由判断使用，禁止出现在任何用户侧文档（review_summary.md、case_summary_brief.md、case_summary_detailed.md、profile-card）中。用户侧只展示 `tier1_gaps[]` 和 `tier2_gaps[]` 翻译成的行动指引。**
+
+Schema version 升至 `"2"`（新增 tier1/tier2 字段，向后兼容：旧消费者读到 schema_version:"1" 时仍可读 blocking_gaps）。
+
 ```json
 {
-  "schema_version": "1",
+  "schema_version": "2",
   "score": 72,
   "grade": "B",
-  "domains": {
-    "diagnosis": {"score": 0.9, "evidence": ["..."], "gaps": []},
-    "staging": {"score": 0.8, "evidence": [], "gaps": []},
-    "pathology": {"score": 0.6, "evidence": [], "gaps": []},
-    "molecular": {"score": 0.4, "evidence": [], "gaps": ["缺 ALK/ROS1"]},
-    "treatment_history": {"score": 0.9, "evidence": [], "gaps": []},
-    "imaging": {"score": 0.7, "evidence": [], "gaps": []},
-    "labs": {"score": 0.8, "evidence": [], "gaps": []},
-    "comorbidities_ecog": {"score": 0.5, "evidence": [], "gaps": []}
-  },
-  "blocking_gaps": [{"domain": "molecular", "reason": "缺 ALK/ROS1"}],
+  "cancer_type_used_for_tier2": "<癌种，如 肺腺癌 | 乳腺癌 | 结直肠癌 | null（未确认时）>",
+  "tier1_gaps": [
+    {"item": "<缺失的 Tier1 项，如 病理报告>", "reason": "<说明缺此项对分析的影响>"}
+  ],
+  "tier2_gaps": [
+    {"item": "<该癌种 Tier2 清单中缺失的项>", "priority": "high|medium", "reason": "<临床意义说明>"}
+  ],
+  "tier2_covered": [
+    {"item": "<已覆盖的 Tier2 项>", "evidence": "ocr/<sidecar文件名>.md"}
+  ],
+  "blocking_gaps": [{"domain": "<domain名>", "reason": "<缺失原因>"}],
   "warnings": [],
   "review_flags": [
     {
@@ -199,8 +203,10 @@ This is an **explicit, named exception** to the [Field-change discipline](#field
 }
 ```
 
-- `schema_version` is the string `"1"` (not semver). Downstream consumers (chair / mtb-lite / explore / trial-match) use this for forward-compat.
-- Grade mapping: A ≥ 0.90, B ≥ 0.75, C ≥ 0.60, D ≥ 0.40, F < 0.40.
+- `schema_version` is `"2"` for new profiles; `"1"` for legacy (no tier fields). Downstream consumers check `schema_version` before reading tier fields.
+- Grade mapping (internal only, not for display): A ≥ 90, B ≥ 75, C ≥ 60, D ≥ 40, F < 40.
+- Score formula: `round(tier1_score × 0.6 + tier2_score × 0.4) × 100` where each tier_score = filled_items / expected_items.
+- Downstream routing uses `tier1_gaps[]` (non-empty = prompt user to add records, but do not block report generation).
 
 ### review_flags[] (required, may be empty array)
 
