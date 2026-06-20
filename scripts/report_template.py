@@ -221,17 +221,19 @@ def heading_numbered(doc, number, text):
     bc = tbl.rows[0].cells[0]
     _shading(bc, "2E75B6")
     _borders(bc, color="2E75B6", size=4)
+    bc.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
     bp = bc.paragraphs[0]
     bp.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    bp.paragraph_format.space_before = Pt(4)
-    bp.paragraph_format.space_after  = Pt(4)
+    bp.paragraph_format.space_before = Pt(0)
+    bp.paragraph_format.space_after  = Pt(0)
     _set_font(bp.add_run(str(number)), 10, bold=True, color=RGBColor(0xFF, 0xFF, 0xFF))
     # 标题
     tc = tbl.rows[0].cells[1]
     _borders(tc, color="2E75B6", size=4)
+    tc.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
     tp = tc.paragraphs[0]
-    tp.paragraph_format.space_before = Pt(4)
-    tp.paragraph_format.space_after  = Pt(4)
+    tp.paragraph_format.space_before = Pt(0)
+    tp.paragraph_format.space_after  = Pt(0)
     tp.paragraph_format.left_indent  = Cm(0.4)
     _set_font(tp.add_run(text), 13, bold=True, color=PRIMARY)
     # 分隔线
@@ -242,17 +244,25 @@ def heading_numbered(doc, number, text):
 
 
 # ── Covers ─────────────────────────────────────────────────────────────────────
+def _short_name(patient, dx):
+    """提取简短的疾病名称（括号前部分），用于封面副标题。"""
+    raw = patient.get("diagnosis", "") or dx.get("primary_site", "")
+    # 取第一个全角/半角括号之前的内容，去掉分期信息
+    for sep in ("（", "("):
+        if sep in raw:
+            raw = raw.split(sep)[0]
+    return raw.strip() or "病情总结"
+
+
 def cover_brief(doc, data):
     patient = data.get("patient", {})
     dx      = data.get("diagnosis", {})
+    # 大标题（固定文字）
     p = doc.add_paragraph()
     _set_font(p.add_run("病情简要总结"), 22, bold=True, color=PRIMARY)
     p.paragraph_format.space_after = Pt(6)
-    # 副标题
-    parts = [dx.get("histology",""), dx.get("stage",""), dx.get("current_status","")]
-    subtitle = "  ·  ".join(x for x in parts if x and x != "—")
-    if not subtitle:
-        subtitle = patient.get("diagnosis", "")
+    # 副标题：仅显示简短病名，不拼接长字段
+    subtitle = _short_name(patient, dx)
     if subtitle:
         ps = doc.add_paragraph()
         _set_font(ps.add_run(subtitle), 11, color=RGBColor(0x44, 0x44, 0x44))
@@ -276,15 +286,12 @@ def cover_detailed(doc, data):
     pc = doc.add_paragraph()
     _set_font(pc.add_run("-- 病情详细总结"), 9, color=RGBColor(0x66, 0x66, 0x66))
     pc.paragraph_format.space_after = Pt(10)
-    # 大标题
-    parts = [dx.get("stage",""), dx.get("histology", patient.get("diagnosis","病情详细总结"))]
-    title = "  ".join(x for x in parts if x and x != "—")
+    # 大标题（固定文字，参考005 PDF）
     pt = doc.add_paragraph()
-    _set_font(pt.add_run(title), 26, bold=True, color=PRIMARY)
+    _set_font(pt.add_run("病情详细总结"), 26, bold=True, color=PRIMARY)
     pt.paragraph_format.space_after = Pt(8)
-    # 副标题
-    sub_parts = [dx.get("current_status",""), dx.get("initial_or_recurrence","")]
-    subtitle = "  ·  ".join(x for x in sub_parts if x and x != "—")
+    # 副标题：仅显示简短病名，不拼接长字段
+    subtitle = _short_name(patient, dx)
     if subtitle:
         ps = doc.add_paragraph()
         _set_font(ps.add_run(subtitle), 11, color=RGBColor(0x44, 0x44, 0x44))
@@ -313,52 +320,72 @@ def cover_detailed(doc, data):
 
 
 # ── Patient info table ─────────────────────────────────────────────────────────
+def _info_cell(c, text, is_label):
+    """填充信息表单元格。"""
+    if is_label:
+        _shading(c, "F2F6FB")
+    _borders(c, color="D0DCEB", size=4)
+    p = c.paragraphs[0]
+    p.paragraph_format.space_before = Pt(5)
+    p.paragraph_format.space_after  = Pt(5)
+    p.paragraph_format.left_indent  = Cm(0.25)
+    is_pending = (not is_label) and (str(text) in ("—", "未取得") or "待" in str(text))
+    _set_font(p.add_run(str(text)), 9.5,
+              bold=is_label,
+              color=PRIMARY if is_label else (
+                  RGBColor(0x88, 0x88, 0x88) if is_pending else RGBColor(0x1A, 0x1A, 0x1A)))
+
+
 def patient_info_table(doc, patient, extended=False):
-    """无外框的患者信息表。extended=True 显示更多字段。"""
-    LABEL_W = 2000
-    VALUE_W = CONTENT_DXA - LABEL_W
+    """患者信息表。
+    brief (extended=False): 4 列网格，参考 004 PDF 样式。
+    detailed (extended=True): 2 列，逐行详细。
+    """
     if extended:
+        # ── detailed: 2-col 完整信息 ──────────────────────────────────
+        LABEL_W = 2100
+        VALUE_W = CONTENT_DXA - LABEL_W
         rows = [
-            ("患者姓名",    patient.get("name","—")),
-            ("性别 / 年龄", f"{patient.get('sex','—')} / {patient.get('age','—')}"),
-            ("就诊医院",    patient.get("hospital","—")),
-            ("主管医生",    patient.get("doctor","—")),
-            ("ECOG 体能评分", patient.get("ecog","待医生评估")),
-            ("临床诊断",    patient.get("diagnosis","—")),
-            ("报告日期",    patient.get("report_date","—")),
-            ("住院号",      patient.get("admission_no","—")),
-            ("病员号",      patient.get("patient_id","—")),
-            ("病历编号",    patient.get("patient_code","—")),
+            ("患者姓名",      patient.get("name", "—")),
+            ("性别 / 年龄",   f"{patient.get('sex','—')} / {patient.get('age','—')}"),
+            ("就诊医院",      patient.get("hospital", "—")),
+            ("主管医生",      patient.get("doctor", "—")),
+            ("ECOG 体能评分", patient.get("ecog", "待医生评估")),
+            ("临床诊断",      patient.get("diagnosis", "—")),
+            ("报告日期",      patient.get("report_date", "—")),
+            ("住院号",        patient.get("admission_no", "—")),
+            ("病员号",        patient.get("patient_id", "—")),
+            ("病历编号",      patient.get("patient_code", "—")),
         ]
+        tbl = doc.add_table(rows=len(rows), cols=2)
+        tbl.alignment = WD_TABLE_ALIGNMENT.LEFT
+        _fix_table(tbl, [LABEL_W, VALUE_W])
+        for ri, (lbl, val) in enumerate(rows):
+            lc, vc = tbl.rows[ri].cells
+            _info_cell(lc, lbl, is_label=True)
+            _info_cell(vc, val, is_label=False)
     else:
-        rows = [
-            ("性别 / 年龄",  f"{patient.get('sex','—')} / {patient.get('age','—')}"),
-            ("就诊医院",     patient.get("hospital","—")),
-            ("ECOG 体能评分", patient.get("ecog","待医生评估")),
-            ("临床诊断",     patient.get("diagnosis","—")),
-            ("报告日期",     patient.get("report_date","—")),
-            ("病员号",       patient.get("patient_id","—")),
+        # ── brief: 4-col 网格，参考 004 PDF ──────────────────────────
+        # 每半宽 = 4536 DXA；标签列 1600，值列 2936
+        LW = 1600
+        VW = CONTENT_DXA // 2 - LW  # 2936
+        grid = [
+            ("性别 / 年龄",   f"{patient.get('sex','—')} / {patient.get('age','—')}",
+             "就诊医院",      patient.get("hospital", "—")),
+            ("ECOG 体能评分", patient.get("ecog", "待医生评估"),
+             "临床诊断",      patient.get("diagnosis", "—")),
+            ("报告日期",      patient.get("report_date", "—"),
+             "病员号",        patient.get("patient_id", "—")),
         ]
-    tbl = doc.add_table(rows=len(rows), cols=2)
-    tbl.alignment = WD_TABLE_ALIGNMENT.LEFT
-    _fix_table(tbl, [LABEL_W, VALUE_W])
-    for ri, (lbl, val) in enumerate(rows):
-        lc, vc = tbl.rows[ri].cells
-        _shading(lc, "F2F6FB")
-        _borders(lc, color="D0DCEB", size=4)
-        lp = lc.paragraphs[0]
-        lp.paragraph_format.space_before = Pt(4)
-        lp.paragraph_format.space_after  = Pt(4)
-        lp.paragraph_format.left_indent  = Cm(0.2)
-        _set_font(lp.add_run(lbl), 9.5, bold=True, color=PRIMARY)
-        _borders(vc, color="D0DCEB", size=4)
-        vp = vc.paragraphs[0]
-        vp.paragraph_format.space_before = Pt(4)
-        vp.paragraph_format.space_after  = Pt(4)
-        vp.paragraph_format.left_indent  = Cm(0.2)
-        is_pending = str(val) in ("—","未取得") or "待" in str(val)
-        _set_font(vp.add_run(str(val)), 9.5,
-                  color=RGBColor(0x88,0x88,0x88) if is_pending else RGBColor(0x1A,0x1A,0x1A))
+        tbl = doc.add_table(rows=len(grid), cols=4)
+        tbl.alignment = WD_TABLE_ALIGNMENT.LEFT
+        _fix_table(tbl, [LW, VW, LW, VW])
+        for ri, (l1, v1, l2, v2) in enumerate(grid):
+            cells = tbl.rows[ri].cells
+            _info_cell(cells[0], l1, is_label=True)
+            _info_cell(cells[1], v1, is_label=False)
+            _info_cell(cells[2], l2, is_label=True)
+            _info_cell(cells[3], v2, is_label=False)
     doc.add_paragraph()
 
 
@@ -415,38 +442,428 @@ def labs_cards(doc, labs, n=4):
 
 
 def labs_table(doc, labs):
-    """标准表格（详细版）。"""
+    """标准表格（详细版）。列序：日期 → 检验项目 → 类别 → 结果 → 参考值 → 临床意义。"""
     if not labs:
-        _set_font(doc.add_paragraph("暂无检验数据。").add_run(""), 10, color=RGBColor(0x88,0x88,0x88))
+        p = doc.add_paragraph("暂无检验数据。")
+        _set_font(p.runs[0] if p.runs else p.add_run(""), 10, color=RGBColor(0x88, 0x88, 0x88))
         return
-    headers   = ["日期","类别","检验项目","结果","参考值","临床意义"]
-    col_widths = [1361, 998, 1814, 1270, 1179, 2450]
+    headers    = ["日期", "检验项目", "类别", "结果", "参考值", "临床意义"]
+    col_widths = [1361,   1814,       998,    1270,   1179,    2450]   # sum = 9072
     tbl = doc.add_table(rows=1, cols=6)
     tbl.alignment = WD_TABLE_ALIGNMENT.CENTER
     _fix_table(tbl, col_widths)
     for i, h in enumerate(headers):
         c = tbl.rows[0].cells[i]
-        _shading(c, HDR_BG); _borders(c)
-        p = c.paragraphs[0]; p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        _shading(c, HDR_BG)
+        _borders(c)
+        p = c.paragraphs[0]
+        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
         _set_font(p.add_run(h), 9.5, bold=True, color=PRIMARY)
     for item in labs:
-        flag = item.get("flag","normal")
-        ab   = flag in ("high","low")
+        flag = item.get("flag", "normal")
+        ab   = flag in ("high", "low")
         row  = tbl.add_row()
-        vals = [item.get("date","—"), item.get("category","—"), item.get("item","—"),
-                item.get("value","—"), item.get("reference","—"), item.get("note","—")]
+        vals = [item.get("date", "—"), item.get("item", "—"), item.get("category", "—"),
+                item.get("value", "—"), item.get("reference", "—"), item.get("note", "—")]
         for i, val in enumerate(vals):
-            c = row.cells[i]; _borders(c)
-            if ab: _shading(c, ALERT_BG)
+            c = row.cells[i]
+            _borders(c)
+            if ab:
+                _shading(c, ALERT_BG)
             p = c.paragraphs[0]
-            p.paragraph_format.space_before = Pt(2); p.paragraph_format.space_after = Pt(2)
+            p.paragraph_format.space_before = Pt(2)
+            p.paragraph_format.space_after  = Pt(2)
             if i == 3 and ab:
-                arrow = " +" if flag=="high" else " -"
-                _set_font(p.add_run(str(val)+arrow), 9.5, bold=True, color=ALERT_T)
+                arrow = " +" if flag == "high" else " -"
+                _set_font(p.add_run(str(val) + arrow), 9.5, bold=True, color=ALERT_T)
             else:
                 _set_font(p.add_run(str(val)), 9.5,
-                          color=ALERT_T if (ab and i==5) else RGBColor(0x1A,0x1A,0x1A))
+                          color=ALERT_T if (ab and i == 5) else RGBColor(0x1A, 0x1A, 0x1A))
     doc.add_paragraph()
+
+
+# ── Lab trend helpers ──────────────────────────────────────────────────────────
+def _parse_numeric(text):
+    """从字符串提取第一个数值，返回 float 或 None。"""
+    import re
+    m = re.search(r'[-+]?\d+\.?\d*', str(text))
+    return float(m.group()) if m else None
+
+
+def _parse_ref_range(ref_str):
+    """
+    解析参考区间字符串，返回 (low, high)。
+    支持：'3.5-5.0', '< 40', '≤ 40', '> 3', '≥ 3'；无法解析返回 (None, None)。
+    """
+    import re
+    s = str(ref_str).strip()
+    m = re.search(r'([\d.]+)\s*[~～\-\–—]\s*([\d.]+)', s)
+    if m:
+        a, b = float(m.group(1)), float(m.group(2))
+        return (min(a, b), max(a, b))
+    m = re.search(r'[<≤][=]?\s*([\d.]+)', s)
+    if m:
+        return (0.0, float(m.group(1)))
+    m = re.search(r'[>≥][=]?\s*([\d.]+)', s)
+    if m:
+        return (float(m.group(1)), None)
+    return (None, None)
+
+
+def _mpl_cjk_setup():
+    """尝试为 matplotlib 配置 CJK 字体，失败静默跳过。"""
+    try:
+        import matplotlib.font_manager as fm
+        import matplotlib.pyplot as plt
+        cjk = next((f for f in fm.findSystemFonts()
+                    if any(x in f for x in ['NotoSansCJK', 'NotoSerifCJK', 'WenQuanYi'])),
+                   None)
+        if cjk:
+            plt.rcParams['font.family'] = fm.FontProperties(fname=cjk).get_name()
+        plt.rcParams['axes.unicode_minus'] = False
+    except Exception:
+        pass
+
+
+def _trend_group_key(lab):
+    """Compute base_item grouping key for trend charts / dedup logic."""
+    import re as _re
+    _SUFFIX = _re.compile(
+        r'\s*——\s*.+$'
+        r'|\s+(基线|复查|化疗前|化疗后|术后|随访|初诊|入院|出院).*$'
+    )
+    b = lab.get("base_item", "").strip()
+    if b:
+        return b
+    return _SUFFIX.sub("", lab.get("item", "")).strip()
+
+
+def _trend_keys(labs):
+    """Return set of base_item group keys that have >=2 numeric measurements."""
+    from collections import defaultdict
+    counts = defaultdict(int)
+    for lab in labs:
+        if _parse_numeric(lab.get("value", "")) is not None and lab.get("date", "").strip():
+            counts[_trend_group_key(lab)] += 1
+    return {k for k, c in counts.items() if c >= 2}
+
+
+def _latest_per_trend(labs, trend_keys):
+    """
+    For items whose group key is in trend_keys (shown in trend chart):
+      keep only the row with the latest date.
+    All other items: keep as-is.
+    Preserves original order (first occurrence wins the slot for trend items).
+    """
+    latest = {}
+    for lab in labs:
+        k = _trend_group_key(lab)
+        if k in trend_keys:
+            if k not in latest or lab.get("date","") > latest[k].get("date",""):
+                latest[k] = lab
+
+    result = []
+    seen = set()
+    for lab in labs:
+        k = _trend_group_key(lab)
+        if k in trend_keys:
+            if k not in seen:
+                result.append(latest[k])
+                seen.add(k)
+        else:
+            result.append(lab)
+    return result
+
+
+def _date_to_xpos(ev_date, xs_dates):
+    """
+    Linearly interpolate ev_date to a float x-index within [0, n-1].
+    xs_dates: list of datetime objects, sorted ascending.
+    Returns None if outside range.
+    """
+    n = len(xs_dates)
+    if not n:
+        return None
+    if ev_date < xs_dates[0] or ev_date > xs_dates[-1]:
+        return None
+    if ev_date == xs_dates[0]:
+        return 0.0
+    if ev_date == xs_dates[-1]:
+        return float(n - 1)
+    for i in range(n - 1):
+        if xs_dates[i] <= ev_date <= xs_dates[i + 1]:
+            total = (xs_dates[i + 1] - xs_dates[i]).total_seconds()
+            frac  = (ev_date - xs_dates[i]).total_seconds() / total if total else 0.0
+            return i + frac
+    return None
+
+
+def labs_trend_charts(doc, labs, trend_events=None):
+    """
+    关键指标趋势图：每行 2 列子图，每张图最多 2 行（4 个指标），防止跨页。
+    - 优先使用 base_item 字段分组；fallback 到正则规范化
+    - 参考区间 = 蓝色背景带 + 虚线上下限
+    - 超出参考范围的点/值标签 = 红色；正常范围内 = 蓝色
+    - trend_events: [{date, label}] — 在落入该指标 X 轴范围内的事件画竖虚线，
+      并将事件标签写入该子图自己的图例（右上角），帮助读者理解趋势转变原因
+    - X 轴格式：同年 -> MM-DD；跨年 -> YYYY-MM-DD；点多(>8) -> YYYY-MM
+    - 每张图独立保存并插入 doc，避免整体过高导致跨页
+    """
+    try:
+        import matplotlib
+        matplotlib.use('Agg')
+        import matplotlib.pyplot as plt
+        import matplotlib.patches as mpatches
+    except ImportError:
+        return
+    import tempfile, os
+    from datetime import datetime
+    from collections import defaultdict, OrderedDict
+
+    _mpl_cjk_setup()
+
+    DATE_FMTS = ["%Y-%m-%d", "%Y/%m/%d", "%Y%m%d", "%Y年%m月%d日"]
+    trend_events = trend_events or []
+
+    # -- Group by base_item ------------------------------------------------
+    by_item = defaultdict(list)
+    for lab in labs:
+        val  = _parse_numeric(lab.get("value", ""))
+        date = lab.get("date", "").strip()
+        if val is not None and date:
+            by_item[_trend_group_key(lab)].append(lab)
+
+    multi = OrderedDict(
+        (k, sorted(v, key=lambda x: x.get("date", "")))
+        for k, v in by_item.items() if len(v) >= 2
+    )
+    if not multi:
+        return
+
+    # -- Parse time series -------------------------------------------------
+    series = {}
+    for key, records in multi.items():
+        ref_str   = next((r.get("reference","") for r in records if r.get("reference")), "")
+        ref_low, ref_high = _parse_ref_range(ref_str)
+        pts = []
+        for r in records:
+            v  = _parse_numeric(r.get("value", ""))
+            fl = r.get("flag", "normal")
+            d  = None
+            for fmt in DATE_FMTS:
+                try:
+                    d = datetime.strptime(r.get("date",""), fmt); break
+                except ValueError:
+                    pass
+            if d and v is not None:
+                pts.append((d, v, fl))
+        if len(pts) < 2:
+            continue
+        pts.sort(key=lambda x: x[0])
+        xs, ys, fs = zip(*pts)
+        series[key] = dict(xs=xs, ys=ys, fs=fs,
+                           ref_low=ref_low, ref_high=ref_high, ref_str=ref_str)
+
+    if not series:
+        return
+
+    # -- Section sub-heading -----------------------------------------------
+    ph = doc.add_paragraph()
+    ph.paragraph_format.space_before = Pt(10)
+    ph.paragraph_format.space_after  = Pt(4)
+    _set_font(ph.add_run("关键指标趋势"), 10, bold=True, color=PRIMARY)
+    _bottom_rule(ph, color="C5D8EC", size=4, space=3)
+
+    # -- Parse clinical event dates ----------------------------------------
+    parsed_events = []
+    for ev in trend_events:
+        for fmt in DATE_FMTS:
+            try:
+                parsed_events.append({
+                    "dt":    datetime.strptime(ev.get("date",""), fmt),
+                    "label": ev.get("label",""),
+                })
+                break
+            except ValueError:
+                pass
+
+    # -- Layout constants --------------------------------------------------
+    NCOLS           = 2
+    MAX_ROWS_PER_FIG = 2     # max rows per figure -> max 4 items -> fits on one A4 page
+    CHUNK_SIZE      = MAX_ROWS_PER_FIG * NCOLS
+    FIG_W           = 6.0   # inches ~15 cm
+    ROW_H           = 2.85  # inches per row
+    LEG_H           = 0.50  # inches reserved for figure-level legend + x-labels
+
+    items_list = list(series.items())
+    chunks = [items_list[i:i+CHUNK_SIZE] for i in range(0, len(items_list), CHUNK_SIZE)]
+
+    # -- Shared figure-level legend handles (same for every chunk) ---------
+    fig_legend_handles = [
+        mpatches.Patch(facecolor="#2E75B6", alpha=0.3, label="参考区间"),
+        plt.Line2D([0],[0], marker="o", color="w",
+                   markerfacecolor="#C00000", markersize=6, label="超出范围"),
+        plt.Line2D([0],[0], marker="o", color="w",
+                   markerfacecolor="#2E75B6", markersize=6, label="正常范围"),
+    ]
+
+    for chunk in chunks:
+        n_items_chunk = len(chunk)
+        NROWS = (n_items_chunk + NCOLS - 1) // NCOLS
+        fig_h = ROW_H * NROWS + LEG_H
+
+        fig, axes = plt.subplots(NROWS, NCOLS,
+                                 figsize=(FIG_W, fig_h),
+                                 dpi=150, squeeze=False)
+        fig.patch.set_facecolor("#FFFFFF")
+
+        for idx, (key, s) in enumerate(chunk):
+            row, col = divmod(idx, NCOLS)
+            ax = axes[row][col]
+            ax.set_facecolor("#FAFBFC")
+
+            xs, ys, fs = s["xs"], s["ys"], s["fs"]
+            ref_low, ref_high, ref_str = s["ref_low"], s["ref_high"], s["ref_str"]
+
+            # Y range
+            all_v = list(ys)
+            bands = [v for v in (ref_low, ref_high) if v is not None]
+            combo = all_v + bands
+            y_lo  = min(combo) * (1.15 if min(combo) < 0 else 0.85)
+            y_hi  = max(combo) * 1.22
+            y_lo  = min(y_lo, 0) if min(all_v) <= 0 else y_lo
+
+            # Reference band
+            if ref_low is not None and ref_high is not None:
+                ax.axhspan(ref_low, ref_high, alpha=0.15, color="#2E75B6", zorder=1)
+                ax.axhline(ref_low,  color="#2E75B6", lw=0.8, ls="--", alpha=0.5)
+                ax.axhline(ref_high, color="#2E75B6", lw=0.8, ls="--", alpha=0.5)
+            elif ref_high is not None:
+                ax.axhspan(y_lo, ref_high, alpha=0.15, color="#2E75B6", zorder=1)
+                ax.axhline(ref_high, color="#2E75B6", lw=0.8, ls="--", alpha=0.5)
+            elif ref_low is not None:
+                ax.axhspan(ref_low, y_hi, alpha=0.15, color="#2E75B6", zorder=1)
+                ax.axhline(ref_low,  color="#2E75B6", lw=0.8, ls="--", alpha=0.5)
+
+            ax.set_ylim(y_lo, y_hi)
+
+            # Line + scatter
+            n    = len(xs)
+            xidx = list(range(n))
+            ax.plot(xidx, ys, color="#BBBBBB", lw=1.2, zorder=2)
+            for i, (y, fl) in enumerate(zip(ys, fs)):
+                clr = "#C00000" if fl in ("high", "low") else "#2E75B6"
+                ax.scatter(i, y, color=clr, s=40, zorder=4)
+                ax.annotate(str(y), (i, y),
+                            textcoords="offset points", xytext=(0, 6),
+                            ha="center", fontsize=6.5, color=clr, fontweight="bold")
+
+            # Clinical event annotations:
+            # - draw vertical dotted line on the subplot
+            # Clinical event annotations — treatment interventions only (surgery/chemo/regimen change).
+            # Stagger labels vertically when events are too close on x-axis to prevent overlap.
+            xs_list = list(xs)
+            ax_event_handles = []
+            prev_xpos = None
+            stagger_level = 0   # alternates 0 / 1 for nearby events
+            MIN_X_GAP = 0.25    # min x-distance before staggering kicks in
+            Y_TOP   = y_hi * 0.97
+            Y_MID   = y_hi * 0.72  # alternate label start height
+            for ev in parsed_events:
+                xpos = _date_to_xpos(ev["dt"], xs_list)
+                if xpos is None:
+                    continue
+                ax.axvline(xpos, color="#E07000", lw=1.0, ls="--", alpha=0.75, zorder=3)
+                # Choose label y-start based on proximity to previous event
+                if prev_xpos is not None and abs(xpos - prev_xpos) < MIN_X_GAP:
+                    stagger_level = 1 - stagger_level   # flip
+                else:
+                    stagger_level = 0
+                label_y = Y_MID if stagger_level else Y_TOP
+                ax.text(xpos + 0.06, label_y,
+                        ev["label"], fontsize=5.5, color="#C05000",
+                        ha="left", va="top", rotation=90, clip_on=True,
+                        fontweight="bold")
+                ax_event_handles.append(
+                    plt.Line2D([0],[0], color="#E07000", lw=1.0, ls="--", alpha=0.8,
+                               label=ev["label"])
+                )
+                prev_xpos = xpos
+
+            # Subplot-level legend: only treatment events (compact, top-right)
+            # This is the primary visual explanation of WHY the trend changed.
+            if ax_event_handles:
+                ax.legend(handles=ax_event_handles,
+                          fontsize=5.5, loc="upper right",
+                          title="治疗事件", title_fontsize=5.5,
+                          framealpha=0.88, edgecolor="#DDDDDD",
+                          borderaxespad=0.3, handlelength=1.5,
+                          labelspacing=0.25)
+
+            # Adaptive X-axis date format
+            year_set = {d.year for d in xs}
+            if n > 8:
+                x_fmt = "%Y-%m"
+            elif len(year_set) > 1:
+                x_fmt = "%Y-%m-%d"
+            else:
+                x_fmt = "%m-%d"
+
+            if n > 6:
+                tick_idx    = xidx[::2]
+                tick_labels = [xs[i].strftime(x_fmt) for i in range(0, n, 2)]
+            else:
+                tick_idx    = xidx
+                tick_labels = [d.strftime(x_fmt) for d in xs]
+
+            rot = 35 if n > 3 else 0
+            ha  = "right" if n > 3 else "center"
+            ax.set_xticks(tick_idx)
+            ax.set_xticklabels(tick_labels, fontsize=6.5, rotation=rot, ha=ha)
+            ax.tick_params(axis="x", pad=2)
+            ax.tick_params(axis="y", labelsize=6.5)
+            # X-axis label: clarify axis represents dates
+            ax.set_xlabel("日期", fontsize=7, color="#666666", labelpad=3)
+
+            # Subplot title: indicator name + reference string
+            title = key
+            if ref_str and ref_str not in ("—", ""):
+                title += "\n(ref: " + ref_str + ")"
+            ax.set_title(title, fontsize=7.5, fontweight="bold",
+                         color="#1F3B5C", pad=4, loc="left")
+            ax.grid(axis="y", alpha=0.3, lw=0.5, color="#CCCCCC")
+            for sp in ax.spines.values():
+                sp.set_edgecolor("#DDDDDD")
+            ax.set_xlim(-0.3, n - 0.7)
+
+        # Hide unused subplots
+        for idx in range(n_items_chunk, NROWS * NCOLS):
+            row, col = divmod(idx, NCOLS)
+            axes[row][col].set_visible(False)
+
+        # Figure-level legend: shared symbols (参考区间 / 超出范围 / 正常范围)
+        bottom_frac = LEG_H / fig_h
+        plt.tight_layout(pad=0.7, h_pad=1.6, w_pad=1.0,
+                         rect=[0, bottom_frac, 1, 1])
+        fig.legend(handles=fig_legend_handles, fontsize=7, loc="lower center",
+                   bbox_to_anchor=(0.5, 0.0),
+                   framealpha=0.92, edgecolor="#DDDDDD",
+                   ncol=3, borderaxespad=0.2)
+
+        # Save + insert
+        tf = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
+        tf.close()
+        fig.savefig(tf.name, dpi=150, bbox_inches="tight",
+                    facecolor="white", edgecolor="none")
+        plt.close(fig)
+
+        img_p = doc.add_paragraph()
+        img_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        img_p.add_run().add_picture(tf.name, width=Cm(15))
+        os.unlink(tf.name)
+
+    doc.add_paragraph().paragraph_format.space_after = Pt(6)
+
 
 
 # ── Molecular ──────────────────────────────────────────────────────────────────
@@ -534,41 +951,70 @@ def treatment_history(doc, treatment):
         _set_font(p.add_run(current), 9.5, color=RGBColor(0x1A,0x1A,0x1A))
         p.paragraph_format.space_after = Pt(10)
     EFFICACY = {"CR": OK_T, "PR": OK_T, "SD": WARN_T, "PD": ALERT_T}
+    LINE_NAMES = ["一线", "二线", "三线", "四线", "五线", "六线"]
+
     for idx, line in enumerate(lines):
-        ah = LINE_ACCENT_HEX[idx % len(LINE_ACCENT_HEX)]
-        bh = LINE_BG_HEX[idx % len(LINE_BG_HEX)]
-        ar = RGBColor(int(ah[0:2],16), int(ah[2:4],16), int(ah[4:6],16))
-        # 卡片（1x1 table，左彩色粗边框）
-        card = doc.add_table(rows=1, cols=1)
-        card.alignment = WD_TABLE_ALIGNMENT.CENTER
-        _fix_table(card, [CONTENT_DXA])
-        cc = card.rows[0].cells[0]
+        ah  = LINE_ACCENT_HEX[idx % len(LINE_ACCENT_HEX)]
+        bh  = LINE_BG_HEX[idx % len(LINE_BG_HEX)]
+        ar  = RGBColor(int(ah[0:2], 16), int(ah[2:4], 16), int(ah[4:6], 16))
+        line_n = line.get("line", idx + 1)
+        try:
+            line_name = LINE_NAMES[int(line_n) - 1]
+        except Exception:
+            line_name = f"第{line_n}线"
+
+        # ── 卡片：2列表（左色标 + 内容列）────────────────────────────
+        BADGE_W = 680
+        card = doc.add_table(rows=1, cols=2)
+        card.alignment = WD_TABLE_ALIGNMENT.LEFT
+        _fix_table(card, [BADGE_W, CONTENT_DXA - BADGE_W])
+        card.rows[0].cells[0]._tc.get_or_add_tcPr()
+
+        # 左侧色标列（纯色竖条）
+        bc = card.rows[0].cells[0]
+        _shading(bc, ah)
+        _borders(bc, color=ah, size=4)
+        bp = bc.paragraphs[0]
+        bp.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        bp.paragraph_format.space_before = Pt(8)
+        bp.paragraph_format.space_after  = Pt(4)
+        _set_font(bp.add_run(line_name), 9.5, bold=True, color=RGBColor(0xFF, 0xFF, 0xFF))
+
+        # 右侧内容列
+        cc = card.rows[0].cells[1]
         _shading(cc, bh)
-        _left_border_only(cc, ah, size=20)
-        # 标题行
+        _borders(cc, color="E0E8F0", size=4)
+
+        # 标题行：方案名 + 期间
         ph = cc.paragraphs[0]
         ph.paragraph_format.space_before = Pt(8)
-        ph.paragraph_format.space_after  = Pt(4)
-        ph.paragraph_format.left_indent  = Cm(0.5)
-        _set_font(ph.add_run(f"第 {line.get('line', idx+1)} 线  --  "), 9.5, bold=True, color=ar)
-        _set_font(ph.add_run(line.get("regimen","—")), 11, bold=True, color=PRIMARY)
-        period = line.get("period","")
+        ph.paragraph_format.space_after  = Pt(3)
+        ph.paragraph_format.left_indent  = Cm(0.4)
+        _set_font(ph.add_run(line.get("regimen", "—")), 11, bold=True, color=PRIMARY)
+        period = line.get("period", "")
         if period:
-            _set_font(ph.add_run(f"  |  {period}"), 9, color=RGBColor(0x66,0x66,0x66))
+            _set_font(ph.add_run(f"  |  {period}"), 9, color=RGBColor(0x66, 0x66, 0x66))
+
         # 详细字段
-        for lbl, key, use_ec in [("疗效","efficacy",True), ("停药原因","stop_reason",False), ("毒副反应","toxicity",False)]:
-            val = line.get(key,"")
-            if not val: continue
-            pd = cc.add_paragraph()
-            pd.paragraph_format.left_indent  = Cm(0.5)
-            pd.paragraph_format.space_before = Pt(2)
-            pd.paragraph_format.space_after  = Pt(2)
-            _set_font(pd.add_run(f"{lbl}："), 9, bold=True, color=RGBColor(0x55,0x55,0x55))
-            vc = RGBColor(0x1A,0x1A,0x1A)
+        for lbl, key, use_ec in [("疗效", "efficacy", True),
+                                  ("停药原因", "stop_reason", False),
+                                  ("毒副反应", "toxicity", False)]:
+            val = line.get(key, "")
+            if not val:
+                continue
+            pd_p = cc.add_paragraph()
+            pd_p.paragraph_format.left_indent  = Cm(0.4)
+            pd_p.paragraph_format.space_before = Pt(2)
+            pd_p.paragraph_format.space_after  = Pt(2)
+            _set_font(pd_p.add_run(f"{lbl}："), 9, bold=True, color=RGBColor(0x55, 0x55, 0x55))
+            vc = RGBColor(0x1A, 0x1A, 0x1A)
             if use_ec:
                 for k, col in EFFICACY.items():
-                    if k in str(val): vc = col; break
-            _set_font(pd.add_run(str(val)), 9.5, color=vc)
+                    if k in str(val):
+                        vc = col
+                        break
+            _set_font(pd_p.add_run(str(val)), 9.5, color=vc)
+
         cc.add_paragraph().paragraph_format.space_after = Pt(6)
         doc.add_paragraph().paragraph_format.space_after = Pt(4)
     doc.add_paragraph()
@@ -656,6 +1102,73 @@ def review_flags_section(doc, flags):
     doc.add_paragraph()
 
 
+# ── Pathway (current treatment route) ─────────────────────────────────────────
+def pathway_section(doc, pathway):
+    """当前治疗路径 - 高亮文本块（参考 004 PDF 样式）。"""
+    if not pathway:
+        return
+    # 外框卡片（浅灰蓝边框）
+    card = doc.add_table(rows=1, cols=1)
+    card.alignment = WD_TABLE_ALIGNMENT.LEFT
+    _fix_table(card, [CONTENT_DXA])
+    cc = card.rows[0].cells[0]
+    _shading(cc, "F7FAFD")
+    _borders(cc, color="C5D8EC", size=6)
+
+    LABEL_COLORS = {
+        "current":     (ACCENT,  "当前较可能的路径"),
+        "bridge":      (WARN_T,  "桥接"),
+        "alternative": (PRIMARY, "备选试验路径"),
+    }
+
+    def _path_para(cell, label, text, lbl_color):
+        p = cell.add_paragraph()
+        p.paragraph_format.left_indent  = Cm(0.4)
+        p.paragraph_format.space_before = Pt(3)
+        p.paragraph_format.space_after  = Pt(3)
+        _set_font(p.add_run(f"{label}："), 9.5, bold=True, color=lbl_color)
+        _set_font(p.add_run(str(text)), 9.5, color=RGBColor(0x1A, 0x1A, 0x1A))
+
+    first = True
+    for key, (col, label) in LABEL_COLORS.items():
+        val = pathway.get(key, "")
+        if not val:
+            continue
+        p = cc.paragraphs[0] if first else cc.add_paragraph()
+        if first:
+            p.paragraph_format.space_before = Pt(8)
+            p.paragraph_format.space_after  = Pt(3)
+            p.paragraph_format.left_indent  = Cm(0.4)
+            _set_font(p.add_run(f"{label}："), 9.5, bold=True, color=col)
+            _set_font(p.add_run(str(val)), 9.5, color=RGBColor(0x1A, 0x1A, 0x1A))
+            first = False
+        else:
+            p.paragraph_format.left_indent  = Cm(0.4)
+            p.paragraph_format.space_before = Pt(3)
+            p.paragraph_format.space_after  = Pt(3)
+            _set_font(p.add_run(f"{label}："), 9.5, bold=True, color=col)
+            _set_font(p.add_run(str(val)), 9.5, color=RGBColor(0x1A, 0x1A, 0x1A))
+
+    # pending_issues / next_steps fallback
+    for issue in pathway.get("pending_issues", []):
+        pi = cc.add_paragraph()
+        pi.paragraph_format.left_indent  = Cm(0.4)
+        pi.paragraph_format.space_before = Pt(2)
+        pi.paragraph_format.space_after  = Pt(2)
+        _set_font(pi.add_run(f"- {issue}"), 9.5, color=RGBColor(0x1A, 0x1A, 0x1A))
+    ns = pathway.get("next_steps", "")
+    if ns and not pathway.get("current"):
+        pns = cc.add_paragraph()
+        pns.paragraph_format.left_indent  = Cm(0.4)
+        pns.paragraph_format.space_before = Pt(3)
+        pns.paragraph_format.space_after  = Pt(6)
+        _set_font(pns.add_run(str(ns)), 9.5, color=RGBColor(0x1A, 0x1A, 0x1A))
+    else:
+        cc.add_paragraph().paragraph_format.space_after = Pt(6)
+
+    doc.add_paragraph()
+
+
 # ── Sources ────────────────────────────────────────────────────────────────────
 def sources_table(doc, sources):
     if not sources: return
@@ -724,7 +1237,13 @@ def build_brief(data, output_path):
         heading_brief(doc, "主要病灶分布")
         imaging_section(doc, img)
     heading_brief(doc, "关键实验室指标")
-    labs_cards(doc, data.get("labs",[]))
+    labs = data.get("labs", [])
+    # Items with >=2 measurements get trend charts; cards show only latest value for those
+    tkeys = _trend_keys(labs)
+    labs_trend_charts(doc, labs, data.get("trend_events", []))
+    latest_labs = _latest_per_trend(labs, tkeys)
+    if latest_labs:
+        labs_cards(doc, latest_labs)
     tx = data.get("treatment",{})
     if tx.get("lines") or tx.get("note"):
         heading_brief(doc, "治疗史")
@@ -733,6 +1252,10 @@ def build_brief(data, output_path):
     if gp.get("critical") or gp.get("recommended") or gp.get("covered"):
         heading_brief(doc, "待完善检查 / 建议补充记录")
         gaps_section(doc, gp)
+    pathway = data.get("pathway", {})
+    if pathway:
+        heading_brief(doc, "当前治疗路径")
+        pathway_section(doc, pathway)
     flags = [f for f in data.get("review_flags",[]) if not f.get("user_confirmed")]
     if flags:
         heading_brief(doc, "待确认项")
@@ -766,27 +1289,16 @@ def build_detailed(data, output_path):
     imaging_section(doc, data.get("imaging",{}))
     # §5 实验室指标
     heading_numbered(doc, 5, "实验室指标摘要")
-    labs_table(doc, data.get("labs",[]))
+    labs_table(doc, data.get("labs", []))
+    labs_trend_charts(doc, data.get("labs", []), data.get("trend_events", []))
     # §6 治疗史
     heading_numbered(doc, 6, "治疗史")
     treatment_history(doc, data.get("treatment",{}))
     # §7 治疗路径
-    pathway = data.get("pathway",{})
+    pathway = data.get("pathway", {})
     if pathway:
         heading_numbered(doc, 7, "治疗路径总结")
-        for issue in pathway.get("pending_issues",[]):
-            p = doc.add_paragraph()
-            p.paragraph_format.left_indent = Cm(0.5)
-            _set_font(p.add_run(f"- {issue}"), 10)
-        ns = pathway.get("next_steps","")
-        if ns:
-            p = doc.add_paragraph()
-            _set_font(p.add_run("下一步可探索方向（非推荐，需医生评估）"), 10, bold=True,
-                      color=RGBColor(0x44,0x44,0x44))
-            p.paragraph_format.space_before = Pt(6)
-            p2 = doc.add_paragraph(ns)
-            _set_font(p2.runs[0] if p2.runs else p2.add_run(""), 10)
-        doc.add_paragraph()
+        pathway_section(doc, pathway)
     # 附录
     heading_numbered(doc, "A", "建议补充记录")
     gaps_section(doc, data.get("gaps",{}))

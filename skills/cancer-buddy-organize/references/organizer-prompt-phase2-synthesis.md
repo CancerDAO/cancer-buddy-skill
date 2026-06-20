@@ -836,10 +836,49 @@ _本总结由 AI 自动生成，不替代主诊医生判断。_
 5. `review_flags` 中仅列 severity 为 `"red"` 或 `"yellow"` 的项（green 不列）
 6. `generated_at` 格式：`"YYYY-MM-DDTHH:MM:SS"`
 7. `sources` 列表：详细版每个关键数据点（labs 中异常项、molecular 所有项）各有一条记录
+8. **`labs[].base_item` 字段（趋势图分组键，必填）**：
+   - 写法：同一检验项目的多次记录，`base_item` 值必须完全一致（用于趋势图自动分组）
+   - 只写指标名称本身，不含"基线/化疗前/化疗后/复查/术后"等时间修饰词
+   - 例：`item = "癌胚抗原（CEA）—— 化疗前"` → `base_item = "癌胚抗原（CEA）"`
+   - 若指标仅出现一次，`base_item` 与 `item` 相同（去掉时间修饰词后）
+
+9. **`trend_events` 字段（趋势图治疗干预标注，可选但推荐）**：
+   - 作用：在趋势图上以橙色竖虚线标注关键**治疗干预**，帮助读者理解指标变化的因果原因
+   - 来源：从 `treatment.lines` 中提取有确切日期的干预节点
+
+   **只收录治疗干预，严禁写诊断/随访事件**：
+
+   | 允许写入 ✅ | 禁止写入 ❌ |
+   |---|---|
+   | 手术（具体术式，如"造瘘术"） | CT复查、PET/CT复查 |
+   | 化疗周期开始（如"FOLFOX第1周期"） | 血液检验日期 |
+   | 化疗方案调整（如"二药→三药"） | 门诊就诊日期 |
+   | 靶向药/免疫药开始使用 | 住院日期（非手术日） |
+   | MTB/MDT决策执行日 | 影像评估日期 |
+   | 放疗开始/结束 | 入院检查 |
+   | 停药/减量（有明确原因的毒性事件） | 仅知道"某周期内"但无具体日期 |
+
+   - 格式：`[{"date": "YYYY-MM-DD", "label": "<事件名≤8字>"}]`
+   - 写法规则：
+     - 只写有**明确日期**的干预；治疗史中只写"某月"或"第N周期"而无具体日期 → 不写，不推测
+     - 标签：动词+名词，≤8字，例：`"造瘘术"`、`"FOLFOX开始"`、`"三药方案"`、`"贝伐珠单抗加用"`
+     - 若同一天有多个干预，合并为一条（如`"手术+化疗D1"`）
+     - 事件按日期升序排列
+   - 例：
+     ```json
+     "trend_events": [
+       { "date": "2025-08-15", "label": "乙状结肠造瘘术" },
+       { "date": "2025-09-18", "label": "FOLFOX第1周期" },
+       { "date": "2025-11-20", "label": "三药方案" }
+     ]
+     ```
+   - 若无法确定**任何**干预的具体日期，写 `"trend_events": []`（不省略字段，不用复查/检验日期凑数）
 
 **验证 checklist（写完 JSON 后逐项确认）：**
 - [ ] `patient` 中 name/age/sex/ecog/hospital/diagnosis/report_date/patient_id/patient_code 全部存在
-- [ ] `labs` 每个元素含 date/category/item/value/reference/flag/note 七个字段
+- [ ] `labs` 每个元素含 date/category/item/**base_item**/value/reference/flag/note 八个字段
+- [ ] 同一指标的所有 `labs` 条目 `base_item` 值完全一致
+- [ ] `trend_events` 字段存在（即使为空数组），所有事件均有确切日期
 - [ ] `molecular` 每个元素含 item/status/priority/note 四个字段
 - [ ] `gaps.critical/recommended` 每个元素含 item/reason/action_category/action_detail 四个字段；`gaps.covered` 每个元素含 item/reason
 - [ ] `review_flags` 每个元素含 id/severity/issue
@@ -904,5 +943,32 @@ libreoffice --headless --convert-to pdf \
   --outdir "$TMPDIR" \
   "$PATIENT_DIR/case_summary_detailed.docx" 2>&1
 
-# B-3. 复制到 patient_dir（若目标已存在且无法覆盖，用 _new 后缀）
-for F in br
+# B-3. 复制到 patient_dir（若目标已存在且无法覆盖，用时间戳后缀避免 NTFS 文件锁）
+for F in brief detailed; do
+  SRC="$TMPDIR/case_summary_${F}.pdf"
+  DST="$PATIENT_DIR/case_summary_${F}.pdf"
+  if [ -f "$SRC" ]; then
+    if cp "$SRC" "$DST" 2>/dev/null; then
+      echo "[pdf] OK: $DST"
+    else
+      TS=$(date +%s)
+      DST_NEW="${DST%.pdf}_${TS}.pdf"
+      cp "$SRC" "$DST_NEW"
+      echo "[pdf] NTFS lock — saved as: $DST_NEW"
+    fi
+  else
+    echo "[pdf] WARN: conversion failed for $F — check LibreOffice output above"
+  fi
+done
+rm -rf "$TMPDIR"
+```
+
+> **CIFS/NTFS 注意事项**：在 Cowork 沙盒中，`$SKILL_DIR/scripts/report_template.py` 可能因 NTFS 挂载缓存读到旧版本（bash 内 `wc -l` 与 Read 工具不一致）。如果 `python3` 报 `AttributeError: module has no attribute 'labs_trend_charts'`，改用以下命令绕过缓存：
+>
+> ```bash
+> cp "$SKILL_DIR/scripts/report_template.py" /tmp/rt_fresh.py
+> python3 /tmp/rt_fresh.py "$PATIENT_DIR/report_data.json" \
+>   "$PATIENT_DIR/case_summary_brief.docx" --type brief
+> python3 /tmp/rt_fresh.py "$PATIENT_DIR/report_data.json" \
+>   "$PATIENT_DIR/case_summary_detailed.docx" --type detailed
+> ```
