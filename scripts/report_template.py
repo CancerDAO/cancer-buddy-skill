@@ -598,6 +598,163 @@ def _date_to_xpos(ev_date, xs_dates):
     return None
 
 
+def labs_snapshot_chart(doc, labs, png_save_path=None):
+    """
+    单时间点快照图：显示所有有参考范围的数值指标当前值与参考区间的对比。
+    单时间点和多时间点均可调用（多时间点时显示最新值）。
+    doc: Document 对象（插入图片用）；若 None 则只保存到 png_save_path。
+    png_save_path: 若指定，同时保存 PNG 文件（供 .md 引用）。
+    返回 png_save_path（保存成功）或 None。
+    """
+    try:
+        import matplotlib
+        matplotlib.use('Agg')
+        import matplotlib.pyplot as plt
+    except ImportError:
+        return None
+    import tempfile, os, re as _re
+
+    _mpl_cjk_setup()
+
+    # ── 收集可绘制项 ──────────────────────────────────────────────────────────
+    # 每个 base_item 只取最新一条
+    latest = {}
+    for lab in labs:
+        raw_val = lab.get("value", "")
+        # 跳过批量项（含 3 个以上 "/" 分隔的子项）
+        if raw_val.count("/") >= 2:
+            continue
+        val = _parse_numeric(raw_val)
+        if val is None:
+            continue
+        ref_low, ref_high = _parse_ref_range(lab.get("reference", ""))
+        if ref_low is None and ref_high is None:
+            continue
+        key = _trend_group_key(lab)
+        date = lab.get("date", "")
+        if key not in latest or date > latest[key]["date"]:
+            latest[key] = {
+                "label": (lab.get("base_item") or lab.get("item", ""))[:22],
+                "value": val,
+                "flag": lab.get("flag", "normal"),
+                "ref_low": ref_low if ref_low is not None else 0.0,
+                "ref_high": ref_high,
+                "date": date,
+            }
+
+    items = list(latest.values())
+    if not items:
+        return None
+
+    # ── 绘图 ──────────────────────────────────────────────────────────────────
+    n = len(items)
+    row_h = 0.52
+    fig_h = max(2.4, n * row_h + 1.0)
+    fig, ax = plt.subplots(figsize=(7.5, fig_h))
+    fig.patch.set_facecolor('white')
+    ax.set_facecolor('white')
+
+    y_positions = list(range(n - 1, -1, -1))   # top→bottom
+
+    for idx, (item, ypos) in enumerate(zip(items, y_positions)):
+        val = item["value"]
+        rlo = item["ref_low"]
+        rhi = item["ref_high"]
+        flag = item["flag"]
+        dot_color = '#dc3545' if flag in ('high', 'low', 'critical') else '#198754'
+
+        # Compute x-axis span for this item (normalize within the row strip)
+        lo = 0.0
+        hi = (rhi * 1.6) if rhi else (val * 2.2 if val > 0 else 10.0)
+        hi = max(hi, val * 1.2)
+
+        # Normalize to [0, 1] data coords within item's strip (height = 0.7)
+        def norm(x):
+            return (x - lo) / (hi - lo) if hi > lo else 0.5
+
+        strip_y0 = ypos - 0.35
+        strip_y1 = ypos + 0.35
+
+        # Reference band
+        if rhi:
+            x0_ref = norm(rlo)
+            x1_ref = norm(rhi)
+            ax.barh(ypos, x1_ref - x0_ref, left=x0_ref, height=0.58,
+                    color='#d4edda', edgecolor='#6c9e77', linewidth=0.6,
+                    zorder=2, align='center')
+
+        # Baseline
+        ax.axhline(ypos, color='#dee2e6', lw=0.5, zorder=1)
+
+        # Value dot
+        xv = norm(val)
+        ax.scatter([xv], [ypos], s=90, color=dot_color, zorder=5, linewidths=0)
+
+        # Stem from ref band right edge to dot (if high)
+        if rhi and val > rhi:
+            ax.plot([norm(rhi), xv], [ypos, ypos], color=dot_color, lw=1.2, zorder=4)
+        elif rlo > 0 and val < rlo:
+            ax.plot([xv, norm(rlo)], [ypos, ypos], color=dot_color, lw=1.2, zorder=4)
+
+        # Value label
+        arrow = "↑" if flag == 'high' else ("↓" if flag == 'low' else "")
+        label_x = min(xv + 0.03, 0.97)
+        ax.text(label_x, ypos + 0.22, f"{val}{arrow}",
+                ha='left', va='bottom', fontsize=7.5,
+                color=dot_color, fontweight='bold', zorder=6)
+
+    # Y-axis labels
+    ax.set_yticks(y_positions)
+    ax.set_yticklabels([it["label"] for it in items], fontsize=8.5)
+    ax.set_xlim(0, 1)
+    ax.set_ylim(-0.6, n - 0.4)
+    ax.set_xticks([])
+    for spine in ['top', 'right', 'bottom']:
+        ax.spines[spine].set_visible(False)
+    ax.spines['left'].set_linewidth(0.5)
+
+    # Legend
+    import matplotlib.patches as mpatches
+    ax.legend(
+        handles=[
+            mpatches.Patch(color='#d4edda', edgecolor='#6c9e77', label='参考范围'),
+            plt.scatter([], [], s=60, color='#198754', label='正常'),
+            plt.scatter([], [], s=60, color='#dc3545', label='异常'),
+        ],
+        loc='lower right', fontsize=7.5, framealpha=0.85, edgecolor='#dee2e6'
+    )
+
+    ax.set_title("关键检验指标快照", fontsize=10, fontweight='bold', pad=6)
+    plt.tight_layout()
+
+    # Save / embed
+    tmp = None
+    try:
+        if png_save_path:
+            os.makedirs(os.path.dirname(png_save_path), exist_ok=True)
+            plt.savefig(png_save_path, dpi=150, bbox_inches='tight', facecolor='white')
+        else:
+            tmp = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
+            tmp.close()
+            png_save_path = tmp.name
+            plt.savefig(png_save_path, dpi=150, bbox_inches='tight', facecolor='white')
+        plt.close()
+        if doc:
+            from docx.shared import Inches
+            doc.add_picture(png_save_path, width=Inches(5.8))
+        return png_save_path if not tmp else None
+    except Exception as e:
+        print(f"[snapshot] chart error: {e}")
+        plt.close()
+        return None
+    finally:
+        if tmp and os.path.exists(tmp.name):
+            try:
+                os.unlink(tmp.name)
+            except Exception:
+                pass
+
+
 def labs_trend_charts(doc, labs, trend_events=None):
     """
     关键指标趋势图：每行 2 列子图，每张图最多 2 行（4 个指标），防止跨页。
@@ -1238,9 +1395,9 @@ def build_brief(data, output_path):
         imaging_section(doc, img)
     heading_brief(doc, "关键实验室指标")
     labs = data.get("labs", [])
-    # Items with >=2 measurements get trend charts; cards show only latest value for those
     tkeys = _trend_keys(labs)
     labs_trend_charts(doc, labs, data.get("trend_events", []))
+    labs_snapshot_chart(doc, labs)
     latest_labs = _latest_per_trend(labs, tkeys)
     if latest_labs:
         labs_cards(doc, latest_labs)
@@ -1264,16 +1421,13 @@ def build_brief(data, output_path):
     doc.save(output_path)
     print(f"[brief] Saved: {output_path}")
 
-
 def build_detailed(data, output_path):
     doc = Document(); _page_setup(doc); _footer(doc)
     cover_detailed(doc, data)
     patient = data.get("patient", {})
     dx      = data.get("diagnosis", {})
-    # §1 患者基本信息（不重复）
     heading_numbered(doc, 1, "患者基本信息")
     patient_info_table(doc, patient, extended=True)
-    # §2 病情概要
     heading_numbered(doc, 2, "病情概要")
     for lbl, key in [("确诊时间","date"),("原发部位","primary_site"),("病理类型","histology"),
                      ("分化程度","differentiation"),("临床分期","stage"),
@@ -1281,25 +1435,20 @@ def build_detailed(data, output_path):
                      ("目前治疗状态","current_status")]:
         _kv(doc, lbl, dx.get(key,"—"))
     doc.add_paragraph()
-    # §3 分子检测
     heading_numbered(doc, 3, "分子检测与标志物")
     molecular_table(doc, data.get("molecular",[]))
-    # §4 影像学
     heading_numbered(doc, 4, "影像学评估")
     imaging_section(doc, data.get("imaging",{}))
-    # §5 实验室指标
     heading_numbered(doc, 5, "实验室指标摘要")
     labs_table(doc, data.get("labs", []))
     labs_trend_charts(doc, data.get("labs", []), data.get("trend_events", []))
-    # §6 治疗史
+    labs_snapshot_chart(doc, data.get("labs", []))
     heading_numbered(doc, 6, "治疗史")
     treatment_history(doc, data.get("treatment",{}))
-    # §7 治疗路径
     pathway = data.get("pathway", {})
     if pathway:
         heading_numbered(doc, 7, "治疗路径总结")
         pathway_section(doc, pathway)
-    # 附录
     heading_numbered(doc, "A", "建议补充记录")
     gaps_section(doc, data.get("gaps",{}))
     heading_numbered(doc, "B", "待确认项")
@@ -1311,16 +1460,51 @@ def build_detailed(data, output_path):
     doc.save(output_path)
     print(f"[detailed] Saved: {output_path}")
 
-
 # ── Main ───────────────────────────────────────────────────────────────────────
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("data_json");  parser.add_argument("output_docx")
     parser.add_argument("--type", choices=["brief","detailed"], default="brief")
+    parser.add_argument("--md-patch", metavar="MD_FILE",
+                        help="同时将快照图保存为 PNG 并插入指定 .md 文件")
     args = parser.parse_args()
     with open(args.data_json, "r", encoding="utf-8") as f:
         data = json.load(f)
     (build_brief if args.type=="brief" else build_detailed)(data, args.output_docx)
+
+    if args.md_patch:
+        import os, re as _re
+        md_path = args.md_patch
+        md_dir  = os.path.dirname(os.path.abspath(md_path))
+        charts_dir = os.path.join(md_dir, "charts")
+        png_name   = f"labs_snapshot_{args.type}.png"
+        png_path   = os.path.join(charts_dir, png_name)
+        saved = labs_snapshot_chart(None, data.get("labs", []), png_save_path=png_path)
+        if saved and os.path.exists(md_path):
+            with open(md_path, "r", encoding="utf-8") as f:
+                content = f.read()
+            img_tag = f"\n\n![关键检验指标快照](./charts/{png_name})\n"
+            patterns = [
+                r"(##\s*模块\s*5[^\n]*\n)",
+                r"(##\s*关键实验室指标[^\n]*\n)",
+            ]
+            patched = False
+            for pat in patterns:
+                m = _re.search(pat, content)
+                if m:
+                    section_start = m.end()
+                    next_heading = _re.search(r"\n##\s+", content[section_start:])
+                    section_end  = section_start + next_heading.start() if next_heading else len(content)
+                    if img_tag.strip() not in content:
+                        content = content[:section_end] + img_tag + content[section_end:]
+                    patched = True
+                    break
+            if not patched and img_tag.strip() not in content:
+                content += img_tag
+            with open(md_path, "w", encoding="utf-8") as f:
+                f.write(content)
+            print(f"[md-patch] PNG -> {png_path}")
+            print(f"[md-patch] Patched: {md_path}")
 
 if __name__ == "__main__":
     main()

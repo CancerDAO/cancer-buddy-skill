@@ -316,6 +316,65 @@
 
 ---
 
+## qa_evaluation.json（Phase 3 报告质量评审输出）
+
+Phase 3 Worker 在 `patient_dir` 下写入此文件，供调用方（SKILL.md Step 9）读取并决策恢复路径。
+
+```json
+{
+  "schema_version": "2",
+  "evaluated_at": "ISO8601",
+  "patient_dir": "<patient_dir>",
+  "track_a": {
+    "status": "pass | gaps_found",
+    "gaps": [
+      {
+        "field":            "<字段路径，如 diagnosis.stage>",
+        "current_value":    "<当前值，如 '未取得'>",
+        "root_cause":       "doc_missing | ocr_failure | synthesis_gap",
+        "recovery_action":  "patient_action | re_ocr | re_synthesis",
+        "recovery_target":  "<文件名 或 字段路径 或 模块名>",
+        "patient_message":  "<仅 doc_missing 时：通俗中文说明，≤40字>"
+      }
+    ]
+  },
+  "track_b": {
+    "status": "pass | issues_found",
+    "issues": [
+      {
+        "check_id":                "B-1 | B-2 | B-3 | B-4 | B-5",
+        "description":             "<具体问题描述>",
+        "recovery_action":         "re_synthesis",
+        "recovery_target":         "<字段路径 或 模块名>",
+        "re_synthesis_instruction":"<给 Phase 2 的定向修正指令，≤60字>"
+      }
+    ]
+  },
+  "delivery_decision": {
+    "deliver_report":              true,
+    "generate_patient_checklist":  "<true | false>",
+    "trigger_re_synthesis":        "<true | false>",
+    "trigger_re_ocr":              "<true | false>",
+    "re_ocr_targets":              ["<文件名列表>"],
+    "re_synthesis_fields":         ["<字段路径列表>"],
+    "re_synthesis_instructions":   "<综合定向补合成指令>"
+  },
+  "summary": "<3句话摘要>"
+}
+```
+
+**Track B 检查 ID 说明**：
+
+| check_id | 检查内容 |
+|----------|---------|
+| B-1 | 时间线合理性（治疗日期 ≥ 确诊日期） |
+| B-2 | 分期与转移描述一致（M1 ↔ 有转移） |
+| B-3 | pathway.next_steps 有实质内容（非通用语） |
+| B-4 | gaps.critical action_detail 可执行（含具体操作） |
+| B-5 | 报告叙述与 report_data.json 内部一致 |
+
+---
+
 ## 完整示例结构验证
 
 Phase 2 在写入 `report_data.json` 之前，必须验证：

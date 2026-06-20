@@ -122,18 +122,33 @@ Written under `patients/<patient_code>/`:
 
    展示 tier1_gaps 时，附上每条的 `action_detail`（具体操作建议）；展示 tier2_gaps priority:high 时同理。`action_category` 不需要逐字展示，已内嵌在 action_detail 里。
 
-9. **触发 Phase 3 反驳式审查（条件性）** — 读取 `readiness.adversarial_review_needed`：
+9. **Phase 3 报告质量评审（必经步骤）** — Phase 2 完成报告生成后必然触发，不再是条件性的。
 
-   **若为 true**：
-   1. 从 `readiness.unverifiable_fields` 和 `review_flags`（severity=red）确定高风险字段列表
-   2. 对每个高风险字段，读取 `readiness.tier2_covered` 或 `profile.json` 中对应的 `source_file`
-   3. 读取那些 sidecar 文件的内容
-   4. 以 [references/organizer-prompt-phase3-adversarial.md](references/organizer-prompt-phase3-adversarial.md) 为 prompt，dispatch Phase 3 Worker，传入 `high_risk_sidecars` 列表
-   5. Phase 3 完成后，重新读取更新后的 `readiness.json`（review_flags 已追加 Phase 3 发现的新 flag）
+   **触发时机**：Phase 2 返回后，报告已写入磁盘（report_data.json + case_summary_brief.md + case_summary_detailed.md）。
 
-   **若为 false**：跳过，直接进入 Step 10。
+   **例外，跳过 Phase 3**：
+   - `use_case_gates.basic_summary == "not_ready"`（资料过少，评审无意义）
+   - 本次运行已经是定向重合成后的 retry（不再二次评审，避免无限循环）
 
-   Phase 3 是轻量核查，token 消耗约为 Phase 2 的 10-15%，只在高风险场景下触发。
+   **执行步骤**：
+   1. 读取 `patient_dir/report_data.json` 和 `patient_dir/readiness.json`
+   2. 执行 `ls patient_dir/ocr/` 构建 sidecar_index（文件名 + 首行 SOURCE/CONFIDENCE 摘要）
+   3. 以 [references/organizer-prompt-phase3-evaluation.md](references/organizer-prompt-phase3-evaluation.md) 为 prompt，dispatch Phase 3 Worker（`general-purpose` subagent），传入：
+      - `patient_dir`
+      - `report_data_json`（文件全文）
+      - `readiness_json`（文件全文）
+      - `case_summary_brief_path`（绝对路径）
+      - `sidecar_index`（JSON 列表）
+   4. Phase 3 Worker 完成后，读取 `patient_dir/qa_evaluation.json`
+   5. 根据 `delivery_decision` 执行（**deliver_report 永远为 true，始终交付已生成报告**）：
+
+   | delivery_decision 字段 | 为 true 时的操作 |
+   |---|---|
+   | `generate_patient_checklist` | 展示 `patient_dir/待补充材料清单.md` 给用户，告知哪些文件需要补充 |
+   | `trigger_re_ocr` | 告知用户 `re_ocr_targets` 中列出的文件需要重新识别，提示手动重跑 Phase 1 → Phase 2 |
+   | `trigger_re_synthesis` | Dispatch 定向重合成 Worker（`general-purpose`），prompt 为 Phase 2 的 prompt 末尾追加 `re_synthesis_instructions`；重合成后直接更新 report_data.json，重新生成 case_summary 文件，**不再触发第二次 Phase 3** |
+
+   **max retry = 1**：定向重合成最多执行一次。若重合成后仍有问题，将 qa_evaluation.json 中的 issues 转化为 review_flags 追加到 readiness.json，随报告一并交付，由用户决定是否进一步补充材料。
 
 10. **Display review_summary.md (MANDATORY, ALWAYS)** — read the file at `review_summary_path` and display its full content to the user. This is the **first** thing the user sees after organize — before profile card, before review_flags. It is a 1-page spot-check of extracted key fields with verbatim source citations.
 
@@ -204,6 +219,7 @@ Authoritative matrix in `../../references/roles.md`. For this skill:
 
 - [organizer-prompt-phase1-ocr.md](references/organizer-prompt-phase1-ocr.md) — Phase 1 worker prompt: per-slice OCR, parallel-safe, sidecars-only
 - [organizer-prompt-phase2-synthesis.md](references/organizer-prompt-phase2-synthesis.md) — Phase 2 worker prompt: cross-slice synthesis + Step 1.5–1.7 canonical naming (semantic judgment + atomic bash mv) + review_flags audit + review_summary
+- [organizer-prompt-phase3-evaluation.md](references/organizer-prompt-phase3-evaluation.md) — Phase 3 worker prompt: 报告质量评审（Track A 完整度 + Track B 可用度），必经步骤，生成 qa_evaluation.json + 患者行动清单
 - [profile-card.md](references/profile-card.md) — Patient Profile Card display template
 - [../../references/patient-profile-schema.md](../../references/patient-profile-schema.md) — schema contract shared with vmtb-skill
 - [../../references/preflight.md](../../references/preflight.md) — shared entry-gate (role + disclosure + readiness grade + Step 2.5 review_flags red gate + schema validity)
