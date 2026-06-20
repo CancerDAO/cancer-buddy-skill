@@ -77,14 +77,33 @@ Written under `patients/<patient_code>/`:
 
    Loop per-slice until all slices report `continuation_needed: false`. Slices that finished cleanly do NOT need re-dispatch; only laggards. This is more efficient than re-dispatching the whole organize.
 
-5. **询问输出格式（Phase 2 dispatch 前）** — 在所有 Phase 1 worker 完成后、派遣 Phase 2 之前，向用户发送一条消息：
+1b. **语言检测（Language Detection）** — 在解析输入路径后立即执行，确定 `output_language`。
 
-   > "病历整理完成，即将生成报告。请问您希望以哪种格式输出报告？"
+   按以下顺序判断，命中第一条即停止：
+
+   | 优先级 | 信号 | 结论 |
+   |--------|------|------|
+   | 1 | 用户本次消息语言明确 | 直接使用（中文→`zh-CN`，英文→`en`，繁体→`zh-TW`，日文→`ja`，韩文→`ko`，德文→`de`，等） |
+   | 2 | 文件路径 / 文件名含医院或地名 | 推断所在地 → 对应语言 |
+   | 3 | Phase 1 完成后 sidecar 文档主体语言 | 对应语言 |
+   | 4 | 以上均不确定 | 在 Step 5 询问格式时**一并**询问语言，不单独打扰用户 |
+
+   将 `output_language` 传入 Phase 2；Phase 2 负责用该语言写**一切文字内容**（诊断备注、gaps 建议、next_steps、review_flags 描述等），并在 report_data.json 中写入 `ui` 字段（本地化的章节标题 / 标签）。report_template.py 从 `data["ui"]` 读取这些字符串，无需任何代码改动即可支持任意语言。
+
+5. **询问输出格式（+ 语言，若 Step 1b 未确定）** — 在所有 Phase 1 worker 完成后、派遣 Phase 2 之前，向用户发送一条消息。
+
+   **若语言已在 Step 1b 确定，只问格式：**
+   > "病历整理完成，即将生成报告。请问您希望以哪种格式输出？"
    > 1. **Markdown**（.md，可直接阅读）
    > 2. **Word 文档**（.docx，可进一步编辑）
    > 3. **PDF**（.pdf，适合打印或发送）
 
-   等待用户回复，将选择（`"markdown"` / `"docx"` / `"pdf"`）作为 `output_format` 参数传入 Phase 2 的 call parameters。若用户未回复超时，默认使用 `"markdown"`。
+   **若语言未确定，格式和语言合并为一次询问（不分两条消息打扰用户）：**
+   > "病历整理完成，即将生成报告。请确认以下选项："
+   > - **输出格式**：Markdown / Word 文档 / PDF
+   > - **报告语言**：中文（简体）/ English / 其他（请注明）
+
+   等待用户回复，将 `output_format`（`"markdown"` / `"docx"` / `"pdf"`）和 `output_language` 传入 Phase 2。若用户未回复，默认 `"markdown"` + Step 1b 推断语言（或 `"zh-CN"`）。
 
 5b. **Dispatch Phase 2 Synthesis Worker** — after every Phase 1 worker reports `continuation_needed: false`, dispatch a SINGLE `general-purpose` subagent for synthesis:
 
@@ -212,16 +231,4 @@ Authoritative matrix in `../../references/roles.md`. For this skill:
 
 - **Role = patient**: First-person. "帮我整理我的病历" → produce profile.json / timeline.md / readiness.json. Profile's `data_sources[]` names patient as source.
   - *Disclosure*: disclosure_state=suppressed on patient entry → warn that organize will likely break suppression; proceed only with confirmation.
-- **Role = caregiver**: Second-person. "帮你家人整理报告". Tone warmer, includes "整理这些很累吧，一步一步来"-style acknowledgment. On first-ever organize in this patient_code, organize creates the profile but does NOT write `profile.json.caregivers[]` itself — that array is owned by `cancer-buddy-caregiver` (a documented exception in `../../references/patient-profile-schema.md`, which writes the caregiver's relation + name + contact preference). Offer to hand the user off to `cancer-buddy-caregiver` to record who they are.
-- **Role = family**: Refuse. Emit: `病历整理要靠主照护者操作（Ta 手里有原件）。要不要我帮你生成一份 2 页要点让 Ta 参考？` Do not run organize.
-
-## References
-
-- [organizer-prompt-phase1-ocr.md](references/organizer-prompt-phase1-ocr.md) — Phase 1 worker prompt: per-slice OCR, parallel-safe, sidecars-only
-- [organizer-prompt-phase2-synthesis.md](references/organizer-prompt-phase2-synthesis.md) — Phase 2 worker prompt: cross-slice synthesis + Step 1.5–1.7 canonical naming (semantic judgment + atomic bash mv) + review_flags audit + review_summary
-- [organizer-prompt-phase3-evaluation.md](references/organizer-prompt-phase3-evaluation.md) — Phase 3 worker prompt: 报告质量评审（Track A 完整度 + Track B 可用度），必经步骤，生成 qa_evaluation.json + 患者行动清单
-- [profile-card.md](references/profile-card.md) — Patient Profile Card display template
-- [../../references/patient-profile-schema.md](../../references/patient-profile-schema.md) — schema contract shared with vmtb-skill
-- [../../references/preflight.md](../../references/preflight.md) — shared entry-gate (role + disclosure + readiness grade + Step 2.5 review_flags red gate + schema validity)
-- [../../references/terminology.md](../../references/terminology.md) — 中英 + 通俗解释 format
-- [../../references/safety-guardrails.md](../../references/safety-guardrails.md)
+- **Role = caregiver**: Second-person. "帮你家人整理报告". Tone warmer, includes "整理这些很累吧，一步一步来"-style acknowledgment. On first-ever organize in this patient_code, organize creates the profile but does NOT write `profile.json.caregivers[]` itself — that array is owned by `cancer-buddy-caregiver` (a documented exception in `../../references/patient-profile-schema.md`, which writes the caregiver's relation + name + contact 

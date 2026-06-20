@@ -16,6 +16,54 @@ from docx.enum.table import WD_TABLE_ALIGNMENT, WD_ALIGN_VERTICAL
 from docx.oxml.ns import qn
 from docx.oxml import OxmlElement
 
+
+# ── UI string helper ────────────────────────────────────────────────────────────
+# Section headings and labels come from report_data["ui"] (written by Phase 2 in
+# the user's chosen language). Fallback values are Chinese so the template works
+# even when "ui" is absent.
+_UI_DEFAULTS = {
+    "cover_brief_title":    "病例总结（简要版）",
+    "cover_detailed_title": "病例总结（详细版）",
+    "cover_subtitle":       "Cancer Buddy · 自动生成 · 仅供参考",
+    "h_patient_id":  "患者标识",
+    "h_condition":   "病情概要",
+    "h_molecular":   "核心分子检测",
+    "h_imaging":     "主要病灶分布",
+    "h_labs":        "关键实验室指标",
+    "h_treatment":   "治疗史",
+    "h_gaps":        "待完善检查 / 建议补充记录",
+    "h_pathway":     "当前治疗路径",
+    "h_flags":       "待确认项",
+    "s1": "患者基本信息",
+    "s2": "病情概要",
+    "s3": "分子检测与标志物",
+    "s4": "影像学评估",
+    "s5": "实验室指标摘要",
+    "s6": "治疗史",
+    "s7": "治疗路径总结",
+    "sA": "建议补充记录",
+    "sB": "待确认项",
+    "sC": "信息来源索引",
+    "kv_date":  "确诊时间",
+    "kv_site":  "原发部位",
+    "kv_hist":  "病理类型",
+    "kv_diff":  "分化程度",
+    "kv_stage": "临床分期",
+    "kv_init":  "初诊 / 复发",
+    "kv_mets":  "转移部位",
+    "kv_stat":  "目前治疗状态",
+    "disclaimer": (
+        "本报告由 Cancer Buddy 自动生成 | 生成时间：{gen} | "
+        "分析文件数：{fn} | 待确认 {fr} · 建议核对 {fy} · 已通过 {fg} | "
+        "本报告不替代主诊医生的临床判断，所有治疗决策须与医生确认。"
+    ),
+}
+_UI = {}   # populated by build_brief / build_detailed from data["ui"]
+
+def _u(key):
+    """Return localized UI string: data["ui"][key] → fallback default."""
+    return _UI.get(key) or _UI_DEFAULTS.get(key, key)
+
 # ── Design tokens ──────────────────────────────────────────────────────────────
 PRIMARY   = RGBColor(0x1F, 0x3B, 0x5C)
 ACCENT    = RGBColor(0x2E, 0x75, 0xB6)
@@ -1354,9 +1402,8 @@ def disclaimer(doc, data):
     gen   = data.get("generated_at", datetime.now().isoformat())
     fn    = data.get("files_analyzed", 0)
     fr, fy, fg = data.get("review_flags_red",0), data.get("review_flags_yellow",0), data.get("review_flags_green",0)
-    txt = (f"本报告由 Cancer Buddy 自动生成 | 生成时间：{gen[:19]} | "
-           f"分析文件数：{fn} | 待确认 {fr} · 建议核对 {fy} · 已通过 {fg} | "
-           f"本报告不替代主诊医生的临床判断，所有治疗决策须与医生确认。")
+    tmpl = _u("disclaimer")
+    txt  = tmpl.format(gen=gen[:19], fn=fn, fr=fr, fy=fy, fg=fg)
     p2 = doc.add_paragraph()
     _set_font(p2.add_run(txt), 8, color=RGBColor(0x88,0x88,0x88))
     p2.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -1373,27 +1420,29 @@ def _kv(doc, label, val):
 
 # ── Builders ───────────────────────────────────────────────────────────────────
 def build_brief(data, output_path):
+    global _UI
+    _UI = data.get("ui", {})
     doc = Document(); _page_setup(doc); _footer(doc)
     cover_brief(doc, data)
     patient = data.get("patient", {})
     dx      = data.get("diagnosis", {})
-    heading_brief(doc, "患者标识")
+    heading_brief(doc, _u("h_patient_id"))
     patient_info_table(doc, patient, extended=False)
-    heading_brief(doc, "病情概要")
-    for lbl, key in [("确诊时间","date"),("原发部位","primary_site"),("病理类型","histology"),
-                     ("临床分期","stage"),("转移部位","metastasis"),
-                     ("初诊 / 复发","initial_or_recurrence"),("目前治疗状态","current_status")]:
+    heading_brief(doc, _u("h_condition"))
+    for lbl, key in [(_u("kv_date"),"date"),(_u("kv_site"),"primary_site"),(_u("kv_hist"),"histology"),
+                     (_u("kv_stage"),"stage"),(_u("kv_mets"),"metastasis"),
+                     (_u("kv_init"),"initial_or_recurrence"),(_u("kv_stat"),"current_status")]:
         _kv(doc, lbl, dx.get(key,"—"))
     doc.add_paragraph()
     km = [m for m in data.get("molecular",[]) if m.get("priority")=="high"]
     if km:
-        heading_brief(doc, "核心分子检测")
+        heading_brief(doc, _u("h_molecular"))
         molecular_table(doc, km)
     img = data.get("imaging",{})
     if img and (img.get("items") or img.get("note")):
-        heading_brief(doc, "主要病灶分布")
+        heading_brief(doc, _u("h_imaging"))
         imaging_section(doc, img)
-    heading_brief(doc, "关键实验室指标")
+    heading_brief(doc, _u("h_labs"))
     labs = data.get("labs", [])
     tkeys = _trend_keys(labs)
     labs_trend_charts(doc, labs, data.get("trend_events", []))
@@ -1403,58 +1452,60 @@ def build_brief(data, output_path):
         labs_cards(doc, latest_labs)
     tx = data.get("treatment",{})
     if tx.get("lines") or tx.get("note"):
-        heading_brief(doc, "治疗史")
+        heading_brief(doc, _u("h_treatment"))
         treatment_history(doc, tx)
     gp = data.get("gaps",{})
     if gp.get("critical") or gp.get("recommended") or gp.get("covered"):
-        heading_brief(doc, "待完善检查 / 建议补充记录")
+        heading_brief(doc, _u("h_gaps"))
         gaps_section(doc, gp)
     pathway = data.get("pathway", {})
     if pathway:
-        heading_brief(doc, "当前治疗路径")
+        heading_brief(doc, _u("h_pathway"))
         pathway_section(doc, pathway)
     flags = [f for f in data.get("review_flags",[]) if not f.get("user_confirmed")]
     if flags:
-        heading_brief(doc, "待确认项")
+        heading_brief(doc, _u("h_flags"))
         review_flags_section(doc, flags)
     disclaimer(doc, data)
     doc.save(output_path)
     print(f"[brief] Saved: {output_path}")
 
 def build_detailed(data, output_path):
+    global _UI
+    _UI = data.get("ui", {})
     doc = Document(); _page_setup(doc); _footer(doc)
     cover_detailed(doc, data)
     patient = data.get("patient", {})
     dx      = data.get("diagnosis", {})
-    heading_numbered(doc, 1, "患者基本信息")
+    heading_numbered(doc, 1, _u("s1"))
     patient_info_table(doc, patient, extended=True)
-    heading_numbered(doc, 2, "病情概要")
-    for lbl, key in [("确诊时间","date"),("原发部位","primary_site"),("病理类型","histology"),
-                     ("分化程度","differentiation"),("临床分期","stage"),
-                     ("初诊 / 复发","initial_or_recurrence"),("转移部位","metastasis"),
-                     ("目前治疗状态","current_status")]:
+    heading_numbered(doc, 2, _u("s2"))
+    for lbl, key in [(_u("kv_date"),"date"),(_u("kv_site"),"primary_site"),(_u("kv_hist"),"histology"),
+                     (_u("kv_diff"),"differentiation"),(_u("kv_stage"),"stage"),
+                     (_u("kv_init"),"initial_or_recurrence"),(_u("kv_mets"),"metastasis"),
+                     (_u("kv_stat"),"current_status")]:
         _kv(doc, lbl, dx.get(key,"—"))
     doc.add_paragraph()
-    heading_numbered(doc, 3, "分子检测与标志物")
+    heading_numbered(doc, 3, _u("s3"))
     molecular_table(doc, data.get("molecular",[]))
-    heading_numbered(doc, 4, "影像学评估")
+    heading_numbered(doc, 4, _u("s4"))
     imaging_section(doc, data.get("imaging",{}))
-    heading_numbered(doc, 5, "实验室指标摘要")
+    heading_numbered(doc, 5, _u("s5"))
     labs_table(doc, data.get("labs", []))
     labs_trend_charts(doc, data.get("labs", []), data.get("trend_events", []))
     labs_snapshot_chart(doc, data.get("labs", []))
-    heading_numbered(doc, 6, "治疗史")
+    heading_numbered(doc, 6, _u("s6"))
     treatment_history(doc, data.get("treatment",{}))
     pathway = data.get("pathway", {})
     if pathway:
-        heading_numbered(doc, 7, "治疗路径总结")
+        heading_numbered(doc, 7, _u("s7"))
         pathway_section(doc, pathway)
-    heading_numbered(doc, "A", "建议补充记录")
+    heading_numbered(doc, "A", _u("sA"))
     gaps_section(doc, data.get("gaps",{}))
-    heading_numbered(doc, "B", "待确认项")
+    heading_numbered(doc, "B", _u("sB"))
     review_flags_section(doc, [f for f in data.get("review_flags",[]) if not f.get("user_confirmed")])
     if data.get("sources"):
-        heading_numbered(doc, "C", "信息来源索引")
+        heading_numbered(doc, "C", _u("sC"))
         sources_table(doc, data["sources"])
     disclaimer(doc, data)
     doc.save(output_path)

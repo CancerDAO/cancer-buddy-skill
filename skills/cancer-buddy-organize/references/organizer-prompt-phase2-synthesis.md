@@ -563,7 +563,7 @@ Pure JSON, no prose:
 
 **原则：低覆盖度不降级报告。用现有数据生成最好的报告，用精确标签（Pending/未检测/客观无法获得）标出缺失字段，用"建议补充"清单引导行动。**
 
-### 6.0 — 确定输出格式（REQUIRED）
+### 6.0 — 确定输出格式与语言（REQUIRED）
 
 调用参数中应包含 `output_format`（由 SKILL.md 在 Phase 2 dispatch 前询问用户后传入）：
 - `"markdown"` → 只写 `.md` 文件
@@ -572,6 +572,55 @@ Pure JSON, no prose:
 
 **所有格式的内容和数据必须完全相同，格式不同只体现在文件容器。**
 无论格式如何，markdown 文件始终生成（作为数据存档）。
+
+**语言（`output_language`）**：调用参数中由 SKILL.md Step 1b 或 Step 5 传入。
+
+**规则：用 `output_language` 写一切用户可见的文字内容。**
+具体包括：诊断备注、gaps 建议、next_steps、action_detail、review_flags 描述、
+治疗史摘要、来源引用中的说明文字、患者行动建议——所有这些都应使用目标语言。
+数值、日期、剂量、基因符号、药物通用名（如 penpulimab / paclitaxel）保持原始拼写。
+
+**同时，在 `report_data.json` 末尾写入 `"ui"` 字段**，包含所有章节标题、表头标签、
+免责声明模板的本地化版本，供 `report_template.py` 调用（无需代码改动即可支持任意语言）：
+
+```json
+"ui": {
+  "cover_brief_title":    "<本地化: 病例总结（简要版）>",
+  "cover_detailed_title": "<本地化: 病例总结（详细版）>",
+  "cover_subtitle":       "<本地化: Cancer Buddy · 自动生成 · 仅供参考>",
+  "h_patient_id":  "<本地化: 患者标识>",
+  "h_condition":   "<本地化: 病情概要>",
+  "h_molecular":   "<本地化: 核心分子检测>",
+  "h_imaging":     "<本地化: 主要病灶分布>",
+  "h_labs":        "<本地化: 关键实验室指标>",
+  "h_treatment":   "<本地化: 治疗史>",
+  "h_gaps":        "<本地化: 待完善检查 / 建议补充记录>",
+  "h_pathway":     "<本地化: 当前治疗路径>",
+  "h_flags":       "<本地化: 待确认项>",
+  "s1": "<本地化: 患者基本信息>",
+  "s2": "<本地化: 病情概要>",
+  "s3": "<本地化: 分子检测与标志物>",
+  "s4": "<本地化: 影像学评估>",
+  "s5": "<本地化: 实验室指标摘要>",
+  "s6": "<本地化: 治疗史>",
+  "s7": "<本地化: 治疗路径总结>",
+  "sA": "<本地化: 建议补充记录>",
+  "sB": "<本地化: 待确认项>",
+  "sC": "<本地化: 信息来源索引>",
+  "kv_date":  "<本地化: 确诊时间>",
+  "kv_site":  "<本地化: 原发部位>",
+  "kv_hist":  "<本地化: 病理类型>",
+  "kv_diff":  "<本地化: 分化程度>",
+  "kv_stage": "<本地化: 临床分期>",
+  "kv_init":  "<本地化: 初诊 / 复发>",
+  "kv_mets":  "<本地化: 转移部位>",
+  "kv_stat":  "<本地化: 目前治疗状态>",
+  "disclaimer": "<本地化免责声明，含 {gen}/{fn}/{fr}/{fy}/{fg} 占位符>"
+}
+```
+
+`ui` 字段由 AI 按 `output_language` 实时翻译生成，**不依赖硬编码字典**，
+因此自动支持日文、韩文、德文等任意语言。
 
 ### 6.1 — 一致性要求（CRITICAL）
 
@@ -880,95 +929,4 @@ _本总结由 AI 自动生成，不替代主诊医生判断。_
 - [ ] 同一指标的所有 `labs` 条目 `base_item` 值完全一致
 - [ ] `trend_events` 字段存在（即使为空数组），所有事件均有确切日期
 - [ ] `molecular` 每个元素含 item/status/priority/note 四个字段
-- [ ] `gaps.critical/recommended` 每个元素含 item/reason/action_category/action_detail 四个字段；`gaps.covered` 每个元素含 item/reason
-- [ ] `review_flags` 每个元素含 id/severity/issue
-- [ ] JSON 格式有效（无多余逗号、无中文引号）
-
-### 6.8 — 调用 `report_template.py` 生成 docx / pdf
-
-> 本步骤在 §6.7 完成并验证 JSON 有效后执行。
-
-```bash
-SKILL_DIR="<cancer-buddy-skill 根目录的绝对路径>"
-PATIENT_DIR="<patient_dir>"
-
-# ── 步骤 A：生成 docx（所有格式都需要，pdf 以此为转换源）──────────
-python3 "$SKILL_DIR/scripts/report_template.py" \
-  "$PATIENT_DIR/report_data.json" \
-  "$PATIENT_DIR/case_summary_brief.docx" \
-  --type brief
-
-python3 "$SKILL_DIR/scripts/report_template.py" \
-  "$PATIENT_DIR/report_data.json" \
-  "$PATIENT_DIR/case_summary_detailed.docx" \
-  --type detailed
-
-# ── 步骤 B：仅当 output_format == "pdf" 时执行 ──────────────────────
-# B-1. 设置字体替换规则（微软雅黑 → Noto Sans CJK SC）
-#      Linux 无微软雅黑；不做替换 LibreOffice 会选错字体导致文字重叠。
-mkdir -p ~/.config/fontconfig/conf.d
-cat > ~/.config/fontconfig/conf.d/99-msfonts-substitute.conf << 'FCEOF'
-<?xml version="1.0"?>
-<!DOCTYPE fontconfig SYSTEM "fonts.dtd">
-<fontconfig>
-  <match>
-    <test name="family" compare="eq"><string>微软雅黑</string></test>
-    <edit name="family" mode="prepend" binding="strong">
-      <string>Noto Sans CJK SC</string>
-    </edit>
-  </match>
-  <match>
-    <test name="family" compare="eq"><string>Microsoft YaHei</string></test>
-    <edit name="family" mode="prepend" binding="strong">
-      <string>Noto Sans CJK SC</string>
-    </edit>
-  </match>
-  <match>
-    <test name="family" compare="eq"><string>Arial</string></test>
-    <edit name="family" mode="prepend" binding="strong">
-      <string>Liberation Sans</string>
-    </edit>
-  </match>
-</fontconfig>
-FCEOF
-fc-cache -f ~/.config/fontconfig/ 2>/dev/null
-
-# B-2. docx → pdf（输出到 /tmp 再复制，避免 Windows NTFS 文件锁覆盖失败）
-TMPDIR=$(mktemp -d)
-libreoffice --headless --convert-to pdf \
-  --outdir "$TMPDIR" \
-  "$PATIENT_DIR/case_summary_brief.docx" 2>&1
-
-libreoffice --headless --convert-to pdf \
-  --outdir "$TMPDIR" \
-  "$PATIENT_DIR/case_summary_detailed.docx" 2>&1
-
-# B-3. 复制到 patient_dir（若目标已存在且无法覆盖，用时间戳后缀避免 NTFS 文件锁）
-for F in brief detailed; do
-  SRC="$TMPDIR/case_summary_${F}.pdf"
-  DST="$PATIENT_DIR/case_summary_${F}.pdf"
-  if [ -f "$SRC" ]; then
-    if cp "$SRC" "$DST" 2>/dev/null; then
-      echo "[pdf] OK: $DST"
-    else
-      TS=$(date +%s)
-      DST_NEW="${DST%.pdf}_${TS}.pdf"
-      cp "$SRC" "$DST_NEW"
-      echo "[pdf] NTFS lock — saved as: $DST_NEW"
-    fi
-  else
-    echo "[pdf] WARN: conversion failed for $F — check LibreOffice output above"
-  fi
-done
-rm -rf "$TMPDIR"
-```
-
-> **CIFS/NTFS 注意事项**：在 Cowork 沙盒中，`$SKILL_DIR/scripts/report_template.py` 可能因 NTFS 挂载缓存读到旧版本（bash 内 `wc -l` 与 Read 工具不一致）。如果 `python3` 报 `AttributeError: module has no attribute 'labs_trend_charts'`，改用以下命令绕过缓存：
->
-> ```bash
-> cp "$SKILL_DIR/scripts/report_template.py" /tmp/rt_fresh.py
-> python3 /tmp/rt_fresh.py "$PATIENT_DIR/report_data.json" \
->   "$PATIENT_DIR/case_summary_brief.docx" --type brief
-> python3 /tmp/rt_fresh.py "$PATIENT_DIR/report_data.json" \
->   "$PATIENT_DIR/case_summary_detailed.docx" --type detailed
-> ```
+- [ ] `gaps.critical/recommended` 每个元素含 item/reason/action_category/action_de
