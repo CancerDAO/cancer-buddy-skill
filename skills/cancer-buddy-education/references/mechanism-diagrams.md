@@ -6,8 +6,8 @@ the patient/family can read without medical training.
 
 ## Locale
 
-Read `profile.json.locale` (detect + persist per `../../../references/i18n.md` if
-absent). The diagrams and explanations below are the **`zh` source rendering**.
+Resolve locale per `../../../references/i18n.md` (host `locale` first, otherwise
+`profile.json.locale`, otherwise detection fallback + persist). The diagrams and explanations below are the **`zh` source rendering**.
 When the patient's `locale` is not `zh`:
 
 - Render the **plain-language explanations** ("怎么读这张图" / "为什么会有副作用"

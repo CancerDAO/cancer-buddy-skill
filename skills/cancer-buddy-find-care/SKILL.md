@@ -34,9 +34,10 @@ description: "查找能做特定治疗资源的医院、专科医生和临床试
 
 读共享 `../../references/i18n.md`。流程开始时：
 
-1. 读 `patients/<patient_code>/profile.json` 的 `locale` 字段。有则直接复用，**不重新检测**——保证整个患者旅程脚手架语言一致。
-2. 无 profile / `locale` 为 null → 从用户当前对话语言检测 BCP-47 locale（en / fr / es / zh / …），写回 `profile.json.locale`（无 profile 时由后续 organize 落地，本 skill 检测到则先写）。
-3. 用户显式要求换语言（"answer me in English" / "用中文"）→ 更新 `profile.json.locale` 并照办，覆盖自动检测。
+1. 如果 caller / host 传入 `locale`（用户显式选择的产品 UI 语言），先用它，并在可写 profile 状态时写回 / 更新 `profile.json.locale`。
+2. 否则读 `patients/<patient_code>/profile.json` 的 `locale` 字段。有则直接复用，**不重新检测**——保证整个患者旅程脚手架语言一致。
+3. 无 profile / `locale` 为 null → 从用户当前对话语言检测 BCP-47 locale（en / fr / es / zh / …），写回 `profile.json.locale`（无 profile 时由后续 organize 落地，本 skill 检测到则先写）。
+4. 用户显式要求换语言（"answer me in English" / "用中文"）→ 更新 `profile.json.locale` 并照办，覆盖自动检测。
 
 **本地化脚手架，绝不动临床实体**：所有患者可见输出（QUERY.md、SHORTLIST.md、顶层结论、匹配理由、挂号路径、限制项、路由话术、diff/确认话术、免责声明、日期格式）按 locale 出；药名 / 基因 / 变异 / TNM / 分期 / 数值单位 / 量表标准名 / 注册号（NCT/ChiCTR）/ 机构原名一律 **verbatim 原文逐字**，禁止翻译（误译=医疗风险，见 `../../references/safety-guardrails.md` → 临床实体禁译）。机构名可在原名旁加 locale 通俗注释，不替换原名。
 

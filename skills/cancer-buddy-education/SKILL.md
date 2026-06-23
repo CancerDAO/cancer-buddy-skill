@@ -16,11 +16,12 @@ Turn clinical output into something the patient (and their family) can actually 
 
 Read [../../references/i18n.md](../../references/i18n.md). The whole handbook is a patient-visible template artifact, so before rendering anything:
 
-1. Read `patients/<pid>/profile.json` → `locale`. If present, use it — do not re-detect (education runs after organize, so a `locale` is almost always already persisted).
-2. If absent (no profile, or `locale` is null), detect from the **primary patient-facing language of the records**, tie-breaking to the language the user is asking in (the `record-consuming generative sub-skills` row in `../../references/i18n.md` §2), then write it back to `profile.json.locale` (BCP-47, e.g. `en` / `zh` / `fr`).
-3. Render every patient-visible scaffold string in that `locale` — handbook section titles, quick-reference-card labels, my-health-summary prose, drug-sheet headings, daily-living / follow-up / cost-navigation copy, FAQ question+answer prose, mechanism-diagram explanations, the family 亲友简报, ER-criteria wording, and the mandatory footer. The handbook is generated prose + templates, so this is a prompt instruction: **"Output all scaffold/narrative prose in `<locale>`; keep clinical entities verbatim per `references/i18n.md` §4."** Template-style references (`cancer-type-modules.md` 6-subsection headings, `expanded-faq.md` phase headings) carry their own per-locale heading table — follow it.
-4. Keep every clinical entity verbatim regardless of `locale` — drug names (osimertinib / 奥希替尼 as the source used them, Tagrisso), genes/variants (EGFR L858R, KRAS G12C, ALK fusion), TNM/stage (cT3N2M0, IIIA), response codes (RECIST PR, MSI-H), all numbers + units (CEA 12.4 ng/mL, 80 mg qd, fever > 38.5°C), biomarker labels (PD-L1 TPS 40%). Never translate, transliterate, or normalize them — mistranslating a clinical entity is a P0 medical-safety bug. An optional locale-appropriate gloss may be added *beside* the verbatim term in parentheses (per `terminology.md`), never replacing it.
-5. Honor an explicit user language override ("给我爸妈出英文版" / "answer me in English") → update `profile.json.locale` and follow it going forward.
+1. If the caller / host supplies `locale` (the user's explicit product UI language), use it first and write/update `profile.json.locale` when profile state is available.
+2. Otherwise read `patients/<pid>/profile.json` → `locale`. If present, use it — do not re-detect (education runs after organize, so a `locale` is almost always already persisted).
+3. If absent (no profile, or `locale` is null), detect from the **primary patient-facing language of the records**, tie-breaking to the language the user is asking in (the `record-consuming generative sub-skills` row in `../../references/i18n.md` §2), then write it back to `profile.json.locale` (BCP-47, e.g. `en` / `zh` / `fr`).
+4. Render every patient-visible scaffold string in that `locale` — handbook section titles, quick-reference-card labels, my-health-summary prose, drug-sheet headings, daily-living / follow-up / cost-navigation copy, FAQ question+answer prose, mechanism-diagram explanations, the family 亲友简报, ER-criteria wording, and the mandatory footer. The handbook is generated prose + templates, so this is a prompt instruction: **"Output all scaffold/narrative prose in `<locale>`; keep clinical entities verbatim per `references/i18n.md` §4."** Template-style references (`cancer-type-modules.md` 6-subsection headings, `expanded-faq.md` phase headings) carry their own per-locale heading table — follow it.
+5. Keep every clinical entity verbatim regardless of `locale` — drug names (osimertinib / 奥希替尼 as the source used them, Tagrisso), genes/variants (EGFR L858R, KRAS G12C, ALK fusion), TNM/stage (cT3N2M0, IIIA), response codes (RECIST PR, MSI-H), all numbers + units (CEA 12.4 ng/mL, 80 mg qd, fever > 38.5°C), biomarker labels (PD-L1 TPS 40%). Never translate, transliterate, or normalize them — mistranslating a clinical entity is a P0 medical-safety bug. An optional locale-appropriate gloss may be added *beside* the verbatim term in parentheses (per `terminology.md`), never replacing it.
+6. Honor an explicit user language override ("给我爸妈出英文版" / "answer me in English") → update `profile.json.locale` and follow it going forward.
 
 ## Preflight
 
@@ -86,6 +87,6 @@ Apply `safety-guardrails.md` rules:
 - [mechanism-diagrams.md](references/mechanism-diagrams.md) — disease mechanism Mermaid diagrams (absorbed from vmtb-patient-education)
 - [cancer-type-modules.md](references/cancer-type-modules.md) — per-cancer-type patient modules
 - [expanded-faq.md](references/expanded-faq.md) — FAQ organized by treatment phase
-- [../../references/i18n.md](../../references/i18n.md) — shared locale layer (detect / persist / verbatim-clinical)
+- [../../references/i18n.md](../../references/i18n.md) — shared locale layer (host `locale` first, otherwise profile locale / detection fallback / persist / verbatim-clinical)
 - [../../references/terminology.md](../../references/terminology.md)
 - [../../references/safety-guardrails.md](../../references/safety-guardrails.md)
