@@ -52,6 +52,83 @@ _UI_DEFAULTS = {
     "kv_init":  "初诊 / 复发",
     "kv_mets":  "转移部位",
     "kv_stat":  "目前治疗状态",
+    "tx_no_history": "暂无既往治疗记录。",
+    "tx_current_status": "当前状态",
+    "tx_efficacy": "疗效",
+    "tx_stop_reason": "停药原因",
+    "tx_toxicity": "毒副反应",
+    "tx_line_names": "一线,二线,三线,四线,五线,六线",
+    "tx_line_fallback": "第{n}线",
+    "cover_brief_heading":    "病情简要总结",
+    "cover_detailed_heading": "病情详细总结",
+    "cover_detailed_eyebrow": "-- 病情详细总结",
+    "cover_report_date":      "报告日期：{date}",
+    "cover_disclaimer_short": "仅用于临床交流参考，不替代主治医师的判断",
+    "labs_empty":      "暂无检验数据。",
+    "molecular_empty": "暂无分子检测数据。",
+    "imaging_empty":   "暂无影像学报告。",
+    "trend_section_title": "关键指标趋势",
+    "gaps_critical_title":    "(紧急) 对后续分析至关重要（建议尽快补充）",
+    "gaps_recommended_title": "(建议) 有助于提升分析精准度",
+    "gaps_covered_title":     "(已覆盖) 已充分覆盖",
+    "flags_all_clear":   "所有提取字段已通过可疑值检查，无待确认项。",
+    "flags_red_title":   "(待确认) 以下 {n} 项需在使用本报告做决策前确认：",
+    "flags_yellow_title":"(建议核对) 以下 {n} 项建议核对（不影响报告生成）：",
+    "flags_suggested_action": "建议：{action}",
+    "action_cat_hospital": "现医院可补检",
+    "action_cat_archive":  "需调阅历史档案",
+    "action_cat_referral": "需转诊专项检查",
+    "action_cat_unavail":  "组织标本不可及",
+    "kv_separator": "：",
+    "kv_pending_keywords": "未检测,未取得,Pending,待,—,Not obtained,not obtained,not tested,Not tested",
+    "pw_current":     "当前较可能的路径",
+    "pw_bridge":      "桥接",
+    "pw_alternative": "备选试验路径",
+    "chart_snapshot_title": "关键检验指标快照",
+    "chart_ref_range":   "参考范围",
+    "chart_normal":      "正常",
+    "chart_abnormal":    "异常",
+    "trend_ref_range":   "参考区间",
+    "trend_out_of_range":"超出范围",
+    "trend_normal_range":"正常范围",
+    "footer_page_prefix": "第 ",
+    "footer_page_mid":    " 页 / 共 ",
+    "footer_page_suffix": " 页",
+    "trend_xlabel_date":  "日期",
+    "meta_report_date": "报告日期",
+    "meta_files_analyzed": "分析文件",
+    "meta_files_unit": "{n} 份",
+    "meta_language": "语言",
+    "meta_language_value": "简体中文",
+    "pi_name":      "患者姓名",
+    "pi_sex_age":   "性别 / 年龄",
+    "pi_hospital":  "就诊医院",
+    "pi_doctor":    "主管医生",
+    "pi_ecog":      "ECOG 体能评分",
+    "pi_ecog_pending": "待医生评估",
+    "pi_diagnosis": "临床诊断",
+    "pi_admit_no":  "住院号",
+    "pi_patient_id":"病员号",
+    "pi_patient_code": "病历编号",
+    "labs_th_date":     "日期",
+    "labs_th_item":     "检验项目",
+    "labs_th_category": "类别",
+    "labs_th_result":   "结果",
+    "labs_th_ref":      "参考值",
+    "labs_th_meaning":  "临床意义",
+    "mol_th_item":    "检测项目",
+    "mol_th_status":  "结果 / 状态",
+    "mol_th_priority":"优先级",
+    "mol_th_meaning": "临床意义",
+    "mol_priority_high":   "关键",
+    "mol_priority_medium": "建议",
+    "mol_priority_low":    "参考",
+    "mol_missing_keywords": "未检测,未取得,Pending,待回报,Not tested,Not obtained,not tested,not obtained",
+    "img_th_date_type": "日期 / 类型",
+    "img_th_summary":   "影像学摘要",
+    "src_th_module":    "模块",
+    "src_th_datapoint": "数据点",
+    "src_th_file":      "来源文件",
     "disclaimer": (
         "本报告由 Cancer Buddy 自动生成 | 生成时间：{gen} | "
         "分析文件数：{fn} | 待确认 {fr} · 建议核对 {fy} · 已通过 {fg} | "
@@ -61,8 +138,13 @@ _UI_DEFAULTS = {
 _UI = {}   # populated by build_brief / build_detailed from data["ui"]
 
 def _u(key):
-    """Return localized UI string: data["ui"][key] → fallback default."""
-    return _UI.get(key) or _UI_DEFAULTS.get(key, key)
+    """Return localized UI string: data["ui"][key] → fallback default.
+    Uses explicit key-presence check (not `or`) so legitimate empty-string
+    overrides (e.g. footer_page_suffix="" in English) are not silently
+    replaced by the Chinese default."""
+    if key in _UI:
+        return _UI[key]
+    return _UI_DEFAULTS.get(key, key)
 
 # ── Design tokens ──────────────────────────────────────────────────────────────
 PRIMARY   = RGBColor(0x1F, 0x3B, 0x5C)
@@ -219,19 +301,13 @@ def _footer(doc):
     para    = footer.paragraphs[0] if footer.paragraphs else footer.add_paragraph()
     para.alignment = WD_ALIGN_PARAGRAPH.CENTER
     para.clear()
-    run = para.add_run("第 ")
-    _set_font(run, 8, color=RGBColor(0x88, 0x88, 0x88))
-    for txt, ftype in [(" PAGE ", "begin"), (" PAGE ", None), (" PAGE ", "end"),
-                       (" NUMPAGES ", "begin2"), (" NUMPAGES ", None), (" NUMPAGES ", "end2")]:
-        pass
-    # Simplified field insertion
     def _field(r, instr):
         fc1 = OxmlElement("w:fldChar"); fc1.set(qn("w:fldCharType"), "begin"); r._element.append(fc1)
         it  = OxmlElement("w:instrText"); it.text = instr; r._element.append(it)
         fc2 = OxmlElement("w:fldChar"); fc2.set(qn("w:fldCharType"), "end"); r._element.append(fc2)
-    r1 = para.add_run("第 "); _set_font(r1, 8, color=RGBColor(0x88, 0x88, 0x88)); _field(r1, " PAGE ")
-    r2 = para.add_run(" 页 / 共 "); _set_font(r2, 8, color=RGBColor(0x88, 0x88, 0x88)); _field(r2, " NUMPAGES ")
-    r3 = para.add_run(" 页"); _set_font(r3, 8, color=RGBColor(0x88, 0x88, 0x88))
+    r1 = para.add_run(_u("footer_page_prefix")); _set_font(r1, 8, color=RGBColor(0x88, 0x88, 0x88)); _field(r1, " PAGE ")
+    r2 = para.add_run(_u("footer_page_mid"));    _set_font(r2, 8, color=RGBColor(0x88, 0x88, 0x88)); _field(r2, " NUMPAGES ")
+    r3 = para.add_run(_u("footer_page_suffix"));  _set_font(r3, 8, color=RGBColor(0x88, 0x88, 0x88))
 
 
 # ── Section headings ───────────────────────────────────────────────────────────
@@ -307,7 +383,7 @@ def cover_brief(doc, data):
     dx      = data.get("diagnosis", {})
     # 大标题（固定文字）
     p = doc.add_paragraph()
-    _set_font(p.add_run("病情简要总结"), 22, bold=True, color=PRIMARY)
+    _set_font(p.add_run(_u("cover_brief_heading")), 22, bold=True, color=PRIMARY)
     p.paragraph_format.space_after = Pt(6)
     # 副标题：仅显示简短病名，不拼接长字段
     subtitle = _short_name(patient, dx)
@@ -318,8 +394,8 @@ def cover_brief(doc, data):
     # 日期 + 声明
     date = patient.get("report_date", data.get("generated_at","")[:10])
     pd = doc.add_paragraph()
-    _set_font(pd.add_run(f"报告日期：{date}"), 9, color=RGBColor(0x55, 0x55, 0x55))
-    _set_font(pd.add_run("  |  仅用于临床交流参考，不替代主治医师的判断"), 9, color=RGBColor(0x88, 0x88, 0x88))
+    _set_font(pd.add_run(_u("cover_report_date").format(date=date)), 9, color=RGBColor(0x55, 0x55, 0x55))
+    _set_font(pd.add_run("  |  " + _u("cover_disclaimer_short")), 9, color=RGBColor(0x88, 0x88, 0x88))
     pd.paragraph_format.space_after = Pt(6)
     # 分隔线
     rule = doc.add_paragraph()
@@ -332,11 +408,11 @@ def cover_detailed(doc, data):
     dx      = data.get("diagnosis", {})
     # 面包屑
     pc = doc.add_paragraph()
-    _set_font(pc.add_run("-- 病情详细总结"), 9, color=RGBColor(0x66, 0x66, 0x66))
+    _set_font(pc.add_run(_u("cover_detailed_eyebrow")), 9, color=RGBColor(0x66, 0x66, 0x66))
     pc.paragraph_format.space_after = Pt(10)
     # 大标题（固定文字，参考005 PDF）
     pt = doc.add_paragraph()
-    _set_font(pt.add_run("病情详细总结"), 26, bold=True, color=PRIMARY)
+    _set_font(pt.add_run(_u("cover_detailed_heading")), 26, bold=True, color=PRIMARY)
     pt.paragraph_format.space_after = Pt(8)
     # 副标题：仅显示简短病名，不拼接长字段
     subtitle = _short_name(patient, dx)
@@ -347,7 +423,9 @@ def cover_detailed(doc, data):
     # 元数据格（报告日期 / 分析文件数 / 语言）
     date    = patient.get("report_date", data.get("generated_at","")[:10])
     files_n = data.get("files_analyzed", 0)
-    meta    = [("报告日期", date), ("分析文件", f"{files_n} 份"), ("语言", "简体中文")]
+    meta    = [(_u("meta_report_date"), date),
+               (_u("meta_files_analyzed"), _u("meta_files_unit").format(n=files_n)),
+               (_u("meta_language"), _u("meta_language_value"))]
     MW = CONTENT_DXA // 4
     tbl = doc.add_table(rows=1, cols=4)
     _fix_table(tbl, [MW, MW, MW, CONTENT_DXA - 3*MW])
@@ -394,16 +472,16 @@ def patient_info_table(doc, patient, extended=False):
         LABEL_W = 2100
         VALUE_W = CONTENT_DXA - LABEL_W
         rows = [
-            ("患者姓名",      patient.get("name", "—")),
-            ("性别 / 年龄",   f"{patient.get('sex','—')} / {patient.get('age','—')}"),
-            ("就诊医院",      patient.get("hospital", "—")),
-            ("主管医生",      patient.get("doctor", "—")),
-            ("ECOG 体能评分", patient.get("ecog", "待医生评估")),
-            ("临床诊断",      patient.get("diagnosis", "—")),
-            ("报告日期",      patient.get("report_date", "—")),
-            ("住院号",        patient.get("admission_no", "—")),
-            ("病员号",        patient.get("patient_id", "—")),
-            ("病历编号",      patient.get("patient_code", "—")),
+            (_u("pi_name"),      patient.get("name", "—")),
+            (_u("pi_sex_age"),   f"{patient.get('sex','—')} / {patient.get('age','—')}"),
+            (_u("pi_hospital"),  patient.get("hospital", "—")),
+            (_u("pi_doctor"),    patient.get("doctor", "—")),
+            (_u("pi_ecog"),      patient.get("ecog", _u("pi_ecog_pending"))),
+            (_u("pi_diagnosis"), patient.get("diagnosis", "—")),
+            (_u("meta_report_date"), patient.get("report_date", "—")),
+            (_u("pi_admit_no"),  patient.get("admission_no", "—")),
+            (_u("pi_patient_id"),patient.get("patient_id", "—")),
+            (_u("pi_patient_code"), patient.get("patient_code", "—")),
         ]
         tbl = doc.add_table(rows=len(rows), cols=2)
         tbl.alignment = WD_TABLE_ALIGNMENT.LEFT
@@ -418,12 +496,12 @@ def patient_info_table(doc, patient, extended=False):
         LW = 1600
         VW = CONTENT_DXA // 2 - LW  # 2936
         grid = [
-            ("性别 / 年龄",   f"{patient.get('sex','—')} / {patient.get('age','—')}",
-             "就诊医院",      patient.get("hospital", "—")),
-            ("ECOG 体能评分", patient.get("ecog", "待医生评估"),
-             "临床诊断",      patient.get("diagnosis", "—")),
-            ("报告日期",      patient.get("report_date", "—"),
-             "病员号",        patient.get("patient_id", "—")),
+            (_u("pi_sex_age"),   f"{patient.get('sex','—')} / {patient.get('age','—')}",
+             _u("pi_hospital"),  patient.get("hospital", "—")),
+            (_u("pi_ecog"),      patient.get("ecog", _u("pi_ecog_pending")),
+             _u("pi_diagnosis"), patient.get("diagnosis", "—")),
+            (_u("meta_report_date"), patient.get("report_date", "—"),
+             _u("pi_patient_id"),    patient.get("patient_id", "—")),
         ]
         tbl = doc.add_table(rows=len(grid), cols=4)
         tbl.alignment = WD_TABLE_ALIGNMENT.LEFT
@@ -441,7 +519,7 @@ def patient_info_table(doc, patient, extended=False):
 def labs_cards(doc, labs, n=4):
     """卡片网格（简要版）。"""
     if not labs:
-        _set_font(doc.add_paragraph("暂无检验数据。").add_run(""), 10, color=RGBColor(0x88,0x88,0x88))
+        _set_font(doc.add_paragraph(_u("labs_empty")).add_run(""), 10, color=RGBColor(0x88,0x88,0x88))
         return
     CW = CONTENT_DXA // n
     nrows = (len(labs) + n - 1) // n
@@ -492,10 +570,11 @@ def labs_cards(doc, labs, n=4):
 def labs_table(doc, labs):
     """标准表格（详细版）。列序：日期 → 检验项目 → 类别 → 结果 → 参考值 → 临床意义。"""
     if not labs:
-        p = doc.add_paragraph("暂无检验数据。")
+        p = doc.add_paragraph(_u("labs_empty"))
         _set_font(p.runs[0] if p.runs else p.add_run(""), 10, color=RGBColor(0x88, 0x88, 0x88))
         return
-    headers    = ["日期", "检验项目", "类别", "结果", "参考值", "临床意义"]
+    headers    = [_u("labs_th_date"), _u("labs_th_item"), _u("labs_th_category"),
+                  _u("labs_th_result"), _u("labs_th_ref"), _u("labs_th_meaning")]
     col_widths = [1361,   1814,       998,    1270,   1179,    2450]   # sum = 9072
     tbl = doc.add_table(rows=1, cols=6)
     tbl.alignment = WD_TABLE_ALIGNMENT.CENTER
@@ -765,14 +844,14 @@ def labs_snapshot_chart(doc, labs, png_save_path=None):
     import matplotlib.patches as mpatches
     ax.legend(
         handles=[
-            mpatches.Patch(color='#d4edda', edgecolor='#6c9e77', label='参考范围'),
-            plt.scatter([], [], s=60, color='#198754', label='正常'),
-            plt.scatter([], [], s=60, color='#dc3545', label='异常'),
+            mpatches.Patch(color='#d4edda', edgecolor='#6c9e77', label=_u('chart_ref_range')),
+            plt.scatter([], [], s=60, color='#198754', label=_u('chart_normal')),
+            plt.scatter([], [], s=60, color='#dc3545', label=_u('chart_abnormal')),
         ],
         loc='lower right', fontsize=7.5, framealpha=0.85, edgecolor='#dee2e6'
     )
 
-    ax.set_title("关键检验指标快照", fontsize=10, fontweight='bold', pad=6)
+    ax.set_title(_u("chart_snapshot_title"), fontsize=10, fontweight='bold', pad=6)
     plt.tight_layout()
 
     # Save / embed
@@ -876,7 +955,7 @@ def labs_trend_charts(doc, labs, trend_events=None):
     ph = doc.add_paragraph()
     ph.paragraph_format.space_before = Pt(10)
     ph.paragraph_format.space_after  = Pt(4)
-    _set_font(ph.add_run("关键指标趋势"), 10, bold=True, color=PRIMARY)
+    _set_font(ph.add_run(_u("trend_section_title")), 10, bold=True, color=PRIMARY)
     _bottom_rule(ph, color="C5D8EC", size=4, space=3)
 
     # -- Parse clinical event dates ----------------------------------------
@@ -905,11 +984,11 @@ def labs_trend_charts(doc, labs, trend_events=None):
 
     # -- Shared figure-level legend handles (same for every chunk) ---------
     fig_legend_handles = [
-        mpatches.Patch(facecolor="#2E75B6", alpha=0.3, label="参考区间"),
+        mpatches.Patch(facecolor="#2E75B6", alpha=0.3, label=_u("trend_ref_range")),
         plt.Line2D([0],[0], marker="o", color="w",
-                   markerfacecolor="#C00000", markersize=6, label="超出范围"),
+                   markerfacecolor="#C00000", markersize=6, label=_u("trend_out_of_range")),
         plt.Line2D([0],[0], marker="o", color="w",
-                   markerfacecolor="#2E75B6", markersize=6, label="正常范围"),
+                   markerfacecolor="#2E75B6", markersize=6, label=_u("trend_normal_range")),
     ]
 
     for chunk in chunks:
@@ -1028,7 +1107,7 @@ def labs_trend_charts(doc, labs, trend_events=None):
             ax.tick_params(axis="x", pad=2)
             ax.tick_params(axis="y", labelsize=6.5)
             # X-axis label: clarify axis represents dates
-            ax.set_xlabel("日期", fontsize=7, color="#666666", labelpad=3)
+            ax.set_xlabel(_u("trend_xlabel_date"), fontsize=7, color="#666666", labelpad=3)
 
             # Subplot title: indicator name + reference string
             title = key
@@ -1074,9 +1153,9 @@ def labs_trend_charts(doc, labs, trend_events=None):
 # ── Molecular ──────────────────────────────────────────────────────────────────
 def molecular_table(doc, molecular):
     if not molecular:
-        _set_font(doc.add_paragraph("暂无分子检测数据。").add_run(""), 10, color=RGBColor(0x88,0x88,0x88))
+        _set_font(doc.add_paragraph(_u("molecular_empty")).add_run(""), 10, color=RGBColor(0x88,0x88,0x88))
         return
-    headers   = ["检测项目","结果 / 状态","优先级","临床意义"]
+    headers   = [_u("mol_th_item"), _u("mol_th_status"), _u("mol_th_priority"), _u("mol_th_meaning")]
     col_widths = [2268, 2540, 998, 3266]
     tbl = doc.add_table(rows=1, cols=4)
     tbl.alignment = WD_TABLE_ALIGNMENT.CENTER
@@ -1086,11 +1165,13 @@ def molecular_table(doc, molecular):
         _shading(c, HDR_BG); _borders(c)
         p = c.paragraphs[0]; p.alignment = WD_ALIGN_PARAGRAPH.CENTER
         _set_font(p.add_run(h), 9.5, bold=True, color=PRIMARY)
-    PMAP = {"high": (ALERT_BG, ALERT_T, "关键"), "medium": (WARN_BG, WARN_T, "建议"), "low": ("", OK_T, "参考")}
+    PMAP = {"high": (ALERT_BG, ALERT_T, _u("mol_priority_high")),
+            "medium": (WARN_BG, WARN_T, _u("mol_priority_medium")),
+            "low": ("", OK_T, _u("mol_priority_low"))}
     for item in molecular:
-        bg, tc, lbl = PMAP.get(item.get("priority","medium"), (WARN_BG, WARN_T, "建议"))
+        bg, tc, lbl = PMAP.get(item.get("priority","medium"), (WARN_BG, WARN_T, _u("mol_priority_medium")))
         status = item.get("status","—")
-        missing = any(kw in status for kw in ["未检测","未取得","Pending","待回报"])
+        missing = any(kw in status for kw in _u("mol_missing_keywords").split(","))
         row = tbl.add_row()
         for i, val in enumerate([item.get("item","—"), status, lbl, item.get("note","—")]):
             c = row.cells[i]; _borders(c)
@@ -1115,14 +1196,14 @@ def imaging_section(doc, imaging):
         _set_font(p.runs[0] if p.runs else p.add_run(""), 10, color=RGBColor(0x88,0x88,0x88))
         doc.add_paragraph(); return
     if not items:
-        p = doc.add_paragraph("暂无影像学报告。")
+        p = doc.add_paragraph(_u("imaging_empty"))
         _set_font(p.runs[0] if p.runs else p.add_run(""), 10, color=RGBColor(0x88,0x88,0x88))
         doc.add_paragraph(); return
     col_widths = [2268, CONTENT_DXA - 2268]
     tbl = doc.add_table(rows=1, cols=2)
     tbl.alignment = WD_TABLE_ALIGNMENT.CENTER
     _fix_table(tbl, col_widths)
-    for i, h in enumerate(["日期 / 类型","影像学摘要"]):
+    for i, h in enumerate([_u("img_th_date_type"), _u("img_th_summary")]):
         c = tbl.rows[0].cells[i]; _shading(c, HDR_BG); _borders(c)
         p = c.paragraphs[0]; p.alignment = WD_ALIGN_PARAGRAPH.CENTER
         _set_font(p.add_run(h), 9.5, bold=True, color=PRIMARY)
@@ -1147,16 +1228,16 @@ def treatment_history(doc, treatment):
         _set_font(p.runs[0] if p.runs else p.add_run(""), 10, color=RGBColor(0x88,0x88,0x88))
         doc.add_paragraph(); return
     if not lines:
-        p = doc.add_paragraph("暂无既往治疗记录。")
+        p = doc.add_paragraph(_u("tx_no_history"))
         _set_font(p.runs[0] if p.runs else p.add_run(""), 10, color=RGBColor(0x88,0x88,0x88))
         doc.add_paragraph(); return
     if current:
         p = doc.add_paragraph()
-        _set_font(p.add_run("当前状态  "), 9.5, bold=True, color=ACCENT)
+        _set_font(p.add_run(_u("tx_current_status") + "  "), 9.5, bold=True, color=ACCENT)
         _set_font(p.add_run(current), 9.5, color=RGBColor(0x1A,0x1A,0x1A))
         p.paragraph_format.space_after = Pt(10)
     EFFICACY = {"CR": OK_T, "PR": OK_T, "SD": WARN_T, "PD": ALERT_T}
-    LINE_NAMES = ["一线", "二线", "三线", "四线", "五线", "六线"]
+    LINE_NAMES = _u("tx_line_names").split(",")
 
     for idx, line in enumerate(lines):
         ah  = LINE_ACCENT_HEX[idx % len(LINE_ACCENT_HEX)]
@@ -1166,7 +1247,7 @@ def treatment_history(doc, treatment):
         try:
             line_name = LINE_NAMES[int(line_n) - 1]
         except Exception:
-            line_name = f"第{line_n}线"
+            line_name = _u("tx_line_fallback").format(n=line_n)
 
         # ── 卡片：2列表（左色标 + 内容列）────────────────────────────
         BADGE_W = 680
@@ -1201,9 +1282,9 @@ def treatment_history(doc, treatment):
             _set_font(ph.add_run(f"  |  {period}"), 9, color=RGBColor(0x66, 0x66, 0x66))
 
         # 详细字段
-        for lbl, key, use_ec in [("疗效", "efficacy", True),
-                                  ("停药原因", "stop_reason", False),
-                                  ("毒副反应", "toxicity", False)]:
+        for lbl, key, use_ec in [(_u("tx_efficacy"), "efficacy", True),
+                                  (_u("tx_stop_reason"), "stop_reason", False),
+                                  (_u("tx_toxicity"), "toxicity", False)]:
             val = line.get(key, "")
             if not val:
                 continue
@@ -1211,7 +1292,7 @@ def treatment_history(doc, treatment):
             pd_p.paragraph_format.left_indent  = Cm(0.4)
             pd_p.paragraph_format.space_before = Pt(2)
             pd_p.paragraph_format.space_after  = Pt(2)
-            _set_font(pd_p.add_run(f"{lbl}："), 9, bold=True, color=RGBColor(0x55, 0x55, 0x55))
+            _set_font(pd_p.add_run(f"{lbl}{_u('kv_separator')}"), 9, bold=True, color=RGBColor(0x55, 0x55, 0x55))
             vc = RGBColor(0x1A, 0x1A, 0x1A)
             if use_ec:
                 for k, col in EFFICACY.items():
@@ -1230,8 +1311,8 @@ def gaps_section(doc, gaps):
     critical    = gaps.get("critical", [])
     recommended = gaps.get("recommended", [])
     covered     = gaps.get("covered", [])
-    ACTION_LBL  = {"现医院补检":"现医院可补检", "调阅历史档案":"需调阅历史档案",
-                   "转诊专项检查":"需转诊专项检查", "组织已不可及":"组织标本不可及"}
+    ACTION_LBL  = {"现医院补检": _u("action_cat_hospital"), "调阅历史档案": _u("action_cat_archive"),
+                   "转诊专项检查": _u("action_cat_referral"), "组织已不可及": _u("action_cat_unavail")}
     def gap_item(g, tc):
         p = doc.add_paragraph()
         p.paragraph_format.left_indent  = Cm(0.5)
@@ -1251,17 +1332,17 @@ def gaps_section(doc, gaps):
             _set_font(p2.add_run(g["action_detail"]), 9, color=RGBColor(0x44,0x44,0x44))
     if critical:
         p = doc.add_paragraph()
-        _set_font(p.add_run("(紧急) 对后续分析至关重要（建议尽快补充）"), 10, bold=True, color=ALERT_T)
+        _set_font(p.add_run(_u("gaps_critical_title")), 10, bold=True, color=ALERT_T)
         p.paragraph_format.space_before = Pt(6)
         for g in critical: gap_item(g, ALERT_T)
     if recommended:
         p = doc.add_paragraph()
-        _set_font(p.add_run("(建议) 有助于提升分析精准度"), 10, bold=True, color=WARN_T)
+        _set_font(p.add_run(_u("gaps_recommended_title")), 10, bold=True, color=WARN_T)
         p.paragraph_format.space_before = Pt(8)
         for g in recommended: gap_item(g, WARN_T)
     if covered:
         p = doc.add_paragraph()
-        _set_font(p.add_run("(已覆盖) 已充分覆盖"), 10, bold=True, color=OK_T)
+        _set_font(p.add_run(_u("gaps_covered_title")), 10, bold=True, color=OK_T)
         p.paragraph_format.space_before = Pt(8)
         for g in covered:
             p2 = doc.add_paragraph()
@@ -1277,14 +1358,14 @@ def gaps_section(doc, gaps):
 # ── Review flags ───────────────────────────────────────────────────────────────
 def review_flags_section(doc, flags):
     if not flags:
-        p = doc.add_paragraph("所有提取字段已通过可疑值检查，无待确认项。")
+        p = doc.add_paragraph(_u("flags_all_clear"))
         _set_font(p.runs[0] if p.runs else p.add_run(""), 10, color=OK_T)
         return
     red    = [f for f in flags if f.get("severity")=="red"]
     yellow = [f for f in flags if f.get("severity")=="yellow"]
     if red:
         p = doc.add_paragraph()
-        _set_font(p.add_run(f"(待确认) 以下 {len(red)} 项需在使用本报告做决策前确认："), 10, bold=True, color=ALERT_T)
+        _set_font(p.add_run(_u("flags_red_title").format(n=len(red))), 10, bold=True, color=ALERT_T)
         p.paragraph_format.space_before = Pt(4)
         for f in red:
             p2 = doc.add_paragraph()
@@ -1294,10 +1375,10 @@ def review_flags_section(doc, flags):
             if f.get("suggested_action"):
                 p3 = doc.add_paragraph()
                 p3.paragraph_format.left_indent = Cm(1.2)
-                _set_font(p3.add_run(f"建议：{f['suggested_action']}"), 9, color=RGBColor(0x55,0x55,0x55))
+                _set_font(p3.add_run(_u("flags_suggested_action").format(action=f['suggested_action'])), 9, color=RGBColor(0x55,0x55,0x55))
     if yellow:
         p = doc.add_paragraph()
-        _set_font(p.add_run(f"(建议核对) 以下 {len(yellow)} 项建议核对（不影响报告生成）："), 10, bold=True, color=WARN_T)
+        _set_font(p.add_run(_u("flags_yellow_title").format(n=len(yellow))), 10, bold=True, color=WARN_T)
         p.paragraph_format.space_before = Pt(6)
         for f in yellow:
             p2 = doc.add_paragraph()
@@ -1321,9 +1402,9 @@ def pathway_section(doc, pathway):
     _borders(cc, color="C5D8EC", size=6)
 
     LABEL_COLORS = {
-        "current":     (ACCENT,  "当前较可能的路径"),
-        "bridge":      (WARN_T,  "桥接"),
-        "alternative": (PRIMARY, "备选试验路径"),
+        "current":     (ACCENT,  _u("pw_current")),
+        "bridge":      (WARN_T,  _u("pw_bridge")),
+        "alternative": (PRIMARY, _u("pw_alternative")),
     }
 
     def _path_para(cell, label, text, lbl_color):
@@ -1331,7 +1412,7 @@ def pathway_section(doc, pathway):
         p.paragraph_format.left_indent  = Cm(0.4)
         p.paragraph_format.space_before = Pt(3)
         p.paragraph_format.space_after  = Pt(3)
-        _set_font(p.add_run(f"{label}："), 9.5, bold=True, color=lbl_color)
+        _set_font(p.add_run(f"{label}{_u('kv_separator')}"), 9.5, bold=True, color=lbl_color)
         _set_font(p.add_run(str(text)), 9.5, color=RGBColor(0x1A, 0x1A, 0x1A))
 
     first = True
@@ -1344,14 +1425,14 @@ def pathway_section(doc, pathway):
             p.paragraph_format.space_before = Pt(8)
             p.paragraph_format.space_after  = Pt(3)
             p.paragraph_format.left_indent  = Cm(0.4)
-            _set_font(p.add_run(f"{label}："), 9.5, bold=True, color=col)
+            _set_font(p.add_run(f"{label}{_u('kv_separator')}"), 9.5, bold=True, color=col)
             _set_font(p.add_run(str(val)), 9.5, color=RGBColor(0x1A, 0x1A, 0x1A))
             first = False
         else:
             p.paragraph_format.left_indent  = Cm(0.4)
             p.paragraph_format.space_before = Pt(3)
             p.paragraph_format.space_after  = Pt(3)
-            _set_font(p.add_run(f"{label}："), 9.5, bold=True, color=col)
+            _set_font(p.add_run(f"{label}{_u('kv_separator')}"), 9.5, bold=True, color=col)
             _set_font(p.add_run(str(val)), 9.5, color=RGBColor(0x1A, 0x1A, 0x1A))
 
     # pending_issues / next_steps fallback
@@ -1381,7 +1462,7 @@ def sources_table(doc, sources):
     tbl = doc.add_table(rows=1, cols=3)
     tbl.alignment = WD_TABLE_ALIGNMENT.CENTER
     _fix_table(tbl, col_widths)
-    for i, h in enumerate(["模块","数据点","来源文件"]):
+    for i, h in enumerate([_u("src_th_module"), _u("src_th_datapoint"), _u("src_th_file")]):
         c = tbl.rows[0].cells[i]; _shading(c, HDR_BG); _borders(c)
         _set_font(c.paragraphs[0].add_run(h), 9.5, bold=True, color=PRIMARY)
     for s in sources:
@@ -1412,8 +1493,8 @@ def disclaimer(doc, data):
 def _kv(doc, label, val):
     p = doc.add_paragraph()
     p.paragraph_format.space_before = Pt(1); p.paragraph_format.space_after = Pt(1)
-    _set_font(p.add_run(f"{label}："), 10, bold=True, color=RGBColor(0x44,0x44,0x44))
-    pending = any(kw in str(val) for kw in ["未检测","未取得","Pending","待","—"])
+    _set_font(p.add_run(f"{label}{_u('kv_separator')}"), 10, bold=True, color=RGBColor(0x44,0x44,0x44))
+    pending = any(kw in str(val) for kw in _u("kv_pending_keywords").split(","))
     _set_font(p.add_run(str(val)), 10,
               color=RGBColor(0x88,0x88,0x88) if pending else RGBColor(0x1A,0x1A,0x1A))
 
@@ -1534,7 +1615,8 @@ def main():
         if saved and os.path.exists(md_path):
             with open(md_path, "r", encoding="utf-8") as f:
                 content = f.read()
-            img_tag = f"\n\n![关键检验指标快照](./charts/{png_name})\n"
+            alt_text = _u("chart_snapshot_title")
+            img_tag = f"\n\n![{alt_text}](./charts/{png_name})\n"
             patterns = [
                 r"(##\s*模块\s*5[^\n]*\n)",
                 r"(##\s*关键实验室指标[^\n]*\n)",
