@@ -8,13 +8,14 @@ The central `ocr/` directory is **temporary staging only**. By the end of your r
 
 This worker is the **canonical writer of `profile.json.locale`** (per [`../../../references/i18n.md`](../../../references/i18n.md) §3). Before Step 1:
 
-1. Read `profile.json.locale` if a `profile.json` already exists (incremental / re-run) — if present, **reuse it, do not re-detect.**
-2. Otherwise **detect** the locale from the records: the BCP-47 tag of the **primary patient-facing language of the medical records** (the language most of the narrative / clinical-document prose is in — a 中文 report with English drug names is still `zh`; mixed → §2.1 tie-break to the patient's own writing). This is an LLM judgment over the sidecar content — do NOT run a hardcoded character-set table. Then **persist** it: write `profile.json.locale = "<bcp47>"` (Step 2.4).
+1. If the caller supplies `locale` (BCP-47, from the user's explicit product UI / language setting), use it as the canonical locale for this run and **write / overwrite** `profile.json.locale = "<locale>"` (Step 2.4). Do not re-detect from records even when most uploaded documents are in another language.
+2. Otherwise read `profile.json.locale` if a `profile.json` already exists (incremental / re-run) — if present, **reuse it, do not re-detect.**
+3. Otherwise **detect** the locale from the records: the BCP-47 tag of the **primary patient-facing language of the medical records** (the language most of the narrative / clinical-document prose is in — a 中文 report with English drug names is still `zh`; mixed → §2.1 tie-break to the patient's own writing). This is an LLM judgment over the sidecar content — do NOT run a hardcoded character-set table. Then **persist** it: write `profile.json.locale = "<bcp47>"` (Step 2.4).
 
 Everything you write splits into two layers (i18n.md §4):
 
 - **Clinical entities stay verbatim** — drug names, gene/variant symbols, TNM/stage strings, numbers + units, biomarker labels keep their exact source form. NEVER translate, transliterate, or normalize them. `doc_type` (病理报告 / NGS报告 …) is a clinical label quoted from the document itself — keep it verbatim as the source wrote it; it is NOT scaffold to localize.
-- **Scaffold is rendered in `locale`** — bucket folder slugs (§Step 1 below), `timeline.md` connectives, `case_text.md` section headers, `review_summary.md` copy, `readiness.json` gap/warning prose, the relevance disposition notice. Output all such prose **in the detected locale**.
+- **Scaffold is rendered in `locale`** — bucket folder slugs (§Step 1 below), `timeline.md` connectives, `case_text.md` section headers, `review_summary.md` copy, `readiness.json` gap/warning prose, the relevance disposition notice. Output all such prose **in the resolved locale**.
 
 The full contract (detection, persist/reuse, verbatim policy, bucket-name map) is [`../../../references/i18n.md`](../../../references/i18n.md); read it.
 
@@ -23,6 +24,7 @@ The full contract (detection, persist/reuse, verbatim policy, bucket-name map) i
 - `patient_dir` (required): absolute path to the patient directory. Already has `ocr/` (temporary sidecar staging) and `raw/` (verbatim vault of every uploaded original) populated by Phase 1. **This path was resolved upstream by the single root-resolution rule** (`$CANCER_BUDDY_PATIENTS_DIR` → `$VMTB_PATIENT_DATA_ROOT` → `$HOME/CancerDAO/patients`, owned by SKILL.md / INSTALL.md). You **use it as-is** and **never re-resolve a root or invent your own**: the patients root is always `$(dirname "$patient_dir")` (the `alias` symlink in Step 2.8 and the cross-patient scan in Step 3a both derive from that — they don't re-read the env vars).
 - `phase1_summary` (optional): JSON list of per-slice Phase-1 results. Used to validate coverage and adapter provenance; if you find sidecars Phase 1 didn't report, that's fine; if Phase 1 reported sidecars you can't find, that's a coverage error to surface.
 - `run_mode` (optional): `"full"` (default) or `"incremental"`. In incremental mode, only newly added/changed sidecars are reclassified and downstream artifacts are merged rather than rewritten.
+- `locale` (optional): BCP-47 language tag supplied by the caller / product host from the user's explicit UI language setting. If present, it is authoritative for patient-facing scaffold/narrative prose and must be persisted to `profile.json.locale`; do not derive a different locale from record language.
 - `caller_default_hospital` (optional): the patient's `treating_hospitals[0]`, used as the level-3 fallback when resolving 出具机构 during canonical naming.
 - `triggered_by` / `reason` (optional, for update_log.json): caller context, free-text.
 
@@ -357,7 +359,7 @@ Authoritative shape: [`../../../references/patient-profile-schema.md`](../../../
 }
 ```
 
-**`locale`** (i18n): set it to the BCP-47 tag detected at the top of this prompt (or reused from an existing `profile.json.locale`). This is the canonical write of the patient-journey locale — every later sub-skill reads it (i18n.md §3). On incremental / re-run, do NOT overwrite an existing `locale` unless the user explicitly overrode the language.
+**`locale`** (i18n): set it to the BCP-47 tag resolved at the top of this prompt: caller-supplied `locale` first, otherwise an existing `profile.json.locale`, otherwise the record-language detection fallback. This is the canonical write of the patient-journey locale — every later sub-skill reads it (i18n.md §3). On incremental / re-run, do NOT overwrite an existing `locale` unless the caller supplied `locale` or the user explicitly overrode the language.
 
 **Regimen**: `summary.current_regimen` and `latest_status.regimen` are STRINGS (the LATEST regimen when the patient has multiple hospitalizations). Per-cycle / per-line structure and older lines of therapy go in `treatment_lines.json`, NOT in profile.json. Molecular drivers go in `molecular.json`; demographics / comorbidities / treating hospitals go in `patient_summary.json` / `comorbidities.json`. profile.json carries **none** of the old flat `primary_cancer` / `molecular_drivers_known` / `treatment_history` / `demographics` / `key_comorbidities` / `data_sources` fields — those are the retired flat shape.
 
@@ -602,7 +604,7 @@ If `review_flags` non-empty → write `review_flags.md` — the human-readable r
 
 ## Step 4 — review_summary.md (ALWAYS WRITTEN)
 
-1-page checklist with verbatim source citations. Catches consistent-but-wrong OCR that review_flags structurally cannot. **Locale**: this file is patient-facing — render every section header, label, instruction and the check items in `locale` (i18n.md §4/§5); the `zh` wording below is the template, translate the scaffold to the detected locale (e.g. `en`: "📋 Review Checklist", "🩺 Diagnosis & Staging", "✅ Your check points"). Extracted values (drug names, TNM, molecular drivers, labs) and `[[src:…]]` anchors stay verbatim. Format:
+1-page checklist with verbatim source citations. Catches consistent-but-wrong OCR that review_flags structurally cannot. **Locale**: this file is patient-facing — render every section header, label, instruction and the check items in `locale` (i18n.md §4/§5); the `zh` wording below is the template, translate the scaffold to the resolved locale (e.g. `en`: "📋 Review Checklist", "🩺 Diagnosis & Staging", "✅ Your check points"). Extracted values (drug names, TNM, molecular drivers, labs) and `[[src:…]]` anchors stay verbatim. Format:
 
 ```markdown
 # 📋 整理结果速查清单 — <patient_code> (alias: <alias if set>)
@@ -737,7 +739,7 @@ Pure JSON, no prose:
 - ALWAYS write `source_inventory.json` (Step 1f) before returning — it is the proof that every content unit produced a text-masked MD and the deep-link (`raw_path` + `page_range`) back to its verbatim original in `raw/`.
 - `coverage_complete: false` is acceptable as long as you list the missing files; caller will retry-mini-Phase1 + re-run you.
 - The alias is sticky: never overwrite a previously set `profile.json.alias` on incremental runs.
-- ALWAYS detect+persist `profile.json.locale` (reuse if already set) and render every patient-facing scaffold string (bucket slugs, timeline/case_text/review_summary prose, gap/warning text) in that locale per [`../../../references/i18n.md`](../../../references/i18n.md). NEVER translate a clinical entity (drug/gene/variant/TNM/number/unit) or a `doc_type` — those are verbatim; mistranslation is a P0 safety bug.
+- ALWAYS resolve+persist `profile.json.locale` (caller-supplied `locale` first; otherwise reuse if already set; otherwise detect) and render every patient-facing scaffold string (bucket slugs, timeline/case_text/review_summary prose, gap/warning text) in that locale per [`../../../references/i18n.md`](../../../references/i18n.md). NEVER translate a clinical entity (drug/gene/variant/TNM/number/unit) or a `doc_type` — those are verbatim; mistranslation is a P0 safety bug.
 - The `NN_` two-digit bucket prefix is a **language-independent stable key**: localize the slug after it, never the number. Downstream consumers match on `NN_`; keep `bucket_path` / `md_dest` / anchors using the same localized slug so on-disk path and anchor agree.
 - Output pure JSON only at the end — narrative goes in case_text.md / timeline.md / review_flags.md / review_summary.md.
 

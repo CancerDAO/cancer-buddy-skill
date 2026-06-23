@@ -11,8 +11,8 @@ phase from `profile.json`:
 
 ## Locale
 
-Read `profile.json.locale` (detect + persist per `../../../references/i18n.md` if
-absent). The Q&A prose below is the **`zh` source rendering**. When the patient's
+Resolve locale per `../../../references/i18n.md` (host `locale` first, otherwise
+`profile.json.locale`, otherwise detection fallback + persist). The Q&A prose below is the **`zh` source rendering**. When the patient's
 `locale` is not `zh`, render the matching phase section's questions and answers in
 that locale — same meaning, same patient voice, same brevity — keeping every
 clinical entity verbatim (drug names like 培非格司亭 / G-CSF, response codes

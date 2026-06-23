@@ -11,6 +11,7 @@
 | 格式适配 | 只把源文件变成 LLM-readable input | `heif-convert`/ImageMagick/pdftoppm/document payload builder |
 | 确认门 | 未确认不写正式字段/不可逆删除 | confirm-as-product JSON + 平台 UI + 第二轮回灌 |
 | 存储 | canonical 输出集 | 沙箱内生成 patient_dir;原始件逐字保存进 `raw/` vault |
+| Locale | host-supplied `locale` wins when present | 平台把当前产品 UI / 用户语言设置作为 BCP-47 `locale` 传给 Phase2;Phase2 写入 `profile.json.locale` |
 
 ## 1. 编排
 
@@ -32,10 +33,12 @@ for src in source_inventory:
   adapter_input = adapt_for_llm(src)
   sidecar = codex_llm_ingest(source_id, adapter_input)
   write patient_dir/ocr/<source_id>.md            # text-masked MD sidecar (only desensitization of archived data)
-run single Phase2 synthesis over all sidecars
+run single Phase2 synthesis over all sidecars, passing locale=<current product UI language> when available
 ```
 
 Codex `-i` 喂的是匿名图像字节时,平台必须维护 `source_id ↔ 原名`。Phase2 通过这个映射写 canonical filename、`source_inventory.json` 和 anchors。
+
+The headless host MUST forward the product's current BCP-47 `locale` unchanged when it exists. It should not infer or override locale from uploaded record language; record-language detection is only the Phase2 fallback when no host `locale` is available.
 
 ## 2. LLM 输入源
 
