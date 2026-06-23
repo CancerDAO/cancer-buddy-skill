@@ -21,15 +21,16 @@ Turn an already-organized patient archive into a one-page pack the patient bring
 
 Read [../../references/i18n.md](../../references/i18n.md). The pack is a patient-visible template artifact:
 
-1. Read `patients/<pid>/profile.json` → `locale`. If present, use it — do not re-detect (visit-prep runs after organize, so a `locale` is almost always already persisted).
-2. If absent, detect from the records' **primary patient-facing language**, tie-breaking to the language the user is conversing in (the `record-consuming generative sub-skills` row in `../../references/i18n.md` §2), then write it back to `profile.json.locale` (BCP-47).
-3. Render every patient-visible scaffold string in that `locale` from the template's locale string table — section titles, question-group titles, "待确认" tag, disclaimer, `val_pending` placeholder, footer.
-4. Keep every clinical entity verbatim regardless of `locale` — drug names, genes/variants, TNM/stage, RECIST codes, all numbers + units, biomarker labels. Mistranslating a clinical entity is a P0 medical-safety bug.
-5. Honor an explicit user language override → update `profile.json.locale` and follow it.
+1. If the caller / host supplies `locale` (the user's explicit product UI language), use it first and write/update `profile.json.locale` when profile state is available.
+2. Otherwise read `patients/<pid>/profile.json` → `locale`. If present, use it — do not re-detect (visit-prep runs after organize, so a `locale` is almost always already persisted).
+3. If absent, detect from the records' **primary patient-facing language**, tie-breaking to the language the user is conversing in (the `record-consuming generative sub-skills` row in `../../references/i18n.md` §2), then write it back to `profile.json.locale` (BCP-47).
+4. Render every patient-visible scaffold string in that `locale` from the template's locale string table — section titles, question-group titles, "待确认" tag, disclaimer, `val_pending` placeholder, footer.
+5. Keep every clinical entity verbatim regardless of `locale` — drug names, genes/variants, TNM/stage, RECIST codes, all numbers + units, biomarker labels. Mistranslating a clinical entity is a P0 medical-safety bug.
+6. Honor an explicit user language override → update `profile.json.locale` and follow it.
 
 ## Workflow
 
-1. **Read locale** from `profile.json.locale` (or detect + persist).
+1. **Resolve locale** from caller-supplied `locale`, else `profile.json.locale`, else detection fallback + persist.
 2. **Resolve `visit_type`** (caller arg → else ask one question).
 3. **Read de-identified sources** (read-only): `profile.json`, `readiness.json`, `molecular.json`, `treatment_lines.json`, `labs.json`, `timeline.json`, `missing_items.json`. Never read `raw/`.
 4. **Map Block 1 医生速览** — direct field mapping, clinical entities verbatim; null → `val_pending`.
@@ -78,5 +79,5 @@ Authoritative matrix in [`../../references/roles.md`](../../references/roles.md)
 - [references/templates/visit-prep.template.html](references/templates/visit-prep.template.html) — one-page 4-block template + locale string table
 - [scripts/validate_visit_prep_html.py](scripts/validate_visit_prep_html.py) — form-invariant validator (style byte-exact / class ⊆ template / no residual markers / no PII — DOB barred but precise age allowed / skeleton); content-agnostic
 - [../cancer-buddy-organize/scripts/render_html_template.py](../cancer-buddy-organize/scripts/render_html_template.py) — generic zero-medical-logic template engine (shared, stdlib only)
-- [../../references/i18n.md](../../references/i18n.md) — shared locale layer (detect / persist / verbatim-clinical)
+- [../../references/i18n.md](../../references/i18n.md) — shared locale layer (host `locale` first, otherwise profile locale / detection fallback / persist / verbatim-clinical)
 - [../../references/safety-guardrails.md](../../references/safety-guardrails.md) — safety red lines

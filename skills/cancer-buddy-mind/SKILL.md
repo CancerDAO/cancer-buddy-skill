@@ -11,11 +11,12 @@ Cancer and mental health are tangled. Depression is an independent predictor of 
 
 Per [../../references/i18n.md](../../references/i18n.md): every patient-visible string — screener items, scoring labels, tier interpretations, crisis copy, safety disclaimers, the `.md` report scaffold — is rendered in the patient's `locale`.
 
-1. **Read `profile.json.locale` first.** If present, use it — do not re-detect.
-2. If `profile.json` is absent or `locale` is null, **detect from the language the user is conversing in** (this is a chat sub-skill), then **write it back** to `profile.json.locale` (BCP-47 tag, e.g. `en` / `zh` / `fr` / `es`). If no profile exists yet, create one carrying `locale`; a later organize run honors it.
-3. An explicit user override ("answer me in English" / "用中文") always wins → update `profile.json.locale` and honor going forward.
-4. **Clinical entities stay verbatim** (§4): standardized scale names (PHQ-9, GAD-7, NCCN Distress Thermometer, C-SSRS), drug/diagnosis names, numeric scores and cutoffs. Only the scaffold is localized.
-5. The screener references below are written `zh`-first as the source rendering; when `locale != zh`, render the item prose, scale anchors and interpretation labels in the target locale via the per-file locale directive — never hand the patient a language they are not conversing in. Scoring math, item ordering, scale standard names and numeric cutoffs are invariant across locales.
+1. If the caller / host supplies `locale` (the user's explicit product UI language), use it first and write/update `profile.json.locale` when profile state is available.
+2. Otherwise **read `profile.json.locale` first.** If present, use it — do not re-detect.
+3. If `profile.json` is absent or `locale` is null, **detect from the language the user is conversing in** (this is a chat sub-skill), then **write it back** to `profile.json.locale` (BCP-47 tag, e.g. `en` / `zh` / `fr` / `es`). If no profile exists yet, create one carrying `locale`; a later organize run honors it unless a host `locale` overrides it.
+4. An explicit user override ("answer me in English" / "用中文") always wins → update `profile.json.locale` and honor going forward.
+5. **Clinical entities stay verbatim** (§4): standardized scale names (PHQ-9, GAD-7, NCCN Distress Thermometer, C-SSRS), drug/diagnosis names, numeric scores and cutoffs. Only the scaffold is localized.
+6. The screener references below are written `zh`-first as the source rendering; when `locale != zh`, render the item prose, scale anchors and interpretation labels in the target locale via the per-file locale directive — never hand the patient a language they are not conversing in. Scoring math, item ordering, scale standard names and numeric cutoffs are invariant across locales.
 
 Crisis resources ([references/crisis-resources.md](references/crisis-resources.md)) are **region-bound, not locale-bound**: surface hotlines for the patient's actual region/country (from `patient_summary.json.patient_location_hint`), translating only the surrounding guidance copy into `locale` — phone numbers and institution names stay verbatim.
 
@@ -89,4 +90,4 @@ Never write suicidal ideation content without the crisis-YYYY-MM-DD.md companion
 - [c-ssrs-lite.md](references/c-ssrs-lite.md) — suicide risk, 6 items
 - [crisis-resources.md](references/crisis-resources.md) — hotlines, emergency guidance
 - [../../references/safety-guardrails.md](../../references/safety-guardrails.md) — role-specific crisis rules
-- [../../references/i18n.md](../../references/i18n.md) — shared locale layer: detect → persist `profile.json.locale` → render scaffold in locale, clinical entities verbatim
+- [../../references/i18n.md](../../references/i18n.md) — shared locale layer: host `locale` parameter first, otherwise profile locale / detection fallback → persist `profile.json.locale` → render scaffold in locale, clinical entities verbatim

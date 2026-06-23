@@ -2,7 +2,7 @@
 
 ## Locale
 
-This protocol is governed by [../../../references/i18n.md](../../../references/i18n.md). Resolve `locale` from `profile.json.locale` (detect + persist if absent) before producing any patient-visible output.
+This protocol is governed by [../../../references/i18n.md](../../../references/i18n.md). Resolve `locale` from host-supplied `locale` first, otherwise `profile.json.locale`, otherwise detection fallback + persist, before producing any patient-visible output.
 
 - **JSON keys and enum values stay verbatim** (`recipient_type`, `access_type`, `"view"`, `"anonymized"`, level ids `private`/`authorized`/`anonymized`/`public`) — they are machine keys, not patient-facing prose.
 - **Human-readable values and prose are rendered in `locale`**: the `purpose` free-text, sharing-level *descriptions*, data-quality reminders, revocation confirmations, and breach notifications. Render fixed labels (level names, notice headings) as a `locale → string` lookup; run generative prose (case report, reminders) via a prompt instruction "Output scaffold/narrative prose in `<locale>`; keep clinical entities verbatim per `i18n.md` §4."

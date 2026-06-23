@@ -1,6 +1,6 @@
 # Terminology Guide
 
-Every medical term surfaced to patients appears as: **the source term verbatim + a plain-language explanation in the patient's locale.** The locale is `profile.json.locale` (auto-detected and persisted — see `references/i18n.md`); when absent, detect from the current input.
+Every medical term surfaced to patients appears as: **the source term verbatim + a plain-language explanation in the patient's locale.** Resolve locale per `references/i18n.md`: host-supplied `locale` first, otherwise `profile.json.locale`, otherwise detection fallback.
 
 The verbatim term is **never translated** (it is a clinical entity — mistranslation is a P0 safety bug, see `safety-guardrails.md` → "Clinical entities are never translated"). Only the plain-language gloss is rendered in the locale.
 

@@ -13,7 +13,7 @@ organize 是 6 个纯函数步骤的有序组合。每步以 inputs → outputs(
 | # | 步骤 | 纯函数语义 | 主要产物 |
 |---|---|---|---|
 | 1 | Phase1 — LLM Markdown ingestion | `(一个源文件或 content unit, 稳定 source_id, LLM-readable adapter input) → 一个文本脱敏 sidecar MD` | `<source>` 的文本脱敏 MD(`SOURCE/READ_MODE/ADAPTER/CONFIDENCE` 头 + LLM 脱敏正文 + `## PII` trailer) |
-| 2 | Phase2 — 综合 | `(全部 sidecar, source_inventory, source_id↔原名映射) → canonical 输出集` | 14 临床域桶(`01_…14_`)+ 2 infra 桶(`raw/`/`99_`)+ `source_inventory.json`(含 `modality` + `raw_path` 回链)+ `INDEX.md` + `profile.json` + 条件性 `longitudinal_observations.json` + `timeline.*` + `case_text.md` + `readiness.json` + `review_summary.md` + `review_flags.md`(非空时)+ 6 结构化 JSON + `missing_items.json` + `update_log.json` + 桶相对锚点 |
+| 2 | Phase2 — 综合 | `(全部 sidecar, source_inventory, source_id↔原名映射, optional locale) → canonical 输出集` | 14 临床域桶(`01_…14_`)+ 2 infra 桶(`raw/`/`99_`)+ `source_inventory.json`(含 `modality` + `raw_path` 回链)+ `INDEX.md` + `profile.json` + 条件性 `longitudinal_observations.json` + `timeline.*` + `case_text.md` + `readiness.json` + `review_summary.md` + `review_flags.md`(非空时)+ 6 结构化 JSON + `missing_items.json` + `update_log.json` + 桶相对锚点 |
 | 3 | 确认门(产物化) | `(待写正式字段/待删文件) → 待确认项数据;经确认 → 写/删` | 待确认项数据(候选结构);确认后才落正式字段或不可逆删除 |
 | 3.5 | 抽取忠实度门(Phase 2.5) | `(结构化 JSON, 各值的 source_refs sidecar) → 每值 faithfulness verdict` | per-value verdict 列表 + `unfaithful_values`;CRITICAL not_faithful 的 load-bearing 值由 段D producer 从患者向 HTML 丢弃(→资料缺失,含 `one_line_condition` 内嵌分量的重拼)+ 🔴 `unverified_critical_field` flag(见 §5 #9) |
 | 4 | 段D — HTML 渲染(Phase 2.5 之后) | `(脱敏 JSON/MD, unfaithful_values, lab_trend_caveats) → case_summary_data.json → 病情简要总结.html(患者根=latest)+ case_summary_versions/病情简要总结_<date>.html(不可变 dated 快照)` | 模板脚本渲染的 HTML;不读原始文件;不渲染/复述任何 unfaithful 值;**每次(重)生成必先写一份 dated 快照到 `case_summary_versions/`(同日重渲后缀 `_2`/`_3`),re-render 永不销毁患者已分享的旧版本**——快照是 orchestrator/host 文件级步骤(data-only 段D producer 不做 `cp`) |
@@ -88,7 +88,7 @@ sidecar 的脱敏 Markdown 正文**必须由驱动 LLM(Claude / codex / OpenClaw
 
 ## 2. Phase2 — 综合(纯函数)
 
-读全部 sidecar,分类进桶、canonical 改名、co-locate MD 与源文件,产出全部全局结构化产物;每个 content unit 通过 `source_inventory.json.raw_path` 回链其 `raw/` 中的逐字原件。
+读全部 sidecar 和可选 host `locale`,分类进桶、canonical 改名、co-locate MD 与源文件,产出全部全局结构化产物;每个 content unit 通过 `source_inventory.json.raw_path` 回链其 `raw/` 中的逐字原件。
 
 ### 2.1 Inputs
 
@@ -98,6 +98,7 @@ sidecar 的脱敏 Markdown 正文**必须由驱动 LLM(Claude / codex / OpenClaw
 | `source_inventory` | 是 | 覆盖范围内的源文件/content unit 清单(用于 coverage 校验:sidecar 数 < 源数 → 列缺口、记 `phase1_coverage_gap`,不中止)。 |
 | `source_id_to_name` | 是 | `source_id ↔ 原名` 映射,保证 sidecar 能回指源文件、canonical 改名可追溯。 |
 | `run_mode` | 否 | `full`(默认)/ `incremental`(只重分类增量并合并下游)。 |
+| `locale` | 否 | 宿主 / caller 传入的 BCP-47 用户界面语言(显式用户偏好)。存在时它是 Phase2 的 canonical locale 输入,写入 `profile.json.locale`,并压过既有 profile locale、病历语言和自动检测。 |
 | `caller_default_hospital` | 否 | 出具机构 4 级回退里的第 3 级(通常 `treating_hospitals[0]`)。 |
 | `triggered_by` / `reason` | 否 | 写入 `update_log.json` 的调用上下文。 |
 
@@ -138,7 +139,7 @@ Phase2 的跨文档审计(Phase1 做不到,因 Phase1 只见自己那片;Phase2 
 ### 2.5 不变量
 
 - **桶不变量**:每文件必进某桶的 typed 子目录,禁桶根裸文件;`NN_` 两位数字前缀是**语言无关稳定 key**,其后 slug 取两套**固定**形式之一(`zh` 当 locale=zh;其余 locale 一律用 `en` 套,绝不按语言运行时生成 —— i18n.md §6 / bucket-taxonomy.md §1.1a);下游一律按 `NN_` 数字前缀解析锚点,localize slug 不破坏解析(`bucket_path`/`md_dest`/锚点用同一 localized slug,保证盘上路径与锚点一致)。
-- **locale 不变量**:Phase2 是 `profile.json.locale` 的 canonical 写者——检测并持久化(已存在则复用,除非用户显式改语言);所有患者向 scaffold(timeline/case_text/review_summary 文案、gap/warning 文案、确认通知)按 locale 渲染。**临床实体(药/基因/变异/TNM/数值+单位)与 `doc_type` 永远 verbatim,绝不翻译/转写/规范化**——误译是 P0 安全 bug。
+- **locale 不变量**:Phase2 是 `profile.json.locale` 的 canonical 写者——优先使用并持久化宿主 / caller 传入的 `locale`(显式用户偏好);没有 host `locale` 时复用既有 profile locale;仍无值才按 fallback 规则检测并持久化。所有患者向 scaffold(timeline/case_text/review_summary 文案、gap/warning 文案、确认通知)按 locale 渲染。**临床实体(药/基因/变异/TNM/数值+单位)与 `doc_type` 永远 verbatim,绝不翻译/转写/规范化**——误译是 P0 安全 bug。
 - **暂存区不残留**:综合结束后,中央 sidecar 暂存区必须被排空——每个 MD 都 co-located 进桶,排空失败 → 暴露 `ocr_drain_incomplete`、保留暂存区、不弃文件。任何产物不得在综合后引用中央暂存区。
 - **source inventory 必产**:返回前必产 `source_inventory.json`;每个 content unit 一条,记录 `file_id` / `source_id` / `READ_MODE` / `ADAPTER` / sidecar path / `raw_path`(回链 `raw/` 逐字原件)/ `page_range` / persist;校验失败记 warning,不发无效 inventory。
 - **alias sticky**:incremental run 不覆写已设 `profile.json.alias`。

@@ -72,7 +72,7 @@ Every borderline file produces one review_flag so the uncertainty is surfaced to
 
 ## User disposition notice (surfaced after organize)
 
-**Locale (i18n):** this notice is patient-facing scaffold → render it in `profile.json.locale` (detect/persist per [`../../../references/i18n.md`](../../../references/i18n.md); the `zh` wording below is the template). The privacy-floor sentence is mandatory in **every** locale — it must appear with the same meaning and no softening (semantically identical, not omitted). Clinical content inside isolated-file reasons stays verbatim. Bucket-path slugs in the listing (`99_无关文件/uncertain/…` ↔ `99_unrelated/uncertain/…`) follow the localized slug actually on disk (i18n.md §6).
+**Locale (i18n):** this notice is patient-facing scaffold → render it in the locale resolved per [`../../../references/i18n.md`](../../../references/i18n.md) (host `locale` first, otherwise `profile.json.locale`, otherwise detection fallback + persist; the `zh` wording below is the template). The privacy-floor sentence is mandatory in **every** locale — it must appear with the same meaning and no softening (semantically identical, not omitted). Clinical content inside isolated-file reasons stays verbatim. Bucket-path slugs in the listing (`99_无关文件/uncertain/…` ↔ `99_unrelated/uncertain/…`) follow the localized slug actually on disk (i18n.md §6).
 
 When the gate isolated any files, surface one plain-language notice. The privacy-floor sentence is mandatory and must be stated explicitly — the user has to know we do not retain raw unrelated files:
 

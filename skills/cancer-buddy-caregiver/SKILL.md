@@ -15,7 +15,7 @@ Cancer treatment's real operator is often a spouse or adult child. This skill gi
 
 ## Locale
 
-Per `../../references/i18n.md`: read `profile.json.locale` first; if absent (or no profile yet), detect it from the **language the caregiver is conversing in** (the current chat input) and write it back to `profile.json.locale` (BCP-47, e.g. `zh` / `en` / `fr`). Reuse the persisted value on every later turn so the whole journey speaks one language. An explicit user override ("answer me in English" / "用中文") always wins and is written back.
+Per `../../references/i18n.md`: if the caller / host supplies `locale` (the user's explicit product UI language), use it first and write/update `profile.json.locale` when profile state is available. Otherwise read `profile.json.locale` first; if absent (or no profile yet), detect it from the **language the caregiver is conversing in** (the current chat input) and write it back to `profile.json.locale` (BCP-47, e.g. `zh` / `en` / `fr`). Reuse the persisted value on every later turn so the whole journey speaks one language. An explicit user override ("answer me in English" / "用中文") always wins and is written back.
 
 Render **every caregiver-visible output in that locale** — orientation copy, Zarit questionnaire, chemo-companion checklist, family-roles template, explaining-to-children scripts, the bad-news framing prompt, diff cards and routing copy. **Keep clinical entities verbatim** (drug names, genes/variants, TNM/stage, numbers + units, scale standard names) per `i18n.md` §4 — mistranslating one is a P0 safety bug. The reference files below carry their scaffold in `zh`; treat them as the source string table and render the localized equivalent at output time (§5 of `i18n.md`).
 
@@ -56,7 +56,7 @@ Written under `patients/<patient_code>/reports/caregiver/`:
 
 ## References
 
-- [../../references/i18n.md](../../references/i18n.md) — shared locale layer (detect / persist / verbatim-clinical)
+- [../../references/i18n.md](../../references/i18n.md) — shared locale layer (host `locale` first, otherwise profile locale / detection fallback / persist / verbatim-clinical)
 - [chemo-companion-checklist.md](references/chemo-companion-checklist.md)
 - [family-roles-template.md](references/family-roles-template.md)
 - [zarit-burden.md](references/zarit-burden.md) — 22-item Zarit Burden Interview (validated)

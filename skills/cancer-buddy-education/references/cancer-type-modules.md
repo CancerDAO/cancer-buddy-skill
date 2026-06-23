@@ -14,7 +14,7 @@ What this file contains now is a **template scaffold** that the agent fills usin
 
 ## Locale
 
-Render all section headings, prose, daily-life advice and red-flag wording in `profile.json.locale` (detect + persist per `../../../references/i18n.md` if absent). Keep clinical entities verbatim in every locale: cancer-subtype acronyms (NSCLC, SCLC, TNBC, MSI-H), drug names, genes/variants, TNM/stage, response codes, numbers + units. The 6 fixed subsection headings are scaffold — they have a stable key per row and a per-locale rendering (table below); this is the only allowed fixed string mapping in this file. Everything else is generated prose, written directly in `locale`.
+Render all section headings, prose, daily-life advice and red-flag wording in the locale resolved per `../../../references/i18n.md` (host `locale` first, otherwise `profile.json.locale`, otherwise detection fallback + persist). Keep clinical entities verbatim in every locale: cancer-subtype acronyms (NSCLC, SCLC, TNBC, MSI-H), drug names, genes/variants, TNM/stage, response codes, numbers + units. The 6 fixed subsection headings are scaffold — they have a stable key per row and a per-locale rendering (table below); this is the only allowed fixed string mapping in this file. Everything else is generated prose, written directly in `locale`.
 
 ### Subsection heading table (stable key → per-locale slug)
 

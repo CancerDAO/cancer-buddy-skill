@@ -13,11 +13,12 @@ This skill ships its reference scripts (`age-specific-disclosure.md`, `family-sc
 
 Read [../../references/i18n.md](../../references/i18n.md). Before producing any patient-visible output:
 
-1. Read `patients/<patient_code>/profile.json` → `locale`. If present, use it — do not re-detect.
-2. If absent (no profile, or `locale` is null), detect from the language the user is conversing in (disclosure is a chat sub-skill; detect from the current conversation), then write it back to `profile.json.locale` (BCP-47, e.g. `en` / `zh` / `fr`).
-3. Render every patient-visible scaffold string — the drafted family scripts, pivot phrases, age-/relationship-specific opening lines, `negotiation-notes.md` / `family-scripts-drafted.md` / `decision-log.md` section titles and labels, professional-mediation routing copy (the names 医务社工 / 医务处 / 伦理委员会 stay verbatim as institutional terms, with a locale gloss beside them), and any explanation prose — in that `locale`. The reference scripts are exemplars: regenerate the phrasing in the target locale, preserving the speaker→listener structure and layer pacing.
-4. Keep every clinical entity verbatim (drug names, genes/variants, TNM/stage, numbers + units, biomarker labels — e.g. the `XX 癌` / `IV 期` / `osimertinib` placeholders families fill in) regardless of `locale` — never translate, transliterate, or normalize them. Mistranslating a clinical entity is a P0 medical-safety bug.
-5. Honor an explicit user language override ("answer me in English" / "用中文") → update `profile.json.locale` and follow it going forward.
+1. If the caller / host supplies `locale` (the user's explicit product UI language), use it first and write/update `profile.json.locale` when profile state is available.
+2. Otherwise read `patients/<patient_code>/profile.json` → `locale`. If present, use it — do not re-detect.
+3. If absent (no profile, or `locale` is null), detect from the language the user is conversing in (disclosure is a chat sub-skill; detect from the current conversation), then write it back to `profile.json.locale` (BCP-47, e.g. `en` / `zh` / `fr`).
+4. Render every patient-visible scaffold string — the drafted family scripts, pivot phrases, age-/relationship-specific opening lines, `negotiation-notes.md` / `family-scripts-drafted.md` / `decision-log.md` section titles and labels, professional-mediation routing copy (the names 医务社工 / 医务处 / 伦理委员会 stay verbatim as institutional terms, with a locale gloss beside them), and any explanation prose — in that `locale`. The reference scripts are exemplars: regenerate the phrasing in the target locale, preserving the speaker→listener structure and layer pacing.
+5. Keep every clinical entity verbatim (drug names, genes/variants, TNM/stage, numbers + units, biomarker labels — e.g. the `XX 癌` / `IV 期` / `osimertinib` placeholders families fill in) regardless of `locale` — never translate, transliterate, or normalize them. Mistranslating a clinical entity is a P0 medical-safety bug.
+6. Honor an explicit user language override ("answer me in English" / "用中文") → update `profile.json.locale` and follow it going forward.
 
 ## When to use
 
@@ -78,7 +79,7 @@ Writes `profile.disclosure_state` and appends to `profile.disclosure_history[]`.
 - [family-scripts.md](references/family-scripts.md) — scripts for 5 relationship configurations
 - [when-patient-asks.md](references/when-patient-asks.md) — how family handles spontaneous patient questions
 - [capacity-and-surrogates.md](references/capacity-and-surrogates.md) — dementia and surrogate-decision track
-- [../../references/i18n.md](../../references/i18n.md) — shared locale layer (detect → persist `profile.json.locale` → reuse; localize scaffold, never translate clinical entities)
+- [../../references/i18n.md](../../references/i18n.md) — shared locale layer (host `locale` parameter first; otherwise profile locale / detection fallback → persist `profile.json.locale` → reuse; localize scaffold, never translate clinical entities)
 - [../../references/preflight.md](../../references/preflight.md)
 - [../../references/safety-guardrails.md](../../references/safety-guardrails.md) — disclosure-specific rules
 - [../../references/disclosure-behavior.md](../../references/disclosure-behavior.md)

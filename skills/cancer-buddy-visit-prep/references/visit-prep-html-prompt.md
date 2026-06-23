@@ -59,7 +59,7 @@ Every loop array is `0..N` — emit one `{text}` object per real item, **no padd
 
 ## 1. Locale → the `i18n` object
 
-Read `profile.json.locale` first; if present use it, do not re-detect (visit-prep runs after organize). If absent, detect from the records' primary patient-facing language per `../../../references/i18n.md` §2 and write it back to `profile.json.locale`.
+Resolve locale per `../../../references/i18n.md`: caller-supplied `locale` first, otherwise `profile.json.locale`, otherwise detect from the records' primary patient-facing language and write it back to `profile.json.locale`.
 
 Build `data.i18n` from the template's locale string table for that `locale` — one key per `{{i18n.<key>}}` the template uses (incl. `html_lang`). For a locale not in the table, generate equivalents in the target language — same meaning, same tone. **Keep every clinical entity verbatim** regardless of locale (drug names, genes/variants, TNM/stage, RECIST codes, numbers + units, biomarker labels) — `../../../references/i18n.md` §4; mistranslating one is a P0 safety bug (`../../../references/safety-guardrails.md`).
 
