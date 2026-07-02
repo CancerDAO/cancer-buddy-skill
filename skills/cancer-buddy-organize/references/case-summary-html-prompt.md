@@ -4,7 +4,9 @@ Phase2 结构化整理完成、Profile Card 之后自动触发。读结构化文
 
 ## 红线（违反即非法输出，哪怕临床内容全对）
 
-- 你**只产 `case_summary_data.json`**：各字段值 + 病情概要叙事串 + lesion/molecular/labs/治疗线/path 数组 + **`caveats[]` 数据说明数组**（见下"Call parameters"）+ i18n locale 串表（含 `sec_caveats`）+ 各空段 fallback 文案。
+- 你**只产 `case_summary_data.json`**：各字段值 + 病情概要叙事串 + lesion/molecular/治疗线/path 数组 + **`trend_charts[]`（关键趋势，0..N 张，张数你按临床判断定）** + **`lab_trends[]`（实验室指标趋势行，取代旧 `labs[]` 平铺网格）** + **`caveats[]` 数据说明数组**（见下"Call parameters"）+ i18n locale 串表（含 `sec_caveats` / `sec_trend` / `delta_title` / `delta_vs` / `delta_none` / `trend_none`）+ 各空段 fallback 文案。
+- **趋势的坐标不是你算的**：`trend_charts[]` 每张图 / `lab_trends[]` 每行里你只填**逐字取自 `longitudinal_observations.json` / `labs.json` 的 `series[]`（`{t,v}`）** + 选定指标 + 一句 `interpretation`；SVG 坐标（`svg_points` / `svg_area_d` / `dots[]` / `marker_x` / `direction`）由 `scripts/compute_sparklines.py` 逐图确定性注入，**你绝不手算像素、绝不编造任何 series 数值**（造点会被 compute_sparklines 的反造假门 exit 3 拦下）。
+- **`version_delta`（自上次总结的变化）不是你产的**：由 `scripts/compute_version_delta.py` 对比上一版快照生成，你**不要**在 `case_summary_data.json` 里写它。
 - 你**绝不手写、拼接、改写任何 HTML / CSS / DOM**。HTML 由 `render_html_template.py` 从 `case-summary.template.html` 确定性生成，你不碰模板、不碰标签、不碰 class、不碰样式。
 - **任何自定义 HTML / CSS / DOM 结构都是非法输出**——哪怕临床内容完全正确。模板是唯一真相源；防过拟合靠"引擎零医学逻辑 + 数据驱动 0..N"。
 - 渲染完后，引擎会自检"去 HTML 注释后无残留 `{{...}}`"。残留即报错（exit 1），说明 `case_summary_data.json` 漏了 key——补数据，不要去改模板。
@@ -15,9 +17,9 @@ Phase2 结构化整理完成、Profile Card 之后自动触发。读结构化文
 除 `patient_dir` 外，编排器可能追加两个列表参数，二者都**只影响患者向 HTML，不改结构化 JSON**：
 
 - **`unfaithful_values`**（Phase 2.5 忠实度检查的 CRITICAL `not_faithful` 列表，元素 `{file, json_path, value}`，可能为 `[]`）：对列表里的**每一个**值，你在组装 `case_summary_data.json` 时**必须把对应字段置 `null`（→ 模板渲染 `资料缺失`），并且绝不在病情概要叙事里复述该值**。坏值仍留在结构化 JSON 里（已被 flag，待用户更正）——你只负责让患者向 HTML 不显示它。`.case_summary_data.json` 由你创建，所以"丢弃"发生在你这一步，不存在"渲染前再 null"的时机。
-  - **数组元素要素感知（硬约束，否则整份 HTML fail-closed）**：若被丢弃的值属于某数组元素（`labs[].lab_value` / `molecular_rows[].molecular_value` / `treatment_lines[].*`），**只把该 value 字段置 `null`，保留整个元素并渲成"资料缺失"行——绝不删除整个数组元素**；并且**务必把同元素里所有会进入 `class` 属性的兄弟字段显式置为空字符串 `""`（不是省略、不是 `null`）**：`labs[].lab_class`、`treatment_lines[].line_marker_class` / `line_badge_class` 等。原因：省略/`null` 会触发引擎 `__default__` 回退，把"资料缺失"注入 `class="lab-item 资料缺失"`，`validate_case_summary_html.py` 报越界 class（exit 1）→ 整份病情简要总结 fail-closed 不交付。
+  - **数组元素要素感知（硬约束，否则整份 HTML fail-closed）**：若被丢弃的值属于某数组元素（`lab_trends[].current_value` / `molecular_rows[].molecular_value` / `treatment_lines[].*`），**只把该 value 字段置 `null`，保留整个元素并渲成"资料缺失"行——绝不删除整个数组元素**；并且**务必把同元素里所有会进入 `class` 属性的兄弟字段显式置为空字符串 `""`（不是省略、不是 `null`）**：`lab_trends[].status_class`、`treatment_lines[].line_marker_class` / `line_badge_class` 等。原因：省略/`null` 会触发引擎 `__default__` 回退，把"资料缺失"注入 `class="status-badge 资料缺失"`，`validate_case_summary_html.py` 报越界 class（exit 1）→ 整份病情简要总结 fail-closed 不交付。若某趋势值被判 unfaithful，**同时把该点从 `series[]` 移除**（不能画一个未忠实的点）。
 - **`adjudications`**（Step 3c 对 load-bearing `cross_doc_contradiction` 的来源优先级裁决列表，元素含被裁决字段 + 胜出来源类，可能为 `[]`）：对每一条，你在 `caveats[]` 里追加一个 `{ "caveat_text": "<本 locale 渲染的 (来源存在差异，已按X裁决)，X=胜出来源类>" }`。脚手架文案按 locale 渲染，临床实体 verbatim，**绝不把该 note 内联进任何 verbatim 临床值串**（那会破坏照抄规则）；它只作为"数据说明"脚注另起一段。无裁决则不追加。同时把 `i18n.sec_caveats` 填成该 locale 的"数据说明"串。
-- **`lab_trend_caveats`**（US-006 化验/肿瘤标志物**趋势** OCR 提示列表，可能为 `[]`）：对每一条，你在 `caveats[]` 里追加一个 `{ "caveat_text": "<本 locale 渲染的 (数值来自照片 OCR，请以检验原件核对)>" }`；**并且**：当病情概要叙事里陈述了某化验/标志物**趋势**（升/降/序列）时，必须在该句后追加同一条 locale OCR 提示——因为叙事读的是 `patient_summary.json`+`timeline.json`，不会自动带上 case_text 的提示。无趋势提示则不追加。
+- **`lab_trend_caveats`**（US-006 化验/肿瘤标志物**趋势** OCR 提示列表，可能为 `[]`）：对每一条，你在 `caveats[]` 里追加一个 `{ "caveat_text": "<本 locale 渲染的 (数值来自照片 OCR，请以检验原件核对)>" }`。**这是该提示的唯一落点**——`数据说明` 脚注负责它，**不要**再把它内联进 `病情概要`、`关键趋势 interpretation` 或 `当前治疗路径`（趋势本身现在只在 hero + 实验室行呈现，叙事不陈述趋势，故叙事里也无需该提示）。无趋势提示则不追加。
 - 三个来源（`unfaithful_values` 丢弃 / `adjudications` 裁决 / `lab_trend_caveats` OCR 趋势）共同决定 `caveats[]`：全空 → `caveats: []` → 模板"数据说明"脚注整段不显示。
 
 ## locale（i18n）— 先读再填
@@ -41,6 +43,7 @@ Phase2 结构化整理完成、Profile Card 之后自动触发。读结构化文
 - `labs.json`
 - `treatment_lines.json`
 - `timeline.json`
+- `longitudinal_observations.json`（**若存在** —— 关键趋势 hero + 实验室趋势行的**多时间点 series 来源**；每个 `observations[]` 元素带 `{metric, value, unit, timestamp}`。按 metric 分组、按 timestamp 升序即得一条 series）
 - `case_text.md`（仅取影像段，用于病灶分布）
 - 模板（**只读，不改**）：`references/templates/case-summary.template.html`
 - 数据契约（你的产物结构）：`references/schemas/case_summary_data.schema.json`
@@ -58,9 +61,10 @@ Phase2 结构化整理完成、Profile Card 之后自动触发。读结构化文
 | 患者标识 身高体重 BMI | `height_weight_bmi` | `patient_summary.json.demographics.height_cm` / `weight_kg` | `165 cm / 68 kg / 25.0`，BMI 自算（单位/数值 verbatim） |
 | 患者标识 ECOG | `ecog` | demographics.ecog（+ ecog_inferred） | inferred 时在数值后追加 `i18n.val_ecog_inferred` 串值 |
 | 病情概要 | `case_summary_narrative` | **subagent 生成** ← patient_summary.json + timeline.json | 见下"叙事段" |
+| 关键趋势 | `trend_charts[]`（0..N 张；每张 `metric`/`unit`/`series[]`/`treatment_markers[]`/`interpretation`） | longitudinal_observations.json（选真正驱动决策的趋势指标）+ treatment_lines.json（marker 日期）| 见下"关键趋势"；**张数由你按临床判断定**；无有意义趋势 → `[]`（模板占位不删段） |
+| 实验室指标 | `lab_trends[]`（`lab_name`/`series[]`/`current_value`/`unit`/`status_class`/`status_label`）+ `labs_period` | longitudinal_observations.json（series）+ labs.json（当前值/状态）| 见下"实验室指标趋势行"；0 个给 `[]` |
 | 主要病灶分布 | `lesions[]`（`lesion_site` / `lesion_detail`） | profile.json 影像字段 / case_text.md 影像段 | 每解剖部位一个数组元素；0 个就给 `[]`，引擎自动占位 |
 | 核心分子检测 | `molecular_rows[]`（`molecular_label` / `molecular_value`） | molecular.json | 每维度一个元素；0 个给 `[]` |
-| 关键实验室指标 | `labs[]`（`lab_name` / `lab_value` / `lab_class`）+ `labs_period` | labs.json | ULN 倍数 → `lab_class`，见下"实验室配色"；0 个给 `[]` |
 | 治疗史 timeline | `treatment_lines[]`（见 §"治疗史"字段） | treatment_lines.json / timeline.json | 已用/进行中=红框，待启动=pending 黄框；0 个给 `[]` |
 | 当前治疗路径 | `path_items[]`（`path_label` / `path_content`） | treatment_lines.json 当前线 + profile.json | 逐条标签 + 内容；0 个给 `[]` |
 | footer | `report_date` | 当日日期 | 同 header |
@@ -91,14 +95,33 @@ Phase2 结构化整理完成、Profile Card 之后自动触发。读结构化文
 - 字段照抄，VAF/突变记法不改字符。
 - **IHC 记法（硬约束，否则信息错乱）**：免疫组化每个 marker 的判读结果一律按病理报告标准记法 `marker（value）` 渲染，把结果用括号包住（locale=zh 用全角 `（）`，其它 locale 用半角 `(...)`）——`molecular.json` 里 `{"marker":"HER2","value":"0"}` → `HER2（0）`，绝不渲成 `HER2 0`（裸值会与相邻 marker 串读乱，如 `EGFR 2+ HER2 0` 分不清）。整行示例：`EGFR（2+）；HER2（0）；Ki-67（约5%+）；MLH1（+）；panTRK（-）`。括号内的判读值 verbatim 照抄，分隔用本 locale 的分号。
 
-### 关键实验室指标（配色规则）
-对 labs.json 每个 analyte 取最近一次值，按相对参考上限（ULN）倍数判 class：
+### 关键趋势 — `trend_charts[]`（0..N 张，张数你按临床判断定）
 
-- 正常范围内 → `lab_class` 设为**显式空字符串 `""`**（不要省略 key、不要 `null`——否则 `__default__` 回退把"资料缺失"注入 class 属性，validator 越界报错）。
-- 异常但 < 3× ULN → `abnormal`（浅红）。
-- 严重（≥ 3× ULN，或临床显著严重缺乏/危急值）→ `severe`（深红）。
-- 倍数从 labs.json 的 `value` 与 `reference_range` 计算；reference_range 缺失时用 `flag`（H/L→abnormal，HH/LL→severe）。
-- `{{lab_value}}` 写实测值 + 单位 +（倍数/状态注），如 `1,240 U/mL（约 33× ULN）`。
+**放几张图不是固定的，是临床判断**：站在**主治医生视角**问"这个病人的病情走向，哪些指标趋势是我最想一眼看到的"——
+
+- **主导单一标志物**（如结直肠癌只有 CEA 在动）→ **1 张**（铺满，头版大图）。
+- **多个标志物共同驱动决策**（如卵巢癌 CA125+HE4、或胃癌 CEA+CA72.4+CA19-9 都在变且都相关）→ **2–3 张**（模板自动并排成小多图）。
+- **没有任何有意义的可趋势化指标** → **`[]`**（模板渲染"暂无足够时间点"占位，`<h2>` 保留、段不删）。
+- **克制**：不是有几个标志物就放几张——只放"真正驱动治疗决策/评估疗效"的；平稳无意义的、非决策相关的不进关键趋势（它们在下面"实验室指标"行里各有一条 sparkline 就够）。一般 1–3 张，极少 >3。
+
+每张图对象：
+
+- **`metric`/`unit`**：指标名 + 单位，verbatim。
+- **`series[]`**：该指标按 `timestamp` 升序的 `{"t": ISO 日期, "v": 数值}` 列表（≥1 点，1 点也可只画一个点），**`v` 逐字取自 `longitudinal_observations.json`，绝不改写、绝不补插值、绝不编造点**。
+- **`treatment_markers[]`**：把与该指标时间跨度相关的治疗线**起始日期**（`treatment_lines.json` 的 `started_at`）作为 `{"t": ISO 日期, "label": "<短线名/方案>"}` 传入——"指标↔治疗方案对应关系"，compute_sparklines 对齐到同一时间轴。只挑 1–3 个关键切换点，label 要短。
+- **`interpretation`**：**一句** locale 大白话，只陈述该图趋势方向（如"CEA 整体下降，提示治疗反应较好"），**不复述具体数值**（点值在图上）、**不追加 OCR/患者自述来源提示**（进 `数据说明`）、**不给新数字/治疗建议/预后**。
+- `svg_points`/`svg_area_d`/`dots`/`direction`/`marker_x`/`idx`/`marker_date` 由 compute_sparklines 逐图注入，你别碰。
+
+### 实验室指标趋势行 — `lab_trends[]`（取代旧平铺网格）
+每个关键化验/标志物一行：名称 + sparkline（迷你趋势）+ 当前值 + 状态徽章。
+
+- **⚠️ 必须非空（硬约束）**：只要 `labs.json` 有任何 panel 或 `longitudinal_observations.json` 有任何数值指标，`lab_trends` **就必须非空**——至少覆盖所有肿瘤标志物 + 有异常/趋势的血常规/生化项。**只有患者确实一份化验都没有时才允许 `[]`**。若你把它落成空而 `labs.json` 有 panels，编排层的 `backfill_lab_trends.py` 会从 panels 兜底自动补齐（name/series/current_value/status 全取自结构化数据）——但那是保底，不是你偷懒的借口：你应主动按病情选行、给出更贴切的顺序。
+- **选行**：挑临床关注的 analyte（肿瘤标志物优先、异常项、有多时间点趋势的项），每项一个 `lab_trends[]` 元素。
+- **`series[]`**：该 analyte 按时间升序的 `{t,v}`，**逐字取自 `longitudinal_observations.json`（无纵向点则取 `labs.json` 的单点）**；不改写、不编造。单时间点合法（不画线，只显当前值+徽章）。
+- **`current_value`**：**只填数值本身**（如 `2.1` / `<2.00`），单位放 `unit`。**不要**写成描述性从句（`× ULN`、`患者自述`、`较峰值回落`、趋势方向等一律**不进** `current_value`——那些进 `数据说明` 或不写）。原因：`current_value` 会进「实验室指标」当前值列，也是「自上次变化」delta 的对比字段；塞进一整句会让 delta 条变成一大段，密度崩掉。
+- **`status_class`**（进 CSS class，缺/未知一律显式 `""`，禁省略/`null`）：`normal`（正常）/`low`（偏低）/`high`（偏高）/`abnormal`（异常，一般 <3× 参考上限）/`severe`（严重，≥3× 或危急值）。判定用 `labs.json` 的 `value`+`reference_range`，缺 range 时用 `flag`（H→high、L→low、HH→severe、LL→severe/low 视情、异常无方向→abnormal）。
+- **`status_label`**：该 locale 的状态词（正常/偏低/偏高/异常/严重）。
+- sparkline 坐标（`svg_points`/`direction`）由 compute_sparklines 注入。**趋势行里的每个 series 点也受 compute_sparklines 反造假门约束**——凡画出来的点必须在 `longitudinal_observations.json`/`labs.json` 里能查到同 (metric,value)。
 
 ### 治疗史 timeline
 - 遍历 treatment_lines.lines（按 line 升序）。
@@ -112,16 +135,28 @@ Phase2 结构化整理完成、Profile Card 之后自动触发。读结构化文
 - treatment_lines 中当前线 + profile 计划字段，逐条渲染。每条：`<span class="label">标签：</span>内容`，条间 `<br>`，末条不加 `<br>`。
 - 标签如"当前较可能的路径：""桥接：""备选试验路径："。仅复述病历/计划已载明内容，不新增推荐方案。
 
+## 信息密度与去重（硬约束 —— 每段各司其职，绝不互相复述）
+
+这份总结是**一页纸**，同一事实**只在它的"主段"出现一次**。真实回归里出现过 CEA 趋势重复 5 次、OCR 提示重复 5 次、诊断/方案各重复 3 次——密度低、读起来累。规则：
+
+- **诊断+分期**：主段 = header 一句话 (`one_line_condition`) + 患者标识。`病情概要`可**极简带过**诊断名，**不重抄** TNM/组织学细节（那些在分子/病灶段）。
+  - **`one_line_condition` 必须是一行 headline（≤ ~35 字）**：`<分期> <组织学> · <驱动> · <当前治疗状态>`，例"IV 期胃腺癌 · 印戒细胞癌 · 免疫维持中"。**绝不写成一整段临床叙事**、**绝不塞标志物趋势/数值**（CEA 550→50 那种进「关键趋势」图，不进标题）、**绝不与`病情概要`重复整句**。头部是一眼的定位，`病情概要`才是 3–4 句展开——两者信息层级不同，不是同一句话写两遍。
+- **化验/标志物趋势**：主段 = `关键趋势` hero + `实验室指标` 行。`病情概要`**不复述任何具体数值或升降序列**（不写"CEA 由 X 升到 Y"——hero 已画）；`当前治疗路径`也不复述标志物数值。
+- **治疗方案/剂量**：主段 = `治疗史` timeline。`病情概要`只说"已用 N 线、当前 X 线治疗中"级别的**概括**，**不逐字抄 regimen/剂量/放疗剂量**；`当前治疗路径`只说方向，不再抄一遍完整方案。
+- **数据来源/OCR/患者自述提示**：**唯一主段 = `数据说明` (`caveats[]`)**。**不要**把 OCR/患者自述提示再内联进 `病情概要`、`关键趋势 interpretation`、`当前治疗路径`。（这条覆盖下文旧的"叙事里陈述趋势就追加 OCR 提示"——现在趋势不在叙事里陈述，故也不在叙事里加提示。）
+- **缺项提示**（如未做 NGS）：主段 = 对应结构段的占位（`核心分子检测`）。`当前治疗路径`的"待补充"只列**下一步该补的动作**，不重列已在别处显示的缺项。
+
 ## 叙事段（病情概要）— 交 subagent / LLM 生成
 
 `{{case_summary_narrative}}` 是唯一需要语义生成的段落。交 subagent 处理，prompt 要点：
 
-- 输入：patient_summary.json + timeline.json（脱敏后）**＋ 必须把 `unfaithful_values` 与 `lab_trend_caveats` 两个 Call 参数也传给该 subagent**（patient_summary/timeline 里仍带着未忠实值，叙事 subagent 默认看不到 Phase 2.5 的判定）。
+- 输入：patient_summary.json + timeline.json（脱敏后）**＋ 必须把 `unfaithful_values` 传给该 subagent**（patient_summary/timeline 里仍带着未忠实值，叙事 subagent 默认看不到 Phase 2.5 的判定）。
 - **输出语言按 `profile.json.locale`**（叙事是脚手架 → output in `<locale>`；临床实体 verbatim per i18n.md §4）。
-- 输出 3–5 句客观叙事，结构：诊断名 + 确诊时间 → 已用治疗线及转归（影像/标志物变化）→ 当前处境与下一步计划（如待启动某线 / 申请某药）。
+- **短**：**3–4 句、≤120 字**的定向导览，只回答"这是谁、什么病、走到治疗旅程的哪一步"。**不是**逐段复述——它是让读者快速进入状态的开场，细节交给下面各结构段。
+- 结构：诊断名（一句带过）→ 已用/当前治疗线的**概括**（不抄方案/数值）→ 当前处境与下一步方向（不抄标志物数值、不抄 OCR 提示）。
 - 硬约束：只复述 JSON 已有事实，**禁止新增任何医学判断、预后、治疗建议**；禁止出现真名/生日（DOB）/医院全称/**出生地/籍贯/职业/工作单位/家庭住址**（机构粗粒度化，按 locale 出，如"某北美学术癌症中心""a North American academic cancer center"；精确年龄可保留）；JSON 缺关键字段时该句省略，不编造；药名/基因/变异/TNM/数值单位一律原文不译。
 - **忠实度硬约束（US-003）**：`unfaithful_values` 列出的任何值（含被它污染的 stage/标志物/剂量）**绝不出现在叙事里**——当作缺失跳过该句，不复述、不改写。
-- **OCR 趋势提示（US-006）**：叙事一旦陈述某化验/肿瘤标志物**趋势**（升/降/序列），必须在该句后追加 `lab_trend_caveats` 对应的本 locale OCR 提示（如"（数值来自照片 OCR，请以检验原件核对）"）。
+- **OCR 趋势提示（US-006）归属 `数据说明`，不进叙事**：叙事**不陈述**具体化验/标志物趋势（那是 hero + 实验室行的职责），因此**不在叙事里追加** OCR 提示；`lab_trend_caveats` 只汇入 `caveats[]`（见"信息密度与去重"）。
 - 不写硬编码模板句拼接 keyword list，交 subagent 按上述要点自然生成。
 
 ## 缺字段处理（fallback 文案进 data，不进模板）
@@ -136,7 +171,28 @@ Phase2 结构化整理完成、Profile Card 之后自动触发。读结构化文
 
 `<patient_dir>` 是上游（SKILL.md / INSTALL.md）按**单一解析规则** `$CANCER_BUDDY_PATIENTS_DIR → $VMTB_PATIENT_DATA_ROOT → $HOME/CancerDAO/patients` 解析出来、再作为 call parameter 传给你的绝对路径。你**直接用这个 `patient_dir`**，自己**绝不重新发明输出根**、不另解析环境变量。
 
-1. 把渲染数据对象写到 **`<patient_dir>/.case_summary_data.json`**（**点开头的隐藏文件** —— 它只是喂给模板引擎的渲染中间产物，不是患者向产物，不应出现在目录顶层可见清单里；渲染成功后保留作 re-render/debug 即可），结构遵 `references/schemas/case_summary_data.schema.json`（i18n 串表 + fallbacks + 各标量 + lesions/molecular_rows/labs/treatment_lines/path_items 数组）。
+1. 把渲染数据对象写到 **`<patient_dir>/.case_summary_data.json`**（**点开头的隐藏文件** —— 它只是喂给模板引擎的渲染中间产物，不是患者向产物，不应出现在目录顶层可见清单里；渲染成功后保留作 re-render/debug 即可），结构遵 `references/schemas/case_summary_data.schema.json`（i18n 串表 + fallbacks + 各标量 + `trend_charts` + `lab_trends`/lesions/molecular_rows/treatment_lines/path_items 数组；`version_delta` 与所有 SVG 坐标字段留给下一步的确定性脚本注入，你不写）。
+
+1.5. **确定性富化（两个零医学逻辑脚本，按序在 render 之前跑）**：
+
+   ```
+   # (a) 保底 —— lab_trends 空则从 labs.json 的 panels 自动补齐(已有则 no-op)
+   python3 scripts/backfill_lab_trends.py --data <patient_dir>/.case_summary_data.json --labs <patient_dir>/labs.json --profile <patient_dir>/profile.json
+
+   # (b) 自上次总结的变化 —— 对比上一版快照(若有);首版无快照 → version_delta:null
+   prev=$(ls -1 <patient_dir>/case_summary_versions/case_summary_data_*.json 2>/dev/null | sort | tail -1)
+   if [ -n "$prev" ]; then
+     python3 scripts/compute_version_delta.py --data <patient_dir>/.case_summary_data.json --prev "$prev"
+   else
+     python3 scripts/compute_version_delta.py --data <patient_dir>/.case_summary_data.json
+   fi
+
+   # (c) 注入 SVG 趋势坐标 + 反造假门(每个画出的点必须在纵向库/labs 里查得到,否则 exit 3 拦停)
+   long=""; [ -f <patient_dir>/longitudinal_observations.json ] && long="--longitudinal <patient_dir>/longitudinal_observations.json"
+   python3 scripts/compute_sparklines.py --data <patient_dir>/.case_summary_data.json $long --labs <patient_dir>/labs.json
+   ```
+
+   compute_sparklines exit 3 = 你的 `series[]` 里有 `longitudinal_observations.json`/`labs.json` 查不到的点（造假/改写）→ **不要绕过**，回去把该点改成 verbatim 原值或删除，再重跑。
 
 2. 跑确定性模板引擎填模板、落 HTML：
 
@@ -149,7 +205,7 @@ Phase2 结构化整理完成、Profile Card 之后自动触发。读结构化文
 
    HTML 文件名固定中文，下游按固定名取，不随 locale 改名。引擎 exit 0 = 无残留 `{{...}}`；exit 1 = data 漏 key（补 `case_summary_data.json`，**不要去改模板**）。
 
-   > **dated 快照是 orchestrator/host 文件级步骤,不在本 data-only producer 范围内**：每次(重)渲染后，编排层（SKILL.md Step 12 / `organize-contract.md` 步骤 4）须把 `病情简要总结.html` 复制一份不可变快照到 `case_summary_versions/病情简要总结_<date>.html`（同日重渲后缀 `_2`/`_3`），re-render 永不销毁患者已分享的旧版本。本 producer 只产 data JSON + 跑渲染/校验，不做 `cp`（data-only 子代理无文件级快照职责）——见 `organize-contract.md` 步骤 4。
+   > **dated 快照是 orchestrator/host 文件级步骤,不在本 data-only producer 范围内**：每次(重)渲染后，编排层（SKILL.md Step 12 / `organize-contract.md` 步骤 4）须把 `病情简要总结.html` 复制一份不可变快照到 `case_summary_versions/病情简要总结_<date>.html`（同日重渲后缀 `_2`/`_3`），**并把富化后的 `.case_summary_data.json` 同样快照到 `case_summary_versions/case_summary_data_<date>.json`**（下一版 `compute_version_delta` 的对比基准就靠它）。re-render 永不销毁患者已分享的旧版本。本 producer 只产 data JSON + 跑富化/渲染/校验，不做 `cp`（data-only 子代理无文件级快照职责）——见 `organize-contract.md` 步骤 4。
 
 3. 跑"形"不变量校验器（模板固定、与病人无关的骨架检查 —— style 块逐字节一致、无越界 CSS class、无残留 `{{...}}`、无 PII（DOB/邮箱/身份证/电话——**精确年龄允许**，临床试验匹配需要）、骨架 section 齐、provenance template_sha256 与本次模板一致）：
 

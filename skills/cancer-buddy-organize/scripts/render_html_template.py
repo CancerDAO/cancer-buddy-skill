@@ -283,8 +283,16 @@ def find_matching_close(tokens, open_idx):
 
 
 def render_loop(name: str, inner: str, root, local) -> str:
-    # array lives at root (loops iterate top-level data arrays)
-    arr = lookup(root, name)
+    # Resolve the array to iterate: try the CURRENT element scope first, then the
+    # root. This lets a LOOP nest inside another LOOP and iterate a per-element
+    # array (e.g. LOOP trend_charts → each chart's own LOOP treatment_markers /
+    # dots), mirroring how placeholders and RENDER_IF already resolve local→root.
+    # A top-level loop has local is root, so this is identical to root-only lookup.
+    arr = _MISSING
+    if local is not None and local is not root:
+        arr = lookup(local, name)
+    if arr is _MISSING:
+        arr = lookup(root, name)
     if arr is _MISSING or arr is None:
         return ""
     if not isinstance(arr, list):
