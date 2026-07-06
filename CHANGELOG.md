@@ -6,6 +6,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Added — cancer-buddy-case-precedent 子技能：真实病例先例探索 (2026-07-06)
+
+新增第 11 个 companion 子技能 `cancer-buddy-case-precedent`。患者用已 organize 的病历档案，去 PubMed / Europe PMC 检索 **publication type = Case Reports** 的相似真实病例，逐病例返回「这位真实患者试过什么治疗、发生了什么」，作为**研究与就诊讨论的线索**——**不是预后预测、不是治疗建议**。
+
+- **检索**：派 subagent 加载 `web-access` 直连 PubMed E-utilities（`"Case Reports"[Publication Type]`）+ Europe PMC REST（`PUB_TYPE:"Case Reports"`），keyless 公共 API；去重 + 撤稿检查（`"Retracted Publication"[pt]` / EPMC 标记）在主 agent 汇总时做。不依赖 vMTB 生态的 `vmtb-literature`（自包含）。
+- **逐病例抽取**：优先 OA 全文，逐字接地（每个临床值带 verbatim 引文 + PMID），抽不到标 `未报告`，禁 LLM 合成结局。
+- **相似度透明**：6 维（primary / histology / stage / key_driver / treatment_line / key_comorbidity）逐维 match/mismatch，**分歧维必列**；LLM sub-prompt 判定，不写硬编码打分表。
+- **安全（8 道 P0 门）**：强制发表/幸存者偏倚披露 + 显式标 N + **绝不聚合成生存率/有效率/任何"率"** + 无治疗推荐/无本人预后 + 标注最弱证据（证据层 C→D）+ live lookup 不用陈旧快照 + 临床实体逐字禁译。
+- 输出 `patients/<patient_code>/reports/case-precedent/<slug>/`（QUERY.md + PRECEDENTS.md + raw/），支持对话追问细化。
+- 已在 meta router `cancer-buddy/SKILL.md` 路由表登记。
+
 ### Changed — case-summary 段D 关键趋势 becomes N charts + chart-readout layout + interactive markers (2026-07-03)
 
 Visual + architecture iteration of the 关键趋势 section, driven by real-patient review (PT-449DE685):

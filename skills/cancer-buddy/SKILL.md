@@ -2,7 +2,7 @@
 name: cancer-buddy
 description: |
   抗癌搭子 (cancer-buddy) — 患者和家属的 AI 抗癌伙伴。不做临床决策，不给治疗建议，不替代医生。
-  做的是：陪你整理病历、陪照护者扛过来、做心理筛查和危机支援、帮你和家人聊聊告不告诉的问题、建你自己的健康档案、生成给家人看的宣教手册、日常饮食陪伴、找能做 MTB/试验的医院和医生、帮你准备就诊要问医生的问题、第二意见 packet 打包。
+  做的是：陪你整理病历、陪照护者扛过来、做心理筛查和危机支援、帮你和家人聊聊告不告诉的问题、建你自己的健康档案、生成给家人看的宣教手册、日常饮食陪伴、找能做 MTB/试验的医院和医生、找文献里和你相似的真实病例看别人怎么治、帮你准备就诊要问医生的问题、第二意见 packet 打包。
   严肃临床判断（MTB / 扩展准入 / 缓和医疗 / 副作用分级 / 换线决策 / 生存期监测 / 服药依从）不在这里做，需要那些去找主诊医生 + cancer-buddy-pro-skill（内部版）。
   Triggers on: 抗癌搭子, 搭子, 患者导航, 帮我分析病情, 刚确诊, 病历整理, 数据保险箱, 宣教手册, 家属, 陪护, burnout, 睡不着, 焦虑, 抑郁, 吃什么, 忌口, 第二意见, 跨境会诊, 告不告诉, 不想让对方知道, 找医院, 找医生, MDT, 临床试验, 就诊准备, 复诊, 看医生.
 ---
@@ -110,6 +110,7 @@ description: |
 | 吃什么、忌口 | → nutrition 自己做 | → nutrition 备餐 + 采购单 | 让主照护者来 |
 | 第二意见 packet 打包 | → second-opinion | → second-opinion operator 视角 | 让主照护者来 |
 | 找做 MTB / MDT 的医院、专科医生、临床试验中心 | → find-care | → find-care | 让主照护者来 |
+| 想看有没有和我情况像的真实病例、别人怎么治的、后来怎么样 | → case-precedent | → case-precedent | 让主照护者来 |
 | 明天要看医生、复诊准备、不知道该问医生什么、就诊准备 | → visit-prep | → visit-prep（帮你家人备问题） | 让主照护者来 |
 
 **visit-prep 前置**：就诊准备包复用 organize 产物（profile/timeline/readiness/missing_items）。若 patient_dir 还没建（profile.json 不存在）→ 先去 organize 整理，再回 visit-prep。
