@@ -50,7 +50,7 @@ What cancer brings isn't just the treatment — it's the pile of information, th
 
 ## Features
 
-### 10 companion modules
+### 11 companion modules
 
 ```
 organize        Turn PDFs / images / docx records into a structured archive (auto-isolates irrelevant files, reconciles re-uploads)
@@ -62,6 +62,7 @@ education       Patient education handbook for family (with diagrams)
 nutrition       Companion nutrition by cancer type + treatment phase
 second-opinion  Cross-hospital / cross-border second-opinion packet
 find-care       Find MTB/MDT-capable hospitals, sub-specialty oncologists, and recruiting trials (parallel multi-subagent web research)
+case-precedent  Find similar real CASE REPORTS on PubMed/EPMC — what they tried, what happened. Leads, not prognosis; mandatory publication-bias disclosure
 visit-prep      One-page visit-prep pack: doctor's 30-second snapshot + questions to ask + what to bring + what changed since last visit
 ```
 
@@ -104,7 +105,7 @@ npx skills add CancerDAO/cancer-buddy-skill -g --all
 npx skills add CancerDAO/cancer-buddy-skill --all
 ```
 
-`--all` installs all 12 sub-skills (the meta entry + 10 companions + 1 web-access dependency) at once, no interactive picking. Restart Claude Code, then say `cancer-buddy` or `抗癌搭子` to get going.
+`--all` installs all 13 sub-skills (the meta entry + 11 companions + 1 web-access dependency) at once, no interactive picking. Restart Claude Code, then say `cancer-buddy` or `抗癌搭子` to get going.
 
 > If you only want a subset, drop `--all` and the CLI will enter interactive mode.
 >
@@ -232,7 +233,7 @@ cancer-buddy-skill/
 ├── README_EN.md                       # you are here
 ├── INSTALL.md                         # detailed install guide
 └── skills/
-    ├── cancer-buddy/                  # meta entry (routes to the 10 companions below)
+    ├── cancer-buddy/                  # meta entry (routes to the 11 companions below)
     ├── cancer-buddy-organize/         # record organization
     ├── cancer-buddy-caregiver/        # caregiver support
     ├── cancer-buddy-mind/             # mental-health screening + crisis
@@ -242,6 +243,7 @@ cancer-buddy-skill/
     ├── cancer-buddy-nutrition/        # nutrition companion
     ├── cancer-buddy-second-opinion/   # second-opinion packet
     ├── cancer-buddy-find-care/        # find hospitals / doctors / trial sites
+    ├── cancer-buddy-case-precedent/   # find similar real case reports (leads, not prognosis)
     ├── cancer-buddy-visit-prep/       # one-page visit-prep pack
     └── web-access/                    # bundled web automation backbone (powers find-care's parallel subagents)
 ```

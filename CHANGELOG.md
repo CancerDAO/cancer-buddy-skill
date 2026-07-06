@@ -6,6 +6,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Added — cancer-buddy-case-precedent 子技能：真实病例先例探索 (2026-07-06)
+
+新增第 11 个 companion 子技能 `cancer-buddy-case-precedent`。患者用已 organize 的病历档案，去 PubMed / Europe PMC 检索 **publication type = Case Reports** 的相似真实病例，逐病例返回治疗路径 + 结局，作为**研究与就诊讨论的线索**——**不是预后预测、不是治疗建议**。
+
+- **检索**：派 subagent 加载 `web-access` 直连 PubMed E-utilities（`"Case Reports"[Publication Type]`）+ Europe PMC REST（`PUB_TYPE:"Case Reports"`），keyless；去重 + 撤稿检查（`"Retracted Publication"[pt]` / EPMC 标记）在主 agent 汇总时做。自包含，不依赖 vMTB 生态的 `vmtb-literature`。
+- **逐病例抽取**优先 OA 全文，逐字接地（临床值带 verbatim 引文 + PMID），抽不到标 `未报告`，禁 LLM 合成结局。
+- **相似度** 6 维（primary/histology/stage/key_driver/treatment_line/key_comorbidity）逐维 match/mismatch，**分歧维必列**；LLM sub-prompt 判定，不写硬编码打分表。
+- **8 道 P0 安全门**：强制发表/幸存者偏倚披露 + 显式 N + **绝不聚合成率** + 无治疗推荐/无本人预后 + 标注最弱证据(C→D) + live lookup + 临床实体逐字禁译 + 相似度分歧透明。
+- **工程硬化**（首个真实病例 E2E 复盘后）：检索 subagent **硬时限 ≤5 分钟** + OA 全文只抓 top ≤15 + 展开 ≤10 例（治首次跑 25 分钟的拖尾）；**去重显式计数**——必须真算两源交集并写出重叠数（`PubMed X + EPMC Y，去重 Z 重叠 → N 唯一`），禁止未算就断言"均无重复"（EPMC 镜像 PubMed，零重叠是异常信号）。
+- 文件：SKILL.md + 5 references；登记进 meta router 路由表；新增 `tests/eval/scenarios/cancer-buddy-case-precedent.md`（4 case）。首次真实 GEJ 印戒细胞癌 E2E 已验证 4/4 PMID 真实、8 门守住。
+
 ### Changed — case-summary 段D fidelity fixes + PII gate made two-layer (prompt-primary + shape floor) (2026-06-15)
 
 Three patient-reported 病情简要总结.html defects + a generalization fix to the PII gate.
