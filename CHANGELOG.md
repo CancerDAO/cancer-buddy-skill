@@ -6,6 +6,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Changed — case-precedent 输出层重构：从"研究综述"改成"陪伴 + 一个下一步" (2026-07-07)
+
+首个真实 E2E 后复盘发现：产物虽真实、接地、无偏，但**交互层是给研究者看的、冰冷**——454 行 PMID/6 维表/开场偏倚墙，回答的是"研究者的问题"，不是一个害怕的家属真正想知道的（"我是不是孤单？有没有希望？下一步做什么？"）。重构输出层（不动检索/接地内核）：
+
+- **Step 0 先接住 + 厘清意图**：先认情绪，再问一句"想看别人试过哪些方案（带去问医生），还是求希望/求人听（→ 路由 `cancer-buddy-mind`）"。别用 25 分钟综述回答一个求安慰的问题。
+- **两层输出**：**患者版 brief**（`相似病例_我可以问医生的.md`，主体）只给**按类别归并的治疗方向 + 一个具体下一步**（推向医生 / visit-prep / second-opinion），偏倚**轻编织进一句**不砌墙，**不摊死亡结局卡片**；**医生版临床附录**（`PRECEDENTS_临床附录.md`）承载完整 6 维/PMID/结局（含死亡）/证据分级/审计 footer，默认不主动展开。
+- **新增 G-PATIENT-FIRST 安全门**：先厘清再检索、患者版先接情绪只给方向不摊死亡结局、偏倚轻编织、结尾一个下一步。
+- 更新 `output-template.md`（§A 患者版 + §B 医生版）、`bias-disclosure.md`（患者版轻编织 vs 医生版横条两种形态）。
+
 ### Added — cancer-buddy-case-precedent 子技能：真实病例先例探索 (2026-07-06)
 
 新增第 11 个 companion 子技能 `cancer-buddy-case-precedent`。患者用已 organize 的病历档案，去 PubMed / Europe PMC 检索 **publication type = Case Reports** 的相似真实病例，逐病例返回治疗路径 + 结局，作为**研究与就诊讨论的线索**——**不是预后预测、不是治疗建议**。
