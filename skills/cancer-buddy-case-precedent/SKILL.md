@@ -64,6 +64,16 @@ description: "从患者已整理的病历档案出发，去 PubMed / Europe PMC 
 
 ## Core workflow
 
+### Step 0 — 先接住 + 厘清意图（先做，别急着检索）
+
+「有没有和我一样的人」表面是信息问题，底下常是**求连接 / 求希望 / 求下一步**。别一上来就甩文献。
+
+1. **接住一句**（按 locale，共情不廉价）：先认这句话背后的情绪——"想找和你（或你家人）情况像的人、看看别人怎么走过来的，这个念头我懂"。
+2. **厘清意图**（问一句再决定要不要检索）：
+   - 想看 **别人试过哪些治疗方向**（好带去问医生）→ 继续 Step 1（本 skill 主线）。
+   - 想知道 **有没有人情况像、后来还不错 / 只是需要有人听**（求希望 / 求连接）→ **文献个案给不了这个**（偏倚的小 N、不是能对话的人）。诚实说明，**路由 `cancer-buddy-mind`**（情绪支持）；真实患者社区不在文献里。
+3. 只有意图落在"看别人试过什么方案"时才进入检索。**别用一份 25 分钟的综述去回答一个求安慰的问题。**
+
 ### Step 1 — Build similarity profile → QUERY.md
 
 把患者档案组装成一个结构化相似度画像，写到 `patients/<patient_code>/reports/case-precedent/<slug>/QUERY.md`：
@@ -116,21 +126,25 @@ subagent 输出 JSON 写到 `.../raw/<subagent-name>.json`（schema 见 retrieva
 - **分歧维必须显式列出**（不只列相似）。
 - 可按综合相似度排序，但**不把总分作为主视觉**（避免"最像=最该学"误读）；每条都展示 mismatch。
 
-### Step 5 — Write PRECEDENTS.md + 对话追问
+### Step 5 — 两层输出：患者版（主体）+ 医生版附录
 
-写到 `patients/<patient_code>/reports/case-precedent/<slug>/PRECEDENTS.md`，按 [`references/output-template.md`](references/output-template.md)。脚手架按 locale，临床实体 + PMID 逐字。
+产两份，写给两种读者。**默认先给患者版**；附录默认不主动展开，只提一句"要给医生看的详细版我也生成了，随时可展开"。脚手架按 locale，临床实体 + PMID 逐字。
 
-**每份清单强制包含**（见 Safety 的 P0 门）：
-- **顶部偏倚披露横条** + **显式 N=<命中数>**（文案模板见 [`references/bias-disclosure.md`](references/bias-disclosure.md)）。
-- 每条：相似度画像逐维对照（含分歧）+ 逐线治疗路径 + 结局 + 随访时长 + PMID 链接 + 逐字引文。
-- **审计 footer**（`safety-guardrails.md` → Audit trail）：生成时间、skill 名+版本、profile hash 前 8 位、查询的数据库。
-- 末尾 canonical 免责（按 locale 渲染 `不替代主诊医生的判断` 之义）：
+**A. 患者版 brief（主体，是你回给用户的东西）** → `相似病例_我可以问医生的.md`
+- **开口先接住**（承接 Step 0），**不开场砌偏倚墙**。
+- 只讲 **治疗方向**：把相似病例里试过的方案**按类别归并**（"有人用过 X 类、有人试过 Y 类方向"），**不逐例摊结局、不把预后当卖点**。
+- **不渲染死亡 / 急速恶化个案卡片**——单个 N=1 坏结局对患者是纯惊吓噪音（偏倚小 N，既非真希望也非诚实预后），这类结局只留在医生版附录作事实记录。
+- **偏倚提醒轻编织进正文一句**（不是顶部一堵墙）：如"这些都是零散的个案、因为少见才被写下来，代表不了大多数人、更预测不了你——所以是**去问医生的线索**，不是答案"。
+- **结尾一个具体下一步**（把人推向医生，不是推向更多文献）："我把这几个方向整理成你下次见医生能直接问的问题好不好？" → 路由 `cancer-buddy-visit-prep` / `cancer-buddy-second-opinion`。
+- 末尾一行 canonical 免责（`不替代主诊医生的判断` 之义）。
 
-```
-> 这些是有文献记录的真实病例，不是对你结局的预测，也不是治疗建议。个案报告往往因罕见或疗效突出才被发表，系统性偏乐观、不代表总体。请把这份清单带给你的主诊医生一起看。
-```
+**B. 医生版附录（次，默认不主动展开）** → `PRECEDENTS_临床附录.md`
+- 完整严谨版：顶部偏倚横条 + 显式 N（含去重计数）+ 每例 6 维 match/mismatch（分歧必列）+ 逐线治疗 + **结局（含死亡，逐字接地）** + PMID + 逐字引文 + 审计 footer。
+- 这是**给医生看的**，患者可点开但不是主体。证据分级 / 术语 / 结局明细都在这层，不进患者版。
 
-**对话追问细化**：用户说"只看有脑转的 / 同样二线进展的 / 只看用了 XX 药的" → 在已检索结果上按维度过滤/重排；若需新维度则二次检索（同样走 Step 2 的 pubtype 过滤 + 撤稿检查）。可再次沉淀为更新版清单。
+模板见 [`references/output-template.md`](references/output-template.md)（§A 患者版 / §B 医生版）；患者版轻编织文案见 [`references/bias-disclosure.md`](references/bias-disclosure.md) 患者版一节。
+
+**对话追问细化**：用户说"只看有脑转的 / 用过 XX 药的" → 在已检索结果上按维度过滤/重排；需新维度则二次检索（走 Step 2）。
 
 ## Role behavior
 - **patient**：第二人称"你"，画像对照以本人为参照。
@@ -148,18 +162,20 @@ subagent 输出 JSON 写到 `.../raw/<subagent-name>.json`（schema 见 retrieva
 - **G-SIMILARITY-TRANSPARENCY**：6 维 match/mismatch，**分歧维必列**。
 - **G-GROUNDING**：每条结论挂真实 PMID + 逐字引文；过 Retraction Watch / `"Retracted Publication"[pt]`；抽不到标"未报告"，不猜。
 - **G-NO-ADVICE / NO-PROGNOSIS**：无治疗推荐、无换线建议、无本人预后预测；用"匹配理由"不用"推荐理由"；决策权归患者+医生（`safety-guardrails.md` → Never say / Scoring and ranking）。
-- **G-TIER**：明确标注为**最弱证据（个案报告，证据层 C→D）**，低于试验、低于指南（`safety-guardrails.md` → Evidence grading）。
+- **G-TIER**：明确标注为**最弱证据（个案报告，证据层 C→D）**，低于试验、低于指南（`safety-guardrails.md` → Evidence grading）。证据分级/术语只进医生版附录。
 - **G-LIVE**：live lookup，不用陈旧快照，网络不可达标"需现场核实"，不静默降级、不 LLM 合成个案。
+- **G-PATIENT-FIRST（交互层）**：先厘清意图再检索（Step 0）；患者版先接情绪、只给治疗方向、**不摊死亡结局卡片**、偏倚轻编织不砌墙、结尾给一个下一步（推向医生非文献）。6 维表 / 证据分级 / 结局明细（含死亡）降级到医生版附录，不作患者版主体。
 - 其它：临床实体逐字禁译（P0）；绝不读 `raw/`/`99_`；危机/披露规则照 `cancer-buddy` + `safety-guardrails.md`。
 
 ## Output
 
 ```
 patients/<patient_code>/reports/case-precedent/<slug>/
-  ├── QUERY.md          # Step 1 相似度画像
-  ├── PRECEDENTS.md     # 最终给用户的相似先例清单
+  ├── QUERY.md                      # Step 1 相似度画像
+  ├── 相似病例_我可以问医生的.md     # 患者版 brief（主体，回给用户）
+  ├── PRECEDENTS_临床附录.md         # 医生版附录（完整 6 维/PMID/结局，默认不主动展开）
   └── raw/
-      ├── subagent-A.json   # Step 2 检索原始命中
+      ├── subagent-A.json           # Step 2 检索原始命中
       └── ...
 ```
 
@@ -169,7 +185,7 @@ patients/<patient_code>/reports/case-precedent/<slug>/
 - [retrieval-sources.md](references/retrieval-sources.md) — PubMed E-utilities + Europe PMC REST 端点、Case Reports pubtype 过滤语法、去重/撤稿检查、subagent 输出 schema
 - [case-extraction-schema.md](references/case-extraction-schema.md) — 逐病例结构化抽取 schema（治疗路径 + 结局，逐字接地）
 - [similarity-axes.md](references/similarity-axes.md) — 6 维相似度规则 + 分歧透明
-- [bias-disclosure.md](references/bias-disclosure.md) — 强制偏倚披露文案模板 + no-aggregate 规则
-- [output-template.md](references/output-template.md) — PRECEDENTS.md 模板（偏倚横条 + N + 逐条 + 审计 footer + 免责）
+- [bias-disclosure.md](references/bias-disclosure.md) — 偏倚披露文案（**患者版轻编织** + 医生版完整横条）+ no-aggregate 规则
+- [output-template.md](references/output-template.md) — 两层输出模板：**§A 患者版 brief**（治疗方向 + 一个下一步）/ §B 医生版临床附录（6 维 + PMID + 结局 + 审计 footer）
 - 共用：`../../references/roles.md`, `../../references/safety-guardrails.md`, `../../references/disclosure-behavior.md`, `../../references/i18n.md`, `../../references/patient-profile-schema.md`
 - 联网底层依赖：`../web-access/SKILL.md`（subagent 必须加载）
