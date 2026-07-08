@@ -6,6 +6,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Changed — 段D 病情简要总结「关键趋势」hero 指标选取：从纯 LLM 判断改为「癌种标志物表 + 分层规则」 (2026-07-08)
+
+段D「关键趋势」`trend_charts[]`（拎成 hero 大图的指标）此前完全靠子代理散文式临床判断，无锚、不可复现，易出现"谁时间点多谁上"——无关常规检验挤掉该癌种真正的疗效标志物。改为决策相关性驱动的分层选取：
+
+- **新增参考表** `references/cancer-trend-markers.md`：全 69 NCCN 癌种 → 疗效监测血清标志物（子代理据指南知识生成 + 本地 OncoEvidence 交叉核对；27 癌种有公认标志物，42 个显式标 `—`，4 个语料支撑薄的标 `存疑`）。行脊柱取自 `cancer_therapy_corpus/landscapes` 的 69 slug。这是**血清疗效标志物**，不含预测性/分子 biomarker。
+- **重写** `case-summary-html-prompt.md` §关键趋势 选取规则：Tier1（癌种 primary 标志物，≥2 时间点，同癌种 ≤2 张）/ Tier2（患者特异动态指标）/ 降级（平稳·非疗效·单点 → 落「实验室指标」sparkline 行）/ 克制（hero 总数 2–4）/ 无标志物不硬凑 → `[]` / 先验服从个案（读 caveat，组织学依赖 marker 如甲状腺 Tg vs 髓样降钙素按实际组织学选）。
+- **新增结构校验器** `scripts/validate_cancer_trend_markers.py`（纯结构，无医学 keyword）+ 单测；E2E 覆盖 PDAC→CA19-9 进 hero（无关 ALT 降级）、黑色素瘤→`[]` 不硬凑、4 图上界渲染。
+- **零改动** 模板 / validator / schema / compute_sparklines（选取全在 data 层）。
+
 ### Changed — case-precedent 输出层重构：从"研究综述"改成"陪伴 + 一个下一步" (2026-07-07)
 
 首个真实 E2E 后复盘发现：产物虽真实、接地、无偏，但**交互层是给研究者看的、冰冷**——454 行 PMID/6 维表/开场偏倚墙，回答的是"研究者的问题"，不是一个害怕的家属真正想知道的（"我是不是孤单？有没有希望？下一步做什么？"）。重构输出层（不动检索/接地内核）：
