@@ -13,6 +13,7 @@
       "required": [
         "html_lang", "doc_title", "disclaimer", "report_date_label",
         "sec_identity", "lbl_sex_age", "lbl_hwbmi", "lbl_ecog",
+        "sec_stage",
         "sec_summary", "sec_trend", "sec_lesions", "sec_molecular", "sec_labs", "sec_treatment", "sec_path", "sec_caveats",
         "delta_title", "delta_vs", "delta_none", "trend_none",
         "val_male", "val_female", "val_pending", "val_ecog_inferred", "val_to_start",
@@ -32,6 +33,7 @@
     },
 
     "one_line_condition": { "type": ["string", "null"], "description": "Header subtitle: <stage> <histology> · <driver> · <current status>. Clinical entities verbatim." },
+    "stage": { "type": ["string", "null"], "description": "verbatim 分期 string from profile.summary.stage (or legacy flat profile.stage); may carry multi-layer / 待定 / two-hospital nuance; NEVER re-synthesized. null → 资料缺失 placeholder." },
     "report_date": { "type": ["string", "null"], "description": "YYYY-MM-DD (today)." },
 
     "sex": { "type": ["string", "null"], "description": "Mapped via i18n.val_male / val_female; never raw M/F if locale wants words." },
