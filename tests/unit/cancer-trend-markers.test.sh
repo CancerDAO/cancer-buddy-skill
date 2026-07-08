@@ -14,4 +14,10 @@ python3 "$V" --markers "$MD" --slugs "$LAND" && ok || no "real markers table fai
 printf '| slug | 癌种 |\n|---|---|\n| foo | 结直肠 |\n' > "$tmp/bad.md"
 if python3 "$V" --markers "$tmp/bad.md" --slugs "$LAND"; then no "malformed table passed"; else ok; fi
 
+# 3) prompt §关键趋势 选取规则须引用 marker 参考表 + 分层规则 + hero 总数上限
+P="$ORG/references/case-summary-html-prompt.md"
+grep -q "cancer-trend-markers.md" "$P" && ok || no "prompt 未引用 marker 参考表"
+grep -q "Tier 1" "$P" && grep -q "Tier 2" "$P" && ok || no "prompt 缺分层规则"
+grep -Eq "2[–-]4" "$P" && ok || no "prompt 未写 hero 总数 2–4"
+
 echo "pass=$pass fail=$fail"; [ "$fail" -eq 0 ]
