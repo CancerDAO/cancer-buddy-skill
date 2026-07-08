@@ -1,0 +1,58 @@
+name: tests
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  test:
+    name: unit + integration (bash + python3)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Show tool versions
+        run: |
+          bash --version | head -1
+          python3 --version
+
+      - name: Run unit tests
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          failed=0
+          for f in tests/unit/*.sh; do
+            echo "::group::$f"
+            if bash "$f"; then
+              echo "PASS: $f"
+            else
+              echo "::error file=$f::unit test failed"
+              failed=1
+            fi
+            echo "::endgroup::"
+          done
+          exit "$failed"
+
+      - name: Run integration tests
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          failed=0
+          for f in tests/integration/*.sh; do
+            echo "::group::$f"
+            if bash "$f"; then
+              echo "PASS: $f"
+            else
+              echo "::error file=$f::integration test failed"
+              failed=1
+            fi
+            echo "::endgroup::"
+          done
+          exit "$failed"
