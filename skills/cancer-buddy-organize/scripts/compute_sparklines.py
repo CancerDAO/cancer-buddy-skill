@@ -13,7 +13,9 @@ labs.json — never invented, never re-derived here) and injects, per series:
 
   - svg_points   : "x1,y1 x2,y2 …"            → <polyline points="…">
   - svg_area_d   : "M x1,y1 L … L xn,yB L x1,yB Z" → <path d="…"> (filled area; hero only)
-  - direction    : "down" | "up" | "flat" | "single"  (deterministic, drives arrow/colour)
+  - direction    : "down" | "up" | "flat" | "single"  (deterministic; MOST RECENT
+                   segment = last point vs previous; drives the ▲/▼ arrow GLYPH
+                   only — the badge colour is neutral, no good/bad valence)
   - point_count  : number of numeric points actually plotted
 
 For each chart's `treatment_markers[]` it injects `marker_x` (x on the SAME
@@ -141,12 +143,19 @@ def _y_of(v: float, vmin: float, vmax: float, h: float, pad: float) -> float:
 
 
 def _direction(pts):
+    """Trend direction from the MOST RECENT segment (last point vs the previous
+    one), NOT first-vs-last. A marker that responded then progressed (e.g. CEA
+    dipped deeply on treatment, then rose again) must read as the recent rise, not
+    the net drop from baseline — first-vs-last would paint a rising cancer marker
+    as an "improving" ▼. The arrow is a direction glyph only; clinical valence
+    (down=good vs down=bad) is metric-dependent and is NOT encoded in the colour
+    (see the neutral .trend-badge.up/.down colour in the template)."""
     if len(pts) < 2:
         return "single" if pts else "flat"
-    first, last = pts[0][1], pts[-1][1]
-    if abs(last - first) < _EPS:
+    prev, last = pts[-2][1], pts[-1][1]
+    if abs(last - prev) < _EPS:
         return "flat"
-    return "down" if last < first else "up"
+    return "down" if last < prev else "up"
 
 
 def _enrich_series(obj, w, h, pad, with_area: bool, with_dots: bool = False):
