@@ -21,6 +21,12 @@ status_label is localized from a tiny zh/en table; for any other locale it falls
 back to the English word (the LLM path produces a properly localized label — this
 floor only needs to be correct, not eloquent).
 
+SEPARATELY (and UNCONDITIONALLY, even when the producer already populated
+`lab_trends`), this script caps the badge of any TUMOR-MARKER row from
+"severe/严重" down to "high/偏高": chronically-elevated tumor markers (CEA ~10×,
+CA19-9 ~5×) are not an acute red-alert in a maintenance patient. Non-tumor-marker
+acute labs keep "severe". See `cap_tumor_marker_severity` / `_TUMOR_MARKERS`.
+
 CLI:
     python3 backfill_lab_trends.py --data .case_summary_data.json --labs labs.json [--profile profile.json]
 
@@ -40,6 +46,41 @@ _STATUS_LABELS = {
     "zh": {"normal": "正常", "low": "偏低", "high": "偏高", "abnormal": "异常", "severe": "严重", "": ""},
     "en": {"normal": "Normal", "low": "Low", "high": "High", "abnormal": "Abnormal", "severe": "Severe", "": ""},
 }
+
+# Tumor markers are CHRONICALLY elevated in a maintenance patient — a context-blind
+# ×ULN compare flags CEA ~10× / CA19-9 ~5× as red "严重/severe" and over-alarms.
+# For these analytes we CAP the badge at "high"/"偏高" (never "severe"): the trend
+# hero + caption carry the "responded-then-rising" clinical meaning, not a red badge.
+# Pinned analyte name set (matched after normalising away case / hyphen / underscore /
+# dot / whitespace, so CA19-9, CA199, CA19_9, CA19.9 all collapse to "ca199").
+_TUMOR_MARKERS = {
+    "cea", "ca199", "ca125", "ca724", "ca153", "ca50", "afp", "nse",
+    "cyfra211", "scc", "psa", "he4", "progrp",
+}
+
+
+def _norm_analyte(name) -> str:
+    """Normalise an analyte name for tumor-marker matching: lowercase and drop
+    hyphen / underscore / dot / whitespace so CA19-9 == CA199 == CA19_9 == CA19.9."""
+    if not isinstance(name, str):
+        return ""
+    return re.sub(r"[\s\-_.]", "", name).lower()
+
+
+def cap_tumor_marker_severity(data: dict, labels: dict) -> int:
+    """Downgrade any TUMOR-MARKER lab_trends row from status_class 'severe' → 'high'
+    (never red). Runs unconditionally over data['lab_trends'] — including rows the
+    LLM producer populated — so the cap applies on every (re-)render, not only the
+    backfill path. Non-tumor-marker acute labs keep 'severe'. Returns rows capped."""
+    capped = 0
+    for row in data.get("lab_trends") or []:
+        if not isinstance(row, dict):
+            continue
+        if row.get("status_class") == "severe" and _norm_analyte(row.get("lab_name")) in _TUMOR_MARKERS:
+            row["status_class"] = "high"
+            row["status_label"] = labels.get("high", row.get("status_label") or "")
+            capped += 1
+    return capped
 
 
 def _to_float(v):
@@ -168,9 +209,12 @@ def main() -> int:
             pass
 
     n = backfill(data, labs, locale)
+    labels = _STATUS_LABELS.get((locale or "").split("-")[0].lower(), _STATUS_LABELS["en"])
+    capped = cap_tumor_marker_severity(data, labels)
     out = args.out or args.data
     Path(out).write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(f"lab_trends backfill → {out} ({'no-op (already populated / no panels)' if n == 0 else str(n) + ' row(s) from labs.json'})")
+    fill_msg = "no-op (already populated / no panels)" if n == 0 else str(n) + " row(s) from labs.json"
+    print(f"lab_trends backfill → {out} ({fill_msg}; tumor-marker severity capped: {capped} row(s))")
     return 0
 
 
