@@ -110,6 +110,7 @@ Phase2 结构化整理完成、Profile Card 之后自动触发。读结构化文
 - **`series[]`**：该指标按 `timestamp` 升序的 `{"t": ISO 日期, "v": 数值}` 列表（≥1 点，1 点也可只画一个点），**`v` 逐字取自 `longitudinal_observations.json`，绝不改写、绝不补插值、绝不编造点**。
 - **`treatment_markers[]`**：把与该指标时间跨度相关的治疗线**起始日期**（`treatment_lines.json` 的 `started_at`）作为 `{"t": ISO 日期, "label": "<短线名/方案>"}` 传入——"指标↔治疗方案对应关系"，compute_sparklines 对齐到同一时间轴。只挑 1–3 个关键切换点，label 要短。
 - **`interpretation`**：**一句** locale 大白话，只陈述该图趋势方向（如"CEA 整体下降，提示治疗反应较好"），**不复述具体数值**（点值在图上）、**不追加 OCR/患者自述来源提示**（进 `数据说明`）、**不给新数字/治疗建议/预后**。
+- **对肿标：只陈述该指标的趋势方向；不得给任何标志物贴'最敏感/最特异/最可靠/金标准'等诊断性能标签（那是 MTB 层的解读，不在本层）。**
 - `svg_points`/`svg_area_d`/`dots`/`direction`/`marker_x`/`idx`/`marker_date` 由 compute_sparklines 逐图注入，你别碰。
 
 ### 实验室指标趋势行 — `lab_trends[]`（取代旧平铺网格）

@@ -56,6 +56,12 @@ Examples: HEIC/HEIF/image → temporary raster; scanned PDF → rendered pages; 
 - Triage `content_type ∈ {ct_slice, xray, ultrasound, photo, pathology_slide, text_doc, mixed}`.
 - `ct_slice / xray / ultrasound / photo` → **stub sidecar required** (≤5 lines: modality + body region if visible + approximate date if visible).
 - `text_doc / mixed / pathology_slide` → **full Markdown ingestion required**: transcribe every visible/LLM-readable character line by line. Lab tables → Markdown tables. Order sheets → date | order | qty | sig | exec_status columns. Discharge certs → heading + 治疗过程摘要 + 诊断 + 出院医嘱 + 签名 verbatim.
+- **NGS / genomic / germline report (targeted-exhaustive transcription — HARD RULE).** When the doc is an NGS panel / WES-WGS / 基因检测 / germline / 药物基因组 report, a page-1 summary is NOT the document — transcribe the **whole** report:
+  1. **The FULL somatic variant table, one Markdown row per variant** — `gene | c. | p. | VAF | zygosity | consequence` (keep every reported column; blank cell → leave blank, unreadable cell → `[OCR_UNCERTAIN: verbatim | alt]`). Do not truncate a long table.
+  2. **The germline section INCLUDING VUS** — transcribe every germline finding, not only Pathogenic / Likely-Pathogenic. VUS / 意义未明 rows are in scope; dropping them is data loss.
+  3. **The pharmacogenomics / drug-metabolism chapter** (DPYD / UGT1A1 / ERCC1 / …) — every locus + its genotype/result, verbatim.
+  4. **VAF / 丰度 numbers verbatim** — copy the exact figure, never round, never "correct" a look-alike (anti-anchoring, §2.2a).
+  - **Negative rule:** do **NOT** collapse a multi-page NGS report to its front-page P/LP ("检出的致病/可能致病变异") summary — that "only pathogenic" convention is the **report's** editorial choice for a clinician, **not yours**. Your sidecar must carry the full somatic table + germline (with VUS) + PGx chapter + VAF numbers so downstream (geneticist / vMTB) has the complete variant landscape, not a headline. This mirrors the omics-adapter discipline in [ingest-adapters.md](ingest-adapters.md) §1 (`omics_raw`), extended here to text/image-modality NGS **PDFs** that arrive as a scanned/rendered report rather than a parseable VCF.
 - Unsupported/corrupt/unreadable source → **stub sidecar required** with `[INGESTION_BLOCKED: <reason>]`, `READ_MODE: stub_unreadable`, `ADAPTER: unsupported_stub`, and a warning in final JSON. Never skip the file.
 
 Write to `$patient_dir/ocr/<basename>.md` with mandatory header:
