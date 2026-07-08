@@ -158,5 +158,39 @@ if [ -n "${htmlD:-}" ] && [ -f "${htmlD:-/nope}" ]; then
   grep -q 'CA125' "$htmlD" && grep -q 'HE4' "$htmlD" && ok || no "D: both metrics present"
 fi
 
+# ---- Case E: upper bound — 4 featured trend charts (new cap is 2–4, up from 1–3) ----
+# Proves the template + validator + anti-fabrication gate don't choke at the new
+# upper bound: 4 charts render side by side, each series point backed by longitudinal.
+cat > "$tmp/E.json" <<EOF
+{"i18n":$I18N,"fallbacks":{"__default__":"资料缺失"},
+ "one_line_condition":"卵巢高级别浆液性癌 · 铂耐药复发 · 多指标随访","report_date":"2026-06-28",
+ "sex":"女","age":"60 岁","height_weight_bmi":"158 cm / 52 kg / 20.8","ecog":"1","case_summary_narrative":"铂耐药复发，四项指标并行随访以判读治疗反应与肿瘤负荷。","labs_period":"2025-2026",
+ "trend_charts":[
+   {"metric":"CA-125","unit":"U/mL","series":[{"t":"2025-11-01","v":880},{"t":"2026-02-01","v":410},{"t":"2026-06-01","v":150}],"treatment_markers":[{"t":"2025-11-15","label":"三线 拓扑替康"}],"interpretation":"CA-125 整体下降。"},
+   {"metric":"HE4","unit":"pmol/L","series":[{"t":"2025-11-01","v":520},{"t":"2026-06-01","v":210}],"treatment_markers":[],"interpretation":"HE4 下降。"},
+   {"metric":"CEA","unit":"ng/mL","series":[{"t":"2025-11-01","v":9.1},{"t":"2026-06-01","v":5.4}],"treatment_markers":[],"interpretation":"CEA 缓慢下降。"},
+   {"metric":"LDH","unit":"U/L","series":[{"t":"2025-11-01","v":420},{"t":"2026-02-01","v":300},{"t":"2026-06-01","v":250}],"treatment_markers":[],"interpretation":"LDH 回落，提示肿瘤负荷下降。"}],
+ "lab_trends":[{"lab_name":"CA-125","series":[{"t":"2025-11-01","v":880},{"t":"2026-06-01","v":150}],"current_value":"150","unit":"U/mL","status_class":"high","status_label":"偏高"}],
+ "lesions":[],"molecular_rows":[],"treatment_lines":[],"path_items":[],"caveats":[]}
+EOF
+cat > "$tmp/E_long.json" <<EOF
+{"schema_version":"longitudinal_observations_v1","patient_code":"PT-E","observations":[
+ {"obs_type":"lab","metric":"CA-125","value":880,"unit":"U/mL","timestamp":"2025-11-01T00:00:00","modality":"structured","source_ref":"07_检验/a.md#L1"},
+ {"obs_type":"lab","metric":"CA-125","value":410,"unit":"U/mL","timestamp":"2026-02-01T00:00:00","modality":"structured","source_ref":"07_检验/b.md#L1"},
+ {"obs_type":"lab","metric":"CA-125","value":150,"unit":"U/mL","timestamp":"2026-06-01T00:00:00","modality":"structured","source_ref":"07_检验/c.md#L1"},
+ {"obs_type":"lab","metric":"HE4","value":520,"unit":"pmol/L","timestamp":"2025-11-01T00:00:00","modality":"structured","source_ref":"07_检验/d.md#L1"},
+ {"obs_type":"lab","metric":"HE4","value":210,"unit":"pmol/L","timestamp":"2026-06-01T00:00:00","modality":"structured","source_ref":"07_检验/e.md#L1"},
+ {"obs_type":"lab","metric":"CEA","value":9.1,"unit":"ng/mL","timestamp":"2025-11-01T00:00:00","modality":"structured","source_ref":"07_检验/f.md#L1"},
+ {"obs_type":"lab","metric":"CEA","value":5.4,"unit":"ng/mL","timestamp":"2026-06-01T00:00:00","modality":"structured","source_ref":"07_检验/g.md#L1"},
+ {"obs_type":"lab","metric":"LDH","value":420,"unit":"U/L","timestamp":"2025-11-01T00:00:00","modality":"structured","source_ref":"07_检验/h.md#L1"},
+ {"obs_type":"lab","metric":"LDH","value":300,"unit":"U/L","timestamp":"2026-02-01T00:00:00","modality":"structured","source_ref":"07_检验/i.md#L1"},
+ {"obs_type":"lab","metric":"LDH","value":250,"unit":"U/L","timestamp":"2026-06-01T00:00:00","modality":"structured","source_ref":"07_检验/j.md#L1"}]}
+EOF
+htmlE=$(run_case E "$tmp/E.json" "$tmp/E_long.json" "" "") || true
+if [ -n "${htmlE:-}" ] && [ -f "${htmlE:-/nope}" ]; then
+  [ "$(grep -c 'class="trend-hero"' "$htmlE")" = "4" ] && ok || no "E: 4 featured trend charts should render (new 2–4 upper bound)"
+  grep -q 'CA-125' "$htmlE" && grep -q 'HE4' "$htmlE" && grep -q 'CEA' "$htmlE" && grep -q 'LDH' "$htmlE" && ok || no "E: all 4 metrics present"
+fi
+
 echo "case-summary-trend E2E: $pass passed, $fail failed"
 [ "$fail" -eq 0 ]
