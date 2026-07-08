@@ -1,0 +1,75 @@
+# 癌种 → 疗效监测标志物参考表
+
+> 段D「关键趋势」Tier1 选取用。primary=`—` 表示无公认血清疗效标志物，走 Tier2/影像/[]。
+
+| slug | 癌种 | primary | secondary | caveat |
+|---|---|---|---|---|
+| acute-lymphoblastic-leukemia | acute-lymphoblastic-leukemia | — |  |  |
+| acute-myeloid-leukemia | acute-myeloid-leukemia | — |  |  |
+| ampullary-adenocarcinoma | ampullary-adenocarcinoma | — |  |  |
+| anal-carcinoma | anal-carcinoma | — |  |  |
+| appendiceal-cancer | appendiceal-cancer | — |  |  |
+| b-cell-lymphomas | b-cell-lymphomas | — |  |  |
+| basal-cell-skin-cancer | basal-cell-skin-cancer | — |  |  |
+| biliary-tract-cancers | biliary-tract-cancers | — |  |  |
+| bladder-cancer | bladder-cancer | — |  |  |
+| bone-cancer | bone-cancer | — |  |  |
+| breast-cancer | breast-cancer | — |  |  |
+| castleman-disease | castleman-disease | — |  |  |
+| cervical-cancer | cervical-cancer | — |  |  |
+| chronic-myeloid-leukemia | chronic-myeloid-leukemia | — |  |  |
+| cll-sll | cll-sll | — |  |  |
+| cns-cancers | cns-cancers | — |  |  |
+| colon-cancer | colon-cancer | — |  |  |
+| cutaneous-lymphomas | cutaneous-lymphomas | — |  |  |
+| dermatofibrosarcoma-protuberans | dermatofibrosarcoma-protuberans | — |  |  |
+| esophageal-egj-cancers | esophageal-egj-cancers | — |  |  |
+| gastric-cancer | gastric-cancer | — |  |  |
+| gestational-trophoblastic-neoplasia | gestational-trophoblastic-neoplasia | — |  |  |
+| gist | gist | — |  |  |
+| hairy-cell-leukemia | hairy-cell-leukemia | — |  |  |
+| head-and-neck-cancers | head-and-neck-cancers | — |  |  |
+| hepatobiliary-cancers | hepatobiliary-cancers | — |  |  |
+| hepatocellular-carcinoma | hepatocellular-carcinoma | — |  |  |
+| histiocytic-neoplasms | histiocytic-neoplasms | — |  |  |
+| hodgkin-lymphoma | hodgkin-lymphoma | — |  |  |
+| kaposi-sarcoma | kaposi-sarcoma | — |  |  |
+| kidney-cancer | kidney-cancer | — |  |  |
+| melanoma-cutaneous | melanoma-cutaneous | — |  |  |
+| melanoma-uveal | melanoma-uveal | — |  |  |
+| merkel-cell-carcinoma | merkel-cell-carcinoma | — |  |  |
+| mesothelioma-peritoneal | mesothelioma-peritoneal | — |  |  |
+| mesothelioma-pleural | mesothelioma-pleural | — |  |  |
+| mlne-eosinophilia-tk-fusions | mlne-eosinophilia-tk-fusions | — |  |  |
+| multiple-myeloma | multiple-myeloma | — |  |  |
+| myelodysplastic-syndromes | myelodysplastic-syndromes | — |  |  |
+| myeloproliferative-neoplasms | myeloproliferative-neoplasms | — |  |  |
+| neuroblastoma | neuroblastoma | — |  |  |
+| neuroendocrine-adrenal-tumors | neuroendocrine-adrenal-tumors | — |  |  |
+| nsclc | nsclc | — |  |  |
+| occult-primary | occult-primary | — |  |  |
+| ovarian-fallopian-peritoneal | ovarian-fallopian-peritoneal | — |  |  |
+| pancreatic-adenocarcinoma | pancreatic-adenocarcinoma | — |  |  |
+| pediatric-all | pediatric-all | — |  |  |
+| pediatric-b-cell-lymphomas | pediatric-b-cell-lymphomas | — |  |  |
+| pediatric-cns-cancers | pediatric-cns-cancers | — |  |  |
+| pediatric-hodgkin-lymphoma | pediatric-hodgkin-lymphoma | — |  |  |
+| pediatric-soft-tissue-sarcoma | pediatric-soft-tissue-sarcoma | — |  |  |
+| penile-cancer | penile-cancer | — |  |  |
+| prostate-cancer | prostate-cancer | — |  |  |
+| rectal-cancer | rectal-cancer | — |  |  |
+| small-bowel-adenocarcinoma | small-bowel-adenocarcinoma | — |  |  |
+| small-cell-lung-cancer | small-cell-lung-cancer | — |  |  |
+| soft-tissue-sarcoma | soft-tissue-sarcoma | — |  |  |
+| squamous-cell-skin-cancer | squamous-cell-skin-cancer | — |  |  |
+| systemic-light-chain-amyloidosis | systemic-light-chain-amyloidosis | — |  |  |
+| systemic-mastocytosis | systemic-mastocytosis | — |  |  |
+| t-cell-lymphomas | t-cell-lymphomas | — |  |  |
+| testicular-cancer | testicular-cancer | — |  |  |
+| thymoma-thymic-carcinoma | thymoma-thymic-carcinoma | — |  |  |
+| thyroid-carcinoma | thyroid-carcinoma | — |  |  |
+| uterine-neoplasms | uterine-neoplasms | — |  |  |
+| vaginal-cancer | vaginal-cancer | — |  |  |
+| vulvar-cancer | vulvar-cancer | — |  |  |
+| waldenstrom-macroglobulinemia | waldenstrom-macroglobulinemia | — |  |  |
+| wilms-tumor | wilms-tumor | — |  |  |
