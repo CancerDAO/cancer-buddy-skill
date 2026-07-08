@@ -15,6 +15,7 @@
   | disclaimer           | 仅用于临床交流参考，不替代主诊医生的判断       | For clinical-communication reference only; does not replace the attending physician's judgment |
   | report_date_label    | 报告日期                                     | Report date                                               |
   | sec_identity         | 患者标识                                     | Patient Identity                                          |
+  | sec_stage            | 分期 (TNM)                                   | Stage (TNM)                                               |
   | lbl_sex_age          | 性别 / 年龄                                  | Sex / Age                                                 |
   | lbl_hwbmi            | 身高 / 体重 / BMI                            | Height / Weight / BMI                                     |
   | lbl_ecog             | ECOG 体能评分                               | ECOG performance status                                   |
@@ -391,6 +392,18 @@ table.kv td.k {
   <div class="id-item"><span class="id-label">{{i18n.lbl_hwbmi}}</span><span class="id-value">{{height_weight_bmi}}</span></div>
   <div class="id-item"><span class="id-label">{{i18n.lbl_ecog}}</span><span class="id-value">{{ecog}}</span></div>
 </div>
+</div>
+
+<!-- ============ SECTION 1.5: 诊断与分期 ============ -->
+<!-- 来源: profile.summary.stage（或旧 flat profile.stage）逐字；多层/待定/两院差异原样保留，不重新合成（接 organize P0-2 verbatim 口径）；null → 资料缺失。 -->
+<div class="card">
+<h2>{{i18n.sec_stage}}</h2>
+<!-- RENDER_IF stage -->
+<p class="summary-text">{{stage}}</p>
+<!-- END RENDER_IF -->
+<!-- RENDER_IF_NOT stage: 无分期数据时占位整段不删 -->
+<p class="summary-text muted">{{i18n.val_pending}}</p>
+<!-- END RENDER_IF -->
 </div>
 
 <!-- ============ SECTION 2: 病情概要(叙事) ============ -->

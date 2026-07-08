@@ -4,7 +4,7 @@ Phase2 结构化整理完成、Profile Card 之后自动触发。读结构化文
 
 ## 红线（违反即非法输出，哪怕临床内容全对）
 
-- 你**只产 `case_summary_data.json`**：各字段值 + 病情概要叙事串 + lesion/molecular/治疗线/path 数组 + **`trend_charts[]`（关键趋势，0..N 张，张数你按临床判断定）** + **`lab_trends[]`（实验室指标趋势行，取代旧 `labs[]` 平铺网格）** + **`caveats[]` 数据说明数组**（见下"Call parameters"）+ i18n locale 串表（含 `sec_caveats` / `sec_trend` / `delta_title` / `delta_vs` / `delta_none` / `trend_none`）+ 各空段 fallback 文案。
+- 你**只产 `case_summary_data.json`**：各字段值 + 病情概要叙事串 + lesion/molecular/治疗线/path 数组 + **`trend_charts[]`（关键趋势，0..N 张，张数你按临床判断定）** + **`lab_trends[]`（实验室指标趋势行，取代旧 `labs[]` 平铺网格）** + **`caveats[]` 数据说明数组**（见下"Call parameters"）+ i18n locale 串表（含 `sec_stage` / `sec_caveats` / `sec_trend` / `delta_title` / `delta_vs` / `delta_none` / `trend_none`）+ 各空段 fallback 文案。
 - **趋势的坐标不是你算的**：`trend_charts[]` 每张图 / `lab_trends[]` 每行里你只填**逐字取自 `longitudinal_observations.json` / `labs.json` 的 `series[]`（`{t,v}`）** + 选定指标 + 一句 `interpretation`；SVG 坐标（`svg_points` / `svg_area_d` / `dots[]` / `marker_x` / `direction`）由 `scripts/compute_sparklines.py` 逐图确定性注入，**你绝不手算像素、绝不编造任何 series 数值**（造点会被 compute_sparklines 的反造假门 exit 3 拦下）。
 - **`version_delta`（自上次总结的变化）不是你产的**：由 `scripts/compute_version_delta.py` 对比上一版快照生成，你**不要**在 `case_summary_data.json` 里写它。
 - 你**绝不手写、拼接、改写任何 HTML / CSS / DOM**。HTML 由 `render_html_template.py` 从 `case-summary.template.html` 确定性生成，你不碰模板、不碰标签、不碰 class、不碰样式。
@@ -56,6 +56,7 @@ Phase2 结构化整理完成、Profile Card 之后自动触发。读结构化文
 |---|---|---|---|
 | header 一句话病情 | `one_line_condition` | profile.json（summary.stage + summary.histology + 关键分子 + 当前线状态 / 或直接 summary.one_line_condition） | 字段拼接：`<stage> <histology> · <driver> · <当前治疗状态>` |
 | header 报告日期 | `report_date` | 当日日期 | `YYYY-MM-DD` |
+| 诊断与分期 | `stage` | `profile.summary.stage`（旧 flat profile → 顶层 `profile.stage`） | **逐字照抄**分期串；多层/待定/两院差异原样保留，不重新合成、不归一为单一干净 TNM（接 organize P0-2 verbatim 口径）；缺失 → `null`（模板渲染 `资料缺失`） |
 | 患者标识 性别 | `sex` | `patient_summary.json.demographics.sex` | M→`i18n.val_male` / F→`i18n.val_female` 串值（走字符串表，不写死） |
 | 患者标识 年龄 | `age` | `patient_summary.json.demographics.age` | **精确年龄**：照实渲染（如 `63` / `63 岁`，单位按 locale）——临床试验匹配需要精确年龄；仅遮 DOB/生日，**不再降十年段** |
 | 患者标识 身高体重 BMI | `height_weight_bmi` | `patient_summary.json.demographics.height_cm` / `weight_kg` | `165 cm / 68 kg / 25.0`，BMI 自算（单位/数值 verbatim） |
@@ -82,6 +83,13 @@ Phase2 结构化整理完成、Profile Card 之后自动触发。读结构化文
 ### 患者标识（脱敏硬约束）
 - 性别填 `i18n.val_male`/`i18n.val_female` 串值；年龄**照实输出精确年龄**（`demographics.age`，如 `63` / `63 岁`，单位按 locale）——临床试验匹配需要精确年龄，**不再降十年段**；但**仍绝不输出出生日期/生日（DOB）**，只给整数年龄。
 - 绝不输出真名、真实出生日期（DOB）、住院号、城市、国籍、**出生地/籍贯、职业/工作单位**——这些与临床决策无关且属可识别信息，一律不出现在患者标识或任何字段里。BMI = `weight_kg / (height_cm/100)^2`，保留一位小数（数值/单位 verbatim）。
+
+### 诊断与分期（`stage` — verbatim，禁重新合成）
+- `stage` **逐字照抄** `profile.summary.stage`；**旧 flat profile** 无 `summary` 时取顶层 `profile.stage`。
+- 分期串可能是**多层 / 待定 / 两院差异**（如"初诊 pT3N2M0（ⅢB期）；术后复发再分期 rT3N3M0（ⅢC期）；某病灶待定"）——**原样保留全部层次与差异**，**绝不**归一/重新合成成单一"干净" TNM（这正是 organize 的 **P0-2 verbatim-only 分期**口径，改写=医疗风险）。
+- 分期本身**不做** LLM 判断、不补插、不推断缺失层；只照抄结构化字段里已写明的字符。
+- 缺失（`profile.summary.stage` 与 `profile.stage` 均无）→ `stage=null`，模板走 `RENDER_IF_NOT stage` 渲染 `i18n.val_pending`（`资料缺失`），段不删。
+- 该段是分期的**主段**；`header 一句话`里 `one_line_condition` 仍可带 `<分期>` 做一眼定位，但完整/多层分期只在本段落地，两者信息层级不同，不算重复。
 
 ### 主要病灶分布
 - 遍历 profile.json 影像字段（原发灶 / 各转移部位 / 淋巴结）；若影像结构化字段缺，交 subagent 从 `case_text.md` 影像段抽取病灶清单（仅抽取，不增补医学判断）。
