@@ -80,7 +80,7 @@ In cancer, the most critical decisions — treatment regimen, whether to switch 
 
 What cancer-buddy does:
 
-- Organize information (records, timeline, indicator trends)
+- Organize information (records, timeline, indicator trends) — each time you add material, the one-page **Case Summary** auto-refreshes with trend charts of tumor markers/labs (with treatment-line changes on the same axis) and a "what changed since last summary" strip
 - Help you prepare questions (so every clinic visit goes further)
 - Offer support under emotional pressure
 
