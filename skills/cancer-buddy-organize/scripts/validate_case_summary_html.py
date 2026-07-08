@@ -37,6 +37,16 @@ Checks:
       must be one of a small static set (svg/g/path/polyline/line/circle/rect/
       text/title/desc). Catches anything smuggled into the chart markup.
 
+  (j) Core-completeness (OPTIONAL — only when --profile AND --data are supplied;
+      absent → skipped, so the validator stays backward-compatible). HARD-FAILS if
+      a CORE SINGLETON field is present in source but missing/empty in the rendered
+      summary: **stage** (profile.summary.stage OR flat profile.stage vs
+      data.stage — the solid one), **driver** (molecular.json variants/
+      somatic_variants/drivers vs data.molecular_rows — best-effort), **current
+      regimen** (treatment_lines.json lines vs data.treatment_lines — best-effort).
+      Deliberately does NOT gate labs/comorbidities — those are curated for a
+      one-pager and forcing them would clutter; only always-core singletons.
+
   Note: the anti-fabrication numeric-integrity gate (every plotted point must
   exist in longitudinal_observations.json) lives in compute_sparklines.py, not
   here — this validator only sees normalized pixel coordinates, from which the raw
@@ -56,6 +66,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import json
 import re
 import sys
 from pathlib import Path
@@ -290,10 +301,79 @@ def check(html: str, template: str, errors: list[str]) -> str | None:
     return template_sha
 
 
+# --- (j) core-completeness gate (optional; needs --profile + --data) ----------
+# Shape checks (a)-(i) intentionally never assert that clinical content exists,
+# because most sections are curated 0..N (a patient with no labs legitimately has
+# none). But a few CORE SINGLETON fields are ALWAYS-present when the source has
+# them — dropping them silently is a correctness failure, not a one-pager choice.
+# This gate (only when --profile + --data are supplied) HARD-FAILS if such a field
+# is present in source but missing/empty in the rendered summary. It deliberately
+# does NOT gate labs/comorbidities (those are curated — forcing them would clutter).
+
+
+def _load_json(path: Path):
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+
+
+def _truthy(v) -> bool:
+    """A source value counts as present unless it's None/empty/placeholder."""
+    if v is None:
+        return False
+    if isinstance(v, str):
+        return v.strip() not in ("", "null", "None", "资料缺失")
+    if isinstance(v, (list, dict)):
+        return bool(v)
+    return True
+
+
+def core_completeness_check(profile_path: str | None, data_path: str | None, errors: list[str]) -> None:
+    """Optional gate: if a CORE SINGLETON field is present in source but absent from
+    the rendered summary data, HARD-FAIL. Absent args (or unreadable files) → skip,
+    so the validator stays backward-compatible when called without --profile/--data."""
+    if not profile_path or not data_path:
+        return
+    profile = _load_json(Path(profile_path))
+    data = _load_json(Path(data_path))
+    if not isinstance(profile, dict) or not isinstance(data, dict):
+        return  # best-effort: can't read one of them → skip the gate, don't crash
+
+    # stage (the SOLID one): profile.summary.stage OR flat profile.stage.
+    summary = profile.get("summary") if isinstance(profile.get("summary"), dict) else {}
+    src_stage = summary.get("stage") if _truthy(summary.get("stage")) else profile.get("stage")
+    if _truthy(src_stage) and not _truthy(data.get("stage")):
+        errors.append("(j) core field 分期 present in source but absent from summary")
+
+    # driver (best-effort): molecular.json sibling of the profile.
+    mol = _load_json(Path(profile_path).parent / "molecular.json")
+    if isinstance(mol, dict):
+        has_variants = any(
+            isinstance(mol.get(k), list) and mol.get(k)
+            for k in ("variants", "somatic_variants", "drivers")
+        )
+        if has_variants and not _truthy(data.get("molecular_rows")):
+            errors.append(
+                "(j) core field 驱动基因 present in source (molecular.json variants/"
+                "somatic_variants/drivers) but molecular_rows empty in summary"
+            )
+
+    # current regimen (best-effort): treatment_lines.json sibling of the profile.
+    tl = _load_json(Path(profile_path).parent / "treatment_lines.json")
+    if isinstance(tl, dict) and tl.get("lines") and not _truthy(data.get("treatment_lines")):
+        errors.append(
+            "(j) core field 当前方案 present in source (treatment_lines.json lines) "
+            "but treatment_lines empty in summary"
+        )
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--html", required=True, help="rendered case-summary HTML to validate")
     ap.add_argument("--template", required=True, help="case-summary.template.html baseline")
+    ap.add_argument("--profile", help="patient profile.json — enables the (j) core-completeness gate")
+    ap.add_argument("--data", help=".case_summary_data.json render data — enables the (j) core-completeness gate")
     args = ap.parse_args()
 
     html_path = Path(args.html)
@@ -312,6 +392,9 @@ def main() -> int:
 
     errors: list[str] = []
     template_sha = check(html, template, errors)
+    # (j) optional core-completeness gate — only runs when both --profile and --data
+    # are supplied (backward-compatible: absent → skipped entirely).
+    core_completeness_check(args.profile, args.data, errors)
 
     if errors:
         for e in errors:
