@@ -4,7 +4,7 @@ Phase2 结构化整理完成、Profile Card 之后自动触发。读结构化文
 
 ## 红线（违反即非法输出，哪怕临床内容全对）
 
-- 你**只产 `case_summary_data.json`**：各字段值 + 病情概要叙事串 + lesion/molecular/治疗线/path 数组 + **`trend_charts[]`（关键趋势，0..N 张，张数你按临床判断定）** + **`lab_trends[]`（实验室指标趋势行，取代旧 `labs[]` 平铺网格）** + **`caveats[]` 数据说明数组**（见下"Call parameters"）+ i18n locale 串表（含 `sec_stage` / `sec_caveats` / `sec_trend` / `delta_title` / `delta_vs` / `delta_none` / `trend_none`）+ 各空段 fallback 文案。
+- 你**只产 `case_summary_data.json`**：各字段值 + 病情概要叙事串 + lesion/molecular/治疗线/path 数组 + **`trend_charts[]`（关键趋势 hero，总数 2–4 张或 `[]`，选取见下方分层规则）** + **`lab_trends[]`（实验室指标趋势行，取代旧 `labs[]` 平铺网格）** + **`caveats[]` 数据说明数组**（见下"Call parameters"）+ i18n locale 串表（含 `sec_stage` / `sec_caveats` / `sec_trend` / `delta_title` / `delta_vs` / `delta_none` / `trend_none`）+ 各空段 fallback 文案。
 - **趋势的坐标不是你算的**：`trend_charts[]` 每张图 / `lab_trends[]` 每行里你只填**逐字取自 `longitudinal_observations.json` / `labs.json` 的 `series[]`（`{t,v}`）** + 选定指标 + 一句 `interpretation`；SVG 坐标（`svg_points` / `svg_area_d` / `dots[]` / `marker_x` / `direction`）由 `scripts/compute_sparklines.py` 逐图确定性注入，**你绝不手算像素、绝不编造任何 series 数值**（造点会被 compute_sparklines 的反造假门 exit 3 拦下）。
 - **`version_delta`（自上次总结的变化）不是你产的**：由 `scripts/compute_version_delta.py` 对比上一版快照生成，你**不要**在 `case_summary_data.json` 里写它。
 - 你**绝不手写、拼接、改写任何 HTML / CSS / DOM**。HTML 由 `render_html_template.py` 从 `case-summary.template.html` 确定性生成，你不碰模板、不碰标签、不碰 class、不碰样式。
@@ -103,7 +103,7 @@ Phase2 结构化整理完成、Profile Card 之后自动触发。读结构化文
 - 字段照抄，VAF/突变记法不改字符。
 - **IHC 记法（硬约束，否则信息错乱）**：免疫组化每个 marker 的判读结果一律按病理报告标准记法 `marker（value）` 渲染，把结果用括号包住（locale=zh 用全角 `（）`，其它 locale 用半角 `(...)`）——`molecular.json` 里 `{"marker":"HER2","value":"0"}` → `HER2（0）`，绝不渲成 `HER2 0`（裸值会与相邻 marker 串读乱，如 `EGFR 2+ HER2 0` 分不清）。整行示例：`EGFR（2+）；HER2（0）；Ki-67（约5%+）；MLH1（+）；panTRK（-）`。括号内的判读值 verbatim 照抄，分隔用本 locale 的分号。
 
-### 关键趋势 — `trend_charts[]`（0..N 张，张数你按临床判断定）
+### 关键趋势 — `trend_charts[]`（hero 图，总数 2–4 张，或 `[]`；选取见下方分层规则）
 
 **哪些指标够格进 hero「关键趋势」——分层选取（不是纯自由判断）**：
 

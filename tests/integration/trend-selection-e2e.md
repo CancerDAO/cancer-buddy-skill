@@ -43,7 +43,7 @@
   **不硬凑 hero**。LDH 依 caveat 属分期/预后指标而非疗效标志物，且本例平稳正常、未驱动任何决策 →
   按「平稳/非疗效相关 → 不进 hero，落 lab_trends」降级。无其它 Tier2 决策驱动指标 → `trend_charts=[]`。
 - **结果 `trend_charts[].metric`** = `[]`（LDH、ALT 落 lab_trends；`关键趋势`段占位 `trend-none` 正常渲染，段未删）。
-- **产物**：`病情简要总结.html`（11209 bytes），链 wall-time ≈ 0.19s，全 exit 0（trend charts=0, lab_trend rows=2）；
+- **产物**：`病情简要总结.html`（11891 bytes），链 wall-time ≈ 0.19s，全 exit 0（trend charts=0, lab_trend rows=2）；
   `trend-none` 占位出现 1 次、`关键趋势` h2 出现（段保留）。
 - **断言**：`B OK []` ✅ — 规则未为 `—` 癌种硬凑 CA19-9/CEA/AFP/PSA/CA-125 等规范 marker。
 
@@ -57,7 +57,7 @@
 
 - Layer 1 测试：`tests/integration/case-summary-trend-e2e.sh`（新增 Case E 4 图）
 - Case A HTML：`<scratchpad>/caseA/病情简要总结.html`（14534 bytes）+ 输入 profile/longitudinal/labs + `.case_summary_data.json`
-- Case B HTML：`<scratchpad>/caseB/病情简要总结.html`（11209 bytes）+ 同上
+- Case B HTML：`<scratchpad>/caseB/病情简要总结.html`（11891 bytes）+ 同上
   （scratchpad 为 session 临时目录；两 case 的 `.case_summary_data.json`/输入 json 已在链中逐一验证）
 
 ## 结论
