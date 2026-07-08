@@ -24,7 +24,7 @@ ok() { pass=$((pass+1)); }
 no() { echo "FAIL: $1" >&2; fail=$((fail+1)); }
 
 # shared locale scaffold (patient-independent)
-I18N='{"html_lang":"zh-CN","doc_title":"病情简要总结","disclaimer":"仅用于临床交流参考，不替代主诊医生的判断","report_date_label":"报告日期","sec_identity":"患者标识","lbl_sex_age":"性别 / 年龄","lbl_hwbmi":"身高 / 体重 / BMI","lbl_ecog":"ECOG 体能评分","sec_summary":"病情概要","sec_trend":"关键趋势","sec_lesions":"主要病灶分布","sec_molecular":"核心分子检测","sec_labs":"实验室指标","sec_treatment":"治疗史","sec_path":"当前治疗路径","sec_caveats":"数据说明","delta_title":"自上次总结的变化","delta_vs":"对比","delta_none":"与上次总结相比，关键指标无变化","trend_none":"暂无足够时间点数据，补充随访化验后自动生成趋势","val_male":"男","val_female":"女","val_pending":"待主诊医生补充 / 资料缺失","val_ecog_inferred":"（推断，待主诊医生正式签署）","val_to_start":"待启动","footer_doc":"病情简要总结"}'
+I18N='{"html_lang":"zh-CN","doc_title":"病情简要总结","disclaimer":"仅用于临床交流参考，不替代主诊医生的判断","report_date_label":"报告日期","sec_identity":"患者标识","lbl_sex_age":"性别 / 年龄","lbl_hwbmi":"身高 / 体重 / BMI","lbl_ecog":"ECOG 体能评分","sec_summary":"病情概要","sec_stage":"分期 (TNM)","sec_trend":"关键趋势","sec_lesions":"主要病灶分布","sec_molecular":"核心分子检测","sec_labs":"实验室指标","sec_treatment":"治疗史","sec_path":"当前治疗路径","sec_caveats":"数据说明","delta_title":"自上次总结的变化","delta_vs":"对比","delta_none":"与上次总结相比，关键指标无变化","trend_none":"暂无足够时间点数据，补充随访化验后自动生成趋势","val_male":"男","val_female":"女","val_pending":"待主诊医生补充 / 资料缺失","val_ecog_inferred":"（推断，待主诊医生正式签署）","val_to_start":"待启动","footer_doc":"病情简要总结"}'
 
 run_case() {  # $1=name $2=data.json $3=longitudinal(or "") $4=labs.json(or "") $5=prev(or "")
   local name="$1" data="$2" long="$3" labs="$4" prev="$5"
@@ -129,7 +129,7 @@ EOF
 htmlC=$(run_case C "$tmp/C.json" "" "" "") || true
 if [ -n "${htmlC:-}" ] && [ -f "${htmlC:-/nope}" ]; then
   grep -q 'class="trend-none"' "$htmlC" && ok || no "C: no-trend → placeholder shown"
-  [ "$(grep -c '<h2>' "$htmlC")" = "8" ] && ok || no "C: all 8 section <h2> still render even with no data"
+  [ "$(grep -c '<h2>' "$htmlC")" = "9" ] && ok || no "C: all 9 section <h2> still render even with no data"
   grep -q '<polyline' "$htmlC" && no "C: no chart should render with empty trend_charts + empty lab_trends" || ok
 fi
 
