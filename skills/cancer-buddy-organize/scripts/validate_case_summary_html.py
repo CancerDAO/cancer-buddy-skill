@@ -47,6 +47,15 @@ Checks:
       Deliberately does NOT gate labs/comorbidities — those are curated for a
       one-pager and forcing them would clutter; only always-core singletons.
 
+  (k) line_label auto-ordinal gate (OPTIONAL — only when --data is supplied;
+      does NOT need --profile). HARD-FAILS when >=2 treatment_lines[].line_label
+      values are BARE sequential Chinese ordinals matching ^[一二三四五六七八九十]+线$
+      (一线/二线/三线…), the signature of deriving labels from the `line` integer —
+      which the prompt forbids (surgery / neoadjuvant mislabeled as a numbered
+      "line" is clinically wrong; intent labels 新辅助/维持/姑息… must be used). The
+      >=2 threshold spares a single legitimately-verbatim "姑息一线"/"一线" from the
+      record. Skips when --data absent / unreadable / has no treatment_lines.
+
   Note: the anti-fabrication numeric-integrity gate (every plotted point must
   exist in longitudinal_observations.json) lives in compute_sparklines.py, not
   here — this validator only sees normalized pixel coordinates, from which the raw
@@ -368,6 +377,42 @@ def core_completeness_check(profile_path: str | None, data_path: str | None, err
         )
 
 
+# --- (k) line_label auto-ordinal gate (optional; needs --data) ----------------
+# Fix 3b: the case-summary-html-prompt forbids deriving 一线/二线/三线 line labels
+# from the `line` integer (surgery / neoadjuvant mislabeled as "lines" is
+# clinically wrong; intent labels 新辅助/维持/姑息… or neutral 第N段治疗 must be
+# used instead). A real regression produced 一线…十二线. This deterministic gate
+# HARD-FAILS when >=2 treatment_lines[].line_label values are BARE sequential
+# Chinese ordinals matching ^[一二三四五六七八九十]+线$ — the signature of
+# auto-derivation. The >=2 threshold means a SINGLE legitimately-verbatim
+# "姑息一线"/"一线" copied from the record does NOT false-positive. Backward-
+# compatible: skips when --data is absent, unreadable, or has no treatment_lines.
+_BARE_ORDINAL_LINE_RE = re.compile(r"^[一二三四五六七八九十]+线$")
+
+
+def line_label_ordinal_check(data_path: str | None, errors: list[str]) -> None:
+    if not data_path:
+        return
+    data = _load_json(Path(data_path))
+    if not isinstance(data, dict):
+        return  # unreadable / not an object → skip (backward-compatible)
+    lines = data.get("treatment_lines")
+    if not isinstance(lines, list) or not lines:
+        return  # no treatment_lines → nothing to gate
+    ordinals = [
+        item["line_label"]
+        for item in lines
+        if isinstance(item, dict)
+        and isinstance(item.get("line_label"), str)
+        and _BARE_ORDINAL_LINE_RE.match(item["line_label"].strip())
+    ]
+    if len(ordinals) >= 2:
+        errors.append(
+            "(k) line_label 疑似自动序数派生(一线/二线…),违反 intent-based 规则: "
+            + ", ".join(ordinals)
+        )
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--html", required=True, help="rendered case-summary HTML to validate")
@@ -395,6 +440,9 @@ def main() -> int:
     # (j) optional core-completeness gate — only runs when both --profile and --data
     # are supplied (backward-compatible: absent → skipped entirely).
     core_completeness_check(args.profile, args.data, errors)
+    # (k) line_label auto-ordinal gate — runs whenever --data is supplied (does not
+    # require --profile), skips otherwise. Backward-compatible.
+    line_label_ordinal_check(args.data, errors)
 
     if errors:
         for e in errors:
