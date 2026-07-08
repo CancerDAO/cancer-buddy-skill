@@ -1,5 +1,7 @@
 # Patient Profile Schema
 
+> 📎 **Cross-repo interop surface** → see the SHARED-1 contract [`skills/cancer-buddy-organize/references/PATIENT_DIR_CONTRACT.md`](../skills/cancer-buddy-organize/references/PATIENT_DIR_CONTRACT.md) (duplicated in vmtb-skill) for the stable producer→consumer surface `cancerdao-vmtb` programs against; this file remains the full producer-side field contract.
+
 This file defines the filesystem contract shared between `cancer-buddy-skill` and `vmtb-skill`. Both plugins read and write under the same `patients/<patient_code>/` tree. Every sub-skill that writes `profile.json`, `timeline.md`, or `readiness.json` must honor the fields here.
 
 The canonical writer is the `cb-organizer` subagent (mirrored from `vmtb-organizer`); all other sub-skills are read-only consumers.

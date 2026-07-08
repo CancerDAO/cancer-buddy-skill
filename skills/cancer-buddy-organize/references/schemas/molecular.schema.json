@@ -31,6 +31,47 @@
         }
       }
     },
+    "germline": {
+      "type": "array",
+      "description": "Germline / hereditary findings from the NGS report's germline section — INCLUDING VUS, not only Pathogenic/Likely-Pathogenic. One entry per germline variant reported. Organize transcribes verbatim; clinical interpretation is deferred to vMTB.",
+      "items": {
+        "type": "object",
+        "required": ["gene"],
+        "additionalProperties": false,
+        "properties": {
+          "gene": { "type": "string" },
+          "variant": { "type": ["string", "null"], "description": "HGVS (c./p.) or legacy notation, verbatim." },
+          "classification": { "type": ["string", "null"], "description": "Verbatim reported classification, e.g. 'Pathogenic' / 'Likely pathogenic' / 'VUS' / '意义未明'. Never normalize." },
+          "zygosity": { "type": ["string", "null"] },
+          "vaf": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+          "test_date": { "type": ["string", "null"], "format": "date" },
+          "source_refs": {
+            "type": "array",
+            "items": { "type": "string", "pattern": "^(([0-9]{2}_[^\\s/]+(/[^\\s/]+)*\\.md(#L\\d+(-L\\d+)?|#[A-Za-z0-9_-]+)?)|(conversation:\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})?))$" }
+          }
+        }
+      }
+    },
+    "pharmacogenomics": {
+      "type": "array",
+      "description": "Pharmacogenomics / drug-metabolism chapter of the NGS report (DPYD / UGT1A1 / ERCC1 / …). One entry per locus + result, transcribed verbatim. No clinical interpretation at organize.",
+      "items": {
+        "type": "object",
+        "required": ["gene"],
+        "additionalProperties": false,
+        "properties": {
+          "gene": { "type": "string" },
+          "locus": { "type": ["string", "null"], "description": "rsID / star-allele / locus, verbatim." },
+          "genotype": { "type": ["string", "null"], "description": "Reported genotype / diplotype, verbatim." },
+          "result": { "type": ["string", "null"], "description": "Reported phenotype / metabolizer status / recommendation text, verbatim." },
+          "test_date": { "type": ["string", "null"], "format": "date" },
+          "source_refs": {
+            "type": "array",
+            "items": { "type": "string", "pattern": "^(([0-9]{2}_[^\\s/]+(/[^\\s/]+)*\\.md(#L\\d+(-L\\d+)?|#[A-Za-z0-9_-]+)?)|(conversation:\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})?))$" }
+          }
+        }
+      }
+    },
     "ihc": {
       "type": "array",
       "items": {
