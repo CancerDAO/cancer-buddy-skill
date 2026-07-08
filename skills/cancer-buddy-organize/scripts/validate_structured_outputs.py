@@ -49,6 +49,20 @@ Gate sections (each contributes to one aggregated exit code):
       cited by formal outputs must be persist:true with a co-located .md sidecar
       in its bucket (the original itself lives once in raw/, never copied into a bucket).
 
+  [3b] Bucket-taxonomy enforcement (gate_bucket_taxonomy, CB-P0-1) —
+      deterministic, no medical judgement: every top-level `NN_` domain dir and
+      every typed sub-bucket one level down MUST be a pinned slug (zh OR en) from
+      references/bucket_taxonomy.json (mirror of bucket-taxonomy.md §1.1/§1.1a).
+      Non-pinned dirs (a classifier echoing an incoming source-folder name, an
+      off-taxonomy domain) are collected as violations and FAIL, each printed
+      with the pinned slug expected for its NN prefix.
+
+  [3c] NGS completeness floor (gate_ngs_completeness, CB-P0-2) — deterministic
+      WARN (never a hard FAIL, so a report legitimately lacking a germline/PGx
+      chapter is not false-blocked): if an NGS source exists but molecular.json's
+      variants / germline / pharmacogenomics arrays are empty, warn that the
+      report may have been collapsed to its front-page P/LP summary.
+
   [4] Case-summary HTML shape (validate_case_summary_html.py):
       If 病情简要总结.html exists, it must pass the shape+provenance invariants
       against references/templates/case-summary.template.html — including the
@@ -547,6 +561,218 @@ def gate_source_inventory(patient_dir: Path, errors: list) -> None:
 
 
 # --------------------------------------------------------------------------- #
+# [3b] bucket-taxonomy enforcement (CB-P0-1) — deterministic, NO medical
+# judgement. The Phase-2 classifier is instructed to re-file every source onto
+# the pinned v3 taxonomy (bucket-taxonomy.md §1.1 / §1.1a) and to NEVER echo an
+# incoming source-folder name. Real runs still drifted (patient 023 echoed
+# `06_分子与组学/基因检测`, `11_不良反应`, `13_其他专科检查`,
+# `04_诊断与分期/影像报告`). This gate closes that at mkdir time: every
+# top-level `NN_` domain dir and every typed sub-bucket one level down MUST be a
+# pinned slug from bucket_taxonomy.json (zh OR en form). Any non-pinned dir is a
+# violation printed with the pinned slug that WAS expected for its NN prefix.
+# --------------------------------------------------------------------------- #
+BUCKET_TAXONOMY_JSON = REPO_ROOT / "references" / "bucket_taxonomy.json"
+_DOMAIN_DIR_RE = re.compile(r"^\d{2}_")
+
+
+def _load_bucket_taxonomy(errors: list):
+    try:
+        return json.loads(BUCKET_TAXONOMY_JSON.read_text(encoding="utf-8"))
+    except Exception as e:
+        errors.append(f"bucket_taxonomy: cannot load {BUCKET_TAXONOMY_JSON.name}: {e}")
+        return None
+
+
+def gate_bucket_taxonomy(patient_dir: Path, errors: list) -> None:
+    tax = _load_bucket_taxonomy(errors)
+    if tax is None:
+        return
+
+    # full-domain-slug -> domain record (both zh + en forms map to it)
+    domain_by_slug: dict[str, dict] = {}
+    # NN prefix -> (zh full slug, en full slug) for the "expected" hint
+    expected_by_nn: dict[str, tuple[str, str]] = {}
+    for d in tax.get("domains", []):
+        domain_by_slug[d["zh"]] = d
+        domain_by_slug[d["en"]] = d
+        expected_by_nn[d["nn"]] = (d["zh"], d["en"])
+
+    infra_top: dict[str, dict] = {}
+    for ib in tax.get("infra_buckets", []):
+        infra_top[ib["zh"]] = ib
+        infra_top[ib["en"]] = ib
+        expected_by_nn.setdefault(ib["nn"], (ib["zh"], ib["en"]))
+
+    ascii_infra = set(tax.get("ascii_infra_dirs", []))
+    fallback_subs: set[str] = set()
+    for s in tax.get("universal_fallback_sub_buckets", []):
+        fallback_subs.update((s["zh"], s["en"]))
+
+    def _allowed_subs(domain: dict) -> set[str]:
+        allowed: set[str] = set()
+        for s in domain.get("sub_buckets", []):
+            allowed.update((s["zh"], s["en"]))
+        # `其他/other` fallback child + ASCII infra dirs (high_confidence /
+        # uncertain / conversation_notes) are always allowed under a clinical
+        # domain (bucket-taxonomy.md §1.1a note + §1.1b fallback).
+        return allowed | fallback_subs | ascii_infra
+
+    for child in sorted(patient_dir.iterdir()):
+        if not child.is_dir():
+            continue
+        name = child.name
+        if not _DOMAIN_DIR_RE.match(name):
+            # non-`NN_` dirs (raw/ ocr/ 99_… handled below, plus anything ASCII
+            # infra) are not scanned as clinical domains here.
+            continue
+
+        if name in domain_by_slug:
+            domain = domain_by_slug[name]
+            allowed = _allowed_subs(domain)
+            for sub in sorted(child.iterdir()):
+                if not sub.is_dir():
+                    continue
+                if sub.name not in allowed:
+                    zh, en = domain["zh"], domain["en"]
+                    errors.append(
+                        f"bucket_taxonomy: {name}/{sub.name} is not a pinned sub-bucket "
+                        f"of {zh}; re-file onto a pinned slug from bucket_taxonomy.json "
+                        f"(domain {domain['nn']} pinned sub-buckets: "
+                        f"{', '.join(s['zh'] for s in domain.get('sub_buckets', []))}) "
+                        f"or the fallback 其他/other"
+                    )
+        elif name in infra_top:
+            ib = infra_top[name]
+            allowed = set(ib.get("sub_buckets_ascii", [])) | ascii_infra
+            for sub in sorted(child.iterdir()):
+                if not sub.is_dir():
+                    continue
+                if sub.name not in allowed:
+                    errors.append(
+                        f"bucket_taxonomy: {name}/{sub.name} is not a pinned child of "
+                        f"infra bucket {ib['zh']} (allowed: {', '.join(sorted(allowed))})"
+                    )
+        else:
+            # A `NN_` top-level dir whose slug is NOT pinned — the classic drift
+            # (echoed an incoming source-folder name / an off-taxonomy domain).
+            nn = name[:2]
+            hint = expected_by_nn.get(nn)
+            if hint:
+                zh, en = hint
+                expect = f"expected the pinned {nn}_ domain slug '{zh}' (en: '{en}')"
+            else:
+                expect = (
+                    f"'{nn}_' is not a pinned domain number — valid domains are 01_..14_ "
+                    "(see bucket_taxonomy.json); re-file its contents onto the correct "
+                    "clinical domain"
+                )
+            errors.append(
+                f"bucket_taxonomy: top-level dir '{name}' is not a pinned domain slug; {expect}"
+            )
+
+
+# --------------------------------------------------------------------------- #
+# [3c] NGS completeness floor (CB-P0-2) — deterministic WARN, NO medical
+# judgement. NGS/genomic PDFs were being summarized down to their front-page
+# P/LP list, dropping the full somatic variant table, the germline VUS section,
+# and the pharmacogenomics chapter (DPYD/UGT1A1/…). If an NGS source exists
+# (a sidecar under 06_分子与组学/NGS报告 or an NGS entry in source_inventory.json)
+# but molecular.json's variants / germline / pharmacogenomics arrays are empty,
+# that is the "collapsed to the summary" failure mode. This is a WARN (not a
+# hard FAIL) because a report can legitimately lack a germline or PGx chapter —
+# a FAIL would false-block those archives. WARNs are printed but do not change
+# the exit code.
+# --------------------------------------------------------------------------- #
+def _has_ngs_source(patient_dir: Path) -> bool:
+    # (a) an NGS sidecar filed under the pinned NGS sub-bucket (zh or en form).
+    for pat in ("06_*/NGS报告/*.md", "06_*/ngs/*.md"):
+        if any(patient_dir.glob(pat)):
+            return True
+    # (b) an NGS entry in source_inventory.json (bucket_path / sidecar_path).
+    inv = patient_dir / SOURCE_INVENTORY_NAME
+    if inv.is_file():
+        try:
+            data = json.loads(inv.read_text(encoding="utf-8"))
+        except Exception:
+            data = None
+        for entry in _file_entries(data) if data is not None else []:
+            if not isinstance(entry, dict):
+                continue
+            for key in ("bucket_path", "sidecar_path"):
+                val = entry.get(key)
+                if isinstance(val, str) and ("NGS报告" in val or "/ngs/" in val.lower()):
+                    return True
+            dt = entry.get("doc_type")
+            if isinstance(dt, str) and ("NGS" in dt.upper()):
+                return True
+    return False
+
+
+def _is_empty_array(obj, key: str) -> bool:
+    v = obj.get(key)
+    return not (isinstance(v, list) and len(v) > 0)
+
+
+def gate_ngs_completeness(patient_dir: Path, warnings: list) -> None:
+    if not _has_ngs_source(patient_dir):
+        return
+    mol_path = patient_dir / "molecular.json"
+    if not mol_path.is_file():
+        warnings.append(
+            "ngs_completeness: an NGS source is present but molecular.json is missing "
+            "— the somatic variant table / germline / pharmacogenomics were not lifted"
+        )
+        return
+    try:
+        mol = json.loads(mol_path.read_text(encoding="utf-8"))
+    except Exception:
+        return  # the structured gate already reports parse failures
+    if not isinstance(mol, dict):
+        return
+    empty = [k for k in ("variants", "germline", "pharmacogenomics") if _is_empty_array(mol, k)]
+    if empty:
+        warnings.append(
+            "ngs_completeness: an NGS source is present but molecular.json "
+            f"{'/'.join(empty)} {'is' if len(empty) == 1 else 'are'} empty — verify the "
+            "full variant table (one row/variant + VAF), the germline section (INCLUDING "
+            "VUS), and the pharmacogenomics chapter (DPYD/UGT1A1/…) were transcribed, not "
+            "collapsed to the report's front-page P/LP summary"
+        )
+
+
+# --------------------------------------------------------------------------- #
+# [3d] update_log edit-trail freshness (CB-P2-1) — deterministic WARN, NO
+# medical judgement. update_log.json is written ONLY by the Phase-2 LLM step; a
+# manual edit to profile.json (fixing a value by hand, patching a field) bypasses
+# it, so the changelog silently goes stale and the archive is no longer
+# reproducible from the organize flow. This advisory floor catches that: if
+# update_log.json exists AND profile.json was modified more recently than
+# update_log.json itself, warn that profile.json was edited outside the organize
+# flow with no changelog entry. mtime-vs-mtime is the robust comparison (no
+# dependency on parsing per-entry timestamp formats/timezones). WARN only — a
+# stale changelog is a hygiene signal, never a hard block. No update_log.json →
+# skip silently (a first run / a run that legitimately produced no changelog).
+# --------------------------------------------------------------------------- #
+def gate_update_log_freshness(patient_dir: Path, warnings: list) -> None:
+    update_log = patient_dir / "update_log.json"
+    profile = patient_dir / "profile.json"
+    if not update_log.is_file():
+        return  # no changelog to compare against — nothing to assert
+    if not profile.is_file():
+        return  # no profile.json — the structured/other gates own that case
+    try:
+        profile_mtime = profile.stat().st_mtime
+        update_log_mtime = update_log.stat().st_mtime
+    except OSError:
+        return
+    if profile_mtime > update_log_mtime + _EPS:
+        warnings.append(
+            "update_log_freshness: profile.json edited outside the organize flow "
+            "— no changelog entry; re-run organize or append an update_log entry."
+        )
+
+
+# --------------------------------------------------------------------------- #
 # [4] case-summary HTML shape + provenance
 # --------------------------------------------------------------------------- #
 def gate_case_summary_html(patient_dir: Path, errors: list) -> None:
@@ -590,11 +816,18 @@ def main() -> int:
         return 2
 
     errors: list[str] = []
+    warnings: list[str] = []
     gate_structured(patient_dir, errors)
     gate_pii_rescan(patient_dir, errors)
     gate_numeric_integrity(patient_dir, errors)
+    gate_bucket_taxonomy(patient_dir, errors)
     gate_source_inventory(patient_dir, errors)
     gate_case_summary_html(patient_dir, errors)
+    gate_ngs_completeness(patient_dir, warnings)
+    gate_update_log_freshness(patient_dir, warnings)
+
+    for w in warnings:
+        print(f"WARN: {w}", file=sys.stderr)
 
     if not HAS_JSONSCHEMA:
         print(

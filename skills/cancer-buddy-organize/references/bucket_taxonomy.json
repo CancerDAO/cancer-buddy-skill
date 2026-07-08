@@ -1,0 +1,193 @@
+{
+  "scheme_version": 3,
+  "note": "Machine-readable mirror of references/bucket-taxonomy.md §1.1 (14 clinical domains) + §1.1a (pinned typed sub-bucket slug map) + §1.2 (infra buckets). This JSON is the single machine-readable SOURCE for deterministic gates (gate_bucket_taxonomy in scripts/validate_structured_outputs.py). bucket-taxonomy.md remains authoritative for prose/rationale; if the two disagree it is a drift bug — regenerate this JSON from the .md tables. Slugs come in exactly two pinned sets per §1.1a: zh (locale=zh) and en (every other locale). The NN_ two-digit prefix is the language-independent stable key.",
+  "domains": [
+    {
+      "nn": "01",
+      "zh": "01_身份与基础信息",
+      "en": "01_identity_basics",
+      "sub_buckets": [
+        {"zh": "身份证件", "en": "id_documents"},
+        {"zh": "人口学", "en": "demographics"},
+        {"zh": "参保信息", "en": "insurance_enrollment"}
+      ]
+    },
+    {
+      "nn": "02",
+      "zh": "02_既往史与家族史",
+      "en": "02_history_family",
+      "sub_buckets": [
+        {"zh": "既往病史", "en": "past_history"},
+        {"zh": "手术史", "en": "surgical_history"},
+        {"zh": "过敏史", "en": "allergies"},
+        {"zh": "用药史", "en": "medication_history"},
+        {"zh": "家族史", "en": "family_history"},
+        {"zh": "胚系遗传", "en": "germline"}
+      ]
+    },
+    {
+      "nn": "03",
+      "zh": "03_病程与叙事文书",
+      "en": "03_clinical_notes",
+      "sub_buckets": [
+        {"zh": "入院记录", "en": "admission_notes"},
+        {"zh": "出院小结", "en": "discharge_summary"},
+        {"zh": "病程记录", "en": "progress_notes"},
+        {"zh": "门诊病历", "en": "outpatient_notes"},
+        {"zh": "主诉首程", "en": "chief_complaint"}
+      ]
+    },
+    {
+      "nn": "04",
+      "zh": "04_诊断与分期",
+      "en": "04_diagnosis_staging",
+      "sub_buckets": [
+        {"zh": "病理报告", "en": "pathology"},
+        {"zh": "诊断证明", "en": "diagnosis_certificate"},
+        {"zh": "分期评估", "en": "staging"},
+        {"zh": "其他", "en": "other"}
+      ]
+    },
+    {
+      "nn": "05",
+      "zh": "05_影像",
+      "en": "05_imaging",
+      "sub_buckets": [
+        {"zh": "CT", "en": "CT"},
+        {"zh": "MRI", "en": "MRI"},
+        {"zh": "PET-CT", "en": "PET-CT"},
+        {"zh": "超声", "en": "ultrasound"},
+        {"zh": "X光DR", "en": "xray_dr"},
+        {"zh": "核医学", "en": "nuclear_medicine"},
+        {"zh": "内镜影像", "en": "endoscopy_imaging"},
+        {"zh": "其他", "en": "other"}
+      ]
+    },
+    {
+      "nn": "06",
+      "zh": "06_分子与组学",
+      "en": "06_molecular_omics",
+      "sub_buckets": [
+        {"zh": "NGS报告", "en": "ngs"},
+        {"zh": "免疫组化", "en": "ihc"},
+        {"zh": "胚系检测", "en": "germline_panel"},
+        {"zh": "WES-WGS", "en": "wes_wgs"},
+        {"zh": "转录组", "en": "transcriptome"},
+        {"zh": "甲基化", "en": "methylation"},
+        {"zh": "蛋白-代谢", "en": "proteomics_metabolomics"},
+        {"zh": "微生物组", "en": "microbiome"},
+        {"zh": "其他", "en": "other"}
+      ]
+    },
+    {
+      "nn": "07",
+      "zh": "07_检验",
+      "en": "07_labs",
+      "sub_buckets": [
+        {"zh": "血常规", "en": "cbc"},
+        {"zh": "生化肝肾功", "en": "biochemistry"},
+        {"zh": "肿瘤标志物", "en": "tumor_markers"},
+        {"zh": "凝血", "en": "coagulation"},
+        {"zh": "尿便", "en": "urine_stool"},
+        {"zh": "心电图功能检查", "en": "ecg_functional"},
+        {"zh": "其他", "en": "other"}
+      ]
+    },
+    {
+      "nn": "08",
+      "zh": "08_治疗",
+      "en": "08_treatment",
+      "sub_buckets": [
+        {"zh": "化疗", "en": "chemo"},
+        {"zh": "放疗", "en": "radiation"},
+        {"zh": "免疫治疗", "en": "immunotherapy"},
+        {"zh": "靶向", "en": "targeted"},
+        {"zh": "内分泌", "en": "endocrine"},
+        {"zh": "中医中药", "en": "tcm"},
+        {"zh": "处方医嘱", "en": "prescriptions_orders"},
+        {"zh": "支持治疗", "en": "supportive"}
+      ]
+    },
+    {
+      "nn": "09",
+      "zh": "09_手术与操作",
+      "en": "09_procedures",
+      "sub_buckets": [
+        {"zh": "手术记录", "en": "operative_notes"},
+        {"zh": "麻醉记录", "en": "anesthesia"},
+        {"zh": "介入", "en": "interventional"},
+        {"zh": "内镜操作", "en": "endoscopy_procedure"},
+        {"zh": "植入物-器械卡", "en": "implant_device_cards"}
+      ]
+    },
+    {
+      "nn": "10",
+      "zh": "10_随访与监测",
+      "en": "10_followup_monitoring",
+      "sub_buckets": [
+        {"zh": "随访复查", "en": "followup_visits"},
+        {"zh": "可穿戴导出", "en": "wearable_export"},
+        {"zh": "PRO自报", "en": "pro_reported"},
+        {"zh": "居家监测", "en": "home_monitoring"}
+      ]
+    },
+    {
+      "nn": "11",
+      "zh": "11_会诊与转诊",
+      "en": "11_consult_referral",
+      "sub_buckets": [
+        {"zh": "MDT", "en": "MDT"},
+        {"zh": "会诊", "en": "consult"},
+        {"zh": "转诊", "en": "referral"},
+        {"zh": "第二意见", "en": "second_opinion"}
+      ]
+    },
+    {
+      "nn": "12",
+      "zh": "12_心理社会与支持",
+      "en": "12_psychosocial_support",
+      "sub_buckets": [
+        {"zh": "心理评估", "en": "psych_assessment"},
+        {"zh": "营养", "en": "nutrition"},
+        {"zh": "康复", "en": "rehab"},
+        {"zh": "缓和", "en": "palliative"},
+        {"zh": "社工", "en": "social_work"}
+      ]
+    },
+    {
+      "nn": "13",
+      "zh": "13_行政与财务",
+      "en": "13_admin_financial",
+      "sub_buckets": [
+        {"zh": "知情同意", "en": "informed_consent"},
+        {"zh": "费用发票", "en": "bills_invoices"},
+        {"zh": "医保报销", "en": "insurance_reimbursement"},
+        {"zh": "证明材料", "en": "certificates_admin"}
+      ]
+    },
+    {
+      "nn": "14",
+      "zh": "14_患者自管补充",
+      "en": "14_patient_supplement",
+      "sub_buckets": [
+        {"zh": "患者补充", "en": "patient_uploads"},
+        {"zh": "日记", "en": "diary"},
+        {"zh": "自测", "en": "self_test"},
+        {"zh": "conversation_notes", "en": "conversation_notes"}
+      ]
+    }
+  ],
+  "infra_buckets": [
+    {
+      "nn": "99",
+      "zh": "99_无关文件",
+      "en": "99_unrelated",
+      "role": "relevance quarantine outside the clinical scheme; never anchored, downstream never reads it",
+      "sub_buckets_ascii": ["high_confidence", "uncertain"]
+    }
+  ],
+  "ascii_infra_dirs": ["high_confidence", "uncertain", "conversation_notes", "raw", "ocr"],
+  "universal_fallback_sub_buckets": [
+    {"zh": "其他", "en": "other"}
+  ]
+}

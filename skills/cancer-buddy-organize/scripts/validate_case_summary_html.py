@@ -28,6 +28,19 @@ Checks:
       HTML was machine-rendered from THIS gold-standard template, not hand-written
       (the hard gate in SKILL.md Step 12 requires this `template_sha` in the final
       report). On success the sha is echoed to stdout as `template_sha=<hex>`.
+  (h) Print-safe / no-JS floor — the trend charts are inline SVG ONLY. No
+      <script>, <canvas>, <foreignObject>, <iframe>, <object>, <embed>, and no
+      on*= event-handler attribute may appear. <canvas> silently drops out of the
+      Chrome→PDF print path (so a canvas chart would ship blank), and script/
+      handlers must never reach a patient-facing file.
+  (i) SVG element allowlist — every tag appearing inside an <svg>…</svg> block
+      must be one of a small static set (svg/g/path/polyline/line/circle/rect/
+      text/title/desc). Catches anything smuggled into the chart markup.
+
+  Note: the anti-fabrication numeric-integrity gate (every plotted point must
+  exist in longitudinal_observations.json) lives in compute_sparklines.py, not
+  here — this validator only sees normalized pixel coordinates, from which the raw
+  clinical values cannot be recovered. SKILL.md Step 12 wires that gate in.
 
 Any failed check exits non-zero.
 
@@ -98,6 +111,19 @@ _US_PHONE_RE = re.compile(r"(?<!\d)\(?\d{3}\)?[-.\s]\d{3}[-.\s]\d{4}(?!\d)")
 
 # (g) provenance comment emitted by render_html_template.py
 _PROVENANCE_RE = re.compile(r"template_sha256:\s*([0-9a-f]{64})", re.IGNORECASE)
+
+# (h) print-safe / no-JS floor — tags/attrs that must NEVER appear in the output.
+_FORBIDDEN_TAG_RE = re.compile(
+    r"<\s*(script|canvas|foreignobject|iframe|object|embed|applet|form)\b", re.IGNORECASE
+)
+_EVENT_HANDLER_RE = re.compile(r"<[^>]*?\son[a-z]+\s*=", re.IGNORECASE)
+
+# (i) SVG element allowlist — tags permitted inside an <svg>…</svg> block.
+_SVG_BLOCK_RE = re.compile(r"<svg\b.*?</svg>", re.IGNORECASE | re.DOTALL)
+_TAG_NAME_RE = re.compile(r"<\s*([a-zA-Z][a-zA-Z0-9]*)")
+_SVG_ALLOWED = {"svg", "g", "path", "polyline", "polygon", "line", "circle",
+                "ellipse", "rect", "text", "tspan", "title", "desc", "defs",
+                "lineargradient", "radialgradient", "stop"}
 
 # Skeleton classes that the template *always* renders (patient-independent).
 _REQUIRED_CLASSES = ("header", "footer")
@@ -225,6 +251,25 @@ def check(html: str, template: str, errors: list[str]) -> str | None:
     # Only DOB/birthplace/occupation stay barred, and those are enforced upstream
     # (case-summary-html-prompt.md producer rules + pii_rescan PII scan), not here.
     # The former \d{1,3}岁 / "<n> years old" guard was removed intentionally.
+
+    # (h) print-safe / no-JS floor — scan the RAW html (not comment-stripped: a
+    # forbidden tag hidden in a comment is still suspicious, but the template's
+    # authoring comments are inert; we scan body_no_comments to avoid flagging
+    # scaffold notes while still catching any real emitted tag).
+    ft = _FORBIDDEN_TAG_RE.search(body_no_comments)
+    if ft:
+        errors.append(f"(h) forbidden tag <{ft.group(1).lower()}> present — charts must be inline SVG only (no script/canvas/embed)")
+    eh = _EVENT_HANDLER_RE.search(body_no_comments)
+    if eh:
+        frag = eh.group(0)[:40].replace("\n", " ")
+        errors.append(f"(h) inline event-handler attribute present: {frag!r}")
+
+    # (i) SVG element allowlist
+    for block in _SVG_BLOCK_RE.findall(body_no_comments):
+        for tag in _TAG_NAME_RE.findall(block):
+            if tag.lower() not in _SVG_ALLOWED:
+                errors.append(f"(i) disallowed element <{tag}> inside <svg> block")
+                break
 
     # (f) skeleton present
     for cls in _REQUIRED_CLASSES:

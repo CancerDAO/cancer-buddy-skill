@@ -28,6 +28,12 @@ longitudinal time series**, not only "tumor patient + image/text". The redesign 
    `longitudinal_observations[]` next to `profile.json`; only the raw export file is filed (domain
    `10`). This is what lets the profile carry a trajectory, not just `latest_status`.
 
+> **Machine-readable mirror.** [`bucket_taxonomy.json`](bucket_taxonomy.json) is the JSON derivation of §1.1
+> (14 domains) + §1.1a (pinned typed sub-bucket slug map) + §1.2 (infra buckets). It is the single
+> machine-readable SOURCE the deterministic gate (`scripts/validate_structured_outputs.py` →
+> `gate_bucket_taxonomy`) reads to enforce the pinned slugs at mkdir time. This `.md` stays authoritative
+> for prose/rationale; if the JSON and this file disagree, regenerate the JSON from these tables.
+
 ## 1. Authoritative scheme
 
 `NN_` is a **language-independent stable key** — downstream anchors, `_FILENAME_MAPPING`, and every
@@ -180,8 +186,9 @@ verbatim upload, and each clinical-domain `.md` sidecar links back to it via
 
 ### 1.3 Classification disambiguation (judge by clinical context, not a title keyword)
 
-The 14-domain scheme is filed by **LLM judgment of content** (`organizer-prompt-phase2-synthesis.md` Step 1a) — never a keyword match on the filename. Known traps:
+The 14-domain scheme is filed by **LLM judgment of content** (`organizer-prompt-phase2-synthesis.md` Step 1a) — never a keyword match on the filename, and **never an echo of the source folder's own numbering/naming** (`3基因检测报告/` / `11不良反应记录/` / `13其他专科检查报告/` are the patient's ad-hoc scheme, not this taxonomy — re-classify onto the pinned `NN_` domain + sub-bucket). Known traps:
 
+- **Imaging reports (CT / MRI / PET-CT / 超声 / X光 / 内镜影像) → `05_影像`, NEVER `04_诊断与分期` (HARD RULE).** `04_诊断与分期` is **病理报告 / 诊断证明 / 分期评估 / 其他 only** — it holds the pathology/diagnosis/staging *conclusion*, not the imaging exam itself. A CT/MRI/PET-CT/超声/X光/内镜 report (even one whose impression states or supports a stage) is filed under its `05_影像/<modality>` child; only a dedicated 分期评估 document (e.g. an AJCC staging worksheet / 分期评估单) goes to `04_诊断与分期/分期评估`. A source folder literally named `影像报告/` must NOT become `04_诊断与分期/影像报告`.
 - **Inpatient 体温单 / 护理生命体征记录 / 出入量单 → `03_病程与叙事文书/病程记录`, never `10_随访与监测`.** `10_随访与监测` is **outpatient-only** (门诊随访 / wearable / PRO自报 / 居家监测). If a "生命体征 / 体温 / 趋势" file's recording window falls inside an admission (ward + continuous inpatient dates), it is a hospitalization record → `03`. The words "趋势 / 监测 / 生命体征" in a title are a keyword trap — do not route to `10` on that basis.
 - **心电图 / 心电监测 / 肺功能 等功能检查 → `07_检验/心电图功能检查`** (functional/physiologic studies — not specimen labs, not imaging).
 - `10_随访与监测` positive examples: post-discharge outpatient re-check, Apple Health / wristband export, patient-reported symptom diary, home BP/glucose logs. The same record type recorded *during* an admission goes to `03`.
