@@ -121,6 +121,12 @@ For each **medical** sidecar in `ocr/` (non-medical/borderline files were alread
   2. File metadata or filename hint (e.g. `中山六院_病理_240301.pdf`).
   3. `caller_default_hospital` (passed via call parameters, optional). Usually the patient's `treating_hospitals[0]`.
   4. Fallback to the literal string `unknown-org`.
+
+  **HARD RULE — separate the CLINICAL-PROVENANCE claim from the FILENAME slot (a hospital name is a clinical claim, not a cosmetic label):**
+  - The report's issuing institution recorded as a **CLINICAL PROVENANCE claim** — the `INDEX.md` `Hospital` column, `source_inventory.json` hospital/provenance, `case_text.md` 出具机构, and any "this report is from hospital X" statement — MUST come **VERBATIM from THAT report's own body (level 1 ONLY)**.
+  - If the body institution name is **illegible / low-confidence** (an `[OCR_UNCERTAIN]` / `[CANDIDATES]` read, a partial or garbled string you cannot verify), **OR** the body has **no** institution name at all → write the literal string **`医院待核实`** into the clinical-provenance surfaces (or leave the clinical hospital field `null`), **AND** raise a `readiness.json.review_flags[]` entry: category `unverified_critical_field`, `severity: "yellow"`, `field_path: "<file_id>.hospital"`, `issue: "出具机构 OCR 低置信/不可辨，未从文件名/相邻文件/上下文推断，标记待核实。"`.
+  - **NEVER infer the clinical issuing hospital from: the filename hint (level 2), `caller_default_hospital` / `treating_hospitals[0]` (level 3), an adjacent / sibling file, or surrounding context.** Those are for the **filename slot ONLY** (below), never a clinical provenance claim. **禁止**跨文档借用医院名(borrow a hospital name across documents)—这正是本规则要防的失效：一份正文机构名不可辨的报告被安上另一份文档的医院名 = confidently-wrong provenance.
+  - The existing 4-level fallback (level 2 filename-hint / level 3 caller-default / level 4 `unknown-org`) applies **ONLY to the cosmetic canonical basename `<hospital>` slot** — the filename is not a clinical claim. **Even there**, when the body hospital was illegible / low-confidence, prefer `待核实` / `unknown-org` over a borrowed name — do not stamp a level-2/3 borrowed name onto the filename of a report whose own body could not confirm it.
 - `page`: page number when a multi-page report is split across sidecars (sidecar says `第 3 / 8 页`), else null.
 - `summary`: ≤ 80 字中文摘要 (used in INDEX.md).
 
@@ -305,6 +311,8 @@ First line: `# patient_code: <patient_code>`. Then a table:
 
 One row per content unit. `file_id` is the stable 1:1 id (matches `source_inventory.json`). `MD Sidecar` is the bucket-relative co-located `.md` (`<bucket>/<canonical>.md`); `Raw Original` is the `raw_path` deep-link to the verbatim upload under `raw/`; `Pages` is the `page_range` (or `—` when the whole file is one unit). The frontend renders the `.md` and links the "view original" button to `Raw Original` (at `Pages` when present). A multi-document upload appears as several rows sharing one `Raw Original` with distinct `file_id` + `Pages`. Sorted by date ascending.
 
+The `Hospital` column is a **clinical-provenance claim** (see Step 1a `hospital` HARD RULE): render the report body's verbatim institution name, OR the literal `医院待核实` when the body institution was illegible / low-confidence / absent — **never blank, never a name borrowed from the filename / `caller_default_hospital` / a sibling document**. A `医院待核实` row carries the paired `unverified_critical_field` review_flag.
+
 ### 2.2 `timeline.md`
 Chronological event list, one line per event. **Every line ends with at least one bucket-relative anchor**:
 
@@ -322,6 +330,8 @@ Each section headed by:
 SOURCE: <source_type> | CONFIDENCE: <level>
 <body text from the bucket MD sidecar, with [[src:<bucket>/<canonical>.md#L<a>-L<b>]] anchors on factual sentences>
 ```
+
+The `<hospital>` in this header is 出具机构 as a **clinical-provenance claim** (see Step 1a `hospital` HARD RULE): use the report body's verbatim institution name, OR the literal **`医院待核实`** when the body institution was illegible / low-confidence / absent — **never a name borrowed from the filename / `caller_default_hospital` / a sibling document**. Same rule for the `<hospital>` slot in the §2.2 `timeline.md` line: a low-confidence / absent body institution renders `医院待核实`, not a borrowed name.
 
 **Anchor contract** (full spec: `references/schemas/anchor-contract.md`):
 - Syntax `[[src:<bucket-relative-path>]]` or `[[src:<bucket-relative-path>#<fragment>]]`, or the conversation form `[[src:conversation:<ISO8601>]]` (段C only).

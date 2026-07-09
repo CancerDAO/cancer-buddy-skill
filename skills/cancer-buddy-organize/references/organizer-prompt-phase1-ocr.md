@@ -90,6 +90,8 @@ When you OCR a document containing **drug names, dosing, TNM staging, molecular 
 - ✅ Ambiguous chars → `[OCR_UNCERTAIN: verbatim | alternative]`
 - ✅ Cross-document inconsistency within your slice → record both verbatim, **do not reconcile**. Phase 2 handles cross-doc reconciliation by reading all slices' sidecars together.
 
+**出具机构 / hospital name is a provenance claim — never guess it, never borrow it (HARD RULE).** When the report's issuing institution / hospital name is **illegible or low-confidence** in the source image — OR the source carries **no** institution name at all — do **NOT** emit a guessed, "smoothed", or borrowed name into the sidecar. Record `出具机构：[待核实]` (or mark the field with `[OCR_UNCERTAIN: verbatim | alt]` / `[CANDIDATES: …]` when you have partial characters). **NEVER borrow a hospital name from another document in the slice, from the filename, or from surrounding context** — an unreadable body institution stays `[待核实]`, it does not inherit the neighbour's letterhead. A **clearly-legible** institution name is transcribed **verbatim** as usual. Phase 2's `hospital` HARD RULE keys off exactly this: a `[待核实]` / low-confidence institution becomes `医院待核实` + an `unverified_critical_field` review_flag, never a confidently-wrong provenance.
+
 The single biggest historical failure mode of this skill: a consistent-but-wrong OCR (all docs in a hospitalization read the same wrong drug name because the first one was misread). Catch it at the per-image OCR layer by refusing to "smooth".
 
 ### §2.2b Numeric-table OCR fidelity (HARD CONSTRAINT)
