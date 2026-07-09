@@ -189,6 +189,20 @@ ls ~/.claude/plugins/vmtb-skill/SKILL.md \
 - **永不读原始件**：绝不读基础设施桶 `raw/`（逐字原件保险库）/ `99_无关文件`——这些不是锚定目标，也从不面向患者。
 - **临床实体逐字保留**：从档案里取出的药名/基因/变异/TNM/数值+单位/biomarker 一律按原文呈现，不翻译、不改写（locale 只渲染脚手架，见上文"语言"节与 `../../references/safety-guardrails.md`）。
 
+### 补料邀请（context-triggered，回答被缺失项限制时才触发）
+
+当用户的问题**答案被某个高价值缺失记录明显限制**时（读了 `readiness.json` 后发现落在 `blocking_gap` 上、或 `missing_items.json` 里有对应的 P0/P1 项），先**如实用档案能给的把问题答到位**，然后**再补一句温暖的一行补料邀请**——只提**最相关的那一个**缺口，不要把回答变成清单朗读。完整行为规范见 [`../cancer-buddy-organize/references/gap-followup.md`](../cancer-buddy-organize/references/gap-followup.md)。要点：
+
+- **只在真被限制时提**：缺口必须是 P0/P1 高临床价值项，且确实让这次回答变弱（`gap-followup.md` §3）。档案已能好好回答就**什么都不加**。
+- **问题→缺口映射**（判断这次问题是否被缺失项限制，该提哪一个）：
+  - "治疗有没有效 / 换不换方案" → 近期影像（响应评估）或 tumor-marker trend 缺失
+  - "有没有靶向 / 免疫可用" → NGS / PD-L1 / MSI 缺失
+  - "我是几期 / 分期" → staging pathology 或 staging imaging 缺失
+  - "复发风险 / 会不会复发" → 术后病理（post-op pathology）缺失
+- **一句、温暖、绑定获益 + 可执行**（不是"你缺了 X"；样例见 `gap-followup.md` §4），患者可忽略。
+- **只问一次（ask-once）**：读 `<patient_dir>/gap_asks.json`，若该缺口的 `item_key` 已问过（任一非重置状态）→ **不再问**，直接用现有档案回答；提了新缺口则以 `surfaced_at_trigger: "qa"` 追加进 `gap_asks.json`（append-only，schema 见 `gap-followup.md` §7）。
+- **不给治疗建议**：只说这份*记录*为什么能帮到分析/医生/患者的理解，绝不暗示该上哪种药/方案（呼应上文"我不做的事"边界）。
+
 ## 来源引用（Source citation in answers）
 
 当搭子用**档案里的事实**回答问题时，给每条事实加一个引用角标 + 末尾列脚注。纯情绪支持 / 一般科普类、**不取用档案**的回答不需要角标。
