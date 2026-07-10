@@ -122,7 +122,7 @@ Phase2 结构化整理完成、Profile Card 之后自动触发。读结构化文
 
 每张图对象：
 
-- **`metric`/`unit`**：指标名 + 单位，verbatim。
+- **`metric`/`unit`**：指标名 + 单位，verbatim。**单位字形安全**：含上标的单位（如 `×10⁹/L`）在图表里一律写 **ASCII 安全记法 `×10^9/L`**（或 SI `G/L`），**绝不**用裸上标 unicode（`⁹`）——图表字体常把它渲成豆腐块（如"WBC ×10⌷/L"）。这不改数值、不改是哪个单位，只把上标 `^n` 化。
 - **`series[]`**：该指标按 `timestamp` 升序的 `{"t": ISO 日期, "v": 数值}` 列表（≥1 点，1 点也可只画一个点），**`v` 逐字取自 `longitudinal_observations.json`，绝不改写、绝不补插值、绝不编造点**。
 - **`treatment_markers[]`**：把与该指标时间跨度相关的治疗线**起始日期**（`treatment_lines.json` 的 `started_at`）作为 `{"t": ISO 日期, "label": "<短线名/方案>"}` 传入——"指标↔治疗方案对应关系"，compute_sparklines 对齐到同一时间轴。只挑 1–3 个关键切换点，label 要短。
 - **`interpretation`**：**一句** locale 大白话，只陈述该图趋势方向（如"CEA 整体下降，提示治疗反应较好"），**不复述具体数值**（点值在图上）、**不追加 OCR/患者自述来源提示**（进 `数据说明`）、**不给新数字/治疗建议/预后**。
@@ -149,6 +149,7 @@ Phase2 结构化整理完成、Profile Card 之后自动触发。读结构化文
 - 遍历 treatment_lines.lines（按 line 升序）。
 - 已结束或进行中的线：`{{line_marker_class}}` 留空（红框）。徽章两字段各有明确规则（**硬约束**，两个都要填，不能只填其一）：
   - `{{line_badge_text}}` = 该线的**最佳缓解 / 缓解类别**，**逐字取自来源**（`treatment_lines.json.best_response`，或该记录 / timeline **明确写出**的缓解词：`PD` / `SD` / `PR` / `CR` / `CC0` / `维持中` / `肿标↑` / `肿标↓` / `术前桥接` / `新辅助` 等）。**CC0、SD、维持中 是有据可查的事实、不是推断——来源写明就必须填，绝不留 `null`。** 仅当来源对该线**根本没有记录任何缓解**时才置 `null`（→ 渲染 `资料缺失`，此时才是正确的）。
+    - **疗效红线（P0，见 `../../../references/safety-guardrails.md`）**：`best_response` 若为 `null`（来源没逐字写响应类别），这里就是 `null`——**绝不**自己把影像的描述性发现（"病灶缩小/减轻"）转写成 `PR`/`SD` 填进徽章；也**绝不**在徽章或叙述里加 RECIST 定义式注解（如"部分缓解，病灶缩小超过 30%"——那个 30% 是**定义**不是这个患者的实测）。判疗效是医生的事。
   - `{{line_badge_class}}` = 仅当缓解为**进展（`PD` / 进展）**时填 `pd`（红）；其余任何缓解（`SD`/`PR`/`CR`/`CC0`/`维持中`/`肿标↓`/`术前桥接`…）一律填**空字符串 `""`**（中性基座 `.tl-badge` 样式，**不红**，避免给一条稳定 / 有反应的线过度报警）。（对应模板可用 class：`.tl-badge.pd` 红 / `.tl-badge.pending` 黄 / 基座中性。）
 - `ended_at` 为 null 且未启动（待启动）：`{{line_marker_class}}`=`pending`（黄框），`{{line_badge_class}}`=`pending`，`{{line_date_range}}`=`{{i18n.val_to_start}}`。
 - `{{line_label}}`（**硬约束，违反即临床不准确、整份 fail**）：**用治疗意图渲染，绝不自动编序数**。取 `treatment_lines.json` 每条线的 `intent` 字段，按 locale 映射为临床意图标签：`neoadjuvant`→新辅助、`adjuvant`→术后辅助、`perioperative`→围手术期、`palliative`→姑息治疗、`maintenance`→维持治疗、`definitive`→根治、`consolidation`→巩固（`intent` 取值即 `treatment_lines.schema.json` 的 7 项 enum，无 `radical` 这一项——根治意图统一记 `definitive`）。**严禁从 `line` 整数推导 `一线`/`二线`/`三线`… 这类裸序数标签**（validator 会对 ≥2 条裸序数 `^[一二三四五六七八九十]+线$` 直接 FAIL）——围手术期 / 新辅助治疗本身已是一线，再把手术、新辅助、后续晚期线编号成"一线/二线/…/十二线"临床不准确。`intent` 缺失时用中性时段标签（按 locale 的"第 N 段治疗"/"Phase N"），按 `started_at` 先后排，不臆断线序；仅当病历**逐字写明**了线序（如"姑息一线"）才 verbatim 照抄该原文，不另行推算。

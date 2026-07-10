@@ -22,7 +22,7 @@
           "intent": { "type": ["string", "null"], "enum": ["adjuvant", "neoadjuvant", "perioperative", "palliative", "maintenance", "definitive", "consolidation", null] },
           "started_at": { "type": ["string", "null"], "format": "date" },
           "ended_at": { "type": ["string", "null"], "format": "date" },
-          "best_response": { "type": ["string", "null"], "enum": ["CR", "PR", "SD", "PD", "NE", null] },
+          "best_response": { "type": ["string", "null"], "enum": ["CR", "PR", "SD", "PD", "NE", null], "description": "RECIST 响应类别。仅当来源报告/医生逐字写出该响应码或'部分缓解/完全缓解/疾病稳定/进展'时才填(须挂 source_refs)。来源只有描述性影像(病灶缩小/减轻/增大)且无医生判读时留 null——绝不从描述性发现自行合成。见 references/safety-guardrails.md → Efficacy/response is a clinician's judgment (P0)。" },
           "reason_for_change": { "type": ["string", "null"] },
           "source_refs": {
             "type": "array",

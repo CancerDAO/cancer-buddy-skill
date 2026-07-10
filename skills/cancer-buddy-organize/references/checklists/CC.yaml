@@ -69,10 +69,10 @@ stages:
       priority: P0
       category: imaging
       reason: "同步放化疗 + 腔内近距离治疗定位"
-    - item: "PD-L1 检测 (CPS)"
-      priority: P1
-      category: molecular
-      reason: "帕博利珠单抗联合放化疗适用性 (KEYNOTE-A18)"
+    # NOTE: PD-L1 (CPS) 不列为局部晚期的缺项 —— KEYNOTE-A18(帕博利珠单抗 + 同步放化疗,
+    # FIGO 2014 III-IVA)不设 PD-L1 表达门槛(FDA 2024 / NMPA 2024 获批均未要求 PD-L1 阳性)。
+    # PD-L1(CPS≥1)只在持续/复发/转移一线(KEYNOTE-826)与化疗后单药(KEYNOTE-158)才是决策依据,
+    # 见下方 metastatic 段。局部晚期不应催患者补 PD-L1。
     - item: "知情同意书 (放化疗 + 免疫治疗)"
       priority: P1
       category: consent

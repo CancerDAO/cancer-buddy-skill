@@ -229,6 +229,15 @@ ls ~/.claude/plugins/vmtb-skill/SKILL.md \
 - label 字段（日期 / doc_type / 机构）从 INDEX.md 对应行取；INDEX.md 里查不到机构就省略机构段，**绝不编造机构名**。
 - 脚注里出现的临床实体同样逐字保留；label 脚手架（如"病理报告""患者口述"）按 `profile.json.locale` 渲染。
 
+## 可视化 / 趋势图（复用段D 图表样式，不 freehand）
+
+用户明确要"画个趋势图 / 看看走势"（化验、肿瘤标志物、血象等）时，**复用病情简要总结（段D）的图表组件与样式，不要自己发挥作图**：
+
+- 走 `cancer-buddy-organize` 的趋势图管线：`scripts/compute_sparklines.py` 注入内联 SVG 坐标 + **反造假门**（每个画出的点必须在 `longitudinal_observations.json` / `labs.json` 里查得到，查无即 exit 3），再用 `references/templates/case-summary.template.html` 的图表 CSS 渲染。样式与段D 一致，且继承"不编造数据点"的安全门。
+- **绝不 freehand**（matplotlib / 随手自绘 SVG / 拼一张图）——既让样式漂移，又绕过反造假门。只需快速给一张图时，渲染段D 的"关键趋势"段，或用同一套 CSS 出一个小 standalone HTML。
+- **单位字形安全（修乱码）**：图表标签里的单位若含上标（如 `×10⁹/L`），一律写成 **ASCII 安全形式 `×10^9/L`**（或 SI 的 `G/L`），**绝不**用裸上标 unicode（`⁹`）——它在图表字体里常渲染成豆腐块（真实事故："白细胞 WBC ×10⌷/L"）。数值/单位本身不改，只把上标记法换成 `^n`。
+- 趋势只是**事实呈现**，**不作疗效判定**（见 `../../references/safety-guardrails.md` 疗效红线）：图与注解都不得说"治疗有效 / 好转"。
+
 ## 聊完一段
 
 （按 `profile.json.locale` 出；下面是 `zh` 样例，其它 locale 用对应语言出同结构）
