@@ -2,7 +2,9 @@
 
 > Behavior spec for a **first-class cancer-buddy behavior**: after organize, and again inside Q&A, warmly invite the patient to supplement the **few most clinically valuable** missing records — priority-ranked, benefit-tied, actionable, ask-once. This is a companion behavior, not a clinical judgment: it never recommends treatment, never decides staging, never interprets a result. It only says *"this one record, if you can get it, would help you the most, and here's how to get it."*
 
-Discipline in one line: **选得准，不是全都催** — surface the 1–3 highest-impact gaps, never dump the checklist, never nag.
+Discipline in one line: **选得准，不是全都催；挑对时机，不是整理完就推** — surface the 1–3 highest-impact gaps, at a moment where the ask is *relevant* (a visit is coming, a question was limited by the gap, we're routing somewhere the record matters), never dump the checklist, never nag, and never let "asked once at the worst moment" silence a gap forever.
+
+> **改版要点（为什么重做）**：旧版把补料**堆在 organize 刚结束那一刻**（患者认知最过载），且 profile card 已先铺过一遍冷缺口清单（重复），加上 ask-once 是**永久 pending**（错过那一次就再也不提）。重做后：**主力是时机触发**（§6），**post-organize 降为一句极短的信号**（§5），profile card 不再铺冷清单（只给覆盖度分级，见 `profile-card.md`），ask-once 改为**冷却期 cooldown 而非永久沉默**（§7），并加**"没做 vs 做了没上传"分叉**（§4）和**补料成功的即时正反馈闭环**（§9）。这份 spec 是"缺失/补料"的**单一真相源**：profile card / post-organize / 时机触发 / Q&A 四个入口都引用它，口径不漂移。
 
 ---
 
@@ -67,28 +69,54 @@ Rules:
 
 Each example = gap + why it helps the patient + how to get it, in one warm line. Match this register.
 
----
+### "没做" vs "做了没上传" —— 一个轻分叉（必加，否则答非所问）
 
-## 5. Trigger 1 — Post-organize warm closing
+底层 `missing_items` 只知道"缺这份**文档**"，分不清两种完全不同的现实，而它们的**下一步动作相反**：
 
-**Where**: `cancer-buddy-organize/SKILL.md`, immediately **after the Profile Card step (Step 11)**, as a warm closing to the organize run. Runs after the profile card so the patient has already seen their档案 overview.
+- **做了、报告在别处**（别的医院 / 医生手里 / 自己没传）→ 动作是**调取/上传**：影像科刻盘或导出、找主诊医生调取、病案室、问检测机构要电子报告。
+- **根本没做过这项检查** → 动作是**去问医生要不要做**（描述这项检查*决定什么*，绝不建议具体用药）。
 
-**What**:
+所以每条邀请**默认带一个轻问句区分二者**，别默认患者一定是"做了没传"：
 
-1. Load `missing_items.json` + `readiness.json`, apply §3 filters, rank by §3 impact.
-2. Take the **top 2–3** surviving gaps. If none survive → surface nothing (skip this step silently).
-3. Frame as a short, optional, warm closing (rendered in `profile.json.locale`) — e.g. zh:
-   > "档案整理好了。还差这几样最关键的，补上能更帮到你——不急，方便的时候补就行："
-   then the 2–3 asks from §4, each on its own line. Close with something like "现在这些都不影响我陪你往下走，随时补都可以。"
-4. **Record each surfaced ask to `gap_asks.json`** (§7) with `status: "pending"`, `surfaced_at_trigger: "post_organize"`, `asked_at` = now (ISO-8601).
+> "档案里没看到基因检测(NGS)——它决定有没有靶向药可用，是最能改变方案的一份。**你是已经做了、报告在医生那，还是还没做过？** 做了的话可以找主诊医生调取或问检测机构要电子版；还没做的话，下次见医生可以问问要不要做。"
 
-This is **optional** for the patient — it never blocks routing to a downstream sub-skill (unlike the 🔴 review_flag gate). It's an invitation, not a gate.
+患者答"做了" → 走调取/上传路径（并按 §9 收进档案后给正反馈）；答"没做" → 记录为"未做项"（`gap_asks.json` 的 `status:"declined"` 不合适，用一个新状态 `not_done`，见 §7），下次它更适合出现在 visit-prep 的"问医生"清单里，而不是反复催上传。
 
 ---
 
-## 6. Trigger 2 — Q&A context-triggered inline ask
+## 5. Trigger 1 — Post-organize：只留一句极短的信号，不在此刻摊 top 2–3
 
-**Where**: `cancer-buddy/SKILL.md` 档案读取协议 (Archive Read Protocol) — when answering a patient question **whose answer is materially limited by a missing item**.
+**Where**: `cancer-buddy-organize/SKILL.md`，Profile Card（Step 11）之后。
+
+**为什么降级**：organize 刚结束是患者**认知最过载**的时刻（刚看完一大张卡 + 核对 + 确认 🔴 review_flags）。补料是低优先、可延后的动作，此刻塞"你还差这几样"是在最差的时机派活；而真正该补的时机是**后来**（复诊前、被缺口卡住时）。所以 post-organize **不再摊 top 2–3 详细邀请**。
+
+**What（只做这一点）**：
+
+1. Load `missing_items.json` + `readiness.json`，按 §3 过滤/排序，看是否**存在**任何 P0/P1 高价值缺口。
+2. 若有 → 只给**一句极短、可忽略的信号**（`profile.json.locale`），**不逐条列、不给动作细节**：
+   > "档案里还差几样比较关键的（像 <最高价值那一样的类别，如'基因检测'>）——需要的时候我随时帮你补，现在这些都不挡着我陪你往下走。"
+3. 若无高价值缺口 → **什么都不加**（沉默正确）。
+4. **不在 post-organize 写 `gap_asks.json` 的 pending**（否则会触发旧的"提过就永久沉默"）。只在真正把某条**具体邀请**递出去（§6 时机触发 / Q&A）时才登记，见 §7。
+
+这一步**可忽略**、永不阻塞下游路由。它只是"我知道还缺、你需要时找我"的一个低压信号，把详细邀请让给更合适的时机。
+
+## 5.5. Trigger 2（主力）— 时机触发：在补料"顺手且相关"的时刻才递详细邀请
+
+补料的**主要出口不是 organize 完成时，而是这些下游时刻**——此时提某条缺口，患者会觉得相关、不突兀：
+
+| 时机 | 递哪条缺口 |
+|---|---|
+| **visit-prep 就诊准备**（快见医生了） | 把"没做过"的高价值检查（NGS / 分期影像）整理进"下次可以问医生"的清单；把"做了没传"的整理进"记得带上/调取"清单。这是"没做 vs 没传"分叉最自然的落点。 |
+| **要路由到 find-care / second-opinion / vmtb**（缺口会削弱那份产物） | 提一句"补上 <缺口> 能让 <那份产物> 更准，要不要先补？"，患者可跳过。 |
+| **Q&A 被缺口限制**（§6） | 回答完再补一句最相关的那一条。 |
+
+规则：每个时机**最多一条**、按 §3 选最相关的那条、按 §4 措辞（含"没做 vs 没传"分叉）、按 §7 冷却期去重。**这是 top 1–3 详细邀请真正该出现的地方**，不是 organize 刚结束那一刻。
+
+---
+
+## 6. Trigger 3 — Q&A context-triggered inline ask (§5.5 时机触发的一个具体子例)
+
+**Where**: `cancer-buddy/SKILL.md` 档案读取协议 (Archive Read Protocol) — when answering a patient question **whose answer is materially limited by a missing item**. 这是 §5.5 时机触发里"被问题限制"那一行的展开。
 
 **What**: when the honest answer to the patient's question is weakened because a specific high-value record is absent, after answering as fully as the archive allows, add a **single warm one-line ask** inline (§4 phrasing). Ask-once via `gap_asks.json`.
 
@@ -141,11 +169,21 @@ Field notes:
 - **`asked_at`** — ISO-8601 timestamp of when this ask was surfaced.
 - **`surfaced_at_trigger`** — `"post_organize"` or `"qa"`.
 - **`status`** — one of:
-  - `"pending"` — surfaced, no patient action yet. **Do not re-ask.**
-  - `"provided"` — the patient later supplied the record (a subsequent organize/incremental run finds the item now covered → flip to `provided`). A `provided` item is no longer a gap; if a NEW high-value gap appears it can be asked fresh.
+  - `"pending"` — surfaced, no patient action yet. **Cooldown applies (not permanent silence)** — see the cooldown rule below.
+  - `"provided"` — the patient later supplied the record (a subsequent organize/incremental run finds the item now covered → flip to `provided`). A `provided` item is no longer a gap.
   - `"declined"` — the patient explicitly said they don't want to / can't get it. **Do not re-ask.**
+  - `"not_done"` — the patient said the investigation **was never performed** (the §4 fork). Not a "won't upload" case — it's "hasn't happened yet". **Don't keep asking to upload it**; instead it becomes a candidate for the visit-prep "问医生要不要做" list. Re-surfacing allowed only in that visit-prep context, not as an upload nag.
+- **`last_surfaced_at`** — ISO-8601 of the most recent time this `item_key` was surfaced (drives cooldown).
+- **`surface_count`** — integer, how many times surfaced (hard cap, see below).
 
-**Ask-once rule**: before surfacing any gap, load `gap_asks.json`; if the gap's `item_key` already has an entry with `status ∈ {pending, provided, declined}`, skip it. The only paths back to asking are (a) the patient provides it (status → `provided`, and it's no longer surfaced because it's covered) or (b) a **new** high-value gap (a different `item_key`) shows up in a later run.
+**Cooldown rule (replaces the old permanent-`pending` silence)**：旧版"提过一次 → 永久不再提"太狠，把最该补的后续时机也堵死了。改为**冷却期 + 硬上限**：
+
+- 一个 `item_key` 为 `pending` 时，**同一会话内不再提**；跨会话则需距 `last_surfaced_at` **≥ 14 天**才可再提一次，且**只在 §5.5 的时机触发（visit-prep / 路由 / 被问题限制）**下、当它确实是此刻最相关的那条时才提——**不是**每 14 天主动 nag。
+- **硬上限 `surface_count ≤ 3`**：提满 3 次仍无行动 → 视作患者无意补，转 `declined`，不再提。
+- `provided` / `declined` / `not_done` 一律不再作为"上传催办"重提（`not_done` 仅在 visit-prep 语境作"问医生"候选）。
+- post-organize 的那句极短信号（§5）**不写 ledger、不占 cooldown 名额**——它不是一条具体邀请，只是个信号。真正登记的是 §5.5/§6 递出的**具体**邀请。
+
+**Surface 前的检查**：load `gap_asks.json`；若 `item_key` 已 `provided`/`declined`，skip；若 `pending`/`not_done`，按上面的 cooldown + 上限判定能否再提；否则可提，提后 append/更新 `last_surfaced_at` + `surface_count`。
 
 If `gap_asks.json` does not exist yet (first organize), create it with an empty `asks[]` and append as you surface.
 
@@ -161,3 +199,16 @@ If `gap_asks.json` does not exist yet (first organize), create it with an empty 
 - **Patient can decline** — the ask is always optional and open-ended; ignoring it is fine and never blocks anything.
 - **No treatment advice** — cancer-buddy stays out of clinical decisions. Describe why a *record* helps the analysis/doctor/understanding; never imply which drug/regimen/decision it points to. (This mirrors the meta router's "我不做的事" boundary.)
 - **Locale + verbatim clinical entities** — render the scaffold/prose in `profile.json.locale`; keep drug/gene/variant/TNM/biomarker names and numbers verbatim regardless of locale (mistranslation is a P0 safety bug — see `../../references/safety-guardrails.md`).
+
+---
+
+## 9. 补料成功的即时正反馈闭环（补完要有回声，别让它沉进静默账本）
+
+旧版补料是**单向静默**：患者补了一份报告，`provided` 靠"下一次 organize 被动发现已覆盖"才翻转，当下**没有任何回声**。补料对患者是有情绪价值的动作（我在为自己的病做事）——不给回声，体验就冷。补完必须立刻闭环：
+
+1. **即时确认收到**（`profile.json.locale`，warm）："收到了，这份 <缺口，如 NGS 报告> 我加进你的档案了。"
+2. **说明它解锁了什么**（把补料和"更帮到你"挂钩，仍**不给治疗建议**——只说这份*记录*让**分析/医生/你自己的理解**多了什么）："这下分期和有没有靶向药可用这两块能判得更准了。"
+3. **顺势给一个可选的下一步**（把补料接回价值，不强推）："要不要我现在把相关的部分重新过一遍？" → 触发对应的 `incremental` / `upload_reconciliation`（走各自的确认门）。
+4. **翻状态**：把该 `item_key` 在 `gap_asks.json` 置 `provided`（若这次是通过对话上传/调取补入的，不必等下一轮 organize 被动发现）。
+
+若患者答的是"没做过"（§4 分叉）→ 不进本闭环，按 §7 记 `not_done`，并轻轻说一句"那这个先记着，下次见医生可以问问要不要做"，把它交给 visit-prep，而不是继续催上传。

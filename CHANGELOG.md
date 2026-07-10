@@ -6,6 +6,29 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Changed — 三块迭代：case-precedent 自然触发+可点 PMID / organize 段D 抗压缩 / 补料邀请体验重做 (2026-07-10)
+
+一次迭代覆盖三处：让 case-precedent 更自然可触发且可核验、修 organize 段D HTML 在上下文压缩下不走模板的问题、把"补料邀请"从"整理完就推、错过即永久沉默"重做成"挑对时机 + 冷却期 + 有回声"。
+
+**A. case-precedent — 自然触发 + 每方向一条可点 PMID**
+- `SKILL.md` `description` 增加**软触发词**（"还有没有别的办法""是不是只有我这样""换了方案不知道往哪走"等"找别人/找方向"形状的弱信号）；纯绝望/自伤语明确不归本 skill（走危机 + mind）。
+- `SKILL.md` Step 0 增加**软信号分支**：弱触发/主动提及先给"共情一句 + 情绪 vs 方向二选一问句"，**不自动检索**；主动提及**同会话最多一次**。
+- `organize/SKILL.md` Next-step guidance 增加 **case-precedent 出口**：整理完顺势**只提一句**（相似度画像字段此刻最全），ask-once。
+- **患者版 §A 改聊天优先 + 放宽 PMID 口径**：从"患者版零 PMID"改为**每个治疗方向挂一条可点 PMID 超链接**（可核验、可带去问医生），逐例结局/6 维表/偏倚横条仍只在 §B（"展开详细版"后）。更新 `output-template.md` §A 模板+示例、`bias-disclosure.md` §2a、G-PATIENT-FIRST 门。
+
+**B. organize 段D — 模板管线抗上下文压缩**
+- 根因：18 步长流程里段D 生成在很靠后，压缩后"产出 HTML"目标存活、"走模板渲染"机制被摘掉 → 易手写非法 HTML；且校验是君子协定、渲染/校验职责在编排器与子代理间模糊。
+- `SKILL.md` 顶部新增 **🔴 抗压缩不变量块**（provenance-first：无 `template_sha256` 注释即非法交付；段D 全管线在自包含子代理内完成并返回 template_sha；终态硬门）。
+- **重构 Step 12**：段D 子代理**独占** data→enrich→render→validate 并**返回 `{status, template_sha}` 或 `{status:"failed",…}`**（永不返回 HTML）；编排器只校验 template_sha + 做 dated 快照，消除职责模糊。
+- 新增**统一「Definition of Done」终态硬门**：`validate_structured_outputs.py` exit 0 + 贴出 template_sha + PII clean + 忠实度无未决 CRITICAL + AGENTS.md 非 stub，全绿才算完成。
+- `case-summary-html-prompt.md` 增加**返回契约**段（返回 template_sha 或硬失败，绝不返回 HTML 正文）。
+
+**C. 补料邀请 — 体验重做**
+- 复盘：旧版把补料**堆在 organize 刚结束（认知过载）**，profile card 又先铺一遍冷缺口清单（重复），ask-once 是**永久 pending**（错过即永久沉默），分不清"没做 vs 做了没上传"，补完无回声。
+- `profile-card.md` 信息缺口**降级为覆盖度分级 + 一句话**，具体缺哪几样交给补料出口（同一时刻只一个地方谈缺失）。
+- `gap-followup.md` 重做：**post-organize 降为一句极短信号**（§5）、**主力改时机触发**（visit-prep / 路由 / 被问题限制，§5.5）、**ask-once 改冷却期 + 硬上限**（§7，废弃永久沉默）、新增**"没做 vs 做了没上传"分叉**（§4，含 `not_done` 状态）、新增**补料成功即时正反馈闭环**（§9）。
+- `organize/SKILL.md` Step 11.4 与 `cancer-buddy/SKILL.md` 补料邀请节对齐（时机 + 冷却期 + 分叉 + 正反馈）。
+
 ### Changed — 段D 病情简要总结「关键趋势」hero 指标选取：从纯 LLM 判断改为「癌种标志物表 + 分层规则」 (2026-07-08)
 
 段D「关键趋势」`trend_charts[]`（拎成 hero 大图的指标）此前完全靠子代理散文式临床判断，无锚、不可复现，易出现"谁时间点多谁上"——无关常规检验挤掉该癌种真正的疗效标志物。改为决策相关性驱动的分层选取：

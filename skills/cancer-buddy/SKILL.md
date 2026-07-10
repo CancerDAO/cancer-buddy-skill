@@ -200,7 +200,9 @@ ls ~/.claude/plugins/vmtb-skill/SKILL.md \
   - "我是几期 / 分期" → staging pathology 或 staging imaging 缺失
   - "复发风险 / 会不会复发" → 术后病理（post-op pathology）缺失
 - **一句、温暖、绑定获益 + 可执行**（不是"你缺了 X"；样例见 `gap-followup.md` §4），患者可忽略。
-- **只问一次（ask-once）**：读 `<patient_dir>/gap_asks.json`，若该缺口的 `item_key` 已问过（任一非重置状态）→ **不再问**，直接用现有档案回答；提了新缺口则以 `surfaced_at_trigger: "qa"` 追加进 `gap_asks.json`（append-only，schema 见 `gap-followup.md` §7）。
+- **带"没做 vs 做了没上传"轻分叉**（`gap-followup.md` §4）：别默认患者一定是"做了没传"——先一句问清，答"做了"走调取/上传、答"没做"记 `not_done` 交给 visit-prep 的"问医生"清单，不反复催上传。
+- **cooldown 而非永久沉默**（`gap-followup.md` §7）：读 `<patient_dir>/gap_asks.json`，`provided`/`declined` 不再提；`pending`/`not_done` 按冷却期（同会话不重复、跨会话 ≥14 天且此刻确相关才可再提）+ 硬上限 `surface_count ≤ 3` 判定。**旧的"提过一次就永久不提"已废弃**——它把后续更合适的时机也堵死了。提出后更新 `last_surfaced_at` / `surface_count`，`surfaced_at_trigger: "qa"`。
+- **补完给即时正反馈**（`gap-followup.md` §9）：患者当场补/调取了记录 → 立刻"收到 + 说明它解锁了什么 + 可选重跑相关分析"，并把 `item_key` 置 `provided`，别让补料沉进静默账本。
 - **不给治疗建议**：只说这份*记录*为什么能帮到分析/医生/患者的理解，绝不暗示该上哪种药/方案（呼应上文"我不做的事"边界）。
 
 ## 来源引用（Source citation in answers）

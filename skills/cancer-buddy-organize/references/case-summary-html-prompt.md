@@ -245,3 +245,12 @@ Phase2 结构化整理完成、Profile Card 之后自动触发。读结构化文
 
 - 你不写、不改 HTML/CSS/排版；模板逐像素由引擎保持，class/样式/结构由模板单方决定。**禁止手写 HTML**——唯一合法产出路径是「写 data JSON → 引擎渲染 → validator 放行」。
 - 脱敏不改临床字符：遮的只能是 PII，VAF/剂量/数值/突变记法原样保留；临床实体禁译（i18n.md §4）。
+
+## 返回契约（你交回编排器的东西 —— 不是 HTML，是一个 template_sha 或一个失败）
+
+你**在自己这个子代理的上下文里跑完整条管线**（写 data JSON → `backfill_lab_trends.py` → `compute_version_delta.py` → `compute_sparklines.py` → `render_html_template.py` → `validate_case_summary_html.py`），然后**只返回一个 JSON 对象**，两种形态之一：
+
+- **成功**：`{"status":"ok","template_sha":"<validate_case_summary_html.py 回显的 64 位十六进制 template_sha>","html_path":"<patient_dir>/病情简要总结.html"}`。`template_sha` 是"HTML 确实由模板渲染、没被手写"的**唯一证明**——validator exit 0 才拿得到它。
+- **失败**：`{"status":"failed","stage":"<render|validate|sparkline_antifab|...>","exit_code":<n>,"reason":"<哪条 error>"}`，**并且不留下**那份不合规 HTML（fail-closed，见"输出"§4）。
+
+**绝不**把 HTML 正文、或"我生成了一份总结"这类自然语言当作返回值——编排器靠 `template_sha` 判定你有没有真的走模板。**没有 template_sha 就是没完成**，编排器会据此重派你，而不是接受一份手写产物。这条契约是整个流程对上下文压缩最关键的一环：把"必须走模板"的机制锁在你这个干净上下文里，编排器只需检查你回没回 `template_sha`。
