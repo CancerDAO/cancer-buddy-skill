@@ -119,7 +119,7 @@ patient_profile_ref: patients/PT-XXXX/profile.json
 每个 subagent 用 Agent tool 启动，prompt 模板：
 
 ```
-任务：<具体目标，例如：查国家癌症中心 2024 版肺癌专科声誉排名 top 10 中文医院列表，每家附 location 和官网 URL>
+任务：<具体目标，例如：查国家癌症中心最新版肺癌专科声誉排名 top 10 中文医院列表，每家附 location 和官网 URL>
 
 约束：
 - **必须加载 web-access skill 并遵循指引**
