@@ -141,6 +141,8 @@ patient_profile_ref: patients/PT-XXXX/profile.json
 
 **并行而非串行**：如果一次性派 4 个 subagent，主 agent 只在 prompt 里说要什么，**不指定 web-access 内部步骤**——每个 subagent 自己判断该用 WebSearch 还是 CDP。
 
+> **单进程 / 无 subagent host（如 Codex）fallback**：没有 Agent fan-out 时，主 agent **顺序**跑上表里那几条调研路线（逐条循环，或用 `codex exec` 子进程），每条把 JSON 写到同样的 `raw/<name>.json`，最后照常 Step 4 合并打分。**并行只关乎速度**——串行结果等价，只是慢些（每条仍守 5 分钟上限）。**`web-access`（CDP/Chrome）不可用时**退化为 host 自带的 web 搜索/抓取，一手数据源与打分规则（`scoring-rubric.md`）host 无关，照用。
+
 ### Step 4 — Merge & score
 
 收到所有 subagent 的 JSON，主 agent 做：

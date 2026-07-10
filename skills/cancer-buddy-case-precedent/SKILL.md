@@ -105,6 +105,8 @@ YAML 键语言无关；值里临床实体逐字，`focus` 叙事按 locale。缺
 
 按 `similarity_profile` 组装检索式，派 1–N 个 subagent（每个用 Agent tool 启动，**必须加载 `web-access` skill**）直连公共 API 检索 **只要 case report**。检索源、pubtype 过滤语法、去重与撤稿检查见 [`references/retrieval-sources.md`](references/retrieval-sources.md)。
 
+> **单进程 / 无 subagent host（如 Codex）fallback**：没有 Agent fan-out 时，**主 agent 顺序自己做**——对每条检索式逐条调用（或用 `codex exec` 子进程模拟"干净上下文/抗锚定"），把结果写到同样的 `raw/<name>.json`。功能等价，只是串行、慢一些。**`web-access`（CDP/Chrome）不可用时**，退化为 host 自带的 web 搜索/抓取（如 Codex 自带联网工具）直连 PubMed E-utilities / Europe PMC REST；`retrieval-sources.md` 的端点、pubtype 过滤、去重/撤稿规则与 host 无关，照用。
+
 - PubMed E-utilities：`esearch` + `"Case Reports"[Publication Type]` + 癌种/组织学/驱动基因/线数关键词 → `efetch` 取详情。
 - Europe PMC REST：`PUB_TYPE:"Case Reports"` 同义检索，优先取 OA 全文。
 - **去重 + 显式计数（不许断言"无重复"）**：按 PMID → DOI → 归一化标题去重，**必须真算两源交集**并把删掉的重叠**显式列出**（如"PubMed 20 + EPMC 14，去重 6 条重叠 → N=28 唯一"）。EPMC 本身镜像 PubMed，两源**零重叠是异常信号**——若出现，说明查询发散或 dedup 没真跑，需复核，**不得直接写"均无重复"**。N 是偏倚披露的头号数字，必须是真实的 post-dedup 唯一数。
@@ -190,6 +192,15 @@ patients/<patient_code>/reports/case-precedent/<slug>/
 ```
 
 `<slug>` 形如 `nsclc-egfr-t790m-3l-2026-07`，便于翻历史。
+
+## Runtime adaptation（跨 host：Claude Code / Codex / 单进程）
+
+本 skill 的 subagent 派发（Step 2 检索、Step 3/4 逐病例抽取与相似度判定）是 **Claude Code 的参考绑定，不是契约**。契约是"**产物**"：`QUERY.md` 相似度画像 → `raw/<name>.json` 检索命中 → 逐病例结构化抽取 + 6 维 match/mismatch → 两层输出（患者版 §A / 医生版 §B）。任何 host 只要产出同一套产物、守同样的安全门（G-BIAS/G-N/G-NO-AGGREGATE/G-GROUNDING/G-TIER/G-PATIENT-FIRST），就是对的。
+
+- **Claude Code**：用 Agent tool 并行派检索 / 抽取 subagent（当前正文写法）。
+- **单进程 / 无 subagent host（Codex 等）**：主 agent **顺序**遍历检索式与命中逐条做；需要"干净上下文/抗锚定"的抽取用 `codex exec` 子进程模拟。**并行只关乎速度，不关乎正确性**——串行结果等价。
+- **联网**：`web-access`（CDP/Chrome）是 Claude Code 绑定；无它的 host 用自带 web 工具直连 PubMed/EPMC，`retrieval-sources.md` 的端点与过滤规则 host 无关。
+- **接地不可降级**：无论哪种 host，PMID + 逐字引文、live 检索（不用陈旧快照）、撤稿检查这些是**契约级不变量**，不因缺 subagent 而放宽。
 
 ## References
 - [retrieval-sources.md](references/retrieval-sources.md) — PubMed E-utilities + Europe PMC REST 端点、Case Reports pubtype 过滤语法、去重/撤稿检查、subagent 输出 schema

@@ -93,6 +93,8 @@ This skill follows the shared locale contract in [`../../references/i18n.md`](..
 
 ## Workflow
 
+> **跨 host 提示（Codex / 单进程先读这句）**：下面 Step 2–5 的 `Agent` 并行 fan-out + reduce 是 **Claude Code 参考绑定，不是契约**。无 subagent 的单进程 host（Codex 等）请以 [`references/organize-contract.md`](references/organize-contract.md)（零工具名的行为契约）+ [`references/runtime-bindings/headless-codex.md`](references/runtime-bindings/headless-codex.md) 为准：把 Phase 1 fan-out 改为**顺序遍历 source inventory 逐源调用**（`codex exec -i` 提供视觉 + 干净上下文），Phase 2 单次综合。**并行只关乎速度，产物集与不变量完全一致**。详见文末「Runtime adaptation」。
+
 1. **Resolve input** — confirm the user-supplied path with them. For archives, unpack to `/tmp/cb-unpack-$$/` first (zip / rar / 7z / tar.gz / single pdf-or-docx). After unpack, the **resolved input directory** (`$src`) is what Step 2 plans against.
 
 2. **Plan slicing (single-pass vs fan-out)** — `glob $src` for immediate subdirectories, count files, and decide slice boundaries.
