@@ -74,10 +74,12 @@ stages:
       priority: P0
       category: molecular
       reason: "曲妥珠单抗联合化疗适用 (浆液性 HER2 阳性)"
-    - item: "PD-L1 检测 (CPS) + dMMR 状态确认"
+    - item: "dMMR / MSI 状态确认 (晚期免疫治疗决策)"
       priority: P0
       category: molecular
-      reason: "帕博利珠单抗 / 多塔利单抗免疫治疗决策"
+      # 子宫内膜癌免疫治疗以 MMR/MSI 为选择依据(RUBY / KEYNOTE-868·GY018 / KEYNOTE-158),
+      # 不以 PD-L1 CPS 为筛选门槛 —— 故不把 PD-L1(CPS)列为缺项催患者补(同 CC/A18 的口径修正)。
+      reason: "帕博利珠单抗 / 多塔利单抗以 MMR/MSI(dMMR vs pMMR)为决策依据;PD-L1 CPS 非子宫内膜癌免疫治疗筛选标志物"
     - item: "NTRK 融合检测"
       priority: P2
       category: molecular

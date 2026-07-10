@@ -18,6 +18,16 @@ When any patient-facing output is localized (see `references/i18n.md`), **only t
 - A locale-appropriate plain-language gloss may appear **beside** the verbatim term in parentheses (per `terminology.md`), but the source term is never removed or swapped — e.g. `osimertinib (third-generation EGFR TKI)`, not a translated drug name.
 - This applies to every patient-visible sub-skill and every locale, including the organize bucket scheme (bucket `NN_` prefixes are language-independent stable keys — `references/i18n.md` §6).
 
+## Efficacy / response is a clinician's judgment — never self-assess (P0)
+
+**cancer-buddy 绝不自行判定、推导或合成疗效 / 缓解结论。** 判疗效是主诊医生的事,不是搭子的事。这条是 P0 医疗安全红线——违反即 bug。
+
+- **禁止自行给出响应类别**:RECIST 响应码(CR / PR / SD / PD)、"部分缓解 / 完全缓解 / 疾病稳定 / 进展"这类结论,**只能在来源报告 / 医生明确逐字写出时**照抄 + 挂来源引用;来源没写,就是**没有**,字段留 `null`,叙述里说"档案里没有医生的疗效评价",**绝不**自己下判断。
+- **描述性发现 ≠ 疗效判定**:影像 / 病历里的"病灶较前缩小 / 减轻 / 增大 / 稳定"是放射科 / 临床的**描述性发现**,**保留为描述**(带引用),**绝不**把它转写成 RECIST 类别(缩小→PR)、也**绝不**据此推出"有效 / 无效 / 好转"。没有基线可比、没有医生判读时,尤其不许合成。
+- **绝不贴 RECIST 定义阈值到个人数据上**:像"PR = 病灶缩小 > 30%"是**定义**,不是某个患者的实测数据。**禁止**在患者的疗效行 / 手册 / 总结里出现"病灶缩小超过 30%"这类把定义当实测的表述,除非来源逐字给了该患者的具体测量值 + 引用。
+- **肿瘤标志物趋势 ≠ 疗效**:标志物升降是趋势事实(可如实呈现走势),但**不得据此宣称"治疗有效 / 起效 / 好转"**——那是医生结合影像 + 临床的综合判读。
+- 适用于**每一个交付物**:`treatment_lines.json.best_response`、`case_text.md` 疗效句、病情简要总结、患者教育手册、就诊准备包、case-precedent 等。抽取侧(organize Phase 2 / 2.5)与生成侧(education / 段D)都受此约束。
+
 ## Always say
 
 > **Canonical "not a substitute for your doctor" clause.** The single base disclaimer every patient-facing document footer must convey is **`不替代主诊医生的判断`** (en: *"does not replace your attending physician's judgment"*). Companions render this **meaning** in `profile.json.locale` and may extend it with a document-type tail (e.g. handbook: `…任何治疗调整必须与主诊医生确认`; visit-prep: `…不含任何治疗建议`), but the doctor term is always **主诊医生** (never 主治医师/主管医生) and the core clause is preserved. Do not invent a wording that drops or softens the base clause.
