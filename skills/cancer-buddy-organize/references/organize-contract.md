@@ -120,7 +120,7 @@ sidecar 的脱敏 Markdown 正文**必须由驱动 LLM(Claude / codex / OpenClaw
 | 6 结构化 JSON | `patient_summary/timeline/molecular/treatment_lines/labs/comorbidities` | 每事实字段带 `source_refs`;过 schema gate 才写,失败记 `schema_validation_failed`。 |
 | `missing_items.json` | 癌种 checklist diff(stage-context) | 映射不明 → `cancer_type:null`+`checklist_unmapped`。 |
 | `update_log.json` | 本次 run 审计条目 | full=全量条目;incremental=delta。 |
-| 业务别名指针 | 顶层 alias 指针(指回 `patient_code` 目录) | `alias` 已设时建立;不可建链时退化为 alias 映射文件。 |
+| 业务别名映射(opt-in) | 仅当用户显式 opt-in(`alias_opt_in: true`)且 alias 已设时,在 patients-root 写私有 `alias_map.json`(patient_dir 之外,永不进分享导出) | 默认不产出;**默认不建 alias 命名的 symlink/目录**(目录列表泄露癌种+年份),用户另行要求文件系统导航时才建。 |
 
 字段级真值(schema、4 级机构回退、stage-context、8 域评分细则、locale 渲染)全部以 phase2-synthesis.md 为准,本契约不复述,只锚定"产出这些、满足这些不变量"。
 
@@ -151,6 +151,21 @@ Phase2 的跨文档审计(Phase1 做不到,因 Phase1 只见自己那片;Phase2 
 - canonical 改名 / 原子移动**由谁执行**:语义判定(哪个桶、什么 canonical 名)是必须的 LLM 判断并固化为一份"改名计划"数据;据此做的机械字节搬运(把 text-masked MD sidecar 按 canonical 名移进桶(原件绝不拷进桶)、把上传原件逐字存入 `raw/`、回填映射、排空暂存区)是无判断的纯搬运,可由宿主执行。契约要求"结果落在 2.2 的产物结构里",不要求"哪个原语搬的"。这是 §6「编排 / 存储」接缝。
 
 ---
+
+### 2.9 运行模式与缩减产物集(合规)
+
+契约的完整产物集(2.2)约束 `full` / `incremental` / `upload_reconciliation`。两个轻量模式是**合规的缩减集**,不是对契约的违反:
+
+- `conversation_incremental`(段C):无文件摄取,确认门 + 定向字段/行写入 + ledger。纯文本的 curated 输入(日记/口述数值)一律归段C——**不再新增第三条平行的"患者补充"路径**。
+- `micro_observation`(SKILL.md「Micro-observation fast lane」):1–2 个单值自测观测(文件/截图形态),脱敏读取照旧,产物 = 新 sidecar(进 `10_` 桶的 typed 子目录,如 `居家监测/`,禁桶根裸文件)+ `raw/` 镜像 + `source_inventory` 条目 + `longitudinal_observations.json` 追加 + ledger;**不重写**其余结构化产物,**不渲染**段D(过期走 freshness gate / `case_summary_stale`)。
+
+硬边界(双向,均不许静默越过):
+- **不回流**:轻量输入不得被包装成文件/重新排队进全量管线("好心走全管线"= bug);轻量模式前置条件不满足(如无档案)时**拒绝并说明**,不静默 fallback 到 full。
+- **不伪装**:宿主不得把全量输入伪装成轻量模式来跳过 2.2。
+- **预算上限**:micro_observation 全程**至多一次语义调用**(脱敏读取+解析合一);超出即说明这不是微量输入,改走 incremental。
+- **失败零写入**:确认前/校验失败时不落任何正式字段,把原始提交作为 pending 退回调用方。
+
+两个模式共享同一个确认门(§3)与脱敏边界(§1.3 强制脱敏 + §5 不变量 #1/#7);它们缩减的是**综合与渲染**,不是安全不变量。
 
 ## 3. 确认门(产物化,非 inline)
 
@@ -189,7 +204,7 @@ organize 的产出分两类,**职责必须分离**,任何 binding 不得混:
 
 ## 4c. 输出根单一规则
 
-一次 organize run 的全部 canonical 产物(§2.2 输出集 + `AGENTS.md` + `病情简要总结.html` + `case_summary_data.json` + `raw/` 原件保险库)**只落一个输出根**:`patients/<patient_code>/`(`patient_dir`)。不得把同一 run 的产物散到多个顶层目录。别名指针(业务别名)是**指回该 `patient_dir` 的指针**(symlink 或退化 alias 映射文件),不是第二份产物副本。binding 的 persist(对象存储 / 库)按此单根选文件持久化。
+一次 organize run 的全部 canonical 产物(§2.2 输出集 + `AGENTS.md` + `病情简要总结.html` + `case_summary_data.json` + `raw/` 原件保险库)**只落一个输出根**:`patients/<patient_code>/`(`patient_dir`)。不得把同一 run 的产物散到多个顶层目录。opt-in 的业务别名是 patients-root 私有 `alias_map.json` 里的**一条映射**(指回该 `patient_dir`),不是第二份产物副本;alias 命名的 symlink 默认不建(见 §2.2 别名行)。binding 的 persist(对象存储 / 库)按此单根选文件持久化。
 
 ## 5. 跨步骤全局不变量
 
@@ -205,7 +220,7 @@ organize 的产出分两类,**职责必须分离**,任何 binding 不得混:
 8. **确定性产出走脚本,不靠 LLM 自觉**(§4b):段D HTML 由 `render_html_template.py` 渲染(LLM 不手写 HTML)、形校验 / PII 复扫 / 数值不变量(`gate_numeric_integrity`:flag↔参考区间 + 掉异常值)全是机械步;LLM 只供语义判断和 QA。验收门以 `validate_structured_outputs.py` 实际运行的检查集为准(而非本文写死的枚举),避免漂移。
 9. **抽取忠实度门(Phase 2.5,语义)**:结构化数值须经一次"回看 source_refs sidecar"的 LLM 忠实度复核;CRITICAL not_faithful 的 load-bearing 值由 段D producer 从患者向 HTML 丢弃(→资料缺失)并记 🔴 red `unverified_critical_field` review_flag——绝不静默上屏。
 10. **安全导出 = 排除而非涂抹**:对外可分享副本由 `export_share.py` 产出,**排除 `raw/`** + 先过验收门;`raw/` 永不像素打码,靠排除保证不外泄。
-11. **输出根单一**(§4c):一次 run 全部产物落一个 `patient_dir`,别名是指针不是副本。
+11. **输出根单一**(§4c):一次 run 全部产物落一个 `patient_dir`;opt-in 别名只是 patients-root 私有映射文件里的一条记录,不是副本,也不默认生成 symlink。
 
 ---
 

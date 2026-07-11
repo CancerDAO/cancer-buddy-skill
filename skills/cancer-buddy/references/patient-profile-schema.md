@@ -54,7 +54,7 @@ Format: `PT-<hex>`, e.g. `PT-17CE02BC33`.
 {
   "schema": "cancer_buddy_profile_v3",
   "patient_code": "PT-48C5070065",
-  "alias": "48C507_CRC_2022",
+  "alias": null,
   "locale": "zh",
   "generated_at": "2024-07-06T08:00:00Z",
   "privacy": {
@@ -93,7 +93,7 @@ Block-by-block contract:
 
 - `schema` (required): always the literal string `cancer_buddy_profile_v3`. Downstream consumers branch on this to detect the shape.
 - `patient_code` (required): canonical `PT-<hex>` identity. Same value as `INDEX.md` first line.
-- `alias` (required): sticky human-readable business alias (e.g. `48C507_CRC_2022`), stable across re-organizes — used in UI/filenames where `patient_code` is too opaque.
+- `alias` (optional, default `null`): human-readable display alias (e.g. `48C507_CRC_2022`) — set ONLY when the user explicitly opted in after seeing the re-identification risk (a `{cancer_code}_{year}` alias leaks diagnosis + year). Sticky once set — stable across re-organizes; never backfilled without a fresh opt-in. Used in UI where `patient_code` is too opaque.
 - `locale` (required, BCP-47 — `en` / `fr` / `es` / `zh` / `de` / …): the language all patient-facing **scaffold** (section titles, field labels, narrative connectives, user copy, date formats) is rendered in. It is resolved once, persisted here, and reused for the whole patient journey: a host-supplied `locale` from the user's explicit product language setting wins first; otherwise every sub-skill reads `profile.json.locale` first; only when absent does organize detect from the medical records' primary patient-facing language or chat sub-skills detect from the conversation language. Clinical entities (drug names / genes / variants / TNM / numbers / units) are **never** translated regardless of locale. An explicit user override ("answer me in English") updates this field and wins over detection. Full contract: `i18n.md`.
 - `generated_at` (required): ISO8601 timestamp of the organize run that wrote this file.
 - `privacy` (required): the desensitization policy in force — `pii_policy` (e.g. `sidecar_text_masked; raw_originals_retained_under_raw`) and `html_age_policy` (e.g. `precise_age_retained; dob_birthplace_occupation_masked` — the patient-facing HTML keeps the precise age for clinical-trial matching while masking name/DOB/birthplace/occupation).

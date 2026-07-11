@@ -6,6 +6,19 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Added — organize 微量观测快车道 + display alias 改为显式 opt-in (2026-07-11)
+
+**A. `run_mode: "micro_observation"`（提速：单条自测数值不再付全量整理的固定成本）**
+- 痛点：全量管线的成本是固定的（Phase 2 综合 + Phase 2.5 + 全量 PII 复扫 + 段D 模板管线 + 验证门），与输入量无关——用户只传一条体温也要"整理很久"（平台实测截图）。
+- `SKILL.md` When to use 新增 **Size triage**：聊天说数值 + 已有档案 → 段C；**1–2 个单值自测观测**（体温/血压/体重/血糖/单条读数截图）+ 已有档案 → 新 `micro_observation` 快车道；无档案的微量输入 → 先会话记录，**不为一条数值静默建全量档案**（显式选择才走全量）；真病历文档 → 正常全量/增量。分诊是 LLM 内容判断，拿不准按真文档处理。
+- 快车道流程（单轮、无 fan-out、无 Phase-2 worker）：相关性门与急症/自杀安全门照旧 → **脱敏读取保留**（提速绝不以跳过脱敏为代价——"明显无 PII"正是会在 App 截图账号名/腕带姓名上翻车的判断）→ 段C 确认卡 → 只写:`10_` 桶 typed 子目录的脱敏 sidecar + `raw/` 镜像 + `source_inventory` 条目 + `longitudinal_observations.json` 追加(`patient_curated`,数值+单位显式才写)+ `update_log` 记账,校验失败零写入。硬边界(借鉴社区 PR #10 curated-text fast path 的契约,该 PR 因提错仓已关闭):全程至多一次语义调用;不得把轻量输入包装成文件回流全量管线;前置不满足时拒绝而非静默 fallback;纯文本 curated 输入归段C,不开第三条平行路径。**跳过**全量综合、readiness 重算、Phase 2.5、段D 重渲染（走既有 freshness gate / `case_summary_stale` 延迟渲染）。
+- Definition of Done 增加**适用范围**：全量清单约束 `full`/`incremental`/`upload_reconciliation`；轻量模式用各自降级 done-gate（不产段D 就不要求 `template_sha`），双向不得互借。
+- `organize-contract.md` §2.9 声明两个轻量模式为**合规缩减产物集**；`runtime-bindings/headless-codex.md` §4.5 要求 headless 宿主（cancerdao-platform）对微量输入**单轮完成**，不展示全量"隐私保护/综合整理"长流程 UI。平台 UI 分支需在平台仓库同步落地。
+- 新增 `tests/unit/micro-observation-lane.test.sh` 守护上述接线（脱敏保留、段D 延迟、DoD 分层、opt-in alias）。
+
+**B. display alias 全链路改为显式 opt-in（收尾上一轮遗漏的矛盾）**
+- 上一轮把 Outputs/同意卡改成"默认不建 alias"，但执行层 `organizer-prompt-phase2-synthesis.md`（字段规则 + Step 2.8 symlink）与 `patient-profile-schema.md`（`alias` required）仍是自动生成语义。本轮对齐：Phase 2 新增 `alias_opt_in` 调用参数（默认 false → `alias: null`、跳过 Step 2.8）；opt-in 时写 patients-root 私有 `alias_map.json`（在 patient_dir 之外，永不进分享导出），默认不再创建 alias 命名的 symlink/目录（目录列表泄露癌种+年份）；schema 文档 `alias` 改 optional/null。
+
 ### Changed — 安全重构：危机分层 + 授权门 + 反静默删除 + Codex 打包 + 一致性收尾 (2026-07-11)
 
 一次系统性安全重构（"去虚构能力、去过时事实、去自动删除、加授权门"）+ 随后的一致性收尾。

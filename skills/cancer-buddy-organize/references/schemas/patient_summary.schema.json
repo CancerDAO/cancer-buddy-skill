@@ -12,7 +12,7 @@
     "generated_at": { "type": "string", "format": "date-time" },
     "alias": {
       "type": "string",
-      "description": "Business-readable alias: {patient_id_short}_{cancer_code}_{year}, where patient_id_short = the PT-stripped patient_code truncated to 6 hex chars (e.g. PT-17CE02BC33 → 17CE02). Example 17CE02_CRC_2019. Optional — only set when caller supplies enough metadata.",
+      "description": "Display alias: {patient_id_short}_{cancer_code}_{year} (e.g. 17CE02_CRC_2019). Optional — set ONLY when the user explicitly opted in (alias_opt_in) after seeing the re-identification risk; default absent/null.",
       "pattern": "^[0-9A-Za-z\\-]+_[A-Z]+_\\d{4}$"
     },
     "demographics": {

@@ -28,6 +28,15 @@ Resolve `ORGANIZE_SKILL_DIR` once as the absolute directory containing this inst
 - User asks: 病历整理 / 帮我整理这些报告 / 我有一堆检查单.
 - Any other sub-skill detects missing `profile.json` / `readiness.json` and prompts the user to run organize first.
 
+**Size triage first (fast lanes — don't pay the full pipeline for a tiny input):**
+
+- Fact stated in *chat* (no file) + archive exists → 段C `conversation_incremental` (see below), never a full run.
+- **1–2 content units that are all single-value self-monitored observations** (体温/血压/心率/体重/血糖/血氧/步数/疼痛评分 or one screenshot of a single reading) + archive exists → `run_mode: "micro_observation"` (see **Micro-observation fast lane** below) — masked read stays, full synthesis / 段D re-render are skipped.
+- Same micro input but **no archive yet** → do NOT silently build a full canonical archive for one reading. Acknowledge the value, offer: (a) 先记在会话里，等病历一起建档；(b) 现在就建完整档案（走全量，明确告知耗时）。Only an explicit (b) starts a full run.
+- Everything else (real clinical documents, multi-page reports, folders) → normal full / incremental / upload_reconciliation flow.
+
+The triage is an LLM judgment on content, not a filename/keyword rule; when unsure whether something is a real clinical document, treat it as one (normal flow) — under-archiving a real record is the costlier error.
+
 ## Inputs
 
 - Path to a folder, a supported record file, or a ZIP/TAR/TGZ archive. Ask for RAR/7z to be unpacked by the user unless an equivalently safe approved adapter is available.
@@ -307,6 +316,8 @@ python3 "$ORGANIZE_SKILL_DIR/scripts/export_share.py" <patient_dir> --out <dest>
 
 done 判据以前散在 Step 7 / 11.5 / 12 / 13 和好几个 validator 里；压缩后容易只记得"产出了文件"就自报完成。这里把它收成**一个终态清单**：以下**全绿之前，本次 organize 未完成**，不许对用户说"整理好了"。
 
+> **适用范围**：本清单约束 `full` / `incremental` / `upload_reconciliation`——任何重写结构化产物或段D 的运行。`conversation_incremental` 与 `micro_observation` 用各自小节里的**降级 done-gate**（确认门 + 局部 schema + ledger；不产段D 就不要求 `template_sha`），不得反过来借全量清单拖慢微量路径，也不得借降级清单跳过全量运行的门。
+
 1. **结构化验收门 exit 0 且已贴输出**：`python3 "$ORGANIZE_SKILL_DIR/scripts/validate_structured_outputs.py" <patient_dir>` 返回 0（它内含 schema + anchors + `gate_pii_rescan` + `gate_numeric_integrity` + `source_inventory` 完整性 + **段D HTML 形+provenance** `validate_case_summary_html`）。把它回显的 **`template_sha`** 贴给用户——这是"HTML 确实走了模板、不是手写"的证明。**没有 template_sha = 没完成。**
 2. **段D HTML 带 provenance**：`病情简要总结.html` 含 `<!-- template_sha256: … -->` 注释（顶部不变量第 1 条）。手写 HTML 没有它，会在第 1 项里 fail。
 3. **PII Layer-1 语义扫描 clean**：`references/pii-rescan-prompt.md` 子代理返回 `clean=true`（覆盖 sidecar + 合成下游面 + 交付面）。
@@ -368,15 +379,28 @@ When the patient or caregiver is *chatting* about their condition (not handing o
 
 The flow: an LLM detects candidate archivable facts (新诊断/分期 / 新检验值 / 治疗变更 / 症状 / 体能-ECOG) → maps each to a `profile.json` field or a `timeline.md` row → presents a **diff card** (before → after, with the user's own words as 依据) → the user confirms / corrects / defers → only confirmed candidates are written. Provenance uses the conversation anchor `[[src:conversation:<ISO8601>]]` (never a file anchor). Confirmed facts land in the **corresponding clinical domain's** `conversation_notes/` subdir, resolved by the domain's stable `NN_` prefix against the archive's existing (locale-localized) buckets — e.g. a lab value → the `07_` domain (`07_检验/` for zh, `07_labs/` for en/fr…), a staging change → the `04_` domain; the `14_` domain is the fallback when the fact fits no domain — with a `patient_curated` tag and update the formal field/row; `update_log.json` gets a `run_mode: "conversation_incremental"` entry. **Unconfirmed talk never touches formal fields** — this gate prevents a mis-spoken value from poisoning downstream reports. This mode does NOT re-ingest files or re-run synthesis; for new *files* use full or incremental mode. Major changes ("我整套方案都换了") route to a full re-organize, not turn-by-turn merge.
 
-## Business-readable alias
+## Micro-observation fast lane (`run_mode: "micro_observation"`)
 
-When `profile.json.alias` is set by Phase 2 (format `{patient_id_short}_{cancer_code}_{year}`, e.g. `17CE02_CRC_2019`), the synthesis worker creates a symlink under the patients root:
+**Why**: the full pipeline's cost is fixed (Phase 2 synthesis + Phase 2.5 + global PII rescan + 段D template pipeline + validators) regardless of input size — a single 体温 entry must not pay it. This lane keeps every safety floor and skips the heavy machinery.
 
-```
-<patients_root>/17CE02_CRC_2019 -> PT-17CE02BC33/
-```
+**Preconditions**: an existing `<patient_dir>` with `update_log.json`; input is 1–2 content units, each a single-value self-monitored observation / timeseries entry (see the Size triage in **When to use**). Anything that reads like a real clinical document (报告单/出院小结/多段落) → not micro; use `incremental` / `upload_reconciliation`.
 
-Internal storage continues to use the `PT-<hex>` directory. Downstream sub-skills accept either name; the alias is the human-friendly handle for exports and conversations ("我跟病人沟通的是 17CE02_CRC_2019,不是 PT- 那串十六进制"). If filesystem symlinks are not available, the synthesis worker writes `<patients_root>/alias_map.json` mapping aliases to `PT-<hex>` codes.
+**Flow (single pass, no fan-out, no Phase-2 worker):**
+
+1. **Relevance + safety floors unchanged**: [`relevance-gate.md`](references/relevance-gate.md) still runs (contents/filenames are untrusted data); the medical-emergency / suicide-safety gates still precede everything.
+2. **Masked read stays** — de-identification is NOT skipped (it is cheap at this size; "obviously no PII" is exactly the judgment that fails on an app screenshot's account name or a wristband in a photo). Do the Phase-1-style masked read of the 1–2 units inline (or one worker): text-masked sidecar into the `10_` bucket's **typed subdir** (居家监测/ for self-monitored readings, PRO自报/ for patient-reported outcomes, 可穿戴导出/ for device exports — never a bucket-root bare file; canonical `<YYYY-MM-DD>_<doc_type>_<hospital-or-自测>` name per bucket-taxonomy), original mirrored into `raw/` (de-identified filename), `source_inventory.json` entry, identity-denylist append.
+3. **Parse the observation(s)** → present the 段C confirm gate diff card (value + unit + timestamp verbatim; user's words as 依据). Unconfirmed → nothing formal is written.
+4. **On confirm, write the minimum**: append the point(s) to `longitudinal_observations.json` (schema `longitudinal_observations_v1`, `patient_curated` provenance) and add an `update_log.json` entry `{run_mode: "micro_observation", added_points, source_id, confirmed_at}`. Write a structured point **only when value + unit are explicit in the source** — never infer units, dates, or clinical meaning; a value that belongs in `labs.json`/formal fields is a sign this wasn't micro — reroute to `incremental`. Do **not** rewrite `case_text.md` / `readiness.json` / `profile.json` / the 6 structured JSONs, and never overwrite a record-level fact from a self-reported reading. **Validation/parse failure ⇒ zero writes** — return the submission as pending, don't half-archive it.
+5. **段D is never re-rendered here**: run the existing **Case-summary freshness gate** (prompt the user or record `case_summary_stale: true`). The next full/incremental run — or an explicit "看总结" — picks it up.
+6. **Micro done-gate** (replaces the full Definition of Done for this run mode): new sidecar masked + `longitudinal_observations.json` validates against its schema + the `update_log.json` ledger entry exists. No `template_sha` is required — this lane never touches the HTML, so the 抗压缩不变量 §1 (no hand-written 段D) is untouched.
+
+**Hard boundaries (both directions, never crossed silently)**: at most **one semantic call** end-to-end (masked read + parse combined) — needing more means this isn't micro, reroute; never wrap a light input into a file to re-enter the full pipeline; when preconditions fail (no archive, not a single-value observation) **refuse and explain**, never silently fall back to a full run. Pure *typed text* curated entries (diary lines, spoken values) belong to 段C `conversation_incremental` — do not grow a third parallel patient-supplement path.
+
+**Hosts** (Codex/平台): this lane is intentionally single-round — one masked read, one confirm card, one append; return a small fixed result JSON `{run_mode: "micro_observation", ok, observations_written, changed_paths}` so the platform can route on it. Do not show the full "隐私保护/综合整理" long-flow UI for it; see [`references/runtime-bindings/headless-codex.md`](references/runtime-bindings/headless-codex.md).
+
+## Display alias (opt-in only)
+
+No alias is generated by default (see **Outputs** / the privacy-consent section: a `{cancer_code}_{year}` alias leaks diagnosis + year — re-identification risk). Only when the user explicitly opts in after seeing that risk does Phase 2 receive `alias_opt_in: true`, set `profile.json.alias` (`{patient_id_short}_{cancer_code}_{year}`, e.g. `17CE02_CRC_2019`) and record it in a private `<patients_root>/alias_map.json` **outside the patient dir** (so it never ships in a share export). No alias-named symlink/directory is created unless the user additionally asks for filesystem navigation by alias after the directory-listing leak is stated. Internal storage always uses the authoritative `PT-<hex>` directory; the alias is only a display handle, and it is sticky once set.
 
 ## patient_code collision
 
@@ -420,7 +444,7 @@ Per [`disclosure-behavior.md`](../cancer-buddy/references/disclosure-behavior.md
 ## References
 
 - [organizer-prompt-phase1-ocr.md](references/organizer-prompt-phase1-ocr.md) — Phase 1 worker prompt: per-slice LLM Markdown ingestion, parallel-safe, sidecars-only
-- [organizer-prompt-phase2-synthesis.md](references/organizer-prompt-phase2-synthesis.md) — Phase 2 worker prompt: cross-slice synthesis + 9-check review_flags audit (incl. filename_content_mismatch second-check) + review_summary + 6 structured JSONs + missing_items.json + update_log.json + alias
+- [organizer-prompt-phase2-synthesis.md](references/organizer-prompt-phase2-synthesis.md) — Phase 2 worker prompt: cross-slice synthesis + 9-check review_flags audit (incl. filename_content_mismatch second-check) + review_summary + 6 structured JSONs + missing_items.json + update_log.json (+ opt-in display alias)
 - [conversation-incremental-prompt.md](references/conversation-incremental-prompt.md) — 段C conversation-incremental worker prompt: detect archivable facts in chat → diff card → user-confirmed write to profile field / timeline row with `[[src:conversation:<ISO8601>]]` provenance + `patient_curated` tag; unconfirmed talk never written
 - [relevance-gate.md](references/relevance-gate.md) — 段E medical-relevance triage: LLM judgment (not keyword list) → medical / non_medical / relevance_uncertain; `99_无关文件/` quarantines only agent-side staging copies; exclusion preserves the user's source in place (silence ⇒ 不归档、原位置保留 — **never auto-delete**); disposition notice + reclassification path; agent-created temporary copies cleaned only after the source is verified to still exist; user-controlled files deleted only on explicit itemized confirmation; `relevance_uncertain` 8th review_flag + `update_log.json.relevance` ledger
 - [upload-reconciliation.md](references/upload-reconciliation.md) — 扩段C re-upload reconciliation: LLM new/supersede/conflict relation判断 (not hardcoded same-name-date) → diff card 替换?/并存?/忽略? reusing段C's "先确认" gate; 替换 archives old doc to `_superseded_<ts>/` (not deleted) + anchor remap; conflict never silently overwritten; introduces no new auto-deletion; `run_mode: "upload_reconciliation"` update_log
