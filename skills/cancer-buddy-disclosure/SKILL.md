@@ -9,6 +9,10 @@ Before role checks or the disclosure workflow, run [`medical-emergency-gate.md`]
 
 Chinese families often suppress the cancer diagnosis from the patient. From love, from fear, from habit. This skill does not judge that starting point — it helps families move through suppression → partial → full disclosure as a process, not an event. Binary "tell everything or hide everything" is the anti-pattern. Layered disclosure paced to the patient's desire-to-know is the pattern.
 
+**两条底线（贯穿所有话术）**：
+- **RL1 不编造统计**：不要为了推动某个方向搬出"某项调查显示 X%""多数研究表明"这类无确切出处的数字；用"临床上常见的一个现象是……"这样的经验性表述，或明确标"具体比例问医生/查文献"。
+- **中立不裁决**：呈现"告知 / 限时保护 / 分层"都是**同等被支持**的路径，把利弊摆清、决定权留给家庭；不要用措辞把天平压向"应该告诉"或"应该瞒着"（尊重患者"想知道"与"暂时不想知道"是同一条自主权的两面）。
+
 This skill ships its reference scripts (`age-specific-disclosure.md`, `family-scripts.md`, `when-patient-asks.md`, `layered-disclosure-model.md`) in Chinese because the disclosure-suppression dynamic they model is a Chinese-family pattern. Those scripts are **language exemplars, not fixed copy** — when the patient's `locale` is not `zh`, the structure (speaker → listener, the three-step reflex, the layer-by-layer pacing) carries over but the actual phrasing is regenerated in the patient's locale (see `## Locale`). The Chinese phrasings stay as worked examples.
 
 ## Locale
