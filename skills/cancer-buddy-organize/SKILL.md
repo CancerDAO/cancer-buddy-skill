@@ -20,7 +20,7 @@ Resolve `ORGANIZE_SKILL_DIR` once as the absolute directory containing this inst
 
 1. **provenance-first：任何 `病情简要总结.html` 若不含 `<!-- template_sha256: … -->` provenance 注释 = 非法交付，必须经模板管线重生成。** HTML 的唯一合法产生路径是 `render_html_template.py` 从 `references/templates/case-summary.template.html` 渲染，**永不手写 / 拼接 / 内联 HTML**。手写的 HTML 没有 provenance 注释，会被 `validate_case_summary_html.py` 当场判非法。
 2. **段D 全管线在一个自包含 subagent 内完成并返回 `template_sha`**（Step 12）：编排器**不自己拼 HTML、也不自己散跑那串 bash**，只负责"派 subagent → 收它返回的 `template_sha`（校验已通过的证明）→ 做 dated 快照"。派活的机制被隔离在子代理的干净上下文里，不受编排器压缩影响。
-3. **Definition of Done（终态硬门）：本次 organize 未完成，直到 `python3 "$ORGANIZE_SKILL_DIR/scripts/validate_structured_outputs.py" <patient_dir>` exit 0 且你已把它的输出（含 `template_sha`）贴给用户。** 见文末「Definition of Done」。不许在没跑这道门、没贴 template_sha 的情况下自报"整理完成"。
+3. **Definition of Done（终态硬门）：本次 organize 未完成，直到 `python3 "$ORGANIZE_SKILL_DIR/scripts/validate_structured_outputs.py" <patient_dir>` exit 0 且你已在内部自检里核对它回显的 `template_sha`。** 见文末「Definition of Done」。不许在没跑这道门、没拿到 template_sha 的情况下自报"整理完成"。**`template_sha` 是内部 QA 凭证 —— 进运行日志 / 面向运维的自检行,不摆给患者看（患者语气红线）**;给患者的收尾只有一句人话的"整理完成、总结已生成"。
 
 ## When to use
 
@@ -174,7 +174,9 @@ This skill follows the shared locale contract in [`../cancer-buddy/references/i1
 
 7. **Verify outputs** — parse Phase 2's returned JSON; confirm `profile.json` exists and the required v3 fields (`patient_code`, `summary.primary`, `summary.histology`, `summary.stage`) are populated. If any are missing or null, surface to the user as a blocker before routing to any other sub-skill.
 
-8. **Grade readiness** — from Phase 2's returned JSON take `readiness_grade` + `readiness_score`. If grade is F or D, present the information-gap checklist 🔴🟡🟢 (derived from `blocking_gaps`) to the patient.
+7.5. **身份一致性硬确认门（HARD gate — 在展示任何完整总结之前）** — 若用户在对话里已言明这份病历是给谁整理的（如"我妈，58 岁，女"），而 Phase 2 从上传件抽出的 `patient_summary.json.demographics`（性别 / 年龄）与之**明显冲突**（如记录显示 男 / 63 岁），**先停下来、单独问一句确认**——不要把它埋进 Step 9/10 核对清单的第 N 条，更不要先把整份总结铺完再提。用 `profile.json.locale` 出一句人话，例（zh）："你说这是帮你妈妈（58 岁、女）整理的，但我在上传的报告里读到的是 63 岁、男——是不是混进了别人的报告？还是我读错了？确认一下我再往下整理。" 只有用户澄清（同一个人 / 挑出串入的文件 / 更正口述）后才继续 Step 8。这挡住"整份档案建在错的人身上"这个最贵的错误。冲突仍照常在 `readiness.json.review_flags[]` 里留痕（内部），但**患者的第一触点是这句硬确认，不是清单里的一行**。
+
+8. **Grade readiness (字母档次只留内部)** — from Phase 2's returned JSON take `readiness_grade` + `readiness_score` and keep them in `readiness.json` for internal routing / gating. **绝不把裸字母档次（A/B/C/D/F）或 `D(62/100)` 这类内部记法摆给患者看（患者语气红线：不给患者看内部代号/评级/QA术语）。** If coverage is low (grade F/D), 把缺口翻成**人话——差哪几样具体材料**呈现给患者（如"目前主要就差一份复发后的正式分期报告"，而不是"档案完整度 D(62/100)"），内容 derived from `blocking_gaps`；🔴🟡🟢 优先级排序继续用于内部排序，给患者的是"差哪几样、怎么补"的白话。
 
 9. **Display review_summary.md (MANDATORY, ALWAYS)** — read the file at `review_summary_path` and display its full content to the user. This is the **first** thing the user sees after organize — before profile card, before review_flags. It is a 1-page spot-check of extracted key fields with verbatim source citations.
 
@@ -183,9 +185,9 @@ This skill follows the shared locale contract in [`../cancer-buddy/references/i1
    After displaying, prompt the user: "请核对上面的检查要点。任何字段需要修正,直接告诉我哪个字段 + 正确值,我会更新 profile.json 并重新生成清单。"
 
 10. **Surface review_flags (MANDATORY)** — if `review_flags_total > 0`, read `review_flags.md` and display its content to the user immediately after `review_summary.md`. This is a hard gate, not optional polish:
-    - **If any 🔴 red flag present**: tell the user "进入下游 skill 之前请先逐条确认或 override 这些 🔴 项 — 它们会直接影响 find-care / vmtb / 内部版临床工具（pro-skill mtb-lite）/ 开源 clinical-trial-matching的推荐"
+    - **If any 🔴 red flag present**: 用**人话、不带内部代号**告诉患者这几项要先确认或改一下（内部上这些 🔴 会影响 find-care / vmtb / clinical-trial-matching 等下游推荐，但**别把这些代号摆给患者**）。例："这几项 🔴 我拿不准，麻烦你先逐条确认或改一下——它们会直接影响我接下来帮你找医院、找试验、看用药方向时的判断。"
     - **If only 🟡/🟢 flags**: present them as "建议核对", do not block downstream routing
-    - **If `review_flags_total: 0`**: still tell the user "所有提取字段已通过 9 项可疑值检查 (格式/跨文档矛盾/临床逻辑/原始证据/数值趋势), 无待确认项 — 但仍请核对上面的 review_summary.md 速查清单"
+    - **If `review_flags_total: 0`**: 用**人话**告诉患者提取的信息都对着原始报告核对过了、没有要他确认的地方——**不要**把内部 QA 用语（"9 项可疑值检查"/"格式/跨文档矛盾/临床逻辑…"）摆给患者（患者语气红线：不给患者看内部代号/评级/QA术语）。例："提取出来的信息我都对着原始报告核对过了，没有要你确认的地方——不过还是麻烦你扫一眼上面的速查清单。"
     - The user's resolution per flag (`accept_suggestion` / `keep_original` / `custom_value` / `defer`) is logged back into `readiness.json.review_flags[i].user_confirmed = true` plus a `resolution` sub-object.
 
 11. **Output profile card** — display the Patient Profile Card ([references/profile-card.md](references/profile-card.md)) to the patient using the `terminology.md` format rules (中英 + 通俗解释). The card's "🔍 待人工确认" section pulls from `readiness.json.review_flags[]`.
@@ -259,7 +261,7 @@ This skill follows the shared locale contract in [`../cancer-buddy/references/i1
     1. `病情简要总结.html` was produced by `render_html_template.py` from `references/templates/case-summary.template.html` (**rendered, not hand-written**). A subagent that pastes HTML inline fails this gate.
     2. `python3 "$ORGANIZE_SKILL_DIR/scripts/validate_case_summary_html.py" --html <patient_dir>/病情简要总结.html --template "$ORGANIZE_SKILL_DIR/references/templates/case-summary.template.html" --profile <patient_dir>/profile.json --data <patient_dir>/.case_summary_data.json` exits 0 (shape + PII + provenance invariants hold, **plus the (j) core-completeness gate** — `--profile`/`--data` hard-fail if a core singleton **分期 / 驱动基因 / 当前方案** is present in source but dropped from the summary; labs/comorbidities are NOT gated — they're curated for a one-pager).
 
-    The structured-output acceptance门 is separate: `python3 "$ORGANIZE_SKILL_DIR/scripts/validate_structured_outputs.py" <patient_dir>` exits 0 once the structured JSONs + anchors validate, the text sidecars pass the PII residue rescan, `source_inventory.json` is complete (every content unit carries a `raw_path` + a text-masked sidecar), and the case-summary HTML shape holds. Surface in the final report to the user the **`template_sha`** echoed by `validate_case_summary_html.py` (proof the template was used). Never mark a medical source `persist:false` merely to make this gate pass; if a formal artifact cites its sidecar, keep it `persist:true`. Uploaded originals in `raw/` are kept verbatim — there is no source-file redaction step gating persistence.
+    The structured-output acceptance门 is separate: `python3 "$ORGANIZE_SKILL_DIR/scripts/validate_structured_outputs.py" <patient_dir>` exits 0 once the structured JSONs + anchors validate, the text sidecars pass the PII residue rescan, `source_inventory.json` is complete (every content unit carries a `raw_path` + a text-masked sidecar), and the case-summary HTML shape holds. Record the **`template_sha`** echoed by `validate_case_summary_html.py` as the **internal** Definition-of-Done proof (证明 HTML 确实走了模板、不是手写)。它是内部 QA 凭证——进运行日志 / 面向运维的自检行即可，**绝不把 `template_sha` / "模板管线" / "已过校验" 这类术语渲染进给患者的消息（患者语气红线：不给患者看内部代号/评级/QA术语）**；患者只收到一句人话的"你的病情简要总结已经生成好了，可以直接打开或分享"（按 `profile.json.locale`）。Never mark a medical source `persist:false` merely to make this gate pass; if a formal artifact cites its sidecar, keep it `persist:true`. Uploaded originals in `raw/` are kept verbatim — there is no source-file redaction step gating persistence.
 
 13. **Generate AGENTS.md (agent-facing recall pointer)** — deterministically fill [`references/templates/agents-md.template.md`](references/templates/agents-md.template.md) (organize-owned template, next to `case-summary.template.html`; organize is the sole filler — the *generated* `AGENTS.md` is what the cancer-buddy family + vmtb consume) and write it to `<patient_dir>/AGENTS.md`. This is the **cross-session discovery + recall** pointer: harnesses that auto-load `AGENTS.md` from the cwd (pi, Claude Code) then have, in *every* session whose cwd is inside the patient dir, the patient identity + the routing table + the two-layer drill-down rule + the verbatim-citation/no-fabrication floor — solving "patient organized records but a later session can't find/read them" without the cancer-buddy skill having to be invoked first.
 
@@ -318,13 +320,13 @@ done 判据以前散在 Step 7 / 11.5 / 12 / 13 和好几个 validator 里；压
 
 > **适用范围**：本清单约束 `full` / `incremental` / `upload_reconciliation`——任何重写结构化产物或段D 的运行。`conversation_incremental` 与 `micro_observation` 用各自小节里的**降级 done-gate**（确认门 + 局部 schema + ledger；不产段D 就不要求 `template_sha`），不得反过来借全量清单拖慢微量路径，也不得借降级清单跳过全量运行的门。
 
-1. **结构化验收门 exit 0 且已贴输出**：`python3 "$ORGANIZE_SKILL_DIR/scripts/validate_structured_outputs.py" <patient_dir>` 返回 0（它内含 schema + anchors + `gate_pii_rescan` + `gate_numeric_integrity` + `source_inventory` 完整性 + **段D HTML 形+provenance** `validate_case_summary_html`）。把它回显的 **`template_sha`** 贴给用户——这是"HTML 确实走了模板、不是手写"的证明。**没有 template_sha = 没完成。**
+1. **结构化验收门 exit 0 且已取回证明**：`python3 "$ORGANIZE_SKILL_DIR/scripts/validate_structured_outputs.py" <patient_dir>` 返回 0（它内含 schema + anchors + `gate_pii_rescan` + `gate_numeric_integrity` + `source_inventory` 完整性 + **段D HTML 形+provenance** `validate_case_summary_html`）。拿到它回显的 **`template_sha`** 并在**内部自检**里核对——这是"HTML 确实走了模板、不是手写"的证明。**没有 template_sha = 没完成。** 但 `template_sha` 是内部 QA 凭证，**不摆给患者看（患者语气红线：不给患者看内部代号/评级/QA术语）**——给患者的是一句人话的"整理完成、总结已生成"，`template_sha` 只进运行日志 / 面向运维的自检行。
 2. **段D HTML 带 provenance**：`病情简要总结.html` 含 `<!-- template_sha256: … -->` 注释（顶部不变量第 1 条）。手写 HTML 没有它，会在第 1 项里 fail。
 3. **PII Layer-1 语义扫描 clean**：`references/pii-rescan-prompt.md` 子代理返回 `clean=true`（覆盖 sidecar + 合成下游面 + 交付面）。
 4. **Phase 2.5 忠实度无未决 CRITICAL**：每个 CRITICAL `not_faithful` 要么已从 `.case_summary_data.json` 丢弃（→`资料缺失`）并写了 🔴 `unverified_critical_field` flag，要么用户已更正（Step 11.5）。
 5. **AGENTS.md 已生成且非 stub**（Step 13：两个占位符已解析成真值）。
 
-自检话术（贴给用户的收尾里体现）：`validate_structured_outputs.py exit 0 ✅ · template_sha=<…> ✅ · PII clean ✅`。任一非绿 → 回到对应 Step 修复重跑，**不要**把一份形不合规/缺 provenance/带 PII 的产物留在 `patient_dir` 或对用户报完成。
+自检话术（**内部 / 面向运维的自检行，不是给患者看的收尾**）：`validate_structured_outputs.py exit 0 ✅ · template_sha=<…> ✅ · PII clean ✅`。给患者的收尾只用人话报"整理完成、总结已生成"，**不出现**这些字段名 / 校验术语 / `template_sha`（患者语气红线：不给患者看内部代号/评级/QA术语）。任一非绿 → 回到对应 Step 修复重跑，**不要**把一份形不合规/缺 provenance/带 PII 的产物留在 `patient_dir` 或对用户报完成。
 
 ## Runtime adaptation
 
@@ -404,7 +406,7 @@ No alias is generated by default (see **Outputs** / the privacy-consent section:
 
 ## patient_code collision
 
-If the generated `patient_code` (e.g. `PT-17CE02BC33`) already exists under the patients root, the subagent appends `_2`, `_3`, etc., and announces the assigned code in the summary.
+If the generated `patient_code` (e.g. `PT-17CE02BC33`) already exists under the patients root, the subagent appends `_2`, `_3`, etc., and records the assigned code internally (`INDEX.md` first line + run log). The opaque `PT-…` code is an **internal** directory key — **don't surface a raw "编号 PT-xxxx" as a labeled field in the patient-facing summary or Profile Card （患者语气红线：不给患者看内部代号/评级/QA术语）**; if the user needs to find their archive, tell them the folder path in plain language instead.
 
 ## Configurable root
 
