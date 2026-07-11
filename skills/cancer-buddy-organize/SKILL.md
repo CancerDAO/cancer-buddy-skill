@@ -174,7 +174,12 @@ This skill follows the shared locale contract in [`../cancer-buddy/references/i1
 
 7. **Verify outputs** — parse Phase 2's returned JSON; confirm `profile.json` exists and the required v3 fields (`patient_code`, `summary.primary`, `summary.histology`, `summary.stage`) are populated. If any are missing or null, surface to the user as a blocker before routing to any other sub-skill.
 
-7.5. **身份一致性硬确认门（HARD gate — 在展示任何完整总结之前）** — 若用户在对话里已言明这份病历是给谁整理的（如"我妈，58 岁，女"），而 Phase 2 从上传件抽出的 `patient_summary.json.demographics`（性别 / 年龄）与之**明显冲突**（如记录显示 男 / 63 岁），**先停下来、单独问一句确认**——不要把它埋进 Step 9/10 核对清单的第 N 条，更不要先把整份总结铺完再提。用 `profile.json.locale` 出一句人话，例（zh）："你说这是帮你妈妈（58 岁、女）整理的，但我在上传的报告里读到的是 63 岁、男——是不是混进了别人的报告？还是我读错了？确认一下我再往下整理。" 只有用户澄清（同一个人 / 挑出串入的文件 / 更正口述）后才继续 Step 8。这挡住"整份档案建在错的人身上"这个最贵的错误。冲突仍照常在 `readiness.json.review_flags[]` 里留痕（内部），但**患者的第一触点是这句硬确认，不是清单里的一行**。
+7.5. **身份一致性硬确认门（HARD gate — 在把完整总结归到该患者名下之前）** — 若用户在对话里已言明这份病历是给谁整理的（如"我妈，58 岁，女"），而 Phase 2 从上传件抽出的 `patient_summary.json.demographics`（性别 / 年龄）与之**明显冲突**（如记录显示 男 / 63 岁），**先停下来、把这句核对放到第一触点**——不要埋进 Step 9/10 核对清单的第 N 条，更不要先把整份总结铺完再提。规则见 [`../cancer-buddy/references/authorization-and-consent.md`](../cancer-buddy/references/authorization-and-consent.md) 的「Identity hard-gate」，要点：
+    - **不 dead-end**：先给一句 TL;DR + 单一核对问；核对期间可给一份**去归属的大白话解读**（"这份报告本身讲的是一个肺部的情况……"，不把它安到"你妈妈"头上），别让用户在核对时一无所获。
+    - **最小第三方披露**：只说"这几份看着不像你妈妈的"，不报出另一个人的性别/年龄等身份属性。
+    - **信任包装 + 低摩擦核对**：把暂停说成"这种事一次都不能弄错，先核一句"，并给最省事的确认路径（"拍一张报告抬头发我" / 逐份挑出串入的那张），不是只有"重新上传"。
+    - 例（zh，按 `profile.json.locale` 出）："先说一句：这几份报告看着不太像你妈妈的——上面读到的是 63 岁，是不是混进了别人的报告？你拍一下报告抬头我核对一下，确认了我马上帮你把你妈妈的情况整理清楚。"
+    只有用户澄清（同一个人 / 挑出串入的文件 / 更正口述）后才把完整总结归到该患者名下、继续 Step 8。这挡住"整份档案建在错的人身上"这个最贵的错误。冲突仍照常在 `readiness.json.review_flags[]` 里留痕（内部），但**患者的第一触点是这句硬确认，不是清单里的一行**。
 
 8. **Grade readiness (字母档次只留内部)** — from Phase 2's returned JSON take `readiness_grade` + `readiness_score` and keep them in `readiness.json` for internal routing / gating. **绝不把裸字母档次（A/B/C/D/F）或 `D(62/100)` 这类内部记法摆给患者看（患者语气红线：不给患者看内部代号/评级/QA术语）。** If coverage is low (grade F/D), 把缺口翻成**人话——差哪几样具体材料**呈现给患者（如"目前主要就差一份复发后的正式分期报告"，而不是"档案完整度 D(62/100)"），内容 derived from `blocking_gaps`；🔴🟡🟢 优先级排序继续用于内部排序，给患者的是"差哪几样、怎么补"的白话。
 
