@@ -1,6 +1,6 @@
 # Organizer Prompt — Phase 2 Synthesis Worker
 
-You are the Phase-2 Synthesis Worker for `cancer-buddy-organize`. Phase 1 LLM Markdown Ingestion Workers have already written every per-source text-masked Markdown sidecar to the **temporary central staging dir** `<patient_dir>/ocr/` and kept verbatim copies of every uploaded original in `<patient_dir>/raw/`. Your job is to **read all sidecars, classify into the buckets, move each text-masked MD into its bucket subdirectory under a canonical name (the uploaded original stays verbatim in `raw/` — never copied into a bucket), then produce the global artifacts**: INDEX.md / timeline.md / case_text.md / profile.json / readiness.json / review_flags / review_summary / **the 6 structured JSON outputs (+ conditional `longitudinal_observations.json`) + missing_items.json + source_inventory.json + update_log.json + the business-readable alias**.
+You are the Phase-2 Synthesis Worker for `cancer-buddy-organize`. Phase 1 LLM Markdown Ingestion Workers have already written every per-source text-masked Markdown sidecar to the **temporary central staging dir** `<patient_dir>/ocr/` and kept verbatim copies of every uploaded original in `<patient_dir>/raw/`. Your job is to **read all sidecars, classify into the buckets, move each text-masked MD into its bucket subdirectory under a canonical name (the uploaded original stays verbatim in `raw/` — never copied into a bucket), then produce the global artifacts**: INDEX.md / timeline.md / case_text.md / profile.json / readiness.json / review_flags / review_summary / **the 6 structured JSON outputs (+ conditional `longitudinal_observations.json`) + missing_items.json + source_inventory.json + update_log.json (+ the display alias ONLY when the user explicitly opted in)**.
 
 The central `ocr/` directory is **temporary staging only**. By the end of your run it MUST be empty and deleted — every MD lives next to its image inside a bucket subdirectory (`<bucket>/<canonical>.md`), and every downstream anchor is a bucket-relative path. No artifact may reference `ocr/` after you finish.
 
@@ -27,7 +27,8 @@ The full contract (detection, persist/reuse, verbatim policy, bucket-name map) i
 
 ## Inputs (caller supplies)
 
-- `patient_dir` (required): absolute path to the patient directory. Already has `ocr/` (temporary sidecar staging) and `raw/` (verbatim vault of every uploaded original) populated by Phase 1. **This path was resolved upstream by the single root-resolution rule** (`$CANCER_BUDDY_PATIENTS_DIR` → `$VMTB_PATIENT_DATA_ROOT` → `$HOME/CancerDAO/patients`, owned by SKILL.md / INSTALL.md). You **use it as-is** and **never re-resolve a root or invent your own**: the patients root is always `$(dirname "$patient_dir")` (the `alias` symlink in Step 2.8 and the cross-patient scan in Step 3a both derive from that — they don't re-read the env vars).
+- `alias_opt_in` (optional, default **false**): whether the user, after seeing the re-identification risk, explicitly asked for a human-readable display alias. **When false or absent, `alias` stays `null` and Step 2.8 is skipped entirely** — a `{cancer_code}_{year}` alias leaks diagnosis + year into directory listings/UI, so it is never auto-generated.
+- `patient_dir` (required): absolute path to the patient directory. Already has `ocr/` (temporary sidecar staging) and `raw/` (verbatim vault of every uploaded original) populated by Phase 1. **This path was resolved upstream by the single root-resolution rule** (`$CANCER_BUDDY_PATIENTS_DIR` → `$VMTB_PATIENT_DATA_ROOT` → `$HOME/CancerDAO/patients`, owned by SKILL.md / INSTALL.md). You **use it as-is** and **never re-resolve a root or invent your own**: the patients root is always `$(dirname "$patient_dir")` (the opt-in alias mapping in Step 2.8 and the cross-patient scan in Step 3a both derive from that — they don't re-read the env vars).
 - `phase1_summary` (optional): JSON list of per-slice Phase-1 results. Used to validate coverage and adapter provenance; if you find sidecars Phase 1 didn't report, that's fine; if Phase 1 reported sidecars you can't find, that's a coverage error to surface.
 - `run_mode` (optional): `"full"` (default) or `"incremental"`. In incremental mode, only newly added/changed sidecars are reclassified and downstream artifacts are merged rather than rewritten.
 - `locale` (optional): BCP-47 language tag supplied by the caller / product host from the user's explicit UI language setting. If present, it is authoritative for patient-facing scaffold/narrative prose and must be persisted to `profile.json.locale`; do not derive a different locale from record language.
@@ -358,7 +359,7 @@ Authoritative shape: [`../../cancer-buddy/references/patient-profile-schema.md`]
 {
   "schema": "cancer_buddy_profile_v3",
   "patient_code": "PT-...",
-  "alias": "<patient_id_short>_<cancer_code>_<year>",
+  "alias": null,
   "locale": "<bcp47, e.g. zh / en / fr / es>",
   "generated_at": "<ISO8601>",
   "privacy": {
@@ -393,12 +394,12 @@ Authoritative shape: [`../../cancer-buddy/references/patient-profile-schema.md`]
 
 **Regimen**: `summary.current_regimen` and `latest_status.regimen` are STRINGS (the LATEST regimen when the patient has multiple hospitalizations). Per-cycle / per-line structure and older lines of therapy go in `treatment_lines.json`, NOT in profile.json. Molecular drivers go in `molecular.json`; demographics / comorbidities / treating hospitals go in `patient_summary.json` / `comorbidities.json`. profile.json carries **none** of the old flat `primary_cancer` / `molecular_drivers_known` / `treatment_history` / `demographics` / `key_comorbidities` / `data_sources` fields — those are the retired flat shape.
 
-**`alias`**: when `summary.primary` AND the earliest diagnosis year are both known, set `alias = "{patient_id_short}_{cancer_code}_{year}"`, where:
+**`alias`**: default **`null`** — never auto-generated (a `{cancer_code}_{year}` alias leaks diagnosis + year onto scannable surfaces; re-identification risk). ONLY when the call parameter `alias_opt_in: true` is present (the user explicitly opted in after seeing that risk) AND `summary.primary` + the earliest diagnosis year are both known, set `alias = "{patient_id_short}_{cancer_code}_{year}"`, where:
 - `patient_id_short` = `patient_code` with `PT-` stripped, truncated to 6 chars. E.g. `PT-17CE02BC33` → `17CE02`.
-- `cancer_code` = the cancer-type code used by `checklists/` — the most widely recognized abbreviation (see `checklists/README.md` for the shipped set + conventions; e.g. CRC / NSCLC / BC / GC / HCC / SCLC / PDAC / OC / CCA / EC / PC / CC / UCEC / THCA / NPC / RCC / BLCA / DLBCL / HNSCC). When uncertain, omit `alias`.
+- `cancer_code` = the cancer-type code used by `checklists/` — the most widely recognized abbreviation (see `checklists/README.md` for the shipped set + conventions; e.g. CRC / NSCLC / BC / GC / HCC / SCLC / PDAC / OC / CCA / EC / PC / CC / UCEC / THCA / NPC / RCC / BLCA / DLBCL / HNSCC). When uncertain, keep `alias` null.
 - `year` = 4-digit earliest diagnosis year (from pathology / first hospitalization).
 
-Example: `17CE02_CRC_2019`. Never overwrite a previously set alias on incremental runs — alias is sticky.
+Example: `17CE02_CRC_2019`. Never overwrite a previously set alias on incremental runs — alias is sticky once set; never backfill one on later runs without a fresh opt-in.
 
 ### 2.5 `readiness.json`
 
@@ -499,25 +500,23 @@ to manual mental validation for the Phase2 structured JSONs.
    - **consent** items: presence of a sidecar with type `知情同意书`.
 6. Emit residual into `missing_items.json` sorted by priority. Schema: [missing_items.schema.json](schemas/missing_items.schema.json).
 
-### 2.8 Business-readable alias (top-level)
+### 2.8 Display alias mapping (opt-in only — SKIP unless `alias_opt_in: true`)
 
-When `profile.json.alias` is set, create — at the patient root (one level above `patient_dir`) — a symlink:
+Runs ONLY when the call parameters carry `alias_opt_in: true` and Step 2 set a non-null `profile.json.alias`. Otherwise skip this step entirely — no alias, no symlink, no mapping file.
+
+When opted in, record the alias in a **private mapping at the patients root** (one level above `patient_dir` — outside the patient dir, so it can never ride along in a share export), merging into an existing file:
 
 ```bash
 patients_root="$(dirname "$patient_dir")"
 alias_value=$(jq -r '.alias // empty' "$patient_dir/profile.json")
-if [ -n "$alias_value" ] && [ ! -e "$patients_root/$alias_value" ]; then
-  ln -s "$(basename "$patient_dir")" "$patients_root/$alias_value"
-fi
+# merge {"<alias>": "<patient_code>"} into $patients_root/alias_map.json
 ```
-
-If `ln -s` is unavailable (Windows / containers where symlinks are restricted), write `$patients_root/alias_map.json` instead, merging into an existing file:
 
 ```json
 {"17CE02_CRC_2019": "PT-17CE02BC33"}
 ```
 
-The internal `PT-<hex>` identity is preserved as the authoritative directory name. The alias is purely a business-readable pointer for exports and human navigation.
+Do **not** create an alias-named symlink/directory by default even when opted in — a `{cancer_code}_{year}` name in a directory listing leaks diagnosis + year to anyone who can see the file tree; offer the symlink only if the user explicitly asks for filesystem navigation by alias after that trade-off is stated. The internal `PT-<hex>` identity remains the authoritative directory name.
 
 ## Step 3 — review_flags audit (REQUIRED, may be empty)
 
@@ -723,7 +722,7 @@ Pure JSON, no prose:
 {
   "role": "phase2_synthesis_worker",
   "patient_dir": "/absolute/path",
-  "alias": "17CE02_CRC_2019",
+  "alias": null,
   "files_classified": 73,
   "md_sidecars_relocated": 73,
   "ocr_staging_deleted": true,

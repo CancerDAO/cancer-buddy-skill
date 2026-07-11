@@ -65,6 +65,10 @@ headless 没有 inline 往返,所以确认门产物化:
 
 未确认不写正式字段。任何 relevance 类别 no-confirm 都**不删除用户文件**:高置信非医疗 ⇒ 不归档、源件原位置保留;borderline ⇒ 保留待用户显式决定;仅平台/Codex 自建的临时副本在核实源文件仍在后清理;删除用户文件必须在 UI 里逐项显式确认并回灌后才执行。
 
+## 4.5 微量观测快车道(平台提速关键)
+
+单条自测观测(体温/血压/体重等,SKILL.md「Micro-observation fast lane」)在 headless 宿主上**必须单轮完成**:一次脱敏读取 → 待确认项 JSON(单条 diff)→ UI 收集确认 → 追加 `longitudinal_observations.json` + ledger。**不要**为它启动 Phase 2 综合、段D 重渲染或全量 PII 复扫,也**不要**给用户展示"正在做隐私保护/综合整理"的长流程页与"完成后邮件通知"——那是全量整理的 UI。段D 过期只记 `case_summary_stale: true`,由下次全量/增量运行或用户主动要总结时再渲染。
+
 ## 5. 存储
 
 Phase2 产:
@@ -100,6 +104,6 @@ Codex never hand-writes HTML.
 
 ## 7. 验收
 
-- `validate_structured_outputs.py <patient_dir>` is the acceptance gate; **its currently-implemented check set is authoritative** (contract §5 invariant #8 — do not freeze a narrower enumeration here). As of this writing it runs: structured JSON schema + anchors; PII rescan **Layer 2** (deterministic shape floor — id/phone/email/path/account/deny-list) of text sidecars **and delivered surfaces** (INDEX.md / source_inventory.json / dotfiles / 病情简要总结.html); `gate_numeric_integrity` (flag↔reference_range + dropped-abnormal); source_inventory completeness (every content unit has a de-identified `raw_path` + text-masked sidecar); HTML shape. It does not check any source/image redaction state. Additionally the run must complete the **Phase 2.5 faithfulness check** (no unresolved CRITICAL) AND the **PII Layer-1 semantic agent scan** (`pii-rescan-prompt.md`, orchestrator-dispatched), and any shareable copy must go through `export_share.py` (excludes `raw/`, gated by this script).
+- `validate_structured_outputs.py <patient_dir>` is the acceptance gate; **its currently-implemented check set is authoritative** (contract §5 invariant #8 — do not freeze a narrower enumeration here). As of this writing it runs: structured JSON schema + anchors; PII rescan **Layer 2** (deterministic shape floor — id/phone/email/path/account/deny-list) of text sidecars **and delivered surfaces** (INDEX.md / source_inventory.json / dotfiles / 病情简要总结.html); `gate_numeric_integrity` (flag↔reference_range + dropped-abnormal); source_inventory completeness (every content unit has a de-identified `raw_path` + text-masked sidecar); HTML shape. It does not check any source/image redaction state. Additionally, **for `full` / `incremental` / `upload_reconciliation` runs**, the run must complete the **Phase 2.5 faithfulness check** (no unresolved CRITICAL) AND the **PII Layer-1 semantic agent scan** (`pii-rescan-prompt.md`, orchestrator-dispatched). Light modes (`conversation_incremental` / `micro_observation`, §4.5) use their reduced done-gates instead — new-content masking + local schema + ledger — never the full acceptance chain. Any shareable copy always goes through `export_share.py` (excludes `raw/`, gated by this script).
 - `source_inventory.json` must cover every input source, and every content unit must carry a `raw_path` deep-link into `raw/` plus a text-masked sidecar.
 - Local OCR is never a sidecar text-source option in this binding.
