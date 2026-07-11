@@ -146,7 +146,7 @@ _SVG_ALLOWED = {"svg", "g", "path", "polyline", "polygon", "line", "circle",
                 "lineargradient", "radialgradient", "stop"}
 
 # Skeleton classes that the template *always* renders (patient-independent).
-_REQUIRED_CLASSES = ("header", "footer")
+_REQUIRED_CLASSES = ("header", "page-footer")
 
 
 def _read(path: Path) -> str:
