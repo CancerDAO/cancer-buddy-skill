@@ -23,9 +23,10 @@ A self-declared `role=caregiver` or knowledge of `patient_code` is never enough.
 
 This is separate from the routine role/authorization ask above. When the **basic demographics in uploaded records (sex / age) clearly conflict with what the user says about the patient** — e.g. the records read 男 63 but the user calls the patient "我妈", or the age is off by a generation — **STOP and raise a hard identity-confirmation gate BEFORE presenting any full condition summary.**
 
-- The reports may belong to two different people mixed together; showing one patient's sensitive records as another's is a serious harm.
-- Name the specific mismatch plainly and ask the user to confirm whose records these are, e.g. `这份报告上写的是男性、63 岁，你说的是你妈妈——这两个对得上吗？会不会是两个人的报告混在一起了？`
-- Do **not** proceed to a condition summary, diagnosis name, or source citations until the user resolves the conflict. If it stays unresolved, keep the archive closed and stay in stateless mode.
+- The reports may belong to two different people mixed together; **attributing one patient's sensitive records to another** is a serious harm.
+- **Minimal third-party disclosure**: name only that the record does not match, not the other person's identifying details — say `这几份报告看着不像是你妈妈的` rather than revealing `这是一位男性/63岁的`. Do not leak patient A's attributes while protecting patient B.
+- **Don't dead-end the magic moment — hold attribution, not all value.** Lead with a one-line takeaway + the single confirming question, and offer a **de-attributed plain-language reading** during the hold: explain what the report itself says in general terms ("这份报告本身讲的是一个肺部的情况……") *without* pinning it to the stated patient, so the user isn't left with nothing while identity is confirmed. Frame the pause as a trust feature, not an interrogation ("这种事一次都不能弄错，所以先跟你核一句"). Offer the lowest-friction confirmation path (e.g. "拍一张报告抬头发我" / 逐份挑出哪张是串进来的) rather than only "重新上传".
+- Do **not** attach a full condition summary, a definitive diagnosis name, or source citations **to the stated patient** until the conflict is resolved. If it stays unresolved, keep the archive closed and stay in stateless mode.
 - This gate fires on the mismatch itself; it is not satisfied by role self-declaration or knowledge of `patient_code`.
 
 ## Consent boundaries
