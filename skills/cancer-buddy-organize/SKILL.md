@@ -175,7 +175,8 @@ This skill follows the shared locale contract in [`../cancer-buddy/references/i1
 7. **Verify outputs** — parse Phase 2's returned JSON; confirm `profile.json` exists and the required v3 fields (`patient_code`, `summary.primary`, `summary.histology`, `summary.stage`) are populated. If any are missing or null, surface to the user as a blocker before routing to any other sub-skill.
 
 7.5. **身份一致性硬确认门（HARD gate — 在把完整总结归到该患者名下之前）** — 若用户在对话里已言明这份病历是给谁整理的（如"我妈，58 岁，女"），而 Phase 2 从上传件抽出的 `patient_summary.json.demographics`（性别 / 年龄）与之**明显冲突**（如记录显示 男 / 63 岁），**先停下来、把这句核对放到第一触点**——不要埋进 Step 9/10 核对清单的第 N 条，更不要先把整份总结铺完再提。规则见 [`../cancer-buddy/references/authorization-and-consent.md`](../cancer-buddy/references/authorization-and-consent.md) 的「Identity hard-gate」，要点：
-    - **不 dead-end**：先给一句 TL;DR + 单一核对问；核对期间可给一份**去归属的大白话解读**（"这份报告本身讲的是一个肺部的情况……"，不把它安到"你妈妈"头上），别让用户在核对时一无所获。
+    - **先钉归属，再给读法**：开口第一句就把"归属存疑"钉住（"这几份报告看着不太像你妈妈的，我得先确认"），**绝不把任何吓人结论（如"复发/转移/晚期"）安到"你妈妈"头上**——那正是错配时最伤人的事。
+    - **不 dead-end，但只给去归属的一般性内容**：核对期间可给一份**去归属、且刻意不下严重性判断**的大白话（"这份报告本身在讲一个肺部的情况，具体严不严重要看是谁的、由医生定"），别让用户一无所获；**低风险的"问医生清单"当场就给**（复用用户已提到的信息拟几条，问题清单不含个人判决、对谁都安全）——只把"建持久档案 / 把结论归到你妈妈名下"这一步 gate 在身份确认之后。
     - **最小第三方披露**：只说"这几份看着不像你妈妈的"，不报出另一个人的性别/年龄等身份属性。
     - **信任包装 + 低摩擦核对**：把暂停说成"这种事一次都不能弄错，先核一句"，并给最省事的确认路径（"拍一张报告抬头发我" / 逐份挑出串入的那张），不是只有"重新上传"。
     - 例（zh，按 `profile.json.locale` 出）："先说一句：这几份报告看着不太像你妈妈的——上面读到的是 63 岁，是不是混进了别人的报告？你拍一下报告抬头我核对一下，确认了我马上帮你把你妈妈的情况整理清楚。"
