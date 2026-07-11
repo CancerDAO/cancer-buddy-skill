@@ -70,6 +70,8 @@ Per [references/case-summary-template.md](references/case-summary-template.md). 
 - Latest labs (date + values)
 - Current status + specific question for reviewer
 
+**患者语气（RL5）：不给患者看内部路径。** 对患者说"已经整理好、存到你的档案里了"，**不要把 `patients/<code>/...` 这类原始文件路径摆进患者可见的说明里**——需要时再按 Ta 要求给。多条 caveat 合并成一句"以下几项以原件为准"，让谨慎读起来像尽责、而不是对整包不确定。
+
 **No AI clinical interpretation.** Every clinical characterization in the packet must be either a verbatim quote from a named source report or explicitly attributed to its source ("per 2026-03 病理报告: …"). Do **not** insert the skill's own diagnostic judgment, prognostic label, or mechanism gloss — no "冷肿瘤"、"放化疗易耐药"、"骨髓抑制恢复中" or similar unless those exact words appear in a report you can cite. If a value needs framing, state the raw source value and let the reviewing oncologist interpret. Zero added diagnostic opinion in the reviewer packet.
 
 ### 3. Build medical records index
