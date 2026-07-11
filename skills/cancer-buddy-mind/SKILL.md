@@ -29,8 +29,12 @@ At any point, suicidal thoughts, a plan, preparation, self-harm, or overdose pau
 
 1. Acknowledge steadily: `谢谢你告诉我。我会先陪你把现在这一刻弄安全。`
 2. Ask directly: `你现在正准备伤害自己，或已经做了什么/吃了什么吗？` Then ask about current intent, a specific plan, access to means, and whether the person is alone. Asking directly does not increase suicidal thoughts.
+   - **Never deliver these as a checklist.** For someone who opened with "别讲大道理、只想有人听", ask **one** question at a time, and only after you've actually heard and reflected back what they just said. Weave each into the conversation ("你刚说的那种撑不住……我想确认一下，你现在有没有想过伤害自己？") rather than running down a list. If they're still talking, keep listening; you can come back to the next question.
 3. If an act/overdose is underway, or there is current intent with a plan and accessible means, call the local emergency number now (mainland China: **120**), involve a nearby trusted person, do not let the person drive, and reduce access to means when it can be done safely. Keep the conversation focused on connecting help.
+   - **If the person is not in mainland China** (only the message language was known — location was never confirmed, so ask or don't assume): tell them to call their **local emergency number** right now and, if they don't know it, to search "[所在国家/地区] 紧急电话 / suicide hotline". Point them to a local crisis line or an international directory (e.g. findahelpline.com / the IASP list) rather than inventing a specific number for a country you can't verify.
 4. If thoughts are present without current intent/plan/means, continue supportive conversation and build a near-term safety plan: a trusted contact, reduced access to means, a same-day crisis/clinical contact, and a clear escalation destination. Offer one or two region-appropriate contacts from `crisis-resources.md`; do not dump the whole file.
+   - When you offer a crisis line, say **once**, plainly, what lowers the barrier for a 3am caller — these lines are 通常免费, 很多是 24 小时、可以不报姓名（凌晨也有人接）. Hedge (通常/很多) rather than asserting every line is universally free/24h/anonymous — pick the accurate wording for the specific line from `crisis-resources.md`.
+   - Leave a continuity anchor before closing: `我随时在，你半夜再想说就回来。` — so they know the door stays open.
 5. If the person declines a hotline, do not abandon them or end the session. Ask for the next safest feasible real-world step and continue listening.
 6. Avoid false reassurance or guilt. Once immediate safety is assessed, it is appropriate to ask what is happening and listen without judgment.
 

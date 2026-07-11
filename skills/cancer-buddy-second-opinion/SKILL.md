@@ -64,11 +64,13 @@ So before the target center's contact, intake process, shipping address, or prog
 Per [references/case-summary-template.md](references/case-summary-template.md). Render the scaffold (section headers, field labels, formatting-rule prose) in `reviewer_locale`; the template carries a `reviewer_locale → string table` — never hardcode a single language. Clinical entities stay verbatim. 1-2 pages. Structure:
 - Demographics + ECOG
 - Diagnosis + stage + date
-- Histology + molecular (MUST include)
+- Histology + molecular (MUST include). On the one-page molecular table, cut the specialist's reading load: **visually surface the driver / actionable alterations first** (bold them, or a top "Drivers / actionable" block) with gene, variant, VAF and the report they came from; **collapse secondary / VUS / passenger mutations** into a single compact line or a folded "Other alterations" row rather than one line each. Highlighting reflects what the source report itself labels driver/actionable — it is a layout aid, never an added AI judgment, and every listed alteration stays verbatim.
 - Treatment history (regimen / start / end / best response)
 - Latest imaging (date + finding)
 - Latest labs (date + values)
 - Current status + specific question for reviewer
+
+**No AI clinical interpretation.** Every clinical characterization in the packet must be either a verbatim quote from a named source report or explicitly attributed to its source ("per 2026-03 病理报告: …"). Do **not** insert the skill's own diagnostic judgment, prognostic label, or mechanism gloss — no "冷肿瘤"、"放化疗易耐药"、"骨髓抑制恢复中" or similar unless those exact words appear in a report you can cite. If a value needs framing, state the raw source value and let the reviewing oncologist interpret. Zero added diagnostic opinion in the reviewer packet.
 
 ### 3. Build medical records index
 
@@ -81,6 +83,8 @@ Scan `patients/<patient_code>/` for key files:
 
 Produce a single index.md listing each file with: date, hospital, type, confidence tag, filename. Column headers / labels in `reviewer_locale`; filenames, dates, hospital names and clinical entities verbatim.
 
+To honor 无缺漏, **every row must carry that document's own full date and issuing institution explicitly** — one line per document. No vague or collapsed values: not a bare year ("2026" → use the report's actual `2026-03-14` or the most precise date the record shows), and never an "等 / etc." roll-up ("江苏省肿瘤医院 等") that hides which documents came from where. If a document's date or institution genuinely cannot be read off it, write `日期不详 / institution unknown` for that row rather than borrowing a neighbor's or omitting the row.
+
 ### 4. Generate cover letter
 
 Per [references/cover-letter-template.md](references/cover-letter-template.md). Doctor-to-doctor tone, 250-400 words, written in `reviewer_locale` (the template carries a `reviewer_locale → string table` for the fixed scaffold lines), specific question stated at top. Clinical entities verbatim. Any center contact / addressee / intake reference must come from the §1.5 live check — not the static catalogue; unconfirmed items go in as `需用户自行向中心确认 / to be confirmed with the center`.
@@ -92,10 +96,13 @@ If target is overseas, per [references/cross-border-shipping.md](references/cros
 ### 6. How to present opinion back to primary oncologist
 
 After receiving the second opinion, patient/caregiver needs to discuss with primary oncologist. This is **patient-facing** → render in `profile.json.locale`; clinical entities verbatim. Generate a 1-page discussion script:
+- **A 3-minute verbal opener** the patient can read aloud to open the conversation (plain spoken sentences, not bullet jargon)
 - Summary of what the second opinion said
 - Points of agreement with primary oncologist
 - Points of divergence + specific questions
 - Decision framework
+
+This `presentation-script.md` is **always generated and always bundled into the packet the patient keeps** — the follow-up step points them back to it, so it must actually be present in the exported copy, not just described. It is patient-facing, so it rides with the patient's own bundle even when the reviewer-facing files are shipped separately.
 
 ## Role behavior
 
@@ -112,7 +119,7 @@ Written under `patients/<patient_code>/reports/second-opinion/<target-center>/`.
 - `records-index.md` — list of medical records in the packet *(reviewer_locale)*
 - `cover-letter.md` — doctor-to-doctor letter *(reviewer_locale)*
 - `shipping-instructions.md` — if cross-border *(profile.json.locale)*
-- `presentation-script.md` — post-opinion discussion guide *(profile.json.locale)*
+- `presentation-script.md` — 3-minute verbal opener + post-opinion discussion guide; always generated and included in the patient's bundle *(profile.json.locale)*
 
 ## Safety
 
