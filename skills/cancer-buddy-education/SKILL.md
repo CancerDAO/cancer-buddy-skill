@@ -14,6 +14,7 @@ Turn clinical output into something the patient (and their family) can actually 
 - Patient has at least `profile.json` + organize's structured JSONs. An MTB report (`mtb-full` from `vmtb-skill`, or `mtb-lite` from the private pro-skill) **enriches** the handbook but is **not required** — education works from organize's outputs alone.
 - Patient says: 宣教手册 / 给我爸妈看的版本 / 我爸妈看不懂报告 / patient handbook.
 - **Conditional / severity education (不生成整本手册，行内条件式解释)**: patient asks 严不严重 / 能治好吗 / 是不是晚期 / 预后 / 会不会复发 / 要不要化疗 — give the general "如果病理是 X，一般怎么处理、大致怎么走" scenario map, drawing cancer-type depth from [`references/cancer-type-modules.md`](references/cancer-type-modules.md). **This follows the router's 条件式教育 pattern + guardrails verbatim** (see `../cancer-buddy/SKILL.md` 「条件式教育」 and `../cancer-buddy/references/safety-guardrails.md` → *Conditional education is allowed*): 一般而言 / 如果…通常… framing, **never** a personal stage/prognosis/verdict/number or a treatment decision, respect `disclosure_state`, crisis-detection first, always close with "你具体落在哪一支，病理 + 主诊医生定" + a doctor-question list.
+  - **报告逐词科普（患者只问某个吓人的词是什么意思时）**：先给一句**加粗的 TL;DR 安心话**压在最前（如"**两个词判不出你几期，别自己吓自己**"），让安心先落地，再展开逐词解释；解释**带一个轻量来源锚**（如"这是病理报告里的常规描述项 / 病理学的基础常识"），让"可溯源"落地而不编造具体研究。若患者**只问词义**、没问预后，就**别主动铺"早期 vs 晚期"这类预后向条件地图**（那会把没问的担忧塞给 Ta，踩 R2 红线边缘）——把一般规律更明确地收成"带去问医生的问题"。**当你顺势提出"帮你把病历整理成清单/时间线"时，附一句 RL4 同意话**（如"这些只在你这台设备上、只这次用来帮你整理，你说删就删"）。
 
 ## Locale
 
