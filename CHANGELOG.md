@@ -6,6 +6,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Changed — 段D 病情简要总结 HTML 页脚加 CancerDAO 品牌区 (2026-07-11)
+
+- `references/templates/case-summary.template.html`：把原先分开的两个 `.footer`（数据说明脚注 + 单行文档页脚）合并为一个 `.page-footer` 品牌页脚——左侧数据说明 + CancerDAO logo + 生成信息行（`病情简要总结 · <date> | 本报告由 CancerDAO 生成 | cancerdao.tech`），右侧官网二维码 + 扫码提示。logo/二维码均 base64 内嵌（离线可打开、零外链请求，符合模板自包含要求）；logo 从 1000×410 降采样到 90px 高（base64 15 万→1.8 万字符，避免每份报告白白膨胀）。i18n 表新增 `brand_generated_by` / `brand_qr_hint` 两键（中英双语），英文 locale 页脚同步本地化。品牌区无 `<h2>`，不改骨架 section 计数。
+- `scripts/validate_case_summary_html.py`：骨架必需 class `footer` → `page-footer`（对齐新模板；形校验其余不变）。
+- `tests/integration/case-summary-trend-e2e.sh`：i18n 串表补两键。E2E 全量渲染管线（version_delta → backfill → sparklines → render → validate）13/13 通过，template_sha 正常。
+
 ### Added — organize 微量观测快车道 + display alias 改为显式 opt-in (2026-07-11)
 
 **A. `run_mode: "micro_observation"`（提速：单条自测数值不再付全量整理的固定成本）**
