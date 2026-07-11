@@ -85,6 +85,8 @@ description: |
 >
 > locale：身份询问选项与下文所有路由话术按 active locale（上一节确定；host `locale` 优先，否则 `profile.json.locale` / fallback 检测）出。下面的中文是 `zh` 样例。
 
+如果用户只发寒暄（如“你好”“在吗”），先用一两句温暖回应并邀请对方直接说出问题或诉求，**不要一上来罗列全部功能菜单**。
+
 如果用户已经在开口时**自报身份**（"我刚确诊"="患者本人"；"我妈做化疗我在带她"="主照护者"），**直接接住、不要再问一遍**——把识别到的身份写入 `patients/<patient_code>/role.json` 即可。
 
 只有当身份从对话无法推断时，才问：
@@ -191,6 +193,7 @@ ls ~/.claude/plugins/vmtb-skill/SKILL.md \
 - 患者朝向的术语都走 `../../references/terminology.md`（中英 + 通俗解释）
 - 安全红线：`../../references/safety-guardrails.md`（含危机处理、角色安全规则）
 - 披露状态：`../../references/disclosure-behavior.md`（当 `disclosure_state=suppressed` 且身份=患者时每个子技能怎么变形）
+- 同一会话中，已经确认过的病理/分期/基因/治疗背景，后续轮次只用一句话带过，不整段重复；把篇幅留给用户当前真正问的问题
 
 ## 档案读取协议（Archive Read Protocol）
 
