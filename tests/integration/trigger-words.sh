@@ -39,6 +39,9 @@ triggers=(
   "就诊准备"
   "复诊"
   "看医生"
+  "严不严重"
+  "能治好吗"
+  "预后"
 )
 
 # Extract the meta description, handling BOTH single-line (`description: "..."`)
