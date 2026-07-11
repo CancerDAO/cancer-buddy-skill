@@ -1,6 +1,6 @@
 # GAD-7 — 广泛性焦虑量表 (anxiety screener)
 
-> **Locale (i18n).** The item text and rating labels below are the `zh` source rendering. Per `../../../references/i18n.md`: present these 7 items and the 0-3 rating anchors to the patient in the resolved locale (host `locale` first, otherwise `profile.json.locale`, otherwise conversation-language fallback). Use the validated translation of GAD-7 for that locale where one exists; keep the scale name "GAD-7", item order, 0-3 scoring and all numeric cutoffs in the scoring table **invariant across locales**. Do not invent items.
+> **Administration.** Ask permission first and use an official validated GAD-7 form in the user's language. The Chinese text below is a reference rendering; do not claim a model-generated translation or a reworded caregiver version is validated. Keep item order and 0–3 scoring only for a validated form.
 
 过去两周里，您有多少时候受到以下问题的困扰？
 
@@ -23,8 +23,8 @@
 | 0-4 | 最小焦虑 | 观察 |
 | 5-9 | 轻度焦虑 | 自助放松技巧 + 2 周后复测 |
 | 10-14 | 中度焦虑 | 建议心理咨询 |
-| 15-21 | 重度焦虑 | 建议精神科评估 + 可能药物介入 |
+| 15-21 | 重度焦虑 | 尽快安排心理/精神科或肿瘤团队评估；用药由合格临床人员决定 |
 
 ## 纵向追踪
 
-每 2-4 周或焦虑情境变化时重测（如新确诊、换方案、扫描复查前后）。
+可每 2–4 周或情境变化时复测。默认不保存；解释用途并取得明确同意后才保存最小必要结果。

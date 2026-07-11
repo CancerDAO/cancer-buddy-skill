@@ -1,6 +1,6 @@
 # SHORTLIST.md 模板
 
-> **i18n**：本模板**按 `profile.json.locale` 渲染**（见 `../../../references/i18n.md`）。下面的中文骨架是 `zh` locale 的渲染结果；其它 locale 时，所有脚手架字符串（section 标题 / 字段标签 / 匹配度档位词 / 下一步动作 / 免责声明）查下方 §locale 字符串表渲染，HTML/markdown 结构 1:1 不变。**临床实体逐字不译**：医院/医生/试验原名、NCT/ChiCTR 编号、药名、基因、变异、TNM/分期、数值单位、量表标准名一律保持源文。机构名可在原名旁加 locale 注释，不替换原名。
+> **i18n**：本模板**按 `profile.json.locale` 渲染**（见 `../../cancer-buddy/references/i18n.md`）。下面的中文骨架是 `zh` locale 的渲染结果；其它 locale 时，所有脚手架字符串（section 标题 / 字段标签 / 匹配度档位词 / 下一步动作 / 免责声明）查下方 §locale 字符串表渲染，HTML/markdown 结构 1:1 不变。**临床实体逐字不译**：医院/医生/试验原名、NCT/ChiCTR 编号、药名、基因、变异、TNM/分期、数值单位、量表标准名一律保持源文。机构名可在原名旁加 locale 注释，不替换原名。
 
 ```markdown
 # 资源短名单 — <一句话描述本次查询>
@@ -122,7 +122,7 @@
 | `disclaimer.not_advice` | 这是资源发现的结果，不是医学推荐。是否真的合适你（或你家人）的具体情况，需要带着这份清单和你的主诊医生讨论，或挂号后由对方医生评估。 | This is resource discovery, not a medical recommendation. Whether it actually fits you (or your family member) must be discussed with your treating physician — bring this list, or have the booked physician assess. |
 | `disclaimer.trial_match` | 临床试验匹配 ≠ 符合入组标准，具体以研究中心预筛结果为准。 | A trial match ≠ meeting enrollment criteria; the study site's pre-screening is authoritative. |
 
-> 叙事段（顶层结论、匹配理由句、限制说明）走 prompt 指令直接用 locale 写，不查表——prompt 写明 "Output prose in `<locale>`; keep clinical entities verbatim per `../../../references/i18n.md` §4."
+> 叙事段（顶层结论、匹配理由句、限制说明）走 prompt 指令直接用 locale 写，不查表——prompt 写明 "Output prose in `<locale>`; keep clinical entities verbatim per `../../cancer-buddy/references/i18n.md` §4."
 
 ## 渲染原则
 

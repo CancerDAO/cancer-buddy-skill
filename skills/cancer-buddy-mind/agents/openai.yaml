@@ -1,0 +1,4 @@
+interface:
+  display_name: "情绪与危机支持"
+  short_description: "提供癌症相关情绪支持、可选筛查与及时的现实危机转介"
+  default_prompt: "Use $cancer-buddy-mind to support me emotionally, check immediate safety when needed, and connect me with real-world help."

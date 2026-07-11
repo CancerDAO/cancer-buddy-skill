@@ -1,0 +1,4 @@
+interface:
+  display_name: "癌症病历整理"
+  short_description: "安全地整理癌症病历，生成可追溯的时间线与结构化摘要"
+  default_prompt: "Use $cancer-buddy-organize to organize these medical records safely into a traceable timeline and structured summary."

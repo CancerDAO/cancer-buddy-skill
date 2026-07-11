@@ -1,6 +1,6 @@
 <!--
   ============ i18n LOCALE STRING TABLE (visit-prep scaffold) ============
-  Localize the SCAFFOLD only; keep every clinical entity verbatim (../../../../references/i18n.md §4).
+  Localize the SCAFFOLD only; keep every clinical entity verbatim (../../../cancer-buddy/references/i18n.md §4).
   The renderer (visit-prep-html-prompt.md) reads profile.json.locale and fills the {{i18n.<key>}}
   placeholders below from this table. CSS + DOM structure stay 1:1 across locales — only these string
   VALUES change. <html lang> + {{i18n.html_lang}} also follow locale.
@@ -47,9 +47,6 @@
 <head>
 <meta charset="UTF-8">
 <title>{{i18n.doc_title}}</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 @page { size: A4; margin: 12mm 14mm; }
 * { box-sizing: border-box; }
@@ -188,7 +185,7 @@ ol.q-list li, ul.q-list li {
 
 <!-- ============ BLOCK 1: 医生速览 ============ -->
 <!-- 来源: profile.json (summary.primary/summary.histology/summary.stage) + molecular.json (variants/msi_mmr/ihc/tmb) + treatment_lines.json 当前线 + labs.json 异常项。
-     直接字段映射,临床实体 verbatim(../../../../references/i18n.md §4)。任一字段 null → 渲染 {{i18n.val_pending}},不捏造。 -->
+     直接字段映射,临床实体 verbatim(../../../cancer-buddy/references/i18n.md §4)。任一字段 null → 渲染 {{i18n.val_pending}},不捏造。 -->
 <h2>{{i18n.sec_snapshot}}</h2>
 <div class="snapshot-box section-keep">
   <table class="kv-table">

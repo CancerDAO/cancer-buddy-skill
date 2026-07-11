@@ -1,0 +1,4 @@
+interface:
+  display_name: "抗癌搭子"
+  short_description: "为癌症患者与家属提供安全、清晰且可执行的全旅程支持"
+  default_prompt: "Use $cancer-buddy to help me navigate this cancer-related situation safely and turn it into clear next steps."

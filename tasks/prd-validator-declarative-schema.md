@@ -38,7 +38,7 @@ handled uniformly and a new field needs a schema edit, not a new hand-written gu
 
 - Eliminate the "hand-write a null/type guard per field" bug class permanently.
 - Make the contract **declarative and single-source**: one schema document that
-  `references/patient-profile-schema.md` describes in prose.
+  `skills/cancer-buddy/references/patient-profile-schema.md` describes in prose.
 - Preserve **100% of current accept/reject behavior** (this is a refactor, not a
   policy change) — proven by an equivalence harness, not by eyeballing.
 - Keep the skill **distribution-light**: it currently has zero pip dependencies and
@@ -53,7 +53,7 @@ handled uniformly and a new field needs a schema edit, not a new hand-written gu
 Schema file so the rules live in data, not code.
 
 **Acceptance Criteria:**
-- [ ] `references/schemas/profile.schema.json` exists, encoding the **cancer_buddy_profile_v3** contract in `references/patient-profile-schema.md`:
+- [ ] `references/schemas/profile.schema.json` exists, encoding the **cancer_buddy_profile_v3** contract in `skills/cancer-buddy/references/patient-profile-schema.md`:
   - required: `schema` (const `"cancer_buddy_profile_v3"`), `patient_code` (pattern `^PT-`), `summary` (object, required `primary`/`histology`/`stage`).
   - optional, type+enum constrained, **nullable where the doc says so**: `latest_status.ecog` (int 0–4 | null), `latest_status.{regimen,response,as_of}`, `disclosure_state` (`full`/`partial`/`suppressed`), `alias`, `locale`, `anthropometrics`, `privacy`, top-level `source_refs[]`. (Demographics/`sex`, molecular drivers, and ordered treatment lines are NOT in profile.json under v3 — they live in `patient_summary.json`/`molecular.json`/`treatment_lines.json` and are validated by `validate_structured_outputs.py`. The retired flat fields `schema_version`/`diagnosis`/`basics`/`acp_status`/`surveillance_schedule_anchor`/`treatment_history` are gone.)
   - `additionalProperties: true` at top level (doc: "validator ignores unknown top-level keys" — must NOT regress into rejecting unknown blocks).

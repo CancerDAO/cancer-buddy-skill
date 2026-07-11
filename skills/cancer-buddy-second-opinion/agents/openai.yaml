@@ -1,0 +1,4 @@
+interface:
+  display_name: "第二意见材料"
+  short_description: "整理跨院或跨境第二意见所需的病例摘要、翻译与材料清单"
+  default_prompt: "Use $cancer-buddy-second-opinion to prepare a careful, source-faithful packet for another clinical opinion."

@@ -1,6 +1,6 @@
 # Layered Disclosure Model —— 分层披露，而非"全告"或"全瞒"
 
-> **Locale**：四层模型（basic-dx → prognosis → treatment-options → palliative）、转入下一层的信号、转场脚本结构跨语言通用；示例用语为中文**语言范例**，按患者 `profile.json.locale` 出最终话术（见 SKILL.md `## Locale` + `../../../references/i18n.md`）。临床占位（`IV 期`、中位生存期、`ECOG`、`RECIST`、药名/方案名）逐字保留，不翻译。`basic-dx` / `prognosis` / `treatment-options` / `palliative` 为稳定 layer key，跨 locale 不变。
+> **Locale**：四层模型（basic-dx → prognosis → treatment-options → palliative）、转入下一层的信号、转场脚本结构跨语言通用；示例用语为中文**语言范例**，按患者 `profile.json.locale` 出最终话术（见 SKILL.md `## Locale` + `../../cancer-buddy/references/i18n.md`）。临床占位（`IV 期`、中位生存期、`ECOG`、`RECIST`、药名/方案名）逐字保留，不翻译。`basic-dx` / `prognosis` / `treatment-options` / `palliative` 为稳定 layer key，跨 locale 不变。
 
 ## 核心命题
 
@@ -44,7 +44,7 @@
 
 **这一层是"患者自主"真正落地的层**：患者不参与这一层，知情同意形式合法但实质缺失。后续出现并发症、经济压力、生活质量下降时，家属承担的内疚和冲突会更重。
 
-**转入第 4 层的信号**：治疗线数耗尽、ECOG 恶化、症状负担加剧、患者主动表达"太累了"/"不想再治了"（先走 mind C-SSRS 排除抑郁，再判断是否为 informed palliative preference）。
+**转入第 4 层的信号**：治疗线数耗尽、ECOG 恶化、症状负担加剧、患者主动表达"太累了"/"不想再治了"（先走 `cancer-buddy-mind` 的直接安全评估排除抑郁/自杀风险——正式 C-SSRS 仅在用户同意后作为补充，不是前置——再判断是否为 informed palliative preference）。
 
 ### Layer 4 —— 终末期与姑息（palliative）
 
@@ -54,7 +54,7 @@
 - 充分层：「医生说抗癌治疗已经没有太多选项，接下来重点是让你舒服一些。我们想一起和缓和医疗团队谈谈。如果你愿意，我们也可以谈谈你希望怎样度过这段时间。」
 - 克制层：「医生建议换一种照顾目标，以让你更舒服为主。你怎么想？」
 
-**这一层和 cancer-buddy-comfort 高度耦合** —— 实际上，comfort 模块在 `disclosure_state = suppressed` 且 `active_role = patient` 时会拒绝进入，正是因为"讨论缓和"本身就已经披露到 Layer 4。所以缓和的前置就是这一层的披露。
+**这一层和 cancer-buddy-comfort 高度耦合** —— 和患者本人讨论缓和，本身就已经披露到 Layer 4，所以在患者尚未主动问起时，帮家庭先把披露推进到这一层，是进入缓和讨论的自然前置。注意：`disclosure_state` 是沟通节奏提示，**不是访问控制**（见 `../../cancer-buddy/references/disclosure-behavior.md`）——当有决策能力的患者本人主动问到预后/缓和时，家属设的 `suppressed` 不能用来拒绝或隐瞒；此时先问 Ta 现在想了解到什么程度，按分层节奏展开，comfort 类工作流应路由回本 skill 帮家庭同步跟上，而不是把患者挡在门外。
 
 ## 每层之间的转场脚本
 

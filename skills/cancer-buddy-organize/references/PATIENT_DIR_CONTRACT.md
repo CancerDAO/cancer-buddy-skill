@@ -9,9 +9,10 @@ what is written here will not break when either side iterates its private layout
 repo-internal doc disagree on the interop surface (§5) or the producer/consumer boundary (§6), **this
 file wins and the other is a drift bug to fix**.
 
-- Producer-authoritative deep docs (cancer-buddy-skill): `references/bucket-taxonomy.md` +
-  `references/bucket_taxonomy.json` (bucket scheme, `scheme_version 3`), `references/patient-profile-schema.md`
-  (profile / readiness field contract), `skills/cancer-buddy-organize/SKILL.md` (the write pipeline).
+- Producer-authoritative deep docs (cancer-buddy-skill): `skills/cancer-buddy-organize/references/bucket-taxonomy.md` +
+  `skills/cancer-buddy-organize/references/bucket_taxonomy.json` (bucket scheme, `scheme_version 3`),
+  `skills/cancer-buddy/references/patient-profile-schema.md` (profile / readiness field contract),
+  `skills/cancer-buddy-organize/SKILL.md` (the write pipeline).
 - Consumer entry (vmtb-skill): `skills/cancerdao-vmtb/SKILL.md` (Step 2 skip-organize, Step 3
   readiness gate, Step 3.25 deepdive glob), `references/organize/organize-binding-vmtb.md` (vMTB's
   deviations from the cancer-buddy v3 contract).

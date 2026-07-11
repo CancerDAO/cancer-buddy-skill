@@ -36,7 +36,7 @@
 
 - Claude Code 用 inline review_summary/review_flags/profile card/段E disposition 让用户当场确认。
 - 沉默/推迟/随便/关闭 = no-confirm。关键字段矛盾必须并列展示,不静默覆盖。
-- 高置信非医疗文件 no-confirm 可删除;borderline 永不自动删除。
+- 任何相关性类别都不自动删除用户文件:no-confirm ⇒ 不归档、源文件原位置保留;仅 agent 自建临时副本在核实源仍在后可清理;删除用户文件需逐项显式确认(confirm-gate)。
 
 ## 5. 存储
 

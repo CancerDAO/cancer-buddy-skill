@@ -38,7 +38,7 @@ What cancer brings isn't just the treatment — it's the pile of information, th
 |-------------------|------------------------|
 | A pile of records you don't know how to sort | Auto OCR, classification, filing — a usable structured archive |
 | Caring for someone, about to break | Caregiver division-of-labor templates, Zarit self-assessment, breathing-room toolkit |
-| 3am insomnia, anxiety, thoughts of ending it | PHQ-9 / GAD-7 / C-SSRS Lite screeners, crisis hotlines surfaced right away |
+| 3am insomnia, anxiety, thoughts of ending it | PHQ-9 / GAD-7 / C-SSRS (official validated forms, optional — never forced); in a crisis we first assess immediate safety together, then surface verified regional contacts |
 | Should we tell Mom / Dad / the kids? | Layered, context-aware disclosure — not a binary yes/no |
 | Want my own health archive | N=1 structure + sharing levels (🔒 private → 🌐 public), you own it |
 | Need a handbook my parents can actually read | Patient education booklet with Mermaid diagrams, daily-living guide, follow-up schedule |
@@ -190,7 +190,10 @@ cancer-buddy ❯ You've been carrying this for a long time. Let's do a quick
                   Not for your dad — for you.
 
                If thoughts of "disappearing" or "ending it" show up,
-               call 400-161-9995 immediately (24-hour line).
+               you can call 12356 (the national psychological-support
+               hotline in mainland China); in an emergency call 120 or
+               go to the nearest ER. Even if you don't feel like calling
+               right now, I'm staying right here with you.
 ```
 
 ### Scenario 3: Should we tell him?

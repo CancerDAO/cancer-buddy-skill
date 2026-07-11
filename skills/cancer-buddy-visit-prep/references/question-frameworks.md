@@ -2,7 +2,7 @@
 
 Three skeletons of **questions a patient asks their own doctor**, one per `visit_type`. The subagent (see `visit-prep-html-prompt.md` §4) takes the matching set, lightly personalizes each skeleton by slotting in the patient's verbatim fields, and renders them into Block 2 Group D.
 
-These are **questions only** — patient-facing, never clinical advice, never a treatment recommendation, never a ranking of options. The patient asks the doctor what the options/plan are; the framework never states them. Render in `profile.json.locale`; keep clinical entities verbatim (`../../../references/i18n.md` §4). The skeletons below are `zh` samples — output the same questions in the patient's locale.
+These are **questions only** — patient-facing, never clinical advice, never a treatment recommendation, never a ranking of options. The patient asks the doctor what the options/plan are; the framework never states them. Render in `profile.json.locale`; keep clinical entities verbatim (`../../cancer-buddy/references/i18n.md` §4). The skeletons below are `zh` samples — output the same questions in the patient's locale.
 
 Slot tokens like `<诊断>` / `<当前方案>` / `<驱动基因>` are filled verbatim from the patient's structured fields. Drop any skeleton whose slot has no data rather than inventing content.
 

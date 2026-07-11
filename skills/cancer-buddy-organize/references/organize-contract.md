@@ -4,7 +4,7 @@
 >
 > **零工具名原则**:本文件刻意不出现任何宿主机制词(扇出原语 / 文件读取原语 / 图像转码命令 / 交互卡片 / 沙箱 / 持久化后端…)。"谁执行机制"属 binding 层,见 §6 接缝矩阵与 `runtime-bindings/`。某 host 的具体填法(参考实现是 Claude Code)永远写在 binding 里,不写进契约。
 >
-> 本契约**不改 organize 的逻辑 / schema / 产物结构**:文本级脱敏 MD、进桶、canonical 改名、`review_flags`、6 结构化 JSON 全部按现有 prompt 定义,本文件只是把"行为"从"机制"里抽出来描述。字段级真值仍以 `organizer-prompt-phase1-ocr.md` / `organizer-prompt-phase2-synthesis.md` / `relevance-gate.md` / `upload-reconciliation.md` / `../../../references/confirm-gate.md` 为准。
+> 本契约**不改 organize 的逻辑 / schema / 产物结构**:文本级脱敏 MD、进桶、canonical 改名、`review_flags`、6 结构化 JSON 全部按现有 prompt 定义,本文件只是把"行为"从"机制"里抽出来描述。字段级真值仍以 `organizer-prompt-phase1-ocr.md` / `organizer-prompt-phase2-synthesis.md` / `relevance-gate.md` / `upload-reconciliation.md` / `../../cancer-buddy/references/confirm-gate.md` 为准。
 
 ## 0. 契约总览
 
@@ -130,7 +130,7 @@ sidecar 的脱敏 Markdown 正文**必须由驱动 LLM(Claude / codex / OpenClaw
 - `<桶相对路径>` **必须**以 `NN_` 桶段开头,指向**现已位于其桶内、紧邻原图**的 MD sidecar。遗留 `ocr/` 与 `02_脱敏病历/` 前缀**已废弃、被拒**(综合结束后中央暂存区不复存在)。任何其它前缀被拒:不写该产物、把违规路径记入 `readiness.json.warnings` 为 `anchor_dangling: <path>`。
 - 覆盖:每事实句 ≥1 锚点;纯过渡句 / 纯标题免锚。
 - 写任何带锚产物前,逐个解析锚点、校验目标 MD 在其桶内存在;有 dangling → 不写、记 warning。
-- 全文规范:`references/schemas/anchor-contract.md`。
+- 全文规范:`schemas/anchor-contract.md`。
 
 ### 2.4 review_flags 审查(必跑,可空)
 
@@ -159,7 +159,7 @@ Phase2 的跨文档审计(Phase1 做不到,因 Phase1 只见自己那片;Phase2 
 ### 3.1 契约(不变)
 
 - **未确认绝不写正式字段**:`profile.json` / `timeline.*` / `case_text.md` / `readiness.json` / 结构化 JSON 不从未确认候选写入。沉默 / 推迟 / "随便" / 关闭会话 = no-confirm → 该候选不写。
-- **不可逆删除子规则(非对称,load-bearing)**:高置信非医疗文件 no-confirm ⇒ 删(隐私底线,by design,删前必须先告知"不留无关原件、沉默=删");borderline(`relevance_uncertain`)no-confirm ⇒ 留、永不自动删。删可能是真病历的文件是更坏的错。
+- **删除子规则(无静默删除,load-bearing)**:任何 relevance 类别的用户文件都**不因 no-confirm 而删除**——高置信非医疗 no-confirm ⇒ 不归档、源文件原位置保留(告知里明确"未确认不会永久删除任何用户文件");borderline(`relevance_uncertain`)no-confirm ⇒ 留、待用户显式决定。仅 agent 自建临时/暂存副本在核实源文件仍在后可清理;删除用户控制的文件必须删除前逐项显式确认(见 `../../cancer-buddy/references/confirm-gate.md`)。删可能是真病历的文件是更坏的错。
 - **不编造用户没给的精确值**;关键字段(分期/分子驱动/治疗线)歧义时在待确认项里问一句,而非猜。
 - **关键字段变更绝不既成事实**;矛盾值绝不静默覆盖——两值并陈交用户裁。
 - **候选检测/分类是 LLM 判断**(读上下文比对现有 profile/timeline/sidecar),不跑硬编码关键词名单或同名同日 Python 比较器。

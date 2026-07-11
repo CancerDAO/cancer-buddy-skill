@@ -1,0 +1,4 @@
+interface:
+  display_name: "一页就诊准备"
+  short_description: "把病历变化、待问问题和材料清单整理成一页就诊准备包"
+  default_prompt: "Use $cancer-buddy-visit-prep to turn my latest records and concerns into a concise appointment preparation sheet."

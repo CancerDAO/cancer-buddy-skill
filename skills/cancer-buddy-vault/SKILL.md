@@ -1,80 +1,79 @@
 ---
 name: cancer-buddy-vault
-description: "Build the patient's N=1 data vault — structured directory, sharing levels (🔒 private → 🔑 authorized → 📊 anonymized-for-AI → 🌐 public), access log. Not cloud storage; it's a local file structure the patient owns, can move, and can share selectively. Triggers on 数据保险箱, N=1, 我的健康档案, 数据分享, data vault."
+description: >-
+  Manage a patient-controlled local cancer-record vault: inventory files, define intended sharing scopes, preview de-identified exports, create safe local export copies that exclude raw originals, and record user-approved export events. Use when the user asks 数据保险箱、N=1 健康档案、数据分享、脱敏导出、撤销分享、data vault, or wants to understand how to keep and selectively share cancer records. This is not cloud storage, identity verification, remote access control, or proof that a recipient opened a file.
 ---
 
 # cancer-buddy-vault
 
-The patient's own public-style cancer data vault — every report, every visit note, every image, organized, searchable, owned by the patient.
+Before archive or sharing operations, run [`medical-emergency-gate.md`](../cancer-buddy/references/medical-emergency-gate.md). Urgent help never waits for vault access.
 
-## When to use
+Build truthful local controls around an archive; do not simulate cloud security features that are not implemented.
 
-- Patient asks about organizing their records long-term.
-- After 3+ months of treatment when records start piling up.
-- Patient says: 数据保险箱 / N=1 / 我的健康档案 / 数据分享.
+## Modes and authorization
+
+Read [`authorization-and-consent.md`](../cancer-buddy/references/authorization-and-consent.md) and [`preflight.md`](../cancer-buddy/references/preflight.md).
+
+- Without verified archive authorization, provide stateless privacy/sharing guidance only.
+- A self-declared caregiver/family role or `role.json` history is not authorization.
+- Every export/share requires a preview manifest and explicit confirmation of recipient, purpose, exact scope, destination, expiry expectations, and limitations.
+- Cross-border, research/AI, mental-health, genomic, and minor data each require a separate applicable consent/legal basis. Do not bundle consent.
 
 ## Locale
 
-Read [../../references/i18n.md](../../references/i18n.md). Before producing any patient-visible output:
-
-1. If the caller / host supplies `locale` (the user's explicit product UI language), use it first and write/update `profile.json.locale` when profile state is available.
-2. Otherwise read `patients/<pid>/profile.json` → `locale`. If present, use it — do not re-detect.
-3. If absent (no profile, or `locale` is null — vault is entered after organize, so a `locale` is almost always already persisted), detect from the **primary patient-facing language of the records**, tie-breaking to the language the user is conversing in (the `record-consuming generative sub-skills` row in `../../references/i18n.md` §2), then write it back to `profile.json.locale` (BCP-47, e.g. `en` / `zh` / `fr`).
-4. Render every patient-visible scaffold string — `vault-manifest.md`, sharing-level labels, confirmation prompts, missing-data reminders, revocation confirmations, breach notices, the public / anonymized case report — in that `locale`.
-5. Keep every clinical entity verbatim (drug names, genes/variants, TNM/stage, numbers + units, biomarker labels) regardless of `locale` — never translate, transliterate, or normalize them. Mistranslating a clinical entity is a P0 medical-safety bug.
-6. Honor an explicit user language override ("answer me in English" / "用中文") → update `profile.json.locale` and follow it going forward.
+Per [`i18n.md`](../cancer-buddy/references/i18n.md): use host locale, an existing authorized profile locale, or the conversation language in that order. Do not create/modify a clinical profile merely to save language. Only the scaffold (labels, prose, notices) is localized — **clinical entities stay verbatim, never translated** (drug names, genes/variants, TNM/stage, numbers + units, biomarker labels); a verified normalized term may appear beside the source with provenance.
 
 ## Inputs
 
-- Existing `patients/<pid>/` tree produced by `cancer-buddy-organize`.
-- Optional: external health app exports (Apple Health, Google Fit, CGM data, etc.).
+- An authorized `patients/{patient_code}/` archive produced by `cancer-buddy-organize`; or
+- No archive, for a general privacy/export plan.
 
-## Outputs
+## Truthful outputs
 
-Augments `patients/<pid>/`:
-- `sharing-settings.json` — per-directory sharing level (JSON keys verbatim; any human-readable `description` / note values rendered in `locale`)
-- `access.log` — who accessed what, when (structured fields verbatim; `purpose` free-text in `locale`)
-- `vault-manifest.md` — human-readable table of contents, rendered in `locale`
-- `exports/` — encrypted bundles ready to share (public / anonymized case report rendered in `locale`)
+When authorized and explicitly requested, create only:
 
-## Sharing levels
+- `vault-manifest.md` — local table of contents and sensitivity labels.
+- `sharing-plan.json` — intended recipient/scope/expiry plan; it does not itself enforce access.
+- `export-ledger.jsonl` — append-only record of exports this tool actually created or revoked locally. It cannot prove recipient views.
+- A fresh safe-share export produced by the organizer's `export_share.py`, after its validation gate, excluding `raw/`, historical snapshots, identity maps, and other non-shareable artifacts.
 
-- 🔒 **Private**: patient + immediate family only
-- 🔑 **Authorized**: specific clinicians by email/contact (signed URL with expiry)
-- 📊 **Anonymized-for-AI**: stripped of PII, hashed patient_id, available for research use
-- 🌐 **Public**: de-identified case report, patient consent required
-
-Patient can change level per-file or per-directory anytime. Every change is logged.
+Do not claim to create signed URLs, authenticate clinicians, send email, log remote access, revoke a file already copied elsewhere, or provide cloud storage unless a separately installed and user-authorized system actually implements and verifies those capabilities.
 
 ## Workflow
 
-See [references/data-vault.md](references/data-vault.md) for the schema and protocol. Resolve `locale` first (see Locale). Main steps:
+1. Verify authorization and the requested operation scope.
+2. Read only the minimum required archive inventory; never read `raw/` to build a share export.
+3. Produce a preview manifest showing every included/excluded file and residual re-identification risks.
+4. Run the organizer validation and safe-export script via absolute paths resolved from the installed `cancer-buddy-organize` skill.
+5. Ask for explicit confirmation immediately before writing the export. For public/research/cross-border use, ask a separate consent question and recommend appropriate privacy/legal review.
+6. Write the local export ledger entry. Explain that deletion/revocation can remove local copies/permissions only; it cannot recall copies already received.
 
-1. Walk `patients/<pid>/`, classify each artifact by sensitivity.
-2. Initialize `sharing-settings.json` — everything starts 🔒 Private unless patient overrides.
-3. Generate `vault-manifest.md` — patient-readable TOC, scaffold (section titles, level labels, completeness copy) in `locale`; clinical entities (diagnosis names, drug names, genes, TNM, values + units) verbatim.
-4. For each anonymization request, run de-identification (strip name, birthday, MRN, institution, replace dates with intervals-since-diagnosis); the public / anonymized case-report scaffold is rendered in `locale`, clinical entities stay verbatim.
-5. Log all access / share / export events to `access.log` (the `purpose` free-text in `locale`).
+## De-identification limits
 
-Scaffold localization: a generative artifact (manifest narrative, missing-data reminder, case report, any confirmation / notice prose) carries the instruction "Output all scaffold/narrative prose in `<locale>`; keep clinical entities verbatim per `../../references/i18n.md` §4." Any fixed label set (sharing-level names/descriptions, manifest section titles, breach-notice headings) is rendered as a `locale → string` lookup, never hardcoded single-language. Heavy LLM judgment (case-report narrative, de-identification) runs via a sub-skill prompt with the locale instruction, not a hardcoded phrase list.
-
-## Safety and privacy
-
-- PII stripping is conservative — err on the side of removing.
-- Every share action triggers a confirmation prompt, rendered in `locale` (e.g. `zh`: "你确认要把 [scope] 分享给 [recipient] 级别 [level]?"; `en`: "Confirm sharing [scope] with [recipient] at level [level]?"). `[scope]` / `[recipient]` / `[level]` and any clinical entity inside them stay verbatim.
-- Access log is append-only; do not let any other sub-skill modify it.
-- Default export format: encrypted zip (password shared out-of-band).
+- De-identified is not anonymous. Rare cancer, genomic features, dates, hospitals, geography, or an unusual treatment sequence may re-identify someone.
+- Default to removing direct identifiers, exact dates when unnecessary, free-text notes, institution/location details, small-cell combinations, and raw images. Preserve clinical utility only to the minimum needed for the stated purpose.
+- Never say “no re-identification possible.”
+- Never use patient data for model training, federated learning, research, or public release without separate, explicit consent and an actual governed recipient/process.
 
 ## Role behavior
 
-- **Role = patient**: owner view. Can set any sharing level, export, delete.
-  - *Disclosure*: disclosure_state=suppressed + patient → redacted view **AND redacted export** — diagnosis fields masked; treatment_history entries shown with drug names but no cancer-type label. The patient may export, but the emitted bundle (`vault_export.json` / encrypted zip) is redacted identically to the view (per `../../references/disclosure-behavior.md` — never leak a suppressed diagnosis, on screen OR in an exported file).
-- **Role = caregiver**: authorized view. Read+write OK; sharing-level changes require `patients/<patient_code>/role.json.history` confirming patient previously set role=caregiver. Export allowed.
-- **Role = family**: 📊 anonymized view only. Name / birthday / MRN stripped, diagnosis-intervals relative to diagnosis date, no free-text notes. Cannot change sharing settings.
+- **Role = patient**: owner operations only after verified authorization and action-specific consent.
+- **Role = caregiver**: only the exact read/export/share scope granted by the patient or verified legal authority.
+- **Role = family**: stateless privacy guidance by default; no automatic “anonymized view.”
+
+## Disclosure
+
+Per [`disclosure-behavior.md`](../cancer-buddy/references/disclosure-behavior.md): `disclosure_state` is a communication-planning hint, not access control — it never hides an authorized, decision-capable adult patient's own archive. Every export/share requires explicit **scope-specific consent** (recipient, purpose, exact scope, destination) confirmed at export time; **never infer** consent from `disclosure_state`, and never reveal to an unauthorized person whether an archive exists.
+
+## Safety
+
+- Silence is not consent. Permanent deletion requires explicit itemized confirmation and should use recoverable trash/quarantine when possible.
+- Never put passwords in chat, filenames, command history, or the same channel as an encrypted archive. Encryption is optional and may be claimed only after a supported tool actually creates and verifies it.
+- This skill helps implement local privacy hygiene; it does not certify PIPL, HIPAA, GDPR, HGR, or other legal compliance.
 
 ## References
 
-- [data-vault.md](references/data-vault.md) — schema, anonymization protocol, sharing flow
-- [../../references/i18n.md](../../references/i18n.md) — shared locale layer: detection, persist to `profile.json.locale`, verbatim-clinical policy, scaffold localization
-- [../../references/patient-profile-schema.md](../../references/patient-profile-schema.md)
-- [../../references/safety-guardrails.md](../../references/safety-guardrails.md)
+- [data-vault.md](references/data-vault.md) — local manifest/export schemas and legal cautions
+- [authorization-and-consent.md](../cancer-buddy/references/authorization-and-consent.md)
+- [patient-profile-schema.md](../cancer-buddy/references/patient-profile-schema.md)
+- [safety-guardrails.md](../cancer-buddy/references/safety-guardrails.md)

@@ -1,0 +1,4 @@
+interface:
+  display_name: "病情告知沟通"
+  short_description: "支持患者与家属规划分层病情告知、沟通脚本和安全边界"
+  default_prompt: "Use $cancer-buddy-disclosure to help me plan a respectful, layered conversation about a cancer diagnosis."

@@ -4,7 +4,7 @@ Front page of the packet. 250-400 words. Tone: respectful peer-to-peer, not apol
 
 ## Localization
 
-Write the letter in **`reviewer_locale`** — the target reviewing center's language (derived in `SKILL.md` → Locale; NOT `profile.json.locale`). See [../../../references/i18n.md](../../../references/i18n.md).
+Write the letter in **`reviewer_locale`** — the target reviewing center's language (derived in `SKILL.md` → Locale; NOT `profile.json.locale`). See [../../cancer-buddy/references/i18n.md](../../cancer-buddy/references/i18n.md).
 
 - The body below IS the `en` rendering (and the source-of-truth when a concierge translates to `ja`). For any other `reviewer_locale`, treat the fixed scaffold lines — the salutation, "Enclosed you will find:", the enclosure list labels, "Primary oncologist:", "Sincerely," and the contact-block labels — as a **`reviewer_locale → string table`**; localize those keys, keep the letter's order and structure 1:1.
 - **Clinical entities stay verbatim regardless of `reviewer_locale`**: the diagnosis-with-stage, drug names, regimen names, and any embedded clinical values. Never translate, transliterate, or normalize them — mistranslation is a P0 medical-safety bug.

@@ -1,44 +1,37 @@
-# 危机资源 — 立即可用
+# 危机联系入口
 
-> **Locale (i18n).** Crisis resources are **region-bound, not locale-bound** (per `../../../references/i18n.md` and the SKILL.md locale note). Surface hotlines for the patient's **actual region/country** — the China table below is the default when the patient is in China; for other regions surface that region's verified crisis lines (e.g. 988 US, 116 123 UK Samaritans, 113 NL, local emergency number). **Phone numbers, institution names and the emergency number stay verbatim** — never translate or alter them. Only the surrounding guidance copy (section headings, "when to call immediately", the family-facing steps) is rendered in `profile.json.locale`. If you cannot verify a region's hotline, fall back to the universal instruction: go to the nearest hospital emergency department now, and surface the local emergency number.
+资源按**实际所在地区**选择，不按对话语言选择。危机回复只给当前地区最有用的 1–2 个入口；不要把整张表倾倒给用户，也不要为了联网核实而延误正在发生的急症。
 
-## 24 小时电话
+## 中国大陆
 
-| 电话 | 覆盖 | 说明 |
-|---|---|---|
-| **12356** | 全国 | 全国统一心理援助热线（国家卫健委，2025 起 24 小时） |
-| **400-161-9995** | 全国 | 北京心理危机研究与干预中心 / 希望 24 热线 |
-| **010-82951332** | 北京 | 北京回龙观医院心理危机研究与干预中心 |
-| **021-64383562** | 上海 | 上海市心理援助热线 |
-| **020-81899120** | 广州 | 广州医科大学附属脑科医院 |
-| **028-87577510** | 四川成都 | 四川省心理咨询专业委员会 |
-| **0532-85669120** | 山东青岛 | 青岛市精神卫生中心 |
-| **120** | 全国急救 | 如本人或在场其他人已有自伤行为 |
+- **12356** — 全国统一心理援助热线。国家卫健委已要求全国接入；各地具体服务时段和接通能力可能不同，不能笼统声称所有地区均为 24 小时。
+- **120** — 已经自伤/过量、正准备马上实施、无法保持当下安全，或有其它医疗急症时，立即拨打急救电话或去最近急诊。
 
-## 即时文字/网络资源
+官方依据：
 
-- 希望 24 热线（网站 + 公众号）
-- 各省市精神卫生中心官网（有在线咨询入口）
-- 大学生可联系校心理咨询中心（通常 24 小时急诊线）
+- 国家卫健委 12356 通知：<https://www.nhc.gov.cn/yzygj/c100068/202412/49a1a65386cd4be582d4702fd0926ee8.shtml>
+- 国家卫健委 2025 年运行情况：<https://www.nhc.gov.cn/xcs/c100122/202512/9731f93a7e0d451284a0da462527cbd2.shtml>
 
-## 医院急诊
+核验日期：2026-07-11。
 
-任何综合医院急诊科都可处理自伤自杀危机——不必等精神专科医院挂号。说明"有自杀风险，需急诊精神科会诊"。
+## 美国及其属地
 
-## 必须立即求助的情况
+- **988** — call or text 988；也可使用 <https://988lifeline.org/> chat。可用于自杀危机或情绪困扰。
+- **911** — 正在发生的生命危险、已经行动/过量时。
 
-- 已有自杀计划（时间、地点、方式）
-- 已有自伤行为
-- 已获取自杀工具
-- 感到绝望到看不见任何明天
+官方依据：<https://988lifeline.org/>、<https://www.nimh.nih.gov/health/publications/suicide-faq>。核验日期：2026-07-11。
 
-出现以上任一情况，请立即拨打上方电话，或让家人/朋友送你去急诊。
+## 其它地区
 
-## 给家属
+若当前地区不在上表：
 
-如果你是家属并发现患者或另一位家属有上述情况：
+1. 正在发生或高度紧迫时，先拨当地急救电话或去最近急诊。
+2. 若并非正在实施，可在不延误安全支持的前提下实时查询该国卫生部门或官方危机服务；回答中附官方 URL 和核验日期。
+3. 查不到可靠热线时，不编号码；明确说“我暂时无法核实当地热线”，继续帮助联系可信任的人、医院急诊或当地医疗服务。
 
-1. **不要一个人承担**——打危机电话，由专业人员指导你下一步。
-2. **不要指责或说教**——"你怎么能这么想" 让情况更糟。
-3. **陪伴，不要单独把人留下**——直到危机干预介入。
-4. **把家里的药、刀、绳索等收起**——降低冲动风险。
+## 陪伴者可做什么
+
+- 不让处于高度紧迫风险的人独处；联系急救/危机专业人员，不承诺保密。
+- 在不引发争抢或额外危险的前提下，把药物、武器、绳索或其它手段交由可信任的人保管。
+- 用倾听代替指责、说教或“为了家人撑住”。
+- 对未成年人，尽快联系可信任的成年人/监护人；如果监护人本身不安全，联系急救、医院、学校保护人员或当地儿童保护服务。

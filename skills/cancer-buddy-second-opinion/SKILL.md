@@ -1,9 +1,11 @@
 ---
 name: cancer-buddy-second-opinion
-description: "Generate a reviewer-consumable English case packet for cross-border or domestic second opinions. Produces concise English case summary (1-2 page PDF-ready markdown), medical records index, doctor-to-doctor cover letter, DHL/FedEx medical-record shipping guide, and 'how to present the second opinion back to your primary oncologist' script. Covers major Chinese tertiary + international centers (MSK, MD Anderson, 日本癌研, 新加坡国立). Role-aware: patient or caregiver only; other-family routing refused. Triggers on: 第二意见, 去别的医院看看, 跨境会诊, MSK, MD Anderson, 日本癌研, 梅奥, 香港养和."
+description: "Generate a reviewer-consumable English case packet for cross-border or domestic second opinions. Produces concise English case summary (1-2 page PDF-ready markdown), medical records index, doctor-to-doctor cover letter, DHL/FedEx medical-record shipping guide, and 'how to present the second opinion back to your primary oncologist' script. Covers major Chinese tertiary + international centers (MSK, MD Anderson, 日本癌研, 新加坡国立). Role-aware: packet export runs only within verified patient authorization; other family receive a general preparation checklist. Triggers on: 第二意见, 去别的医院看看, 跨境会诊, MSK, MD Anderson, 日本癌研, 梅奥, 香港养和."
 ---
 
 # cancer-buddy-second-opinion
+
+Before packaging or center research, run [`medical-emergency-gate.md`](../cancer-buddy/references/medical-emergency-gate.md) and the suicide-safety rules in [`safety-guardrails.md`](../cancer-buddy/references/safety-guardrails.md). An urgent symptom needs local assessment, not a second-opinion packet.
 
 Second opinions change treatment plans in ~20-30% of oncology cases — but only if the reviewer has a clean, consumable packet. This skill generates that packet.
 
@@ -15,13 +17,13 @@ Second opinions change treatment plans in ~20-30% of oncology cases — but only
 
 ## Locale
 
-Read [../../references/i18n.md](../../references/i18n.md). This sub-skill has **two locale axes** — keep them distinct:
+Read [../cancer-buddy/references/i18n.md](../cancer-buddy/references/i18n.md). This sub-skill has **two locale axes** — keep them distinct:
 
 - **`profile.json.locale`** (the patient's scaffold language) governs every output the **patient/caregiver** reads: the `presentation-script.md`, the packaging explanation, role-refusal copy, and the caregiver phone-consult checklist.
-  1. If the caller / host supplies `locale` (the user's explicit product UI language), use it first and write/update `profile.json.locale` when profile state is available.
+  1. If the caller / host supplies `locale` (the user's explicit product UI language), use it first.
   2. Otherwise read `patients/<patient_code>/profile.json` → `locale`. If present, use it — do not re-detect (second-opinion runs after organize, so a `locale` is almost always already persisted).
-  3. If absent (no profile, or `locale` is null), detect from the **primary patient-facing language of the records**, tie-breaking to the language the user is conversing in (the `record-consuming generative sub-skills` row in `../../references/i18n.md` §2), then write it back to `profile.json.locale` (BCP-47, e.g. `en` / `zh` / `fr`).
-  4. Honor an explicit user language override ("用中文" / "answer me in English") → update `profile.json.locale` and follow it going forward.
+  3. If absent (no profile, or `locale` is null), detect from the **primary patient-facing language of the records**, tie-breaking to the language the user is conversing in (the `record-consuming generative sub-skills` row in `../cancer-buddy/references/i18n.md` §2), and use it for this session — do **not** create or modify `profile.json` merely to save a language preference (organize is the canonical writer).
+  4. Honor an explicit user language override ("用中文" / "answer me in English") for the current and later turns; persist it only via the canonical writer when an authorized profile is already open.
 - **`reviewer_locale`** (the **target center's** language) governs the **reviewer-facing** artifacts (`case-summary.md`, `cover-letter.md`, `records-index.md`). This is NOT `profile.json.locale` — the packet must be in the language the reviewing oncologist reads, regardless of the patient's scaffold language. Derive it from the target chosen in Workflow §1 / `top-centers.md`:
   - MSK / MD Anderson / Mayo / Dana-Farber / Johns Hopkins / NCIS (新加坡) / 养和 (English intake) → `en`.
   - 日本国立癌研究中心 / 癌研有明 → `ja` (route through the Japanese concierge for translation per `cross-border-shipping.md`; generate the `en` packet first as the source-of-truth, flag `ja` translation as a downstream concierge step).
@@ -32,10 +34,10 @@ In all artifacts, on both axes: **keep every clinical entity verbatim** (drug na
 
 ## Preflight
 
-Run [../../references/preflight.md](../../references/preflight.md) — role + disclosure + readiness grade + **review_flags red gate (Step 2.5)** + schema validity. Second-opinion packets are sent to international reviewers (MSK / MD Anderson / 癌研有明 / 养和); packaging an unconfirmed 🔴 RED review_flag on diagnosis / summary.stage / treatment lines (`treatment_lines.json`) / molecular drivers (`molecular.json`) will mislead the reviewer and waste a one-shot consultation slot. Block until every relevant RED flag is human-resolved.
+Run [../cancer-buddy/references/preflight.md](../cancer-buddy/references/preflight.md) — role + disclosure + readiness grade + **review_flags red gate (Step 2.5)** + schema validity. Second-opinion packets are sent to international reviewers (MSK / MD Anderson / 癌研有明 / 养和); packaging an unconfirmed 🔴 RED review_flag on diagnosis / summary.stage / treatment lines (`treatment_lines.json`) / molecular drivers (`molecular.json`) will mislead the reviewer and waste a one-shot consultation slot. Block until every relevant RED flag is human-resolved.
 
 In addition:
-- Role: patient or caregiver only. Family → refuse + redirect.
+- Session role adapts content, not access: family → stateless general preparation checklist + handoff (no archive read or export; export/cross-border operations need the verified authorization in `../cancer-buddy/references/authorization-and-consent.md`).
 - `profile.json` must be populated with at least diagnosis, stage, treatment history, latest imaging.
 
 ## Workflow
@@ -51,7 +53,7 @@ In addition:
 
 So before the target center's contact, intake process, shipping address, or program status is quoted into **any** artifact (the cover letter, the shipping instructions, the records-index destination, or anything the patient acts on):
 
-- For each center to be used, do a **live web check via the `web-access` skill** against that center's `source_url` (from its `top-centers.md` `freshness` line). Confirm, against the center's own official international-patient page, the current: international-office contact (email/phone/portal), second-opinion intake process + required materials, eligibility, and **whether the second-opinion / online-consultation program is still open**. Do **not** silently fall back to the static values in `top-centers.md` / `cross-border-shipping.md` — that is the medical-agent no-silent-snapshot red line (`references/safety-guardrails.md`).
+- For each center to be used, do a **live web check via the `web-access` skill** against that center's `source_url` (from its `top-centers.md` `freshness` line). Confirm, against the center's own official international-patient page, the current: international-office contact (email/phone/portal), second-opinion intake process + required materials, eligibility, and **whether the second-opinion / online-consultation program is still open**. Do **not** silently fall back to the static values in `top-centers.md` / `cross-border-shipping.md` — that is the medical-agent no-silent-snapshot red line (`../cancer-buddy/references/safety-guardrails.md`).
 - **Live result wins** over the catalogue. If the live check disagrees, use the live values and note the catalogue was stale.
 - If the live source is unreachable or the detail cannot be confirmed, **do not invent or reuse a stale line** — mark that item in the packet as `需用户自行向中心确认 / to be confirmed by the patient directly with the center` (rendered per the artifact's locale), and point the patient at the center's official `source_url` to confirm.
 - This is **routing / logistics fidelity, not evidence synthesis.** The check only refreshes where-to-send and how-to-send facts (addresses, intake, program status); it never generates, edits, or second-guesses the patient's clinical content — clinical entities stay verbatim from the records exactly as everywhere else.
@@ -97,10 +99,11 @@ After receiving the second opinion, patient/caregiver needs to discuss with prim
 
 ## Role behavior
 
-- **Role = patient**: 1st-person packet. Case summary uses "I", cover letter implies patient or caregiver authorship.
-  - *Disclosure*: disclosure_state=suppressed + patient → refuse (operator-only task).
-- **Role = caregiver**: 2nd-person packet helpers. Cover letter can be signed as caregiver on behalf. Include "你帮 X 做翻译电话时的 checklist" for if a phone consultation follows.
-- **Role = family**: refuse. Emit the refusal in `profile.json.locale` (zh reference wording): `第二意见的操作需要主照护者或患者本人来推进（需要签字、身份证明、支付）。`
+- **Role = patient**: generate a packet only after explicit export consent; cross-border use needs a separate destination-specific consent.
+- **Role = caregiver**: act only within a verified export/cross-border grant. Never sign or imply patient authorization on the caregiver's behalf.
+- **Role = family**: provide a general document checklist and handoff; do not read or export the archive.
+
+*Disclosure* ([`disclosure-behavior.md`](../cancer-buddy/references/disclosure-behavior.md)): `disclosure_state` is a communication-planning hint, not access control. Packet export and cross-border transfer require explicit **scope-specific consent** confirmed at export time — **never infer** consent from `disclosure_state`, and never reveal archive existence to an unauthorized speaker.
 
 ## Output
 

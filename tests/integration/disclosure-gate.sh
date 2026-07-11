@@ -1,17 +1,21 @@
 #!/usr/bin/env bash
-# For every sub-skill affected by disclosure (per references/disclosure-behavior.md),
-# assert its SKILL.md (1) declares a disclosure behavior AND (2) that declaration is
-# consistent with the matrix cell — enforcing disclosure-behavior.md §"When the matrix
-# updates" ("enforces both the declaration and consistency with this file").
+# For every sub-skill affected by disclosure (per skills/cancer-buddy/references/
+# disclosure-behavior.md), assert its SKILL.md (1) declares a disclosure behavior,
+# (2) cites the shared authority (disclosure-behavior.md), AND (3) the declaration
+# expresses the CURRENT model: `disclosure_state` is a communication-planning hint,
+# not access control — the mandated behaviors are "ask the authorized patient how
+# much diagnostic detail to surface", "preview before generating/exporting", and
+# "explicit scope-specific consent for exports; never infer consent from
+# disclosure_state". A cell that still encodes the retired access-control model
+# (refuse the patient's own artifact / censor on a caregiver-set flag) must FAIL.
 #
 # CONSISTENCY DESIGN (after three earlier weaknesses — fixed-window leak, trigger-condition
 # collision, and subject-noun/forbidden-word/generic-word collision): the per-skill check is
 # a behavior-DIRECTION regex chosen so a plausible FLIP of the cell DESTROYS the match. A
-# direction token is a verb or negation that distinguishes the mandated behavior — NEVER a
-# subject noun (cancer-type), the trigger condition (disclosure_state=suppressed), a forbidden
-# staging word the cell says to AVOID (晚期/进展后), a generic word (normal), or an antonym
-# substring (redact ⊂ unredacted). Word boundaries (\b) keep antonyms like "unredacted" from
-# satisfying "redacted". Each direction has been mutation-tested to FAIL on a flipped cell.
+# direction token is a verb phrase that distinguishes the mandated behavior — NEVER a
+# subject noun (cancer-type), the trigger condition (disclosure_state=suppressed), or a
+# generic word. A flip back to the retired model (silently generate full detail / refuse
+# or censor the patient) drops the ask-detail/preview/scope-consent phrasing entirely.
 set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 
@@ -19,7 +23,7 @@ python3 - "$REPO_ROOT" <<'PY'
 import re, sys, os
 root = sys.argv[1]
 
-# Companion-scope skills affected by disclosure (disclosure-behavior.md Matrix).
+# Companion-scope skills affected by disclosure (disclosure-behavior.md).
 # Excluded: caregiver (N/A — patient never routes here); meta cancer-buddy (routing-only).
 # Clinical skills live in cancer-buddy-pro-skill (private).
 affected = ["organize", "vault", "education", "mind", "nutrition",
@@ -27,16 +31,20 @@ affected = ["organize", "vault", "education", "mind", "nutrition",
 
 # behavior-DIRECTION regex per companion (None = presence-only). See header for the rule.
 direction = {
-    "organize":       r"\bwarn",                       # warn ... breaks suppression
-    "vault":          r"(?s)(?=.*(?:\bredacted\b|\bmasked\b))(?=.*export)",  # cell must say BOTH redacted/masked AND export (suppressed export redacted, not just the view)
-    "education":      r"\brefuse",                      # refuse patient handbook
-    "mind":           r"\bcontinue",                    # continue screening
-    "nutrition":      r"not\s+surfaced",               # cancer-type NOT surfaced (flip drops 'not')
-    "second-opinion": r"\brefuse",                      # refuse operator-only
-    "disclosure":     None,                             # this IS the disclosure workflow
-    "find-care":      r"避免",                          # 避免渲染晚期 (flip 避免->正常 drops it)
-    "visit-prep":     r"\bavoid",                       # avoids surfacing 晚期 (flip avoids->surfaces drops it)
+    "organize":       r"(?s)(?=.*how much)(?=.*preview)",   # ask detail level + preview before writing the summary
+    "vault":          r"(?s)(?=.*scope-specific)(?=.*consent)",  # exports need explicit scope-specific consent
+    "education":      r"how much.*detail|多少.*细节",        # ask the patient how much detail the handbook shows
+    "mind":           r"\bcontinue",                         # continue screening (suppressed never blocks support)
+    "nutrition":      r"how much.*detail|多少.*细节",        # ask detail level for personalized plans
+    "second-opinion": r"(?s)(?=.*scope-specific)(?=.*consent)(?=.*(never|not)\s+infer)",  # export consent never inferred from disclosure_state
+    "disclosure":     None,                                  # this IS the disclosure workflow
+    "find-care":      r"多少.*细节|预览",                    # ask detail level + preview before writing the shortlist
+    "visit-prep":     r"how much.*detail",                   # ask detail level; caregiver flag never censors the patient
 }
+
+# Cells (except the disclosure workflow itself) must cite the shared authority so the
+# per-skill specialization cannot drift from disclosure-behavior.md unnoticed.
+CITE = re.compile(r'disclosure-behavior\.md')
 
 def disclosure_cell(path):
     """The ACTUAL disclosure-behavior cell: the body of a `## Disclosure` section, or an
@@ -50,7 +58,7 @@ def disclosure_cell(path):
             sec = False
         if sec:
             out.append(ln); continue
-        if re.search(r'\*Disclosure\*:|\*\*Disclosure\*\*', ln):
+        if re.search(r'\*Disclosure\*\s*[:(]|\*\*Disclosure\*\*', ln):
             out.append(ln)
     return "\n".join(out)
 
@@ -67,14 +75,21 @@ for s in affected:
     rx = direction[s]
     if rx is None:
         continue  # disclosure skill = the workflow; presence suffices
-    # 2) the cell expresses the matrix behavior-direction (a flip would destroy this match)
-    if not re.search(rx, disclosure_cell(f), re.I):
-        print(f"FAIL: cancer-buddy-{s} disclosure cell missing matrix behavior-direction (/{rx}/)",
+    cell = disclosure_cell(f)
+    # 2) the cell cites the shared authority
+    if not CITE.search(cell):
+        print(f"FAIL: cancer-buddy-{s} disclosure cell does not cite disclosure-behavior.md",
+              file=sys.stderr)
+        errs += 1
+        continue
+    # 3) the cell expresses the current behavior-direction (a flip would destroy this match)
+    if not re.search(rx, cell, re.I):
+        print(f"FAIL: cancer-buddy-{s} disclosure cell missing behavior-direction (/{rx}/)",
               file=sys.stderr)
         errs += 1
 
 if errs:
     print(f"{errs} disclosure-gate violation(s)", file=sys.stderr)
     sys.exit(1)
-print("disclosure gate intact (9 companions, matrix behavior-direction consistent)")
+print("disclosure gate intact (9 companions, behavior-direction consistent with disclosure-behavior.md)")
 PY

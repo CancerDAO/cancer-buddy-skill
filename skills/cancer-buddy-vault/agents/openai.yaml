@@ -1,0 +1,4 @@
+interface:
+  display_name: "本地健康档案"
+  short_description: "在本地建立可控、可导出且按明确授权分享的个人健康档案"
+  default_prompt: "Use $cancer-buddy-vault to create or manage a local health archive with explicit sharing boundaries."

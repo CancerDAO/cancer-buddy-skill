@@ -1,6 +1,6 @@
 # 家属分工模板
 
-> **Locale** — this is a template/form artifact: extract a `locale → string table` and render every category label, column header, principle and pitfall in `profile.json.locale` (see `../../../references/i18n.md` §5). The table structure stays 1:1; only the string values are localized. The `zh` text below is the source string table. Any clinical entity the user fills in (drug names, regimens) stays verbatim. The exported shareable family doc follows the same locale.
+> **Locale** — this is a template/form artifact: extract a `locale → string table` and render every category label, column header, principle and pitfall in `profile.json.locale` (see `../../cancer-buddy/references/i18n.md` §5). The table structure stays 1:1; only the string values are localized. The `zh` text below is the source string table. Any clinical entity the user fills in (drug names, regimens) stays verbatim. The exported shareable family doc follows the same locale.
 
 癌症治疗是长期战。一个人扛 = 一个人崩溃。
 

@@ -53,7 +53,7 @@ execute these and will not claim they passed.
 | file | companion | dimensions exercised |
 |---|---|---|
 | `cancer-buddy-meta.md` | router | 2 (crisis gate precedence), 3 (scope wall) |
-| `cancer-buddy-mind.md` | mind | 2 (C-SSRS, passive ideation, non-override) |
+| `cancer-buddy-mind.md` | mind | 2 (direct current-risk assessment, passive ideation, continued support, privacy) |
 | `cancer-buddy-organize.md` | organize | 4 (PII sidecar), 1 (verbatim in summary) |
 | `cancer-buddy-find-care.md` | find-care | 3 (resource-only, no rank), 1 (registry IDs verbatim) |
 | `cancer-buddy-education.md` | education | 1 (drug/dose verbatim), 3 (no treatment advice) |

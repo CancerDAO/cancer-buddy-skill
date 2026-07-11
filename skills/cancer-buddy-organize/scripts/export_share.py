@@ -54,6 +54,7 @@ Exit codes:
 from __future__ import annotations
 
 import argparse
+import os
 import shutil
 import sys
 from pathlib import Path
@@ -123,6 +124,38 @@ def _is_empty_dir(path: Path) -> bool:
         return False
 
 
+def _validate_source_tree(patient_dir: Path) -> tuple[bool, str | None]:
+    """Reject links and special files before either validation or copying.
+
+    A safe-share export must be a closed tree.  Following a symlink could copy a
+    file outside the patient archive (for example an SSH key) into the share.
+    Device nodes, sockets, and FIFOs are likewise never valid record artifacts.
+    ``os.scandir`` + ``follow_symlinks=False`` keeps the check independent of the
+    target a link happens to resolve to.
+    """
+
+    pending = [patient_dir]
+    while pending:
+        directory = pending.pop()
+        try:
+            entries = list(os.scandir(directory))
+        except OSError as exc:
+            return False, f"cannot inspect {directory}: {exc}"
+
+        for entry in entries:
+            path = Path(entry.path)
+            if entry.is_symlink():
+                return False, f"symbolic links are not exportable: {path}"
+            try:
+                if entry.is_dir(follow_symlinks=False):
+                    pending.append(path)
+                elif not entry.is_file(follow_symlinks=False):
+                    return False, f"special files are not exportable: {path}"
+            except OSError as exc:
+                return False, f"cannot inspect {path}: {exc}"
+    return True, None
+
+
 def _ignore_factory(included: list[str], excluded: list[str], patient_dir: Path):
     """shutil.copytree ignore callback: drop EXCLUDE_ANY_DEPTH names + empty ocr/,
     recording what was kept vs skipped for the summary."""
@@ -164,6 +197,23 @@ def export_share(patient_dir: Path, dest_dir: Path) -> int:
         print(f"ERROR: {patient_dir} is not a directory", file=sys.stderr)
         return 2
 
+    # The destination must be outside the source tree.  Otherwise copytree can
+    # recursively consume its own output.  Re-resolve here so the check cannot
+    # be bypassed by a caller passing unresolved paths with `..` segments.
+    patient_dir = patient_dir.resolve()
+    dest_dir = dest_dir.resolve()
+    if dest_dir == patient_dir or patient_dir in dest_dir.parents:
+        print(
+            "ERROR: destination must be outside the patient directory",
+            file=sys.stderr,
+        )
+        return 2
+
+    source_ok, source_error = _validate_source_tree(patient_dir)
+    if not source_ok:
+        print(f"ERROR: unsafe source tree — {source_error}", file=sys.stderr)
+        return 1
+
     # (a) FIRST gate — never ship a dir that can leak PII / paths.
     print(f"[export_share] running acceptance gate on {patient_dir} ...")
     if not _run_acceptance_gate(patient_dir):
@@ -192,10 +242,24 @@ def export_share(patient_dir: Path, dest_dir: Path) -> int:
         # Copy the patient_dir into dest_dir, then prune the excluded top-level
         # entries. (copytree's ignore can't see top-level names against patient_dir
         # the same way for the synthetic root, so we prune them explicitly.)
-        shutil.copytree(patient_dir, dest_dir, ignore=ignore, symlinks=False)
+        # Source-tree validation above rejects every link.  Keep symlinks=True as
+        # defence in depth: a link introduced by a concurrent mutation is copied
+        # as a link, never followed into an external target; the post-copy scan
+        # below then rejects and removes the partial export.
+        shutil.copytree(patient_dir, dest_dir, ignore=ignore, symlinks=True)
     except Exception as e:
         print(f"ERROR: copy failed: {e}", file=sys.stderr)
         # leave no partial export behind
+        shutil.rmtree(dest_dir, ignore_errors=True)
+        return 1
+
+
+    copied_ok, copied_error = _validate_source_tree(dest_dir)
+    if not copied_ok:
+        print(
+            f"ERROR: unsafe entry appeared during copy — {copied_error}",
+            file=sys.stderr,
+        )
         shutil.rmtree(dest_dir, ignore_errors=True)
         return 1
 

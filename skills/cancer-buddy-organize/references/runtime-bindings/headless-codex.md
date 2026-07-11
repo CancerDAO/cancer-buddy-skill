@@ -63,7 +63,7 @@ headless 没有 inline 往返,所以确认门产物化:
 2. 平台 UI 展示并收集用户决定。
 3. 平台将已确认决定回灌给 Codex;Codex 只写已确认字段/删除项,并写 `update_log.json` ledger。
 
-未确认不写正式字段。高置信非医疗 no-confirm 可删除; borderline no-confirm 保留。
+未确认不写正式字段。任何 relevance 类别 no-confirm 都**不删除用户文件**:高置信非医疗 ⇒ 不归档、源件原位置保留;borderline ⇒ 保留待用户显式决定;仅平台/Codex 自建的临时副本在核实源文件仍在后清理;删除用户文件必须在 UI 里逐项显式确认并回灌后才执行。
 
 ## 5. 存储
 

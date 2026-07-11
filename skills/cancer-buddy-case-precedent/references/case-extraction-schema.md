@@ -2,7 +2,7 @@
 
 > Step 3 用。对每篇命中的个案报告（case report），把「这位真实患者试过什么、发生了什么」抽成一条结构化记录。**抽取器只搬运论文里写了的东西，不合成、不推断、不计算。** 每个临床值必须有逐字来源引文可回溯，无引文的值 = 编造 = 禁止。
 >
-> 临床实体逐字禁译（P0，见 `../../references/safety-guardrails.md` → 临床实体禁译）：药名 / 方案 / 基因 / 变异 / RECIST 码 / TNM / 分期 / 数值+单位 / PMID 一律 verbatim from source。只有 `未报告` 这类脚手架标记按 locale。
+> 临床实体逐字禁译（P0，见 `../../cancer-buddy/references/safety-guardrails.md` → 临床实体禁译）：药名 / 方案 / 基因 / 变异 / RECIST 码 / TNM / 分期 / 数值+单位 / PMID 一律 verbatim from source。只有 `未报告` 这类脚手架标记按 locale。
 
 ## 1. Per-case JSON schema（抽取输出）
 
@@ -68,7 +68,7 @@
 - **`verbatim_quote` 是论文原文子串**，不改写、不翻译、不概括。核验方式：该 quote 应能在 OA 全文 / 摘要里做字符串 `contains` 命中。
 - **药名 / 方案 / 基因 / 变异永不翻译、永不归一**（不把 `osimertinib` 写成"奥希替尼"，不把 `L858R` 展开成解释）。
 - **一个没有 backing quote 的值 = 一个编造的数据点 = 禁止写入**。宁可标 `未报告`，不要填一个凑出来的值。
-- 抽取器**不接触 `raw/` 原始上传件**，只读检索命中的论文文本（`../../references/safety-guardrails.md`）。
+- 抽取器**不接触 `raw/` 原始上传件**，只读检索命中的论文文本（`../../cancer-buddy/references/safety-guardrails.md`）。
 
 ## 3. `未报告` rule
 
@@ -79,7 +79,7 @@
 
 ## 4. No synthesis rule
 
-抽取器是**搬运工，不是分析师**（对齐 `../../references/safety-guardrails.md` → 禁 LLM 合成证据）：
+抽取器是**搬运工，不是分析师**（对齐 `../../cancer-buddy/references/safety-guardrails.md` → 禁 LLM 合成证据）：
 
 - ❌ 不计算预后、不估生存期、不算任何"率"（有效率/缓解率/生存率——个案不可聚合，见 SKILL G-NO-AGGREGATE）。
 - ❌ 不泛化（"这类患者通常…"）、不外推到本人。

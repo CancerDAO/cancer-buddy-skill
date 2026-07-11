@@ -1,0 +1,4 @@
+interface:
+  display_name: "相似病例检索"
+  short_description: "检索相似癌症病例报告，说明证据偏倚并提炼就医讨论线索"
+  default_prompt: "Use $cancer-buddy-case-precedent to find relevant case reports and explain their limits as discussion clues, not predictions."

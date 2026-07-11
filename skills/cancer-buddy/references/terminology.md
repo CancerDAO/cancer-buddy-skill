@@ -1,6 +1,6 @@
 # Terminology Guide
 
-Every medical term surfaced to patients appears as: **the source term verbatim + a plain-language explanation in the patient's locale.** Resolve locale per `references/i18n.md`: host-supplied `locale` first, otherwise `profile.json.locale`, otherwise detection fallback.
+Every medical term surfaced to patients appears as: **the source term verbatim + a plain-language explanation in the patient's locale.** Resolve locale per `i18n.md`: host-supplied `locale` first, otherwise `profile.json.locale`, otherwise detection fallback.
 
 The verbatim term is **never translated** (it is a clinical entity — mistranslation is a P0 safety bug, see `safety-guardrails.md` → "Clinical entities are never translated"). Only the plain-language gloss is rendered in the locale.
 
@@ -36,7 +36,7 @@ After first use, the plain-language form in the locale is fine. The verbatim ter
 
 ## Generating the gloss
 
-The gloss is a short, locale-appropriate explanation — produce it via the sub-skill prompt instruction ("explain this term in one plain-language sentence in `<locale>`"), not a hardcoded per-language dictionary. The only fixed mapping in this skill family is the bucket-name table (`references/i18n.md` §6); term glosses are generated, not table-lookup.
+The gloss is a short, locale-appropriate explanation — produce it via the sub-skill prompt instruction ("explain this term in one plain-language sentence in `<locale>`"), not a hardcoded per-language dictionary. The only fixed mapping in this skill family is the bucket-name table (`i18n.md` §6); term glosses are generated, not table-lookup.
 
 ## Forbidden phrases
 

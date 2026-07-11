@@ -1,6 +1,6 @@
 # visit-prep — HTML assembly prompt
 
-This skill **only assembles existing data and organizes questions** — it never recommends treatment, never interprets a result, never makes a clinical judgment, never ranks treatment options. See `../../../references/safety-guardrails.md`.
+This skill **only assembles existing data and organizes questions** — it never recommends treatment, never interprets a result, never makes a clinical judgment, never ranks treatment options. See `../../cancer-buddy/references/safety-guardrails.md`.
 
 ## ⛔ Red lines — how the HTML gets built
 
@@ -59,9 +59,9 @@ Every loop array is `0..N` — emit one `{text}` object per real item, **no padd
 
 ## 1. Locale → the `i18n` object
 
-Resolve locale per `../../../references/i18n.md`: caller-supplied `locale` first, otherwise `profile.json.locale`, otherwise detect from the records' primary patient-facing language and write it back to `profile.json.locale`.
+Resolve locale per `../../cancer-buddy/references/i18n.md`: caller-supplied `locale` first, otherwise `profile.json.locale`, otherwise detect from the records' primary patient-facing language and write it back to `profile.json.locale`.
 
-Build `data.i18n` from the template's locale string table for that `locale` — one key per `{{i18n.<key>}}` the template uses (incl. `html_lang`). For a locale not in the table, generate equivalents in the target language — same meaning, same tone. **Keep every clinical entity verbatim** regardless of locale (drug names, genes/variants, TNM/stage, RECIST codes, numbers + units, biomarker labels) — `../../../references/i18n.md` §4; mistranslating one is a P0 safety bug (`../../../references/safety-guardrails.md`).
+Build `data.i18n` from the template's locale string table for that `locale` — one key per `{{i18n.<key>}}` the template uses (incl. `html_lang`). For a locale not in the table, generate equivalents in the target language — same meaning, same tone. **Keep every clinical entity verbatim** regardless of locale (drug names, genes/variants, TNM/stage, RECIST codes, numbers + units, biomarker labels) — `../../cancer-buddy/references/i18n.md` §4; mistranslating one is a P0 safety bug (`../../cancer-buddy/references/safety-guardrails.md`).
 
 ## 2. visit_type
 
@@ -116,13 +116,13 @@ Populated only when `visit_type == followup` (and `data.is_followup = true`; oth
 
 Each empty sub-block → its array is `[]`; the template's `RENDER_IF_NOT` shows the `val_pending` line so the sub-block still renders.
 
-## 7. Guardrails (hard lines — `../../../references/safety-guardrails.md`)
+## 7. Guardrails (hard lines — `../../cancer-buddy/references/safety-guardrails.md`)
 
 - `review_flags` are always presented as **待医生确认项 (questions to confirm)**, never adjudicated into facts. They live in the yellow `.q-confirm` box with the 待确认 tag.
 - **No treatment recommendation, no result interpretation, no clinical judgment, no treatment-option ranking.** visit-prep only assembles existing data + organizes questions.
 - **Never fabricate.** Any null/absent field → the locale `val_pending` string.
 - **Read-only on de-identified sources.** No formal-field writes, no confirm-gate, never read `raw/`.
-- **Clinical entities verbatim**, scaffold localized to `profile.json.locale` (`../../../references/i18n.md` §4).
+- **Clinical entities verbatim**, scaffold localized to `profile.json.locale` (`../../cancer-buddy/references/i18n.md` §4).
 
 ## 8. Output — render via script, never by hand
 

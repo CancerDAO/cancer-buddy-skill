@@ -1,6 +1,6 @@
 # 陪化疗当天 Checklist
 
-> **Locale** — render every checklist item, section title and self-care line in `profile.json.locale` (see `../../../references/i18n.md`). The `zh` text below is the source string table; output the localized equivalent for any other locale. Keep clinical entities verbatim: drug/regimen names the user supplies, temperature thresholds and units (`38°C`), time windows (`24-48 小时` / `24–48 h`), durations (`3-6 小时`). Translate only the scaffold (section titles, instructions, narrative connectives).
+> **Locale** — render every checklist item, section title and self-care line in `profile.json.locale` (see `../../cancer-buddy/references/i18n.md`). The `zh` text below is the source string table; output the localized equivalent for any other locale. Keep clinical entities verbatim: drug/regimen names the user supplies, temperature thresholds and units (`38°C`), time windows (`24-48 小时` / `24–48 h`), durations (`3-6 小时`). Translate only the scaffold (section titles, instructions, narrative connectives).
 
 ## 治疗前一天
 
@@ -30,7 +30,7 @@
 
 - 让 Ta 多喝水（帮药物代谢）
 - 观察：体温、是否恶心呕吐、是否皮疹、手脚麻不麻
-- 体温 > 38°C 立刻联系医生或急诊——化疗后发烧是急症
+- 化疗期间体温 **≥ 38.0°C**，或有寒战/明显急性不适，立刻联系肿瘤团队 24 小时电话或急诊；若治疗团队书面阈值更低，以更低者为准
 - 你自己今晚好好睡一觉，明天还得盯
 
 ## 你自己
