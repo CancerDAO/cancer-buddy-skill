@@ -1,8 +1,8 @@
 # 中国地域饮食模板（化疗期示例）
 
-> **Locale**: these `zh` regional templates are the **source string table** for the 7-day menu. Render meal labels / section titles / prep notes in `profile.json.locale` per `../../../references/i18n.md` §5. Numbers + units (`1.2-1.5 g/kg/day`, `ANC < 1.0`) and any drug/biomarker names stay verbatim. For a non-`zh` locale, swap to dishes the patient can actually source/cook in that culinary context while keeping the same per-phase nutrition rules — do not transliterate Chinese dish names.
+> These are food-idea modules, not a nutritionally complete prescription. Use only after the safety intake in `../SKILL.md`. Do not attach numeric calorie/protein/fluid targets; honor allergies, texture needs, organ-disease restrictions and the treating team's plan. Render labels/prose in the resolved locale and keep clinical entities verbatim.
 
-基础目标: 蛋白 1.2-1.5 g/kg/day, 少食多餐, 温凉适宜, 粒细胞低谷期严格食品安全.
+可选模式：少量多次，在能耐受时搭配普通主食、蛋白质食物与熟蔬果；以食品安全和实际耐受为准。
 
 ## 北方（家常）
 
@@ -56,7 +56,7 @@
 
 ## 共同提醒
 
-- **低谷期（化疗后 7-14 天 ANC < 1.0）** 严格食品安全
+- 按治疗团队的食品安全指示执行；不用固定天数或 ANC 阈值自行判定饮食限制
 - **口腔黏膜炎** 所有菜温凉不烫、软烂、不酸不辣
 - **恶心期** 味道清淡、温凉、姜片、避免油腻、少量多餐
 - **味觉改变** 酸味（柠檬、番茄）强化风味；塑料餐具比金属好

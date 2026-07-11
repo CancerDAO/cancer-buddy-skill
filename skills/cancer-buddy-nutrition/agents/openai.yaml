@@ -1,0 +1,4 @@
+interface:
+  display_name: "肿瘤营养支持"
+  short_description: "提供癌症治疗期间的安全饮食支持，并核验药食相互作用"
+  default_prompt: "Use $cancer-buddy-nutrition to help me plan safer eating during cancer treatment and verify interaction concerns."

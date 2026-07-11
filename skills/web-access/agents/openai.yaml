@@ -1,0 +1,4 @@
+interface:
+  display_name: "安全联网研究"
+  short_description: "为癌症支持任务执行隐私优先、来源可核验的安全联网研究"
+  default_prompt: "Use $web-access to research current cancer-support information with privacy safeguards and verifiable primary sources."

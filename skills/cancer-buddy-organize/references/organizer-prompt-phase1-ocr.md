@@ -33,7 +33,7 @@ mkdir -p "$patient_dir/ocr" "$patient_dir/raw/$original_subdir"
 
 Use Glob/Bash to inventory `slice_input_path`. For each source file/content unit, three actions:
 
-**A. Audit-trail mirror (always) — bytes verbatim, FILENAME de-identified:**
+**A. Audit-trail mirror — bytes verbatim, FILENAME de-identified** (for every in-scope file in your slice: the SKILL.md Step-1 relevance + storage-consent gate ran before dispatch, so excluded sources never reach a slice; if you still find a file that is *obviously* non-medical, do NOT mirror it into `raw/` — leave it in staging and flag it for the Phase-2 Step 1·0 triage; `raw/` holds in-scope medical originals only):
 ```bash
 # bytes are mirrored verbatim; the on-disk FILENAME is de-identified so a
 # patient-named upload (e.g. 王国洪-报告.pdf) never leaks the name into the
@@ -164,7 +164,7 @@ masked: patient_name, admission_id
 
 Phase 2 reads this `## PII` section only as category context. If you masked nothing, write `masked: none`. This trailer is metadata, not clinical content — it carries no `[[src:...]]` anchor.
 
-> The uploaded original is kept verbatim in `raw/` (it is **not** pixel-redacted — image-level 段B redaction has been removed; see `../../../references/safety-guardrails.md`). Desensitization is text-only: your masked sidecar is the single de-identified surface every downstream reader consumes. No `pii_regions.json` image-locator file is written.
+> The uploaded original is kept verbatim in `raw/` (it is **not** pixel-redacted — image-level 段B redaction has been removed; see `../../cancer-buddy/references/safety-guardrails.md`). Desensitization is text-only: your masked sidecar is the single de-identified surface every downstream reader consumes. No `pii_regions.json` image-locator file is written.
 
 ### §2.5 PII rescan gate (MANDATORY — do NOT rely on a single LLM pass)
 
@@ -175,7 +175,7 @@ After you have written every sidecar in your slice, run **both** independent res
 **Layer 2 — deterministic shape backstop (independent, zero-network):**
 
 ```bash
-python3 scripts/pii_rescan.py "$patient_dir/ocr"
+python3 "$ORGANIZE_SKILL_DIR/scripts/pii_rescan.py" "$patient_dir/ocr"
 ```
 
 (Or point it at your slice's specific sidecar files if you only wrote a subset.) It scans the OCR **body** — skipping the provenance header block (`SOURCE:`/`READ_MODE:`/`ADAPTER:`/`ADAPTER_PROVENANCE:`/`CONFIDENCE:`/`FILE_ID:`/`MODALITY:`/`ORIGINAL:`) and the `## PII` trailer — for **pure-shape** identifiers only: 身份证18位 / 中国手机 / 座机 / E.164 / US-SSN / ≥11位数字ID / email. These are zero-false-negative shapes; their job is to be an independent second opinion that catches a leak even if both LLM passes share a blind spot. Label/semantic detection now lives in Layer 1, not here. Exit `0` = clean; exit `1` = residue found (`file:line [category] snippet`).

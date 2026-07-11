@@ -4,7 +4,7 @@
 
 ## 门控来源(复用共享 confirm-gate,不重造)
 
-本流程触发源是「用户重传的文件」,与段C `conversation-incremental-prompt.md`(对话里冒出的事实)是同源延伸。两者共享的那条硬规则**不在本文件、也不在段C 重新定义**,而是共享的 confirm-gate —— [`../../../references/confirm-gate.md`](../../../references/confirm-gate.md),cite 它为权威门控:
+本流程触发源是「用户重传的文件」,与段C `conversation-incremental-prompt.md`(对话里冒出的事实)是同源延伸。两者共享的那条硬规则**不在本文件、也不在段C 重新定义**,而是共享的 confirm-gate —— [`../../cancer-buddy/references/confirm-gate.md`](../../cancer-buddy/references/confirm-gate.md),cite 它为权威门控:
 
 > **未确认 → 不写正式字段。** 一次重传可能是更清晰的复拍,也可能是张无关图、甚至是张和现有事实矛盾的图;在用户没有从 diff 卡上明确选择之前,`profile.json` / `timeline.md` / `timeline.json` / 6 个结构化 JSON 一律不动。diff 卡 + 显式确认是唯一打开写入的门。
 
@@ -41,9 +41,9 @@
 
 ## 第 2 步 — 出 diff 卡(沿用共享 confirm-gate,先不写)
 
-对每个 supersede / conflict 候选出 diff 卡,呈现规范沿用共享 confirm-gate 的「Diff card presentation」节([`../../../references/confirm-gate.md`](../../../references/confirm-gate.md))。文件对账特有的是**三个动作选项**:**替换? 并存? 忽略?**
+对每个 supersede / conflict 候选出 diff 卡,呈现规范沿用共享 confirm-gate 的「Diff card presentation」节([`../../cancer-buddy/references/confirm-gate.md`](../../cancer-buddy/references/confirm-gate.md))。文件对账特有的是**三个动作选项**:**替换? 并存? 忽略?**
 
-> **locale（i18n）**:diff 卡是面向患者的脚手架 → 整张卡按 `profile.json.locale` 出(检测/持久化见 [`../../../references/i18n.md`](../../../references/i18n.md);下方 zh 文案为模板,en 等其他 locale 按同义渲染,如动作选项 `[替换] [两份都留] [先忽略]` → `[Replace] [Keep both] [Skip]`)。`依据`/`evidence` 里的临床实体(药名/分期/分子结果)、桶相对路径、日期一律 verbatim,不译。
+> **locale（i18n）**:diff 卡是面向患者的脚手架 → 整张卡按 `profile.json.locale` 出(检测/持久化见 [`../../cancer-buddy/references/i18n.md`](../../cancer-buddy/references/i18n.md);下方 zh 文案为模板,en 等其他 locale 按同义渲染,如动作选项 `[替换] [两份都留] [先忽略]` → `[Replace] [Keep both] [Skip]`)。`依据`/`evidence` 里的临床实体(药名/分期/分子结果)、桶相对路径、日期一律 verbatim,不译。
 
 ```
 你刚传的这张图,我对了一下已有档案:
@@ -89,11 +89,11 @@ headless 宿主(无 inline 回合)用 **confirm-as-product** 满足同一门:把
 ### 3c. 忽略(先不写)
 
 - 新图**不纳入正式档案**:
-  - 若它本就被段E 判为无关 → 交段E 隔离/删逻辑(见 [`relevance-gate.md`](relevance-gate.md))。
+  - 若它本就被段E 判为无关 → 交段E 排除/保留逻辑(不归档、源件原位置保留,见 [`relevance-gate.md`](relevance-gate.md))。
   - 若它是医疗文件但用户选忽略 → **不进桶、不改字段**;可暂存到 `99_无关文件/`(标 `review_flag: ignored_on_upload`)或直接不落盘,按段E 的隔离语义处理。
 - **未确认 / 无响应 / 先忽略** → 该候选**不写任何正式字段**,与段C 同门控。
 
-> ⚠️ **删除边界(承段E)**:本对账流程里,supersede 的旧文档是**归档留底**(移 `_superseded_<ts>/` 或标记),**不是删除**;矛盾文件并存时两份都留。真正的「无关文件自动删除」只发生在段E 的高置信非医疗路径;**borderline / 拿不准的医疗文件在用户未显式确认前一律不自动删** —— 删一张可能是真病历的文件比留着更糟。本流程不引入任何新的自动删除。
+> ⚠️ **删除边界(承段E)**:本对账流程里,supersede 的旧文档是**归档留底**(移 `_superseded_<ts>/` 或标记),**不是删除**;矛盾文件并存时两份都留。段E **不自动删除任何用户文件** —— 被排除的原文件留在用户提供的原位置;仅 agent 自建的临时/暂存副本在核实源文件仍在后可清理;删除用户控制的文件必须逐项显式确认(见 `../../cancer-buddy/references/confirm-gate.md`)。**borderline / 拿不准的医疗文件更是在用户未显式确认前一律不动** —— 删一张可能是真病历的文件比留着更糟。本流程不引入任何自动删除。
 
 ## 第 4 步 — 记 update_log
 
@@ -142,11 +142,11 @@ headless 宿主(无 inline 回合)用 **confirm-as-product** 满足同一门:把
 
 ## 规则(承共享 confirm-gate,文件重传补充)
 
-门控本身(未确认不写正式字段 / silence = no-confirm / 不臆造值 / 关键字段不当既成事实 / 矛盾不静默覆盖 / LLM 判断非 keyword list / `alias` sticky)的权威定义在 [`../../../references/confirm-gate.md`](../../../references/confirm-gate.md),本文件不另起门控;下面是文件重传的特化:
+门控本身(未确认不写正式字段 / silence = no-confirm / 不臆造值 / 关键字段不当既成事实 / 矛盾不静默覆盖 / LLM 判断非 keyword list / `alias` sticky)的权威定义在 [`../../cancer-buddy/references/confirm-gate.md`](../../cancer-buddy/references/confirm-gate.md),本文件不另起门控;下面是文件重传的特化:
 
 - **未确认不写正式字段。** diff 卡的「替换 / 并存 / 忽略」是唯一打开写入的门 —— 与共享 confirm-gate 完全同源。
 - **重传关系识别是 LLM 判断任务** —— 读新图内容对照已有档案判 new/supersede/conflict,**不跑硬编码 keyword 名单 / 同名同日期 Python 比对**。
 - **矛盾绝不静默覆盖。** conflict 必须在卡上两份事实并陈让用户裁决;关键字段(分期/分子/治疗线)的矛盾必须显式确认。
 - **替换 = 归档留底,不是删除。** 旧文档移 `_superseded_<ts>/` 或标 `superseded`,永远可回溯;锚点迁移不留悬空。
-- **本流程不引入任何自动删除。** 唯一的自动删发生在段E 高置信非医疗路径;**borderline 医疗文件未经显式确认绝不自动删**(承段E,删一张可能是真病历的比留着更糟)。
+- **本流程不引入任何自动删除,段E 也没有自动删除路径。** 被排除文件的源件一律原位置保留;仅 agent 自建临时副本核实源仍在后可清理;**任何用户文件未经逐项显式确认绝不删除**(承段E/confirm-gate,删一张可能是真病历的比留着更糟)。
 - `profile.json.alias` sticky;不重写 `case_text.md` / `readiness.json` / 6 结构化 JSON,只动经确认的具体字段/行 + 文件归档/纳入。

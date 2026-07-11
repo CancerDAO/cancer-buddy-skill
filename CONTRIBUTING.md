@@ -24,7 +24,7 @@ If a fact cannot be sourced live, the correct behavior is to **decline or say
 verify this right now" rather than inventing.
 
 The design rationale behind this patient-first, never-fabricate posture is
-documented in [`references/sid-framework.md`](references/sid-framework.md)
+documented in [`skills/cancer-buddy/references/sid-framework.md`](skills/cancer-buddy/references/sid-framework.md)
 (internal design philosophy — not patient-facing).
 
 ## Safety-critical files
@@ -33,8 +33,8 @@ Changes to the following files are **safety-critical** and require extra review
 (a second maintainer sign-off and a passing test run before merge):
 
 - `skills/cancer-buddy-mind/references/crisis-resources.md`
-- `references/safety-guardrails.md`
-- `references/disclosure-behavior.md`
+- `skills/cancer-buddy/references/safety-guardrails.md`
+- `skills/cancer-buddy/references/disclosure-behavior.md`
 - `skills/cancer-buddy-nutrition/references/drug-food-interactions.md`
 
 If your change touches any of these, call it out explicitly in your PR

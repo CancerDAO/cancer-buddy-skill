@@ -1,36 +1,38 @@
 ---
 name: cancer-buddy-mind
-description: "Mental health screening and support for cancer patients and their caregivers. Uses validated screeners (PHQ-9 depression, GAD-7 anxiety, NCCN Distress Thermometer, C-SSRS Lite suicide risk), produces graded response: self-help / seek clinician / crisis escalation. Non-negotiable crisis rule: any positive suicidal ideation triggers immediate hotline surfacing. Triggers on: 睡不着, 焦虑, 抑郁, 崩溃, 没力气, 不想活, 想哭, 心理, burnout."
+description: >-
+  Provide cancer-context mental-health support, direct suicide-safety assessment, collaborative safety planning, and optional use of validated PHQ-9, GAD-7, NCCN Distress Thermometer, or C-SSRS forms. Use when a patient, caregiver, or family member mentions 睡不着、焦虑、抑郁、崩溃、想哭、burnout、绝望、自伤、自杀、不想活，or asks for emotional support or a mental-health screen. Immediate danger gets real-world emergency help first; passive thoughts still receive support but are not automatically treated as an attempt in progress.
 ---
 
 # cancer-buddy-mind
 
-Cancer and mental health are tangled. Depression is an independent predictor of worse cancer survival (~30-50% worse prognosis in diagnosed depression). Caregivers hit depression rates 25-40%. This skill screens both, safely.
+Before screening, run [`medical-emergency-gate.md`](../cancer-buddy/references/medical-emergency-gate.md). An overdose, self-harm act already in progress, loss of consciousness, or other medical emergency needs local emergency services immediately.
+
+Cancer can place heavy emotional strain on patients and families. Start with what the person needs now; screening is optional, not an entry fee for support.
 
 ## Locale (i18n)
 
-Per [../../references/i18n.md](../../references/i18n.md): every patient-visible string — screener items, scoring labels, tier interpretations, crisis copy, safety disclaimers, the `.md` report scaffold — is rendered in the patient's `locale`.
+Per [../cancer-buddy/references/i18n.md](../cancer-buddy/references/i18n.md): every patient-visible string — screener items, scoring labels, tier interpretations, crisis copy, safety disclaimers, the `.md` report scaffold — is rendered in the patient's `locale`.
 
-1. If the caller / host supplies `locale` (the user's explicit product UI language), use it first and write/update `profile.json.locale` when profile state is available.
-2. Otherwise **read `profile.json.locale` first.** If present, use it — do not re-detect.
-3. If `profile.json` is absent or `locale` is null, **detect from the language the user is conversing in** (this is a chat sub-skill), then **write it back** to `profile.json.locale` (BCP-47 tag, e.g. `en` / `zh` / `fr` / `es`). If no profile exists yet, create one carrying `locale`; a later organize run honors it unless a host `locale` overrides it.
-4. An explicit user override ("answer me in English" / "用中文") always wins → update `profile.json.locale` and honor going forward.
+1. If the caller / host supplies `locale`, use it first.
+2. Otherwise read `profile.json.locale` when a verified patient archive is already open; if absent, use the conversation language for this session.
+3. Do **not** create a partial `profile.json` or modify a clinical archive merely to save language preference. Persist a preference only through the canonical organizer/host preference store and only after the user asks to save it.
+4. An explicit language change always wins for the current and later turns.
 5. **Clinical entities stay verbatim** (§4): standardized scale names (PHQ-9, GAD-7, NCCN Distress Thermometer, C-SSRS), drug/diagnosis names, numeric scores and cutoffs. Only the scaffold is localized.
-6. The screener references below are written `zh`-first as the source rendering; when `locale != zh`, render the item prose, scale anchors and interpretation labels in the target locale via the per-file locale directive — never hand the patient a language they are not conversing in. Scoring math, item ordering, scale standard names and numeric cutoffs are invariant across locales.
+6. Use an official validated form in the user's language when one exists. A model-generated translation can support conversation but must not be labeled a validated administration or scored with published cutoffs as though validated.
 
-Crisis resources ([references/crisis-resources.md](references/crisis-resources.md)) are **region-bound, not locale-bound**: surface hotlines for the patient's actual region/country (from `patient_summary.json.patient_location_hint`), translating only the surrounding guidance copy into `locale` — phone numbers and institution names stay verbatim.
+Crisis resources ([references/crisis-resources.md](references/crisis-resources.md)) are **region-bound, not locale-bound**. Do not infer location from language or trust an unverified archive role as identity/authorization.
 
-## Crisis rule (non-negotiable)
+## Suicide-safety rule (non-negotiable)
 
-At ANY point in the conversation — including while running a screener or in casual exchange — if the user expresses suicidal ideation, a plan, access to means, or makes statements like "我不想活了" / "活着没意思" / "想结束这一切" / "我想死":
+At any point, suicidal thoughts, a plan, preparation, self-harm, or overdose pause the ordinary workflow. Do not require role selection, an archive, or a questionnaire.
 
-1. **Immediately** stop the current workflow.
-2. Respond with the crisis acknowledgment, **rendered in `profile.json.locale`** — `zh`: `我听到你说的了。这个念头出现本身就是一个信号——你现在需要专业的人立刻帮你。`; otherwise the same meaning in the patient's locale ("I heard you. The fact that this thought showed up is itself a signal — you need a professional to help you right now."). Keep the tone steady and non-dismissive; do not soften into reassurance.
-3. Surface the full contents of [references/crisis-resources.md](references/crisis-resources.md) — not a summary, the full content; region-appropriate hotlines per the locale note above, guidance copy in `locale`.
-4. Ask, in `locale` — `zh`: `你现在身边有家人或朋友吗？能先让 Ta 知道你现在的状态吗？`; otherwise the same question localized ("Is there a family member or friend near you right now? Could you let them know how you're feeling?").
-5. Do NOT ask "what made you feel that way" or any exploratory question. Do not continue the Ta screener. Escalation is the only path.
-6. Do NOT offer reassurance like "一切都会好的" / "it'll all be fine" — that invalidates, in any locale.
-7. Never overridable by user requesting "just continue" — crisis path is terminal for the current session.
+1. Acknowledge steadily: `谢谢你告诉我。我会先陪你把现在这一刻弄安全。`
+2. Ask directly: `你现在正准备伤害自己，或已经做了什么/吃了什么吗？` Then ask about current intent, a specific plan, access to means, and whether the person is alone. Asking directly does not increase suicidal thoughts.
+3. If an act/overdose is underway, or there is current intent with a plan and accessible means, call the local emergency number now (mainland China: **120**), involve a nearby trusted person, do not let the person drive, and reduce access to means when it can be done safely. Keep the conversation focused on connecting help.
+4. If thoughts are present without current intent/plan/means, continue supportive conversation and build a near-term safety plan: a trusted contact, reduced access to means, a same-day crisis/clinical contact, and a clear escalation destination. Offer one or two region-appropriate contacts from `crisis-resources.md`; do not dump the whole file.
+5. If the person declines a hotline, do not abandon them or end the session. Ask for the next safest feasible real-world step and continue listening.
+6. Avoid false reassurance or guilt. Once immediate safety is assessed, it is appropriate to ask what is happening and listen without judgment.
 
 This rule applies regardless of active role (patient / caregiver / family).
 
@@ -38,13 +40,16 @@ This rule applies regardless of active role (patient / caregiver / family).
 
 - User selects mental-health-related intent.
 - Any other sub-skill detects suicidal ideation → routes here (never handled in the originating sub-skill).
-- Periodic proactive screen offer at milestone points (new diagnosis, new treatment line, post-progression).
+- Offer—not force—a screen when symptoms are persistent, the user asks for one, or a check-in would be useful.
 
 ## Screeners
 
 Use [references/phq-9.md](references/phq-9.md), [references/gad-7.md](references/gad-7.md), [references/distress-thermometer.md](references/distress-thermometer.md), and [references/c-ssrs-lite.md](references/c-ssrs-lite.md).
 
-Always run C-SSRS Lite first (a 6-item screener — see [references/c-ssrs-lite.md](references/c-ssrs-lite.md); the escalation trigger is **any positive item, including a positive Q1 passive / wish-to-die ideation**, per that file's "any yes → crisis rule" — Q1-Q2 order the questions but Q1 alone positive still escalates). If ANY item is positive → crisis rule. If all negative → proceed with PHQ-9 or GAD-7 based on primary complaint.
+Ask permission before a formal screener. Use an official validated translation for the person's language; if unavailable, say that a conversational translation is **not** a validated administration and do not apply the published cutoff as if it were. Do not reword PHQ-9/GAD-7 items for caregivers while retaining the original scoring.
+
+- Use C-SSRS when suicide risk needs structured assessment, following its official skip logic. A passive wish-to-die answer prompts support and further assessment; it does not by itself prove imminent danger.
+- Use PHQ-9 for depressive symptoms, GAD-7 for anxiety, and NCCN Distress Thermometer for broad cancer-related distress. Cancer/treatment symptoms can inflate somatic items, so interpret scores as screens—not diagnoses.
 
 ## Three-tier response
 
@@ -52,42 +57,44 @@ After scoring:
 
 | Severity | PHQ-9 | GAD-7 | Response |
 |---|---|---|---|
-| Self-help | 0-9 | 0-7 | Offer journaling template, mindfulness 5-min practice, sleep hygiene one-pager. Check in again in 2 weeks. |
-| Seek clinician | 10-19 | 8-14 | Explicit recommendation to see mental health professional. List local resources if `patient_summary.json.patient_location_hint` is set. |
-| Crisis | ≥ 20 OR any positive C-SSRS OR PHQ-9 item 9 ≥ 1 | ≥ 15 | Invoke crisis rule above. |
+| Lower symptoms | 0-9 | 0-9 | Offer practical coping support and ask what would help now; suggest follow-up if persistent or impairing. |
+| Clinician follow-up | 10-19 | 10-14 | Encourage timely evaluation by a qualified mental-health or oncology professional; consider faster follow-up when functioning is impaired. |
+| Urgent clinician follow-up | 20-27 without item 9 | 15-21 | Arrange prompt professional assessment. High total score alone is not proof of immediate suicide danger. |
+
+Any PHQ-9 item 9 response or other suicide signal starts the direct safety assessment above. Emergency escalation depends on current action/intent/plan/means, not the total PHQ-9 or GAD-7 score alone.
 
 ## Role behavior
 
 - **Role = patient**: direct self-screening.
-  - *Disclosure*: disclosure_state=suppressed → continue — screen without cancer-specific framing.
-- **Role = caregiver**: caregiver-distress mode. Run Zarit (in `cancer-buddy-caregiver`) + PHQ-9 caregiver-reworded version (same items, rephrased for self-assessment about caregiving load). Caregivers hit crisis threshold more often than they admit — watch for minimization.
-- **Role = family**: no screening. Provide "how to support a family member who is depressed" information. Do not push screening on an other-family member in this context.
+  - *Disclosure* ([`disclosure-behavior.md`](../cancer-buddy/references/disclosure-behavior.md)): disclosure_state=suppressed → continue — screen without cancer-specific framing; suppression never blocks mental-health support.
+- **Role = caregiver**: support the caregiver as a person. Offer the original validated screener only with consent; Zarit may be offered separately for caregiving burden.
+- **Role = family**: if asking about another person, give support guidance without disclosing patient data. If asking about their own distress, offer the same direct support and optional screens as anyone else.
 
 ## Output
 
-Written under `patients/<patient_code>/reports/mind/`:
+Do not write mental-health or suicide content by default. After the immediate situation is stable, explain exactly what would be saved and why, then save only if the person explicitly consents and the archive authorization is verified. If saved, use `patients/<patient_code>/reports/mind/`:
 - `phq9-YYYY-MM-DD.md` — score + interpretation
 - `gad7-YYYY-MM-DD.md`
 - `distress-YYYY-MM-DD.md`
-- `crisis-YYYY-MM-DD.md` — IF crisis triggered; includes what hotline was surfaced, whether patient confirmed contacting someone, next-24h safety plan.
+- `safety-plan-YYYY-MM-DD.md` — minimal, user-approved safety plan; avoid verbatim ideation details unless the user requests them.
 
-Filenames (`phq9-` / `gad7-` / `distress-` / `crisis-` + ISO date) and the numeric scores are locale-independent stable keys. The **report body** (section headings, interpretation prose, safety plan, disclaimers) is written in `profile.json.locale`; scale standard names, item-level scores and cutoffs stay verbatim. Date string in the filename stays ISO `YYYY-MM-DD` regardless of locale.
+Filenames (`phq9-` / `gad7-` / `distress-` / `safety-plan-` + ISO date) and numeric scores are locale-independent stable keys. The report body uses the active locale; scale names, item-level scores, and cutoffs stay verbatim.
 
-Never write suicidal ideation content without the crisis-YYYY-MM-DD.md companion entry.
+Never create a temporary patient profile or crisis file merely because a crisis occurred.
 
 ## Safety boundaries
 
 - Not a therapist. Every output includes the disclaimer, rendered in `profile.json.locale` — `zh`: `这不能替代心理医生或精神科医生的评估。严重或持续的情绪问题请尽快寻求专业帮助。`; otherwise the same meaning localized ("This is not a substitute for evaluation by a psychologist or psychiatrist. For severe or persistent emotional problems, please seek professional help as soon as possible.").
 - No prescribing. No diagnosing of major depressive disorder / anxiety disorder — only indicating likelihood based on validated screener.
 - No "anti-depressants aren't needed" statements. Leave medication decisions to psychiatrists.
-- Suicide / self-harm → crisis rule, always. No exceptions.
+- Suicide / self-harm signals → the direct safety rule, always. Immediate emergency escalation follows current action/intent/plan/means.
 
 ## References
 
 - [phq-9.md](references/phq-9.md) — 9-item depression screener + scoring
 - [gad-7.md](references/gad-7.md) — 7-item anxiety screener + scoring
 - [distress-thermometer.md](references/distress-thermometer.md) — NCCN 0-10 + problem list
-- [c-ssrs-lite.md](references/c-ssrs-lite.md) — suicide risk, 6 items
+- [c-ssrs-lite.md](references/c-ssrs-lite.md) — C-SSRS usage boundaries: official validated forms only, consent-based, skip logic + action mapping
 - [crisis-resources.md](references/crisis-resources.md) — hotlines, emergency guidance
-- [../../references/safety-guardrails.md](../../references/safety-guardrails.md) — role-specific crisis rules
-- [../../references/i18n.md](../../references/i18n.md) — shared locale layer: host `locale` parameter first, otherwise profile locale / detection fallback → persist `profile.json.locale` → render scaffold in locale, clinical entities verbatim
+- [../cancer-buddy/references/safety-guardrails.md](../cancer-buddy/references/safety-guardrails.md) — role-specific crisis rules
+- [../cancer-buddy/references/i18n.md](../cancer-buddy/references/i18n.md) — shared locale layer: host `locale` parameter first, otherwise profile locale / detection fallback → persist `profile.json.locale` → render scaffold in locale, clinical entities verbatim

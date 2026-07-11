@@ -2,7 +2,7 @@
 
 > **重要**：本文是**家庭层面的初步判断框架**，不替代正式的临床能力评估（clinical capacity assessment）。任何涉及重大医疗决策或法律地位变更时，请要求医师出具正式能力评估，必要时申请医务处或伦理委员会介入。
 
-> **Locale**：四要件能力初筛的**问法（家属对患者说的话）**为中文**语言范例**，按患者 `profile.json.locale` 出最终问法（见 SKILL.md `## Locale` + `../../../references/i18n.md`）；量表标准名（`MacCAT-T`、四要件英文名 Understanding / Appreciation / Reasoning / Expressing a choice）、`substituted judgment` / `best interest` 标准名逐字保留。代理人顺位与法律条款（民法典 1158/1219 条、意定监护、生前预嘱地方立法）为中国法域内容，仅在 `zh` 语境直接适用；其它 locale 患者按当地代理决策法律框架处理，不照搬中国顺位/条款号。
+> **Locale**：四要件能力初筛的**问法（家属对患者说的话）**为中文**语言范例**，按患者 `profile.json.locale` 出最终问法（见 SKILL.md `## Locale` + `../../cancer-buddy/references/i18n.md`）；量表标准名（`MacCAT-T`、四要件英文名 Understanding / Appreciation / Reasoning / Expressing a choice）、`substituted judgment` / `best interest` 标准名逐字保留。代理人顺位与法律条款（民法典 1158/1219 条、意定监护、生前预嘱地方立法）为中国法域内容，仅在 `zh` 语境直接适用；其它 locale 患者按当地代理决策法律框架处理，不照搬中国顺位/条款号。
 
 ## 为什么痴呆 / 认知障碍要单独处理
 

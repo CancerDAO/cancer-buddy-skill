@@ -1,6 +1,6 @@
 # 怎么和孩子解释家人得癌症
 
-> **Locale** — render every principle, age-band template, sample script and "不要说的话" line in `profile.json.locale` (see `../../../references/i18n.md`). The `zh` scripts below are the source string table; output the localized, age-appropriate equivalent for any other locale (the example scripts are scaffold prose, localize them fully). Keep clinical entities verbatim wherever they appear in an example — e.g. `肺腺癌 IV 期，EGFR 突变，奥希替尼` stays exactly as the source/record gives it; only the surrounding explanation to the child is localized.
+> **Locale** — render every principle, age-band template, sample script and "不要说的话" line in `profile.json.locale` (see `../../cancer-buddy/references/i18n.md`). The `zh` scripts below are the source string table; output the localized, age-appropriate equivalent for any other locale (the example scripts are scaffold prose, localize them fully). Keep clinical entities verbatim wherever they appear in an example — e.g. `肺腺癌 IV 期，EGFR 突变，奥希替尼` stays exactly as the source/record gives it; only the surrounding explanation to the child is localized.
 
 ## 原则
 

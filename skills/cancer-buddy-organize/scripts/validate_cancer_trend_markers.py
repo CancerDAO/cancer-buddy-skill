@@ -5,6 +5,7 @@ Validates skills/cancer-buddy-organize/references/cancer-trend-markers.md agains
 the 69 NCCN cancer-type slugs derived from the treatment-landscape corpus.
 
 Usage:
+    python3 validate_cancer_trend_markers.py --markers <md> [--expected-count 69]
     python3 validate_cancer_trend_markers.py --markers <md> --slugs <landscapes_dir>
 
 Exit codes:
@@ -47,7 +48,15 @@ def parse_rows(md):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--markers", required=True)
-    ap.add_argument("--slugs", required=True)
+    ap.add_argument(
+        "--slugs",
+        help="optional treatment-landscape directory for an external slug cross-check",
+    )
+    ap.add_argument(
+        "--expected-count",
+        type=int,
+        help="optional expected number of unique marker rows",
+    )
     a = ap.parse_args()
     md = open(a.markers, encoding="utf-8").read()
     rows = parse_rows(md)
@@ -63,16 +72,21 @@ def main():
             errs.append(f"L{ln}: slug/癌种为空")
         if not primary:
             errs.append(f"L{ln}: primary 为空（无标志物须写 —）")
-    want = landscape_slugs(a.slugs)
     have = set(slugs)
-    missing = want - have
-    extra = have - want
-    if missing:
-        errs.append(f"缺 {len(missing)} 癌种: {sorted(missing)[:5]}...")
-    if extra:
-        errs.append(f"多出非 NCCN slug: {sorted(extra)[:5]}")
+    if a.slugs:
+        want = landscape_slugs(a.slugs)
+        if not want:
+            errs.append(f"外部 slug 目录没有匹配文件: {a.slugs}")
+        missing = want - have
+        extra = have - want
+        if missing:
+            errs.append(f"缺 {len(missing)} 癌种: {sorted(missing)[:5]}...")
+        if extra:
+            errs.append(f"多出非 NCCN slug: {sorted(extra)[:5]}")
     if len(slugs) != len(set(slugs)):
         errs.append("slug 有重复")
+    if a.expected_count is not None and len(have) != a.expected_count:
+        errs.append(f"唯一 slug 数量应为 {a.expected_count}，实际为 {len(have)}")
     if errs:
         print("\n".join(errs), file=sys.stderr)
         sys.exit(1)

@@ -4,7 +4,7 @@ Format the case summary as follows. Keep it under 2 pages when PDF-converted. Re
 
 ## Localization
 
-Render the scaffold (section headers, field labels, formatting-rule prose) in **`reviewer_locale`** — the target reviewing center's language, derived in `SKILL.md` → Locale (NOT `profile.json.locale`). See [../../../references/i18n.md](../../../references/i18n.md).
+Render the scaffold (section headers, field labels, formatting-rule prose) in **`reviewer_locale`** — the target reviewing center's language, derived in `SKILL.md` → Locale (NOT `profile.json.locale`). See [../../cancer-buddy/references/i18n.md](../../cancer-buddy/references/i18n.md).
 
 - The structure below IS the `en` rendering (and the source-of-truth when a downstream concierge translates to `ja`). For any other `reviewer_locale`, treat the section headers / field labels / table column heads as a **`reviewer_locale → string table`**: localize the *keys* (e.g. "Question for Reviewer", "Diagnosis", "Best response", "Reason for discontinuation"), keep the section order and table shape 1:1.
 - **Clinical entities stay verbatim regardless of `reviewer_locale`** — drug names (`osimertinib`), genes/variants (`EGFR L858R`), stage/TNM (`cT3N2M1a`, `IVA`), numbers + units (`80 mg QD`, `2.3 cm`, `VAF 42%`), biomarker labels (`PD-L1 TPS`, `TMB`, `MSS/MSI-H`). Never translate, transliterate, or normalize them — mistranslation is a P0 medical-safety bug.
@@ -96,5 +96,5 @@ See `records-index.md`. Key items: [biopsy report, latest imaging CD, molecular 
 - Tables for any structured data (treatment history, labs)
 - Dates always YYYY-MM-DD or YYYY-MM (date format follows `reviewer_locale` convention only if the center requires it; default ISO)
 - Measurements in SI units (cm, kg, mL, mmol/L) — unit tokens are clinical entities, stay verbatim
-- Drug names kept **verbatim in the source form** the record used (generic OR brand — never normalize brand→generic or vice versa; clinical entities stay verbatim per `../../../references/i18n.md` §4). Doses verbatim with units.
+- Drug names kept **verbatim in the source form** the record used (generic OR brand — never normalize brand→generic or vice versa; clinical entities stay verbatim per `../../cancer-buddy/references/i18n.md` §4). Doses verbatim with units.
 - Keep under 2 printed pages — use bullets, not prose, where possible

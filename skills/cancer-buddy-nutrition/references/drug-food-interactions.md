@@ -1,46 +1,44 @@
-# 药物-食物相互作用 — workflow
+# Drug-food and supplement interaction verification
 
-> **Trust your clinical pharmacology training data**, do NOT consult a hardcoded interaction table here.
+This workflow prevents plausible but unsafe interaction advice. Model memory is not a source.
 
-> **Locale**: the `zh` patient-facing strings below (the 🟡 uncertainty line, the last-resort note) are the **source string table** — render the localized equivalent in `profile.json.locale` at output time per `../../../references/i18n.md` §5. Drug names, supplement names and the `[INTERACTION_UNCERTAIN: <drug>]` sidecar key stay verbatim across locales.
+## Required inputs
 
-This file used to contain a hardcoded ~30-row drug-food interaction table. It was deleted because:
+Collect the exact product name, active ingredient, formulation, strength, country/region, current schedule as prescribed, and indication. Include prescription medicines, OTC products, vitamins, herbs, teas/powders and other supplements. If the medication list is incomplete or an OCR drug name is unconfirmed, do not personalize the interaction review.
 
-1. The model already knows the standard oncology drug-food interactions (TKI ↔ 西柚 / 华法林 ↔ 维 K 食物 / 奥沙利铂 ↔ 冷食 / 5-FU + capecitabine ↔ 柚子 / methotrexate ↔ 酒精 / etc.) from training data
-2. A hardcoded table is always behind FDA/NMPA approvals — the patient's actual `summary.current_regimen` may not be in the table
-3. A consistent-but-incomplete table creates false confidence: agent checks the table, finds no match, concludes "no interactions" — when in fact the table just didn't list this drug
+## Source hierarchy
 
-What this skill DOES require, structurally:
+For each product, check a **current source for the user's jurisdiction**:
+
+1. Current regulator-approved product label or medication guide (for example NMPA, FDA, EMA or the relevant national regulator).
+2. The treating center's written instructions for that exact product/formulation.
+3. Direct confirmation by the dispensing or oncology pharmacist.
+
+An interaction database can help locate a question but does not override the current label or pharmacist. A blog, search snippet, marketing page, forum, or model training knowledge is not sufficient.
 
 ## Workflow
 
-1. From `profile.json.summary.current_regimen` + ordered lines of therapy in `treatment_lines.json` + any patient-volunteered supplements, **enumerate every active drug, every recent (< 1 month) drug, and every supplement**.
-2. For each drug, use your training knowledge to identify **known clinically meaningful food/supplement interactions**. Cover at minimum: CYP3A4 substrates (TKIs, anti-emetics, statins) + CYP-modulating foods (西柚 / 杨桃 / 圣约翰草 / 大蒜补剂 / 银杏 / 人参), warfarin + vitamin K balance, MAOI + tyramine, methotrexate + alcohol / NSAIDs / PPI, oxaliplatin + cold exposure (acute neuropathy), nadir-period food safety (raw / unpasteurized / 生腌).
-3. For each interaction surfaced, classify: 🔴 must-avoid (clinically dangerous) / 🟡 caution (timing or quantity matters) / 🟢 informational.
-4. Write all findings to `patients/<patient_code>/reports/nutrition/interactions-flagged.md`.
-5. Any 🔴 interaction MUST be highlighted at the top of the patient menu in red.
+1. Transcribe the label's exact food, drink, supplement, timing, swallowing and missed-dose instructions with a source URL/document title, revision date if shown, jurisdiction and access date.
+2. Separate `verified instruction`, `pharmacist clarification needed`, and `no relevant statement located`. The last category does **not** mean “no interaction.”
+3. If sources conflict, formulations differ, the product cannot be identified, or the patient has organ dysfunction/polypharmacy, mark the item unresolved and route to the prescribing team/pharmacist.
+4. Never create a severity color from pharmacology intuition. A red/urgent flag is reserved for an explicit label warning or a pharmacist/clinician instruction, quoted accurately.
+5. Never advise changing a prescribed dose, medicine timing, or treatment. Never propose a supplement “separation window” as a workaround.
 
-## Uncertainty escape hatch
+## Output record
 
-When you encounter a drug whose interaction profile you genuinely don't know with confidence (rare drug / new approval / regional generic):
-- Do NOT make up plausible-sounding interactions
-- Write `[INTERACTION_UNCERTAIN: <drug>]` in the sidecar
-- Add to `interactions-flagged.md` as a 🟡 yellow flag with text: "<drug> 的食物相互作用我不确定,建议向药剂师/主诊医生确认"
+For each item in `interactions-flagged.md`, record:
 
-When you are certain there are NO meaningful interactions (e.g., supportive-care drugs like 维生素 D, 钙片, 益生菌):
-- Note in sidecar: "no clinically meaningful food interactions per training data"
-- Move on without forced 🟡 flag
+```yaml
+product: <verbatim>
+formulation_and_region: <verbatim or unknown>
+status: verified_instruction | pharmacist_clarification_needed | no_relevant_statement_located
+instruction_or_question: <locale prose; clinical entities verbatim>
+source_title: <official label/team instruction/pharmacist>
+source_url: <URL or not_applicable>
+source_revision: <date or not_shown>
+checked_at: <ISO date>
+```
 
-## TCM / Chinese herbal — be more cautious
+Patient-facing uncertainty wording: “I could not verify a food/supplement instruction for `<product>` from a current official source. That is not the same as confirming there is no interaction. Please check with the oncology pharmacist or prescribing team before changing food, supplements, or medicine timing.” Render this meaning in the resolved locale.
 
-TCM herbal medications have more variable evidence than Western pharmacology, and "I don't know" is the correct answer more often. Use `[INTERACTION_UNCERTAIN]` liberally for: 圣约翰草 (this one is well-known: CYP3A4/P-gp inducer, lowers many drug levels), 大黄, 人参 (anti-platelet, BP), 灵芝, 黄芪, 冬虫夏草 / 百令胶囊, 复方草药汤药. List them all in the sidecar; flag the ones whose interaction with the patient's specific regimen you are not sure about.
-
-## Project convention (workflow rules, not clinical facts)
-
-- Output path: `patients/<patient_code>/reports/nutrition/interactions-flagged.md`
-- Severity colors: 🔴 / 🟡 / 🟢 (override schema: see `../../../references/preflight.md` §Step 2.5)
-- Patient menu top-of-page: any 🔴 interaction must be the first thing the patient sees
-
-## Last resort
-
-When uncertain, tell the patient to ask their oncologist or pharmacist. Do NOT recommend Google.
+Herbal mixtures and supplements often lack reliable product composition or interaction data. List the full product/ingredients if available and use `pharmacist_clarification_needed`; do not infer safety from “natural,” food-sized use, or a gap between doses.

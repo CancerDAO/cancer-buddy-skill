@@ -4,7 +4,7 @@ This is the `conversation-incremental` run mode of `cancer-buddy-organize`. It r
 
 The hard rule of this mode: **unconfirmed talk never touches formal fields.** A patient mis-speaking ("我好像是三期吧?") must not silently rewrite `profile.json.summary.stage` and poison every downstream report. The diff card + explicit confirmation is the gate.
 
-That gate is **not redefined here** — it is the shared confirm-gate. The "unconfirmed → no formal write" floor, the diff-card presentation contract, and the `update_log.json` provenance requirement all live in [`../../../references/confirm-gate.md`](../../../references/confirm-gate.md); cite it as authoritative. This doc keeps only what is **specific to conversation mode**: the 5 archivable-fact categories, the conversation anchor, and `patient_curated` tagging.
+That gate is **not redefined here** — it is the shared confirm-gate. The "unconfirmed → no formal write" floor, the diff-card presentation contract, and the `update_log.json` provenance requirement all live in [`../../cancer-buddy/references/confirm-gate.md`](../../cancer-buddy/references/confirm-gate.md); cite it as authoritative. This doc keeps only what is **specific to conversation mode**: the 5 archivable-fact categories, the conversation anchor, and `patient_curated` tagging.
 
 ## When this mode runs
 
@@ -52,7 +52,7 @@ You need the current value of any field a candidate fact would change, so the di
 
 From `conversation_turn`, extract zero or more candidate facts. For each, decide its **target**:
 
-- **profile.json field** — when the fact updates a structured field. Use the dot path from [`../../../references/patient-profile-schema.md`](../../../references/patient-profile-schema.md), e.g. `summary.stage`, `summary.current_regimen`, `latest_status.ecog`. (Drivers now live in `molecular.json`, demographics in `patient_summary.json`, and ordered lines of therapy in `treatment_lines.json` — those are no longer profile.json fields.) Only write fields that exist in the schema.
+- **profile.json field** — when the fact updates a structured field. Use the dot path from [`../../cancer-buddy/references/patient-profile-schema.md`](../../cancer-buddy/references/patient-profile-schema.md), e.g. `summary.stage`, `summary.current_regimen`, `latest_status.ecog`. (Drivers now live in `molecular.json`, demographics in `patient_summary.json`, and ordered lines of therapy in `treatment_lines.json` — those are no longer profile.json fields.) Only write fields that exist in the schema.
 - **timeline row** — when the fact is a dated clinical event (a new line of therapy starting, a symptom onset, a new lab draw). One new line appended to `timeline.md`, mirrored as one entry in `timeline.json`.
 
 A single turn may yield both (e.g. "这周换奥希替尼了" → `summary.current_regimen` field change **and** a new timeline row for the switch).
@@ -67,7 +67,7 @@ Each candidate carries:
 
 ### Step 3 — Emit a diff card (do NOT write yet)
 
-Present every candidate to the user as a compact, plain-language diff card, per the diff-card contract in [`../../../references/confirm-gate.md`](../../../references/confirm-gate.md) (current→proposed, quote the 依据, mark `low` confidence, critical-field never a fait accompli, locale + verbatim-clinical). One card per turn, listing all candidates. Conversation-specific format:
+Present every candidate to the user as a compact, plain-language diff card, per the diff-card contract in [`../../cancer-buddy/references/confirm-gate.md`](../../cancer-buddy/references/confirm-gate.md) (current→proposed, quote the 依据, mark `low` confidence, critical-field never a fait accompli, locale + verbatim-clinical). One card per turn, listing all candidates. Conversation-specific format:
 
 ```
 我从刚才的对话里听到这些可以归档的信息，确认后我才会写进档案：
@@ -94,7 +94,7 @@ Only write the candidates the user confirms (`确认`). For `改一下` use the 
 
 **4a. Archive the note (always, for every confirmed candidate) — routed to its clinical domain:**
 
-First, decide **which clinical domain** the confirmed fact belongs to, then file the note into THAT domain's `conversation_notes/` subdir — not unconditionally into `14_`. Use the **same Step-1a-style LLM domain judgment the synthesis worker uses**: read the confirmed fact in the context of the existing `profile.json` and pick the matching domain from the 14 clinical domains in [`bucket-taxonomy.md`](bucket-taxonomy.md) §1.1. This is **LLM judgment — do NOT use a hardcoded keyword→domain map** (per the skill's no-hardcode rule). What's load-bearing is the **two-digit `NN_` prefix** of the chosen domain; the slug after it is **localized to `profile.json.locale`** (zh slug like `07_检验` when locale=zh, the `en` slug like `07_labs` for every other locale — see `bucket-taxonomy.md` §1.1a / [`../../../references/i18n.md`](../../../references/i18n.md) §6). Typical mappings (shown with zh slugs for illustration; resolve to the actual localized dir at write time):
+First, decide **which clinical domain** the confirmed fact belongs to, then file the note into THAT domain's `conversation_notes/` subdir — not unconditionally into `14_`. Use the **same Step-1a-style LLM domain judgment the synthesis worker uses**: read the confirmed fact in the context of the existing `profile.json` and pick the matching domain from the 14 clinical domains in [`bucket-taxonomy.md`](bucket-taxonomy.md) §1.1. This is **LLM judgment — do NOT use a hardcoded keyword→domain map** (per the skill's no-hardcode rule). What's load-bearing is the **two-digit `NN_` prefix** of the chosen domain; the slug after it is **localized to `profile.json.locale`** (zh slug like `07_检验` when locale=zh, the `en` slug like `07_labs` for every other locale — see `bucket-taxonomy.md` §1.1a / [`../../cancer-buddy/references/i18n.md`](../../cancer-buddy/references/i18n.md) §6). Typical mappings (shown with zh slugs for illustration; resolve to the actual localized dir at write time):
 
 - a new lab value → `07_` (检验 / labs)
 - a newly stated pathology / diagnosis / staging → `04_` (诊断与分期 / diagnosis_staging)
@@ -120,7 +120,7 @@ mkdir -p "$patient_dir/$domain_dir/conversation_notes"
 # write to <domain_dir>/conversation_notes/<turn_timestamp-date>.md
 ```
 
-**PII (MANDATORY — 段C has no Phase-1 masker, so do it here):** before writing the verbatim user quote into the note, mask PII in the quote to `[PII_MASKED]` per the **same open-ended category judgment as `organizer-prompt-phase1-ocr.md` §2.4** (patient/family name, MRN/住院号/门诊号, phone, address, bed, signatory names, ID, DOB, specimen_id 检验号/标本编号, postal code, 出生地/籍贯, 职业/工作单位, 民族 …) — clinical entities stay verbatim (§2.2a). Then run **both §2.5 layers** on the note: the Layer-1 semantic agent scan (`pii-rescan-prompt.md`) AND `python3 scripts/pii_rescan.py "$patient_dir/$domain_dir/conversation_notes/<file>.md"`, re-masking until **both** are clean. Filing under an `NN_` bucket (above) ALSO ensures a later full/incremental acceptance-gate rescan covers it; the gate additionally scans `conversation_notes/*.md` wherever it lands as defense-in-depth.
+**PII (MANDATORY — 段C has no Phase-1 masker, so do it here):** before writing the verbatim user quote into the note, mask PII in the quote to `[PII_MASKED]` per the **same open-ended category judgment as `organizer-prompt-phase1-ocr.md` §2.4** (patient/family name, MRN/住院号/门诊号, phone, address, bed, signatory names, ID, DOB, specimen_id 检验号/标本编号, postal code, 出生地/籍贯, 职业/工作单位, 民族 …) — clinical entities stay verbatim (§2.2a). Then run **both §2.5 layers** on the note: the Layer-1 semantic agent scan (`pii-rescan-prompt.md`) AND `python3 "$ORGANIZE_SKILL_DIR/scripts/pii_rescan.py" "$patient_dir/$domain_dir/conversation_notes/<file>.md"`, re-masking until **both** are clean. Filing under an `NN_` bucket (above) ALSO ensures a later full/incremental acceptance-gate rescan covers it; the gate additionally scans `conversation_notes/*.md` wherever it lands as defense-in-depth.
 
 The note file carries a `tags: [patient_curated]` front-matter marker and the **PII-masked** user quote + the confirmed structured value. This file is the **archive**, not the citation target — facts cite the conversation anchor, not this file (see anchor-contract §1b). The note still carries the **conversation** anchor, never a file anchor, because the source is the dialogue turn — domain routing only chooses where the archive lands, it does not change the provenance class.
 
@@ -180,7 +180,7 @@ Final message MUST be pure JSON, no prose:
 
 ## Rules
 
-The gate rules (unconfirmed → no formal write; silence = no-confirm; never fabricate; critical-field never a fait accompli; never silently overwrite a contradicting value; LLM judgment not a keyword list; `alias` sticky / no broad rewrite) are the shared floor in [`../../../references/confirm-gate.md`](../../../references/confirm-gate.md) — that doc is authoritative; do not fork them here. Conversation-mode specializations on top of that floor:
+The gate rules (unconfirmed → no formal write; silence = no-confirm; never fabricate; critical-field never a fait accompli; never silently overwrite a contradicting value; LLM judgment not a keyword list; `alias` sticky / no broad rewrite) are the shared floor in [`../../cancer-buddy/references/confirm-gate.md`](../../cancer-buddy/references/confirm-gate.md) — that doc is authoritative; do not fork them here. Conversation-mode specializations on top of that floor:
 
 - **Never use a file anchor for a conversation fact.** Conversation provenance is `[[src:conversation:<ISO8601>]]` only — domain routing of the archive note (Step 4a) does not change this; the source is still the dialogue turn.
 - **Route the archived conversation note to its corresponding clinical domain's `conversation_notes/` subdir**, not unconditionally into the `14_` domain. Pick the domain with the same Step-1a-style LLM domain judgment the synthesis worker uses (read the confirmed fact + existing profile context against the 14 domains in `bucket-taxonomy.md` §1.1) — e.g. a lab value → `07_` domain, a staging change → `04_` domain, a treatment change → `08_` domain. The `14_` domain is the **fallback only**, used when the fact fits no clinical domain. **Resolve the actual directory by its stable `NN_` prefix against the existing buckets (Step 4a), so the note lands in the archive's locale-correct slug (`07_检验` for zh, `07_labs` for en/fr…) — never hardcode the zh slug and never mkdir a phantom second bucket.** This is LLM judgment, **not a hardcoded keyword→domain map**.

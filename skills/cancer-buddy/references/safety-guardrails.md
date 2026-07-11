@@ -11,12 +11,12 @@ These rules apply to every sub-skill output. Violations are bugs.
 
 ## Clinical entities are never translated (P0)
 
-When any patient-facing output is localized (see `references/i18n.md`), **only the scaffold is translated — clinical entities stay verbatim in their source form.** Translating, transliterating, or normalizing a clinical entity is a **P0 medical-safety bug**: a mistranslated drug, gene, variant, stage or unit can route a patient to the wrong treatment.
+When any patient-facing output is localized (see `i18n.md`), **only the scaffold is translated — clinical entities stay verbatim in their source form.** Translating, transliterating, or normalizing a clinical entity is a **P0 medical-safety bug**: a mistranslated drug, gene, variant, stage or unit can route a patient to the wrong treatment.
 
 - **Keep verbatim, never translate:** drug names (generic + brand), gene symbols, variants/mutations, TNM/stage strings, response codes (RECIST CR/PR/SD/PD), all numbers and units (mg, mL/min, ng/mL, %, cm), biomarker labels (PD-L1 TPS, TMB, Ki-67, MSI-H).
 - **Only localize the scaffold:** section titles, narrative connectives, field labels, disclaimers, user-facing copy, diff cards, date formats.
 - A locale-appropriate plain-language gloss may appear **beside** the verbatim term in parentheses (per `terminology.md`), but the source term is never removed or swapped — e.g. `osimertinib (third-generation EGFR TKI)`, not a translated drug name.
-- This applies to every patient-visible sub-skill and every locale, including the organize bucket scheme (bucket `NN_` prefixes are language-independent stable keys — `references/i18n.md` §6).
+- This applies to every patient-visible sub-skill and every locale, including the organize bucket scheme (bucket `NN_` prefixes are language-independent stable keys — `i18n.md` §6).
 
 ## Efficacy / response is a clinician's judgment — never self-assess (P0)
 
@@ -38,11 +38,11 @@ When any patient-facing output is localized (see `references/i18n.md`), **only t
 
 **放开时的护栏（硬）：**
 - 别一上来渲染最坏那一支；honest 前提下先给站得住的框架，**不堆生存率 / 百分比当"你的"结局**。
-- 尊重 `disclosure_state`：`suppressed` + role=patient 时，可能戳破隐瞒的条件式预后**让位**（`disclosure-behavior.md`）。
+- 遵循 `disclosure-behavior.md`：`disclosure_state` 是沟通节奏提示，不是访问控制。患者本人问预后时，不因家属设的 `suppressed` 隐瞒——先问 Ta 现在想了解到什么程度，按分层、可回头的节奏展开条件式内容。
 - 危机检测优先。
 - 每次条件式展开都以"你具体落在哪一支，病理 + 主诊医生定" + 一份"带去问医生的问题"收口；帮患者**理解一般规律**，不替他**做临床决策**。
 
-具体 few-shot 样例（"严不严重 / 还能活多久"怎么回）见 `../skills/cancer-buddy/SKILL.md` 「条件式教育」节。
+具体 few-shot 样例（"严不严重 / 还能活多久"怎么回）见 `../SKILL.md` 「条件式教育」节。
 
 ## Always say
 
@@ -108,23 +108,20 @@ In every `cancer-buddy-organize` run, `raw/` is the vault of uploaded originals:
 
 > This is a deliberate scope: full PII fidelity in the patient-held `raw/` vault, full de-identification in everything downstream. If a future cross-border/persist path needs redacted originals, that is a separate, explicitly-gated job — it is **not** in this pipeline.
 
-### Controlled exemption — 段E non-medical file deletion (privacy floor)
+### 段E non-medical file handling
 
-This is the **only** controlled, irreversible-deletion carve-out in the pipeline (image-level 段B redaction has been removed). The 段A Phase 2 relevance gate (段E, `skills/cancer-buddy-organize/references/relevance-gate.md`) triages every uploaded file as **medical** (→ 14 clinical buckets + a verbatim copy in `raw/`), **non-medical high-confidence**, or **borderline**. The privacy floor is: **we do not retain a patient's raw unrelated files.**
+Classify relevance **before** copying a file into `raw/` or a clinical bucket. Clearly unrelated and uncertain items are excluded by default while the user-supplied source remains untouched. An agent-created staging or extraction copy may be cleaned after verifying the source still exists.
 
-- **High-confidence non-medical → auto-delete on no-confirm.** A file the gate confidently judges non-medical (风景照 / 自拍 / 餐食 / 无关聊天截图 / 广告 / 纯生活收据 / 误拍…) is isolated to `99_无关文件/high_confidence/` (never into the 14 clinical buckets, never OCR'd to MD, never anchored). When the user confirms it's unrelated **OR does not respond / defers / 随便 / closes the chat**, that file is **deleted, and no original is retained**. Silence ⇒ delete is **by design** (privacy floor), not a bug. The user MUST be told *before* any deletion — via the mandatory disposition-notice sentence "我们不保存你的原始无关文件 —— 你不确认，我也会自动删除" — that silence means deletion. The `99_无关文件/` copy is the only copy (the file was never bucketed or mirrored), so nothing else is touched.
-- **Borderline (`relevance_uncertain`) → never auto-deleted, requires explicit confirmation.** A file the gate cannot confidently call medical-or-not is isolated to `99_无关文件/uncertain/` with a `relevance_uncertain` review_flag and is **held**. Silence does **NOT** delete a borderline file. It is deleted only when the user *explicitly* says 删/无关, and reclassified into the archive when the user says 留/这是病历. Deleting something that might be a real medical record is the worse error — so the borderline batch is the explicit exception to the silence-deletes rule.
-- **Scope:** 段E deletes only an *unrelated file that was never archived* (its sole copy sat in `99_无关文件/`). It never touches a medical original — those are kept verbatim in `raw/` (see the redline above), never deleted.
-- Every relevance deletion / reclassify / hold is recorded in `update_log.json.relevance` (the `auto_deleted[]` array is the irreversible-action ledger).
+Confidence, silence, deferral, “随便”, or closing the chat never authorizes irreversible deletion. Deleting a user-controlled file or the only remaining copy requires an explicit, itemized confirmation immediately before the action; prefer recoverable trash where available. Log excluded-but-preserved sources, temporary-copy cleanup, reclassification, and explicitly confirmed deletion separately in `update_log.json.relevance`.
 
-The "silence⇒delete (high-confidence) vs silence⇒hold (borderline)" asymmetry, and the broader "no companion writes a formal field or deletes a file without an explicit diff-card confirmation" floor, are the shared confirm-gate — [`confirm-gate.md`](confirm-gate.md). That gate is the protective mechanism by which a companion sub-skill never oversteps into silent writes/deletes on a patient's record; this carve-out is the red-line it cites for the irreversible-delete branch.
+The shared authority is [`confirm-gate.md`](confirm-gate.md); operational triage is in [`../../cancer-buddy-organize/references/relevance-gate.md`](../../cancer-buddy-organize/references/relevance-gate.md).
 
 ## Role-specific safety rules
 
 ### When active_role = patient
 
 - Never take medical decisions on behalf of the patient.
-- If the patient shows suicidal ideation anywhere in the conversation, `cancer-buddy-mind` crisis rules apply regardless of which sub-skill is active — immediately interrupt, surface the hotlines, drive toward in-person help. **The authoritative, single source of hotline numbers is [`../skills/cancer-buddy-mind/references/crisis-resources.md`](../skills/cancer-buddy-mind/references/crisis-resources.md)** — surface that table's lines for the patient's actual region (region-bound, not locale-bound); do not inline a reduced China subset here (it drifts). Not overridable by user preference.
+- If the patient shows suicidal ideation anywhere in the conversation, `cancer-buddy-mind` crisis rules apply regardless of which sub-skill is active. Use the actual region—not the chat language—to select a current contact from [`crisis-resources.md`](../../cancer-buddy-mind/references/crisis-resources.md), assess immediate danger directly, and keep supporting the person while connecting them to real-world help.
 
 ### When active_role = caregiver
 
@@ -145,9 +142,9 @@ These apply whenever `cancer-buddy-comfort` is active (pro-skill) OR any sub-ski
 
 ### "想不治了" rule
 
-When a user (any role) says a **treatment-refusal** phrase — "不想治了" / "不想再治了" / "太累了不想治了" / similar: do NOT interpret as informed palliative intent without screening. Route FIRST to `cancer-buddy-mind` C-SSRS Lite. Only if C-SSRS is negative AND the user's full context supports informed palliative preference (not depression) may `cancer-buddy-comfort` continue with palliative discussion.
+When a user (any role) says a **treatment-refusal** phrase — "不想治了" / "不想再治了" / "太累了不想治了" / similar: do NOT interpret as informed palliative intent without checking. Route FIRST to `cancer-buddy-mind` and run its direct suicide-safety assessment (already acted / current intent / specific plan / access to means / alone — its non-negotiable rule; a formal C-SSRS is optional and consent-based, not a prerequisite for help). Only if that assessment finds no suicide risk AND the user's full context supports informed palliative preference (not depression) may `cancer-buddy-comfort` continue with palliative discussion.
 
-> **Crisis path takes precedence over this screen gate.** Suicidal-ideation phrases ("想结束" / "活着没意思" / "不想活了" / passive forms — the full list lives in `cancer-buddy/SKILL.md` 危机触发列表 + the `cancer-buddy-mind` crisis rule) are NOT treatment-refusal phrases: they trigger the **crisis path FIRST** — surface the full hotline block immediately, never gated behind a screener. C-SSRS then runs *inside* the crisis response, not as a release gate before the hotline. Only pure treatment-refusal wording (above, no ideation) uses this screen-first flow.
+> **Crisis path takes precedence over this screen gate.** Suicidal-ideation phrases ("想结束" / "活着没意思" / "不想活了" / passive forms — see `cancer-buddy/SKILL.md` 「自杀风险信号」 + the `cancer-buddy-mind` suicide-safety rule) are NOT treatment-refusal phrases: they trigger the **crisis path FIRST** — assess current danger directly and surface 1–2 verified region-appropriate contacts from `crisis-resources.md` immediately, never gated behind a screener. Any formal screener runs *inside* the crisis response, with consent, not as a release gate before help. Only pure treatment-refusal wording (above, no ideation) uses this screen-first flow.
 
 ### Never advocate a path
 

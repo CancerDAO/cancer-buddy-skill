@@ -1,68 +1,46 @@
-# 治疗阶段营养方案
+# Treatment-phase nutrition support
 
-> **Locale**: phase titles, food-handling notes and any prose surfaced to the patient are the **source string table** — render in `profile.json.locale` per `../../../references/i18n.md` §5. Protein/calorie targets, numbers + units (`1.5-2.0 g/kg/day`, `ANC < 1.0`, `~300 kcal/day`), drug names (奥希替尼 / 阿法替尼 / 瑞戈非尼) and biomarker/target labels (EGFR / ALK / BRAF / MEK / PD-1 / PD-L1 / CTLA-4) stay verbatim across locales.
+Use this as a symptom-support menu, not a prescription. Render patient-visible prose in the resolved locale and keep clinical entities verbatim.
 
-## 术前
+## Safety intake comes first
 
-**目标**：为手术恢复储备。
-- 蛋白质：1.2-1.5 g/kg/day
-- 热量：维持当前体重（不突然减重）
-- 补充：维生素 D、铁（若贫血）、白蛋白（若 < 35 g/L）
-- 禁忌术前 8-12 小时禁食（按手术通知执行）
+Before personalizing, ask about recent unintentional weight change, current intake and fluids, swallowing/chewing, vomiting/diarrhea/constipation, allergies, diabetes, kidney/liver/heart or fluid restrictions, ostomy/short-bowel/major GI surgery, treatment phase, and all medicines/herbs/supplements.
 
-## 术后恢复期 (术后 1-6 周)
+Do not generate a numeric calorie, protein, electrolyte or fluid target. Such targets depend on current weight/body composition, organ function, treatment, wounds, losses and goals; use only a target documented by the treating team or oncology dietitian.
 
-**目标**：伤口愈合 + 恢复胃肠道功能。
-- 蛋白质：1.5-2.0 g/kg/day（愈合期高需求）
-- 热量：维持基础代谢 + 伤口修复额外 ~300 kcal/day
-- 从清流质 → 半流质 → 软食 → 普食逐步过渡
-- 腹部手术：少量多餐，避免产气食物（豆类、汽水、花椰菜家族）
-- 补充：锌（促进上皮愈合）、维生素 C、足量水分
+Escalate to the oncology team/oncology dietitian for substantial weight loss, intake under roughly half of usual for several days, repeated dehydration, inability to swallow safely, tube/IV feeding, complex GI surgery, severe organ dysfunction, or mutually conflicting restrictions. The emergency gate overrides this workflow.
 
-## 化疗期
+## Universal supportive pattern
 
-**目标**：顶住治疗耐受性 + 控制恶心呕吐 + 维持粒细胞。
-- 蛋白质：1.2-1.5 g/kg/day
-- 热量：维持当前体重
-- **粒细胞减少期 (ANC < 1.0)**：严格食品安全
-  - 避免：生鱼生肉、未煮熟鸡蛋、生蔬菜沙拉、未彻底清洗水果、未消毒奶制品、醉蟹、生腌
-  - 避免：散装无包装坚果、街边小吃、酒店 buffet 暴露食物
-  - 鼓励：煮熟的蔬菜、剥皮水果、密封包装的食品、瓶装水/开水
-- 恶心管理：少食多餐、避免强烈气味、姜茶、温食 > 热食 > 冷食
-- 口腔黏膜炎：软食、温而非热、避免辛辣酸、频繁清水漱口
-- 味觉改变：尝试塑料刀叉（金属味增强）、用柠檬、番茄等酸味刺激
-- 腹泻：低渣低脂、BRAT（香蕉/米饭/苹果泥/吐司）、避乳糖
-- 便秘：西梅汁、温热水、纤维 + 水 同时加
+- Ask which foods are currently tolerable, affordable and culturally familiar.
+- Prefer small, frequent opportunities to eat when appetite is poor.
+- Include an ordinary protein-containing food when tolerated, without prescribing grams.
+- Use pasteurized products and thoroughly cooked high-risk foods; wash hands and separate raw from cooked foods.
+- Keep a short symptom/intake log if it helps the clinical team understand a persistent problem.
+- Follow written fasting, texture, fluid, electrolyte and medication instructions exactly; do not generate replacements.
 
-## 放疗期
+## Surgery
 
-**目标**：保护受照射区域 + 维持体重。
-- 头颈部放疗：高热量半流质、不辣不酸不粗糙、温凉、鸡蛋羹、高能量饮品
-- 胸部放疗：注意食道炎 (7-14 天开始) — 软食、温凉、避免麻辣烫
-- 腹盆部放疗：低渣低纤、避乳糖、避产气
-- 皮肤：放疗野内的皮肤不需额外营养处理（局部护理另议）
+- Pre-operative fasting is determined by the surgical/anesthesia instructions. Never substitute a generic fasting interval.
+- After surgery, diet advancement and texture depend on the operation and return of gut function. For GI, head/neck or swallowing surgery, use only the team's staged plan.
+- New abdominal distension with persistent vomiting, inability to pass stool/gas, wound deterioration, or inability to drink needs clinical assessment.
 
-## 免疫治疗期 (PD-1 / PD-L1 / CTLA-4)
+## Chemotherapy or radiotherapy
 
-**目标**：正常饮食 + 识别 immune-related adverse events (irAE)。
-- 正常饮食，不必特殊忌口。
-- **如果发生免疫相关肠炎（irAE colitis）**：按化疗腹泻流程 + 立即联系医生（可能需要类固醇介入）。
-- 类固醇使用期：低盐低糖（类固醇导致水钠潴留 + 血糖升高）。
-- 免疫期肿瘤 pseudoprogression 可能伴随食欲变化 — 不要因食欲下降就怀疑进展，先查。
+- Nausea: bland or low-odor foods, cool/room-temperature foods, and small portions may be easier; persistent vomiting or poor fluids needs the treatment team.
+- Mouth/throat pain: soft, moist, non-irritating foods may help. Inability to drink or swallow safely needs urgent assessment.
+- Diarrhea: prioritize hydration only within any fluid/electrolyte plan and contact the team for persistent, severe, bloody, dizzying or treatment-related diarrhea. Do not prescribe a restrictive diet for prolonged use.
+- Constipation: ask about obstruction red flags and the medication plan before suggesting more fiber; fiber can be inappropriate in some GI conditions.
+- Food safety: do not assign restrictions from an ANC threshold alone. Follow the oncology/transplant team's instructions and ordinary safe-handling practices.
 
-## 靶向治疗期
+## Immunotherapy
 
-**目标**：避免药物代谢干扰。
-- EGFR / ALK / BRAF / MEK 等 TKIs: **避免西柚汁、杨桃**（抑制 CYP3A4，升高药物血药浓度）
-- 食物影响吸收差异大 — 按具体药物说明 (部分需空腹, 部分需随餐)
-- 奥希替尼、阿法替尼：胃肠道副作用较大时需要少食多餐
-- 瑞戈非尼：最好空腹或低脂餐
-- 特定药物查 `drug-food-interactions.md`
+No special “immune-boosting” diet is established. New or worsening diarrhea, abdominal pain, blood in stool, jaundice, severe fatigue, breathing symptoms, confusion or marked thirst/urination can be treatment toxicity and should be reported promptly; do not manage it only with diet.
 
-## 维持期 / 生存期
+## Targeted or oral anticancer therapy
 
-**目标**：预防复发（证据有限）+ 管理共病（心血管、糖尿病）。
-- 地中海饮食模式：蔬菜、豆类、全谷物、橄榄油、鱼、少红肉、少加工食品
-- 保持体重在正常 BMI
-- 规律运动配合
-- 酒精：乳腺癌、肝癌、头颈部癌生存者建议戒或限量；其他癌种限量
+Food instructions are product-specific and can differ by formulation and jurisdiction. Copy the patient's current official label/prescriber instruction verbatim and verify questions with an oncology pharmacist. Never generalize “take fasting,” “take with low-fat food,” or “avoid grapefruit” to an entire drug class.
+
+## Follow-up or survivorship
+
+Support an overall varied dietary pattern that fits comorbidities, preferences and finances. Avoid promising recurrence prevention from a particular food or diet. Alcohol, weight change and exercise questions should be individualized with the clinical team when cancer type, treatment or comorbidity changes the risk.

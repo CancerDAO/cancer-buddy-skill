@@ -5,6 +5,8 @@ description: "查找能做特定治疗资源的医院、专科医生和临床试
 
 # cancer-buddy-find-care
 
+Before location research, role checks, or archive reads, run [`medical-emergency-gate.md`](../cancer-buddy/references/medical-emergency-gate.md) and the suicide-safety rules in [`safety-guardrails.md`](../cancer-buddy/references/safety-guardrails.md). Chest pain, severe breathing difficulty, neurologic deficits, major bleeding, treatment fever, and similar urgent patterns go to immediate care—not a ranked shortlist.
+
 帮你找资源，不替你做判断。
 
 「找医院 / 找医生 / 找临床试验中心」是患者和家属反复要做的事，但靠社交媒体口碑、四处问朋友、搜出一堆软文很难得到结构化的答案。这个 skill 把它做成一次可执行的并行调研：先理解你的具体诉求，分派多个子 agent 并行去查权威源，再汇总成一份带匹配理由和挂号路径的短名单。
@@ -15,7 +17,7 @@ description: "查找能做特定治疗资源的医院、专科医生和临床试
 - "我妈非小细胞肺癌 EGFR 19del，杭州/上海有哪家医院的 MTB 能接？"
 - "胰腺癌晚期，国内谁做得最好？"
 - "我这个 HER2 低表达乳腺癌有没有 DXd 相关的临床试验在招？北京可以"
-- "免疫治疗后出现心肌炎，找哪里看？"
+- "免疫相关心肌炎急性期已经稳定，出院后想找肿瘤心脏病专科随访，哪里有？"（若仍有胸痛、气短、心悸、晕厥等症状，先走急症门，不做资源排名）
 - "想做 NGS 全外显子，哪家医院靠谱、需要怎么挂号？"
 
 ## What this skill is NOT
@@ -32,24 +34,24 @@ description: "查找能做特定治疗资源的医院、专科医生和临床试
 
 ## Locale (i18n)
 
-读共享 `../../references/i18n.md`。流程开始时：
+读共享 `../cancer-buddy/references/i18n.md`。流程开始时：
 
-1. 如果 caller / host 传入 `locale`（用户显式选择的产品 UI 语言），先用它，并在可写 profile 状态时写回 / 更新 `profile.json.locale`。
+1. 如果 caller / host 传入 `locale`（用户显式选择的产品 UI 语言），先用它。
 2. 否则读 `patients/<patient_code>/profile.json` 的 `locale` 字段。有则直接复用，**不重新检测**——保证整个患者旅程脚手架语言一致。
-3. 无 profile / `locale` 为 null → 从用户当前对话语言检测 BCP-47 locale（en / fr / es / zh / …），写回 `profile.json.locale`（无 profile 时由后续 organize 落地，本 skill 检测到则先写）。
-4. 用户显式要求换语言（"answer me in English" / "用中文"）→ 更新 `profile.json.locale` 并照办，覆盖自动检测。
+3. 无 profile / `locale` 为 null → 从用户当前对话语言检测 BCP-47 locale（en / fr / es / zh / …），仅本会话使用——**不为保存语言偏好创建/修改 `profile.json`**（organize 是 `profile.json.locale` 的唯一权威写入方，之后建档时落地）。
+4. 用户显式要求换语言（"answer me in English" / "用中文"）→ 立即照办并沿用；仅在已打开经授权 profile 时经权威写入方更新 `profile.json.locale`。
 
-**本地化脚手架，绝不动临床实体**：所有患者可见输出（QUERY.md、SHORTLIST.md、顶层结论、匹配理由、挂号路径、限制项、路由话术、diff/确认话术、免责声明、日期格式）按 locale 出；药名 / 基因 / 变异 / TNM / 分期 / 数值单位 / 量表标准名 / 注册号（NCT/ChiCTR）/ 机构原名一律 **verbatim 原文逐字**，禁止翻译（误译=医疗风险，见 `../../references/safety-guardrails.md` → 临床实体禁译）。机构名可在原名旁加 locale 通俗注释，不替换原名。
+**本地化脚手架，绝不动临床实体**：所有患者可见输出（QUERY.md、SHORTLIST.md、顶层结论、匹配理由、挂号路径、限制项、路由话术、diff/确认话术、免责声明、日期格式）按 locale 出；药名 / 基因 / 变异 / TNM / 分期 / 数值单位 / 量表标准名 / 注册号（NCT/ChiCTR）/ 机构原名一律 **verbatim 原文逐字**，禁止翻译（误译=医疗风险，见 `../cancer-buddy/references/safety-guardrails.md` → 临床实体禁译）。机构名可在原名旁加 locale 通俗注释，不替换原名。
 
-派发 subagent 时在 prompt 里写明 **"Output all patient-visible scaffold/narrative prose in `<locale>`; keep clinical entities (drugs / genes / variants / TNM / numbers+units / registry IDs / institution names) verbatim per `../../references/i18n.md` §4."**
+派发 subagent 时在 prompt 里写明 **"Output all patient-visible scaffold/narrative prose in `<locale>`; keep clinical entities (drugs / genes / variants / TNM / numbers+units / registry IDs / institution names) verbatim per `../cancer-buddy/references/i18n.md` §4."**
 
 ## Preflight
 
 ### Role check
 
 - `role=patient` 或 `role=caregiver`：正常工作
-- `role=family`（远亲/朋友）：refuse + 引导回主照护者
-  - 输出（**按 locale 出**，下文 zh 为 `zh` locale 的措辞，其它 locale 渲染同义文案）：`找医院/医生/试验涉及实际就医操作，需要患者本人或主照护者来推进。我可以陪你做的是把搜到的信息整理给 Ta 看。`
+- `role=family`（远亲/朋友）：走**通用公开资源模式**——不读患者档案、不出个性化短名单，只做公开信息搜索与整理（会话角色只影响内容形态，不是权限门；档案访问另走 `../cancer-buddy/references/authorization-and-consent.md`）
+  - 输出（**按 locale 出**，下文 zh 为 `zh` locale 的措辞，其它 locale 渲染同义文案）：`我可以帮你搜集公开的医院/医生/临床试验信息整理给 Ta 看；具体就医推进需要患者本人或主照护者来做。`
 
 ### Profile completeness
 
@@ -209,15 +211,12 @@ patient_profile_ref: patients/PT-XXXX/profile.json
 ## Role behavior
 
 - **Role = patient**：第二人称 "你"，挂号路径以患者本人操作为准
-- **Role = caregiver**：第二人称 "你"，但任务理解为帮家人办，挂号路径以照护者操作为准（包括异地医保备案、协助身份证明等）
-- **Role = family**：refuse（见 Preflight）
+- **Role = caregiver**：可做公开资源检索；只有在经核验的读取授权范围内，才用患者档案做个性化筛选。
+- **Role = family**：提供不读取档案的公开资源清单与转交问题；不透露患者档案是否存在。
 
 ## Disclosure 行为
 
-如果 `profile.json.disclosure_state == "suppressed"` 且 `role=patient`：
-- 患者可能还不完全知道分期/分子情况，但"找做 X 的医院" 这个动作本身已经说明 ta 知道在找什么
-- 正常执行，但 SHORTLIST 里**避免**渲染"晚期/IV/进展后"等可能加重情绪的表述，用临床中性语
-- 详见 `../../references/disclosure-behavior.md`
+`disclosure_state` 不授予访问权，也不能隐藏已授权成年患者本人的档案。先问用户希望短名单包含多少诊断细节，并在写文件前给预览；详见 `../cancer-buddy/references/disclosure-behavior.md`。
 
 ## Output
 
@@ -250,5 +249,5 @@ patients/<patient_code>/reports/find-care/<query-slug>/
 - [scoring-rubric.md](references/scoring-rubric.md) — 排序打分维度和权重
 - [output-template.md](references/output-template.md) — SHORTLIST.md 模板
 - [mtb-centers-cn-seed.md](references/mtb-centers-cn-seed.md) — 已知设有 MTB/MDT 项目的中国大陆癌种中心种子列表（人工维护，不替代实时调研）
-- 共用：`../../references/roles.md`, `../../references/safety-guardrails.md`, `../../references/disclosure-behavior.md`, `../../references/i18n.md`（locale 检测/persist/临床实体禁译）
+- 共用：`../cancer-buddy/references/roles.md`, `../cancer-buddy/references/safety-guardrails.md`, `../cancer-buddy/references/disclosure-behavior.md`, `../cancer-buddy/references/i18n.md`（locale 检测/persist/临床实体禁译）
 - 联网底层依赖：`../web-access/SKILL.md`（subagent 必须加载）

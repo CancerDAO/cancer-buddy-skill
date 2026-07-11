@@ -1,301 +1,107 @@
-# 扩展 FAQ（按阶段组织）
+# Patient FAQ by care phase
 
-Organized by treatment phase. Pull the section matching the patient's current
-phase from `profile.json`:
+Select only relevant questions. Keep answers short, render them in the resolved locale, and preserve clinical entities verbatim. These answers educate and prepare questions; they do not prescribe care.
 
-| Phase key (from profile) | `zh` heading (source) | `en` heading |
-|---|---|---|
-| **newly-diagnosed** | `## 刚确诊阶段` | `## Newly diagnosed` |
-| **active-treatment** | `## 治疗期` | `## In active treatment` |
-| **survivorship** / follow-up | `## 随访 / 生存期` | `## Follow-up / survivorship` |
+For any time-sensitive statement about a regimen, label, surveillance schedule, vaccine, fertility, drug access or insurance, use a current authoritative source for the user's jurisdiction and record it in the handbook source ledger. If not verified, say what is unknown and ask the clinical team.
 
-## Locale
+## Newly diagnosed
 
-Resolve locale per `../../../references/i18n.md` (host `locale` first, otherwise
-`profile.json.locale`, otherwise detection fallback + persist). The Q&A prose below is the **`zh` source rendering**. When the patient's
-`locale` is not `zh`, render the matching phase section's questions and answers in
-that locale — same meaning, same patient voice, same brevity — keeping every
-clinical entity verbatim (drug names like 培非格司亭 / G-CSF, response codes
-CR/PR/SD/PD, scale acronyms TNM/Ki67/MDT/NGS, numbers + units like WBC < 3.0,
-ANC < 1.5, fever > 38°C). Phase headings come from the table above. This is a
-prompt-driven localization of generated prose, not a hardcoded per-language
-string table.
+### What do we know, and what is still unknown?
 
-Answers intentionally short (2–3 sentences) so they can be read at the clinic.
-Each medical term keeps its verbatim clinical form on first mention with a
-locale-appropriate plain-language gloss beside it.
+Separate pathology-confirmed facts, imaging findings, clinician-documented stage, and pending tests. Do not turn an incomplete report into a stage, prognosis or treatment recommendation.
 
----
+### Does cancer always mean a short life?
 
-## 刚确诊阶段
+No single answer applies across cancer types and situations. Ask the treating clinician which factors matter for this diagnosis and what the current treatment goal is; do not map population statistics to one person.
 
-### Q1. 医生说我得了癌症，我是不是活不了多久了？
+### What are pathology, TNM and biomarkers for?
 
-不一定。癌症不是一种病，而是几百种病的统称，生存期差别巨大。早期很多癌
-（甲状腺、乳腺、前列腺、部分肺癌、结直肠癌）五年生存率 > 80%。先看"分期"和
-"分子分型"，再下结论。
+Explain each term in plain language using the actual report. Make clear that individual markers must be interpreted together by the clinical team and do not independently select a treatment.
 
-### Q2. 我要不要换家医院再看看？什么叫"多学科会诊 (MDT)"？
+### Should I get another opinion or MDT review?
 
-可以。复杂或少见癌种建议到省级或 top 肿瘤专科中心做多学科会诊 (Multi-
-Disciplinary Team, MDT) — 肿瘤内外科、放疗、病理、影像一次性讨论。这比辗转
-多个科室更高效，不是对医生的不信任。
+A second opinion can help when the diagnosis is rare, records conflict, or choices have major trade-offs. Frame it as an option and help prepare records/questions; do not label a center or clinician “best.”
 
-### Q3. 病理报告怎么看？"分化"、"Ki67"是什么？
+### Should I have genetic or genomic testing?
 
-- **分化** (differentiation)：越分化的细胞越像正常细胞，恶性度越低；
-- **Ki67**：细胞增殖指数，数值越高肿瘤长得越快；
-- **TNM**：T 肿瘤大小、N 淋巴结、M 远处转移；
-- **免疫组化**：蛋白层面的分子特征（HER2、ER、PR、PD-L1 等）。
+Testing depends on diagnosis, stage, family history, purpose and jurisdiction. Prepare the question “What result could change my care or my relatives' care?” and distinguish tumor testing from inherited-risk testing; do not prescribe a panel.
 
-### Q4. 要不要做基因检测？
+### Is cancer contagious or my fault?
 
-晚期或特定癌种（肺腺癌、结直肠癌、乳腺癌、胃癌、胆管癌、前列腺癌、卵巢癌等）
-强烈建议。NGS 大 panel 能同时测几十到几百个基因，决定靶向药和免疫治疗获益
-人群。部分基因异常还有遗传咨询意义。
+Cancer itself is not spread by ordinary contact. Avoid blame: cancer usually reflects multiple biological and environmental factors, and a person's stress or attitude is not a moral cause.
 
-### Q5. 癌症会传染吗？我的家人会不会被传染？
+### What should I ask before treatment starts?
 
-不会。癌症不是感染性疾病，不会通过接触、呼吸、共同生活传染。只是部分病因
-（HPV、HBV、Hp、EBV）感染可预防，所以打疫苗、分餐制、筛查 Hp 是一级预防。
+Ask about treatment goal, alternatives, expected benefits and harms, urgent contact routes, fertility/sexual-health needs, medication/supplement review, costs, transport, and what would make the plan change.
 
-### Q6. 要不要告诉家人 / 朋友？什么时候告诉？
+### Should I try a secret remedy, supplement or unregistered cell treatment?
 
-医学上你的隐私权你做主。实践上，至少要告诉 1–2 个能陪诊和分担决策的亲属，
-因为治疗期间需要人陪诊、运营生活。老人和孩子可以延后或分阶段告知。
+Do not replace or delay established care. Ask for the exact product/intervention, regulator status, registered study, human outcome evidence, risks, cost and conflicts of interest; have the oncology team/pharmacist review it.
 
-### Q7. 我听说有些"秘方 / 偏方 / 细胞疗法"特别厉害，要不要试？
+## Active treatment
 
-警惕。真正有效的治疗都能在 NCCN / CSCO 指南查到，不需要"神秘"。民间偏方、
-中医抗癌疗法、未经批准的细胞治疗往往延误病情或加重肝损。决策前先问你的主诊
-医生"有没有临床证据"。
+### Which symptoms are emergencies?
 
-### Q8. "临床试验"是不是把我当小白鼠？
+Use the shared emergency gate. During chemotherapy, a measured temperature `≥ 38.0°C` needs immediate oncology-team contact or emergency assessment unless the person's written plan uses a lower threshold; serious breathing difficulty, chest pain, major bleeding, new neurologic deficit, confusion or inability to keep fluids down also need prompt action.
 
-不是。临床试验用的药物大多已经做过早期安全性验证，很多是免费用药 + 免费
-检测。合适的试验能让你提前用上 3–5 年后才上市的新药。具体可查 ClinicalTrials
-.gov 或让医生推荐。
+### My nausea, pain, mouth sores, diarrhea or constipation are not controlled. What do I do?
 
-### Q9. 癌症是不是"压力 / 熬夜 / 情绪"引起的？
+Contact the treating team and report severity, onset, intake/urine, fever and medicines already taken. Do not add a prescription/OTC medicine or reuse someone else's regimen from this FAQ; the correct management depends on treatment, organ function and severity.
 
-致癌是多因素（基因 + 环境 + 慢性炎症 + 偶然积累）。压力和作息不是单一原因，
-不需要过度自责。自责只会加剧焦虑，影响后续治疗。
+### My blood counts or chemistry result is abnormal. Should treatment change?
 
-### Q10. 我该不该辞职专心治病？
+Do not decide from one threshold in a handbook. Send the exact result, units, date, symptoms and treatment timing to the clinical team; dose delays, supportive medicines and urgent evaluation are clinician decisions.
 
-看治疗强度。门诊口服靶向 / 内分泌药通常不影响工作；住院化疗 / 放疗期间建议
-请病假或长休。**不要冲动辞职**，很多单位可以医疗期内保留工作岗位，辞职后
-医保、收入都受影响。先咨询 HR。
+### How do I take this anticancer medicine with food or other products?
 
-### Q11. 医生说的"预后"、"中位生存期"是什么意思？
+Use the exact current product label plus the written prescription. If the product/formulation or instructions conflict, ask the dispensing/oncology pharmacist before changing food, medicine timing or supplements.
 
-- **预后** (prognosis)：对疾病结局的总体预估；
-- **中位生存期** (median overall survival)：一半患者能活过的时间，不是你能活
-  多久。个体差异大，你可能远好于或略差于中位。把它当"规划参考"，不是"死亡
-  倒计时"。
+### Can I work, exercise or have sex during treatment?
 
-### Q12. 为什么医生不直接给我答案，要等检查？
+Often some activity is possible, but safe limits depend on symptoms, blood counts, surgery, bone disease, devices, infection/bleeding risk and treatment. Ask for individualized boundaries and stop for emergency warning signs; do not apply a fixed weekly target or fertility/contraception interval from generic text.
 
-治疗方案强依赖病理 + 分期 + 分子分型 + 体能状态。盲目开药会错过最佳方案。
-等检查结果的 1–2 周内是信息整理期，不是浪费时间 — 这时可以收集病历、了解癌
-种、准备家庭后勤。
+### Can I take herbs, vitamins or supplements?
 
-### Q13. 医保能报销多少？我要先准备多少钱？
+List the exact products and ingredients for the oncology pharmacist. Do not assume “natural” means safe, and do not use a guessed spacing interval to avoid an interaction.
 
-住院手术化疗报销比例一般 50–85%（地区差异大），靶向 / 免疫药部分纳入医保
-目录。建议一开始就办理：①大病医保；②城市惠民保；③慈善援助项目 (中华慈善
-总会、中国初保基金会等)；④商业保险理赔。准备 3–10 万应急金。
+### A scan says CR, PR, SD or PD. What does it mean?
 
-### Q14. 怎么找到适合的主诊医生？
+Explain the term only within the response framework and source used in the report. Do not infer prognosis or a treatment switch from the label alone; symptoms, scan technique, timing and clinician interpretation matter.
 
-原则：①有亚专科（专看这个癌种）；②有 MDT 团队；③沟通能讲明白；④可预约到
-复诊。别只看头衔，看"你到底能不能问到人"。
+### Can I stop, reduce or delay treatment because I feel better or because of cost/side effects?
 
-### Q15. 我该不该看心理医生？
+Do not change it independently. Help the user urgently contact the team and prepare the exact problem, desired trade-off and financial/access question so alternatives can be discussed safely.
 
-可以。确诊 6 个月内 1/3 患者出现焦虑或抑郁症状。肿瘤心理 (psycho-oncology)
-是正规亚专科，干预对治疗配合度和生存质量都有益。
+## Follow-up or survivorship
 
----
+### How often do I need scans and labs?
 
-## 治疗期
+Use the written follow-up plan or a current authoritative guideline for the exact diagnosis and setting. If neither is available, prepare questions rather than inventing a standard cadence.
 
-### Q1. 化疗 / 免疫 / 靶向 / 放疗副作用怎么区分？
+### Does fatigue, pain, a marker change or a new nodule mean recurrence?
 
-- **化疗**：骨髓抑制、脱发、恶心、口炎、乏力 — 因为打分裂快的细胞；
-- **靶向**：皮疹、腹泻、甲沟炎、高血压 (抗血管药) — 针对特定通路；
-- **免疫**：甲状腺异常、皮炎、肺炎、肠炎、肝炎 — 免疫系统过度激活；
-- **放疗**：与放射野相关（头颈口干、胸部放射性肺炎、盆腔肠炎）。
-副作用不同提示机理不同，处理也不同，不要混着自行处理。
+Not by itself. Record the symptom/result trend and contact the clinical team; new severe or rapidly worsening symptoms go through the emergency gate. Do not reassure or diagnose from one value.
 
-### Q2. 白细胞 / 中性粒低了怎么办？要打升白针吗？
+### Can I get vaccines, become pregnant, donate sperm, or pause endocrine therapy?
 
-- WBC < 3.0 / ANC < 1.5 告诉医生；
-- ANC < 0.5 是"粒缺"，发热 (> 38°C) 是急症，要住院抗感染；
-- 升白针（G-CSF，如培非格司亭 / 津优力）分短效和长效，预防性或治疗性使用由
-  医生根据方案决定，不要自行购买注射。
+These are individualized medical decisions affected by treatment, immune status, vaccine type, fertility goals and recurrence risk. Refer early to the oncology team and, when relevant, reproductive medicine; never supply a universal waiting interval or medication pause.
 
-### Q3. 化疗后恶心吐得厉害，药不管用怎么办？
+### What should I eat or how should I exercise to prevent recurrence?
 
-告诉医生升级止吐方案（三联：5-HT3 抗 + NK1 抗 + 地塞米松），严重时加奥氮平。
-多数恶心是可控的。别硬扛，因为脱水会让肾功能恶化。
+No food or supplement guarantees prevention. Offer sustainable general habits and route personalization to nutrition/rehabilitation professionals, especially with weight loss, organ disease, surgery, neuropathy or bone disease.
 
-### Q4. 口腔溃疡满嘴都是，连水都咽不下？
+### Can I use the word “cured” or stop identifying as a patient?
 
-用生理盐水 + 碳酸氢钠交替漱口，重度可用利多卡因胶浆 + 制霉菌素；避免辛辣、
-过热、酸性食物；WBC 低时警惕真菌/疱疹感染，需抗菌抗病毒治疗。
+The identity language is the person's choice. Medical status and follow-up should use the treating team's documented terms; do not define cure from a fixed number of years.
 
-### Q5. 头发什么时候开始掉？会不会长回来？
+### How do I return to work and ordinary life?
 
-化疗后 2–3 周开始脱发，治疗结束后 3–6 个月重新长出，质地颜色可能略变。
-冷帽 (cooling cap) 在部分方案可减轻脱发，但不是所有化疗都有效。戴假发、帽
-子、头巾都可以。
+Use a gradual plan based on energy, symptoms, job demands and accommodations. Help prepare a conversation with the employer/clinical team; do not promise a fixed recovery timeline.
 
-### Q6. 治疗期间能吃保健品 / 中药吗？
+### How should I handle fear of recurrence?
 
-要和主诊医生商量。有些补品影响药物代谢（CYP3A4 诱导 / 抑制剂）、增加出血
-风险、干扰免疫治疗（如灵芝孢子、人参皂苷的免疫调节不明）。原则：**治疗期
-间不自行加药**。
+Validate it, identify the next scheduled clinical checkpoint, reduce unbounded searching, and offer mental-health support. Current self-harm thoughts trigger the suicide-safety workflow immediately.
 
-### Q7. 为什么做了化疗 / 放疗还要"巩固治疗"？
+### What belongs on my follow-up card?
 
-初治方案消灭大部分肿瘤，但残余微量病灶肉眼看不见。巩固治疗（辅助化疗、维持
-药、放疗、免疫维持）就是清扫残余，降低复发。停得太早相当于感染没完成抗生
-素疗程。
-
-### Q8. 影像复查说"稳定" (SD) 或"部分缓解" (PR) 是什么意思？
-
-- **CR** 完全缓解：病灶全消；
-- **PR** 部分缓解：病灶缩小 > 30%；
-- **SD** 稳定：不缩小也不长大 20% 以内；
-- **PD** 进展：新病灶或病灶长大 > 20%。
-SD 也是获益，尤其慢性病管理模式下不一定追求 CR。
-
-### Q9. 免疫治疗无效、要换方案？为什么医生不早点换？
-
-免疫治疗起效常 6–12 周甚至更晚，有时还有"假性进展"（初期看似变大其实是免疫
-浸润）。医生要等真正的影像 + 临床综合判断，不是不换而是要等"证据确凿"。
-
-### Q10. 治疗期间能不能上班 / 运动 / 性生活？
-
-- **上班**：体能允许 + 非粒缺期可以；
-- **运动**：每周 150 分钟中等强度有氧 + 2 次抗阻训练，降低疲劳；
-- **性生活**：非粒缺、非活动性出血、配偶非孕期均可；化疗药有致畸性，避孕
-  至治疗结束后 6–12 月。
-
-### Q11. 我一看治疗账单就崩溃，能不能用便宜点的替代方案？
-
-可以和医生谈 "类药替代" (biosimilar，如国产曲妥珠) 或医保内方案。部分慈善
-援助 (首次自费 + 后续免费 / 买 N 赠 N) 大幅降低负担。不要自行减量 / 跳周期，
-疗效损失往往大于节约。
-
-### Q12. 家人 / 朋友一直来看我，我又累又烦，怎么办？
-
-直接告诉他们："你来我感动，但我现在 3 点后就累了，短时间聊就好。" 你有权
-保护自己的能量。让最靠谱的一两位做"社交过滤"，屏蔽那些"我听说某某偏方"的
-来访。
-
-### Q13. 化疗周期之间为什么要"休息一周"？
-
-让骨髓造血、黏膜、免疫系统恢复。这不是"偷懒"是生物学必要。擅自提前开始下
-一周期会叠加毒性。如果指标一直不恢复要和医生讨论减量 / 调方案。
-
-### Q14. 治疗有效了，能不能"见好就收"停药？
-
-大多数不能。维持治疗有明确时长（免疫通常 2 年、内分泌 5–10 年、靶向到耐药
-或不能耐受）。擅自停药复发率显著升高。要停必须与医生协商，通常影像 + 标志物
-持续稳定 + 达到规定时间才行。
-
-### Q15. 家人问我"到底什么时候能好"，我也不知道怎么回答？
-
-标准回答："医生说治疗按计划推进，我现在在 [化疗 / 靶向 / 免疫] 的第 N 周
-期，下个月复查，到时有进一步信息。" 不许诺，不悲观，只讲"下一个节点"。
-
----
-
-## 随访 / 生存期
-
-### Q1. 治疗结束了我怎么还那么累？是不是复发了？
-
-化疗后癌因性疲劳 (cancer-related fatigue, CRF) 可持续 6–12 月甚至更久，不
-等于复发。保证睡眠、规律有氧、排除贫血 / 甲减 / 抑郁即可。持续加重或伴有
-疼痛 / 消瘦才要警惕。
-
-### Q2. 复查要做到什么时候？为什么不能一劳永逸？
-
-大部分实体瘤术后前 2 年复发率最高，所以 3 月一查；2–5 年每 6 月；5 年后每年
-一次。5 年不等于"治愈"，部分癌（乳腺、前列腺）10 年内仍有复发风险。但节奏
-可以越来越松。
-
-### Q3. 肿瘤标志物又升高了，是不是复发了？
-
-不一定。肿瘤标志物受炎症、良性肿物、血脂、吸烟、月经周期等影响。单次轻度
-升高不等于复发，要做 2–4 周复查看趋势 + 影像印证。
-
-### Q4. 复发和第二原发怎么区分？
-
-复发是原有肿瘤再长出；第二原发是完全不同部位、不同起源的新癌。处理方式不同。
-病理活检 + 基因特征对比才能明确，不要自己吓自己。
-
-### Q5. 我可以怀孕 / 捐精 / 做人工辅助生殖吗？
-
-- 化疗 / 放疗结束后至少 6–12 月，建议等 2 年复发高峰过；
-- 乳腺癌 HR+ 内分泌治疗可在 2 年后暂停计划怀孕（POSITIVE 研究）；
-- 治疗前冻精 / 冻卵 / 冻胚胎很重要，错过就难补救。
-
-### Q6. 可以打新冠 / 流感 / 带状疱疹 / HPV 疫苗吗？
-
-化疗结束 3–6 月、免疫治疗稳定期可接种灭活苗；减毒活苗（水痘、MMR、黄热、
-卡介苗）在免疫治疗期间和化疗后 3–6 月内禁用。带状疱疹疫苗（重组 shingrix）
-化疗后推荐接种。
-
-### Q7. 我现在能不能锻炼到出汗 / 健身房 / 跑半马？
-
-可以，但分阶段。先建立每周 150 分钟中等强度基础，抗阻训练先用弹力带 / 轻重
-量。造口、放疗野皮肤、骨转移患者要个体化评估。疼痛 / 眩晕 / 呼吸困难要停。
-
-### Q8. 饮食有什么忌口？朋友都说不能吃 "发物"？
-
-中医"发物"与现代医学循证不完全对应。循证层面：限酒、少腌制 / 烧烤 / 加工
-肉、控糖、多蔬果、优质蛋白。不需要刻意忌虾蟹鸡肉，除非特定治疗（嗜铬细胞瘤、
-特定代谢病）。
-
-### Q9. 什么叫"无病生存 (DFS)"和"总生存 (OS)"？
-
-- **DFS** (Disease-Free Survival) 无病生存期：治疗后到首次复发的时间；
-- **OS** (Overall Survival) 总生存期：从确诊到死亡的时间；
-- **PFS** (Progression-Free Survival) 无进展生存期：治疗开始到病情进展；
-- 看临床数据用。
-
-### Q10. 朋友给我推荐"细胞免疫疗法 / NK 保健细胞"，要不要打？
-
-除了正规 CAR-T (阿基仑赛、瑞基奥仑赛等 NMPA 批准产品) 外，国内"细胞免疫保
-健"基本是监管灰色地带。费用高、证据缺、风险存在。强烈建议选择指南内方案或
-已注册临床试验。
-
-### Q11. 随访路上医生越换越年轻，正常吗？
-
-医院规培轮转造成，不要因此焦虑。关键是主治 / 主任不变 + 病历连续。换医院或
-升级诊治请主动带所有病历光盘 / 报告到新医生面前。
-
-### Q12. 随访发现新结节，医生说"观察"，我紧张得睡不着怎么办？
-
-合理。观察不等于"不管"，而是"风险收益比"决定了现在穿刺或切除弊大于利。
-写下医生给的观察条件（大小阈值、生长速率、伴随症状），到时间就复查，按条件
-触发干预。
-
-### Q13. 长期服药（内分泌 / 靶向 / 免疫）会不会伤肝肾？
-
-可能，所以要定期查肝肾功能。多数轻度异常可继续用药 + 监测；严重异常需减量
-或换药。不要因为"怕伤"自行停药，擅停反而增加复发。
-
-### Q14. 我又想恢复工作了，但又怕身体扛不住？
-
-多数 2 年内稳定的患者可以恢复工作。先做 "半天班 → 4 天班 → 全职" 阶梯复工。
-做高强度或接触传染病岗位（医护、幼教、厨师）前做一次全面体检评估。
-
-### Q15. 我活着活着觉得自己"好好的"，是不是可以不再定义为患者？
-
-可以。**肿瘤幸存者 (cancer survivor)** 是国际认可的身份；在稳定 5 年 + 无
-活动病灶 + 复查阴性的前提下，你可以用"已治愈患者"或"幸存者"自我定义。心理
-状态接纳比医学定义更重要。
+Diagnosis and treatment summary, current medicines/allergies, treatment-team and after-hours contacts, the written surveillance plan, late-effect warnings, emergency instructions, and questions for the next visit. Include only verified facts and the minimum necessary personal data.

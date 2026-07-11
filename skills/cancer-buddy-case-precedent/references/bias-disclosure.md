@@ -2,7 +2,7 @@
 
 这是 `cancer-buddy-case-precedent` 最重要的安全文件。它规定了：**如何诚实地披露个案报告（case report）作为证据的系统性弱点**，让患者和家属永远不会把「文献里某个人这样治好了」误读成「我也会这样」。
 
-所有文案块都是 **copy-paste-ready 的中文（zh）**。落到非中文 locale 时，**渲染的是这些文案的「含义」到 `profile.json.locale`**（见 `../../references/i18n.md`），临床实体（药名/基因/变异/TNM/分期/数值+单位/PMID/期刊名）逐字禁译（见 `../../references/safety-guardrails.md` → 临床实体禁译）。
+所有文案块都是 **copy-paste-ready 的中文（zh）**。落到非中文 locale 时，**渲染的是这些文案的「含义」到 `profile.json.locale`**（见 `../../cancer-buddy/references/i18n.md`），临床实体（药名/基因/变异/TNM/分期/数值+单位/PMID/期刊名）逐字禁译（见 `../../cancer-buddy/references/safety-guardrails.md` → 临床实体禁译）。
 
 对应 SKILL.md 的 P0 门：**G-BIAS / G-N / G-NO-AGGREGATE / G-TIER**。任何一条违反即 bug。
 
@@ -30,7 +30,7 @@
 
 > 先说清楚：这些都是零散的个案、因为少见才被写下来，**代表不了大多数人、也预测不了你**——所以下面是**去和医生讨论的线索**，不是答案。
 
-患者版规则：**不逐例摊结局、不放死亡/急速恶化个案卡片**（单个坏结局是偏倚小 N 的惊吓噪音，既非真希望也非诚实预后）；N 不必喊在最前（避免"34 个人像我"的过度信号），需要精确 N 时指向 §B。
+患者版规则：不做戏剧化的死亡/恶化卡片，但**不得隐藏死亡、进展、严重不良事件或停药**。用简短逐例表如实展示 `PMID / best response / follow-up / status / 严重不良事件`，且覆盖所有纳入病例；未报告就写未报告。不聚合成率，不当作本人预后。
 
 **可点来源例外（放宽点，与"不砌墙"并存）**：患者版每个**治疗方向**后面**允许挂一条可点 PMID 来源**（`来源：[PMID <pmid>](https://pubmed.ncbi.nlm.nih.gov/<pmid>/)`，每方向 ≤1 条），让患者/医生能一键核对、带去问医生。这**不等于**砌偏倚墙或摊结局——PMID 只是"可核验的出处锚"，逐例结局 / 6 维表 / 顶部横条仍只在 §B。PMID 逐字（临床实体禁译）。此点刻意把旧口径的"患者版零 PMID"改为"每方向一条可点来源"：目标是可核验且不冰冷。
 
@@ -122,7 +122,7 @@
 它能提示「有人试过、发生过什么」，但不能证明「有效」或「适合你」。
 ```
 
-- 交叉引用 house 的 **Evidence grading A–D**（`../../references/safety-guardrails.md` → Evidence grading）：
+- 交叉引用 house 的 **Evidence grading A–D**（`../../cancer-buddy/references/safety-guardrails.md` → Evidence grading）：
   - **A** = III 期 RCT / 指南（NCCN/CSCO/ESMO）
   - **B** = I–II 期试验
   - **C** = 回顾性 / 病例系列（case series）
@@ -134,7 +134,7 @@
 
 ## 7. Canonical 免责 footer（每份清单末尾必现）
 
-末尾**必须**渲染 house canonical 免责的含义 —— 基座是 **`不替代主诊医生的判断`**（`../../references/safety-guardrails.md` → Always say / Canonical clause；医生术语一律 **主诊医生**，不得改成主治医师/主管医生），并接上本 skill 专属的 **非预后 / 非治疗建议** 尾巴。
+末尾**必须**渲染 house canonical 免责的含义 —— 基座是 **`不替代主诊医生的判断`**（`../../cancer-buddy/references/safety-guardrails.md` → Always say / Canonical clause；医生术语一律 **主诊医生**，不得改成主治医师/主管医生），并接上本 skill 专属的 **非预后 / 非治疗建议** 尾巴。
 
 **中文（zh）canonical footer — 直接复制：**
 

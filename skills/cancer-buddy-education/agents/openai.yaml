@@ -1,0 +1,4 @@
+interface:
+  display_name: "癌症患者教育"
+  short_description: "把可靠癌症知识整理成患者与家属易懂、可核验的宣教材料"
+  default_prompt: "Use $cancer-buddy-education to create clear, sourced cancer education material for a patient or family."

@@ -1,86 +1,53 @@
-# 癌种模块 — handbook section template
+# Cancer-type handbook module
 
-> **Trust your oncology training data**, do NOT consult hardcoded per-cancer canned content here.
+This is a composition contract, not a store of clinical facts. Model memory is not an acceptable source for current regimens, indications, monitoring or follow-up schedules.
 
-This file used to contain ~370 lines of canned per-cancer content (lung / breast / colorectal / liver / gastric / lymphoma / pancreatic / etc.) — disease overview, standard regimens, FAQs, daily-life tips, follow-up cadence, red flags, all pre-written.
+## Locale and source integrity
 
-Deleted because:
+Render headings and explanations in the resolved locale. Keep cancer names, drug names, genes/variants, TNM/stage, response codes, numbers/units and source titles verbatim. Do not silently normalize an uncertain record.
 
-1. The model has comprehensive oncology training data — disease biology, NCCN/CSCO regimens, common patient FAQs, and red-flag symptoms are LLM knowledge, not project knowledge
-2. Canned content is always behind the latest guidelines — when a new ADC like trastuzumab deruxtecan gets a new indication, or when CSCO updates BTK inhibitor lines, every canned module silently goes stale
-3. Per-patient handbooks should be tailored to the specific patient's primary_site + stage + driver mutations + line of therapy, not pulled from a generic cancer-type module
+For time-sensitive medical claims, use a current authoritative source appropriate to the user's jurisdiction: an official national guideline/public health body, regulator-approved label, recognized specialty-society guideline, or the treating center's written plan. Record issuing body, title, version/date, URL and access date. If current verification is unavailable, omit the option list and say what the treating clinician needs to confirm.
 
-What this file contains now is a **template scaffold** that the agent fills using its own training knowledge + the patient's actual profile.
+## Required section order
 
-## Locale
-
-Render all section headings, prose, daily-life advice and red-flag wording in the locale resolved per `../../../references/i18n.md` (host `locale` first, otherwise `profile.json.locale`, otherwise detection fallback + persist). Keep clinical entities verbatim in every locale: cancer-subtype acronyms (NSCLC, SCLC, TNBC, MSI-H), drug names, genes/variants, TNM/stage, response codes, numbers + units. The 6 fixed subsection headings are scaffold — they have a stable key per row and a per-locale rendering (table below); this is the only allowed fixed string mapping in this file. Everything else is generated prose, written directly in `locale`.
-
-### Subsection heading table (stable key → per-locale slug)
-
-| Key (stable) | `zh` (existing) | `en` |
+| Stable key | `zh` | `en` |
 |---|---|---|
 | `intro` | `### 疾病简介` | `### Disease overview` |
-| `treatments` | `### 常见治疗方案概述` | `### Common treatment options` |
-| `top5_questions` | `### 患者最常问的 5 个问题` | `### 5 questions patients ask most` |
-| `daily_life` | `### 日常生活调整建议` | `### Daily-living adjustments` |
-| `followup` | `### 随访节奏` | `### Follow-up cadence` |
-| `red_flags` | `### 红旗警示` | `### Red-flag warnings` |
+| `current_plan` | `### 我已知的治疗事实` | `### What is documented about my current care` |
+| `questions` | `### 带去问医生的问题` | `### Questions for my clinical team` |
+| `daily_life` | `### 日常生活支持` | `### Daily-living support` |
+| `followup` | `### 复诊与监测计划` | `### Follow-up and monitoring plan` |
+| `red_flags` | `### 紧急与尽快联系信号` | `### Urgent and prompt-contact signs` |
 
-For a locale not in the table, render each heading from its stable-key meaning in the target language. The cancer-type section title (`## <癌种 + English>`) keeps the English/clinical name verbatim and localizes only any plain-language wrapper.
+For other locales, translate the stable-key meaning. Clinical entities remain verbatim.
 
-## Section structure (project convention — keep)
+## Composition rules
 
-Every cancer-type section in the handbook MUST have these 6 subsections, in this order, each with the per-locale heading from the table above (shown here in `zh`):
+### Disease overview
 
-```markdown
-## <癌种中文 + English>
+Explain only verified diagnosis, pathology and stage facts in plain language. Separate `documented`, `general explanation`, and `unknown`. Do not assign a stage, severity, prognosis or curability verdict.
 
-### 疾病简介
-3-5 sentences. Disease biology + sub-classification (e.g. NSCLC vs SCLC, HR+ vs TNBC, MSS vs MSI-H). Use language a layperson can follow.
+### What is documented about current care
 
-### 常见治疗方案概述
-Bullet list by stage / molecular subtype. Mention the specific drug class but not exact dosing. Match the patient's ACTUAL situation more closely than a generic textbook list — if profile.json shows the patient is on 5L therapy, you don't need to explain 1L options at length.
+- Describe the purpose of the patient's documented treatment at a high level.
+- Do not list alternative regimens or imply what should come next.
+- A drug mechanism, indication, food instruction or common toxicity must cite a current official label or authoritative patient resource for that exact product/setting.
+- Never generate a dose or schedule. Copy the written prescription only when provenance is clear; otherwise say “confirm with the prescribing team/pharmacist.”
 
-### 患者最常问的 5 个问题
-EXACTLY 5 questions, in patient voice (我 / 我家人 / 是不是, or the locale equivalent), each with a 2-4 sentence direct, non-condescending answer. Surface common misconceptions — patients ask "为什么我没吸烟也得肺癌" not "what is the etiology of NSCLC".
+### Questions for the clinical team
 
-### 日常生活调整建议
-Concrete daily life: diet (route to cancer-buddy-nutrition for specifics), exercise level, work, social activity, mental health touchpoints (route to cancer-buddy-mind), sleep, sexual health, fertility (if pre-menopausal female or young male). Avoid one-size-fits-all generic advice.
+Generate five concise questions grounded in gaps or decisions visible in the record, such as treatment intent, what response will be measured, whom to call after hours, fertility needs, and which symptoms should trigger same-day contact. Questions are safer than filling gaps with generic oncology content.
 
-### 随访节奏
-Standard follow-up cadence for this disease + stage. Time intervals (every 3 months / 6 months) + what scans + what labs.
+### Daily-living support
 
-### 红旗警示
-3-6 specific symptoms that warrant immediate medical attention (not a generic "fever > 38°C"). Disease-specific (e.g. for HCC: 黄疸、腹水增加、呕血; for lung cancer: 突发胸痛、大咯血、新发偏瘫).
-```
+Offer practical, non-prescriptive help with transport, work notes, symptom logs, meals, sleep and emotional support. Route individualized nutrition, mental-health and visit-preparation needs to their skills. Do not produce fixed exercise, sexual-health, infection or fertility rules without the treating team's plan.
 
-End every cancer-type section with the **single mandatory footer defined in `SKILL.md` ("Mandatory footer")** — do not invent a per-section variant. Render it in `locale` (disclaimer meaning preserved in every locale; zh canonical):
-```
-本手册为信息参考，任何治疗调整必须与主诊医生确认。
-```
+### Follow-up and monitoring plan
 
-## How to compose a section
+Transcribe the patient's documented schedule. If absent, explain that cadence depends on cancer type, stage, treatment and local guideline, then prepare questions; do not invent “every 3 months” style intervals or scan/lab lists.
 
-When generating handbook for a specific patient:
+### Urgent and prompt-contact signs
 
-1. Read the cancer type from `profile.json.summary.primary` (canonical). If absent, fall back to `patient_summary.json.diagnosis.primary` (the structured diagnosis source). (There is no `primary_diagnosis.site` field in any current or retired profile schema — do not look for it.) Determine the cancer type.
-2. Use your oncology training to draft the 6 subsections matching the schema above. Length: 500-800 字 per cancer type.
-3. **Tailor to the patient's actual stage + line + comorbidities** — do NOT recite a generic textbook overview. If the patient is stage IV on 5L therapy, the 治疗方案概述 should focus on late-line options, not "I-II 期手术为主".
-4. **Use the patient's specific drugs verbatim** when discussing their regimen — pull from `profile.json.summary.current_regimen`. If the agent doesn't recognize the drug names from training data, do NOT make up a mechanism — write `[需向主诊医生确认 <drug> 的具体作用机制]`.
-5. **Cross-reference the readiness audit**: if `readiness.json.review_flags` has any 🔴 unconfirmed flags on `summary.primary` / `summary.stage` / `summary.current_regimen` / drivers (`molecular.json`), the handbook MUST NOT BE WRITTEN — the preflight Step 2.5 gate should have already blocked. (Sanity check: if you reach this step with red flags unconfirmed, something upstream is broken.)
+Use the shared `medical-emergency-gate.md` for emergencies. Add treatment-specific warning signs only when supported by the current official label or the patient's written action plan. Never replace the shared chemotherapy fever threshold with a disease-specific guess.
 
-## Uncertainty escape hatch
-
-When you encounter a cancer subtype, regimen, or molecular target that you don't have confident training data on (rare cancer / new approval / regional variant):
-
-- Do NOT write generic-sounding placeholder content
-- Write `[需要主诊医生补充: <topic>]` in that subsection
-- Note the gap in the report footer's "本手册的局限" section
-
-## Project convention (don't trust LLM — these are workflow rules)
-
-- Length: ~500-800 字 (or the equivalent reading length in `locale`) per cancer type, readable in 5-8 minutes by a layperson
-- Reading level: junior-high (zh: 初中文化), avoid medical Latinate jargon (zh: use 化疗 not 系统性细胞毒性药物治疗; apply the same plain-language principle in every locale) — but clinical entity names stay verbatim
-- Footer: the **single mandatory footer defined in `SKILL.md`** (zh: `本手册为信息参考，任何治疗调整必须与主诊医生确认。`) rendered in `locale` — present on every section, no exceptions; do not invent a per-section variant
-- Override on RED review_flag: must NOT proceed if upstream organize flagged summary.primary / summary.stage / summary.current_regimen / molecular driver (`molecular.json`) as 🔴 unconfirmed (preflight Step 2.5 enforces this; this is the second sanity check)
+End with the mandatory localized footer from `SKILL.md` and a compact source ledger. Do not write the module when critical diagnosis/regimen fields have unresolved red review flags.

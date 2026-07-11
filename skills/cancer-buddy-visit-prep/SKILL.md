@@ -5,6 +5,8 @@ description: "Assemble a one-page 就诊准备包 (visit prep pack) from an orga
 
 # cancer-buddy-visit-prep
 
+Before assembling a visit pack, run [`medical-emergency-gate.md`](../cancer-buddy/references/medical-emergency-gate.md) and the suicide-safety rules in [`safety-guardrails.md`](../cancer-buddy/references/safety-guardrails.md). Obvious urgent symptoms go to immediate care, not tomorrow's appointment.
+
 Turn an already-organized patient archive into a one-page pack the patient brings to a consult: a snapshot a doctor reads in 30 seconds + a worked list of questions to ask. **Assemble + organize only — no treatment advice, no interpretation, no clinical judgment.**
 
 ## When to use
@@ -19,11 +21,11 @@ Turn an already-organized patient archive into a one-page pack the patient bring
 
 ## Locale
 
-Read [../../references/i18n.md](../../references/i18n.md). The pack is a patient-visible template artifact:
+Read [../cancer-buddy/references/i18n.md](../cancer-buddy/references/i18n.md). The pack is a patient-visible template artifact:
 
 1. If the caller / host supplies `locale` (the user's explicit product UI language), use it first and write/update `profile.json.locale` when profile state is available.
 2. Otherwise read `patients/<pid>/profile.json` → `locale`. If present, use it — do not re-detect (visit-prep runs after organize, so a `locale` is almost always already persisted).
-3. If absent, detect from the records' **primary patient-facing language**, tie-breaking to the language the user is conversing in (the `record-consuming generative sub-skills` row in `../../references/i18n.md` §2), then write it back to `profile.json.locale` (BCP-47).
+3. If absent, detect from the records' **primary patient-facing language**, tie-breaking to the language the user is conversing in (the `record-consuming generative sub-skills` row in `../cancer-buddy/references/i18n.md` §2), then write it back to `profile.json.locale` (BCP-47).
 4. Render every patient-visible scaffold string in that `locale` from the template's locale string table — section titles, question-group titles, "待确认" tag, disclaimer, `val_pending` placeholder, footer.
 5. Keep every clinical entity verbatim regardless of `locale` — drug names, genes/variants, TNM/stage, RECIST codes, all numbers + units, biomarker labels. Mistranslating a clinical entity is a P0 medical-safety bug.
 6. Honor an explicit user language override → update `profile.json.locale` and follow it.
@@ -53,24 +55,24 @@ Full assembly contract: [references/visit-prep-html-prompt.md](references/visit-
 
 ## Guardrails
 
-Apply [../../references/safety-guardrails.md](../../references/safety-guardrails.md):
+Apply [../cancer-buddy/references/safety-guardrails.md](../cancer-buddy/references/safety-guardrails.md):
 
 - **`review_flags` are presented as 待医生确认项 (questions to confirm), never adjudicated into facts** — they render in the yellow box with the 待确认 tag.
 - **No treatment recommendation. No result interpretation. No clinical judgment. No ranking of treatment options.** visit-prep only assembles existing data + organizes questions.
 - **Never fabricate** — any null/absent field renders the locale `val_pending` string ("资料缺失 / 待补充"), not an invented value.
 - **Read-only on de-identified sources** — no formal-field writes, no confirm-gate involvement, never read `raw/`.
-- **Clinical entities verbatim**, scaffold localized to `profile.json.locale` ([../../references/i18n.md](../../references/i18n.md) §4).
+- **Clinical entities verbatim**, scaffold localized to `profile.json.locale` ([../cancer-buddy/references/i18n.md](../cancer-buddy/references/i18n.md) §4).
 - **HTML is rendered by the template engine + must pass the validator — never hand-written.** The LLM produces `.visit_prep_data.json` only; `render_html_template.py` fills the template; the pack is "done" only after `validate_visit_prep_html.py` exits 0. Hand-writing or post-editing the rendered HTML is forbidden.
 
 ## Role behavior
 
-Authoritative matrix in [`../../references/roles.md`](../../references/roles.md). For this skill:
+Authoritative matrix in [`../cancer-buddy/references/roles.md`](../cancer-buddy/references/roles.md). For this skill:
 
 - **Role = patient**: 患者本人备问题 — first-person question list for the patient's own consult.
-- **Role = caregiver**: 帮家人备问题 — same pack reframed as the caregiver preparing questions for the patient's visit.
-- **Role = family**: refuse + redirect to the primary caregiver (offer a one-line handoff).
+- **Role = caregiver**: provide a general checklist; tailor from an archive only within verified read scope.
+- **Role = family**: provide a general visit-support checklist and a one-line handoff without reading patient data.
 
-**Disclosure** ([`../../references/disclosure-behavior.md`](../../references/disclosure-behavior.md)): when `profile.json.disclosure_state == "suppressed"` and `role=patient`, run normally (questions are assembled from the de-identified archive) but the doctor's-snapshot **avoids surfacing 晚期/IV/进展后 staging wording** to the patient and introduces no new diagnosis disclosure.
+**Disclosure** ([`../cancer-buddy/references/disclosure-behavior.md`](../cancer-buddy/references/disclosure-behavior.md)): ask an authorized patient how much diagnostic detail to show. Do not let a caregiver-set flag censor the patient's own archive.
 
 ## References
 
@@ -79,5 +81,5 @@ Authoritative matrix in [`../../references/roles.md`](../../references/roles.md)
 - [references/templates/visit-prep.template.html](references/templates/visit-prep.template.html) — one-page 4-block template + locale string table
 - [scripts/validate_visit_prep_html.py](scripts/validate_visit_prep_html.py) — form-invariant validator (style byte-exact / class ⊆ template / no residual markers / no PII — DOB barred but precise age allowed / skeleton); content-agnostic
 - [../cancer-buddy-organize/scripts/render_html_template.py](../cancer-buddy-organize/scripts/render_html_template.py) — generic zero-medical-logic template engine (shared, stdlib only)
-- [../../references/i18n.md](../../references/i18n.md) — shared locale layer (host `locale` first, otherwise profile locale / detection fallback / persist / verbatim-clinical)
-- [../../references/safety-guardrails.md](../../references/safety-guardrails.md) — safety red lines
+- [../cancer-buddy/references/i18n.md](../cancer-buddy/references/i18n.md) — shared locale layer (host `locale` first, otherwise profile locale / detection fallback / persist / verbatim-clinical)
+- [../cancer-buddy/references/safety-guardrails.md](../cancer-buddy/references/safety-guardrails.md) — safety red lines

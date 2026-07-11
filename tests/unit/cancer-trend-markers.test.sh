@@ -3,16 +3,21 @@ set -euo pipefail
 ORG="$(cd "$(dirname "$0")/../.." && pwd)/skills/cancer-buddy-organize"
 V="$ORG/scripts/validate_cancer_trend_markers.py"
 MD="$ORG/references/cancer-trend-markers.md"
-LAND="/Users/baozhiwei/cancer_therapy_corpus/landscapes"
+LAND="${CANCER_THERAPY_LANDSCAPES_DIR:-}"
 tmp="$(mktemp -d)"; trap "rm -rf $tmp" EXIT
 pass=0; fail=0; ok(){ pass=$((pass+1)); }; no(){ echo "FAIL: $1">&2; fail=$((fail+1)); }
 
-# 1) 真表须过结构校验（slug 数 = landscapes 目录里的 69，列齐、primary 非空或为 —）
-python3 "$V" --markers "$MD" --slugs "$LAND" && ok || no "real markers table failed validation"
+# 1) 真表须过自包含结构校验（69 个唯一 slug，列齐、primary 非空或为 —）
+python3 "$V" --markers "$MD" --expected-count 69 && ok || no "real markers table failed validation"
+
+# 可选：维护者/CI 显式提供语料目录时再做跨仓库 slug 对账；本仓库测试不依赖个人路径。
+if [[ -n "$LAND" && -d "$LAND" ]]; then
+  python3 "$V" --markers "$MD" --slugs "$LAND" && ok || no "external corpus slug cross-check failed"
+fi
 
 # 2) 缺列的坏表须被拒
 printf '| slug | 癌种 |\n|---|---|\n| foo | 结直肠 |\n' > "$tmp/bad.md"
-if python3 "$V" --markers "$tmp/bad.md" --slugs "$LAND"; then no "malformed table passed"; else ok; fi
+if python3 "$V" --markers "$tmp/bad.md"; then no "malformed table passed"; else ok; fi
 
 # 3) prompt §关键趋势 选取规则须引用 marker 参考表 + 分层规则 + hero 总数上限
 P="$ORG/references/case-summary-html-prompt.md"

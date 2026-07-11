@@ -18,7 +18,7 @@ The patient is always free to ignore it. Supplementing records is optional; the 
 
 ## 2. Input
 
-- **`missing_items.json`** (patient_dir root) — the cancer-type checklist diff. Each `missing[]` item carries `priority` (`P0`/`P1`/`P2`), `category` (`pathology`/`imaging`/`lab`/`molecular`/`history`/`consent`), `item` (plain-language description), and `reason` (why it's needed). Priorities are driven by `references/checklists/<cancer_type>.yaml`.
+- **`missing_items.json`** (patient_dir root) — the cancer-type checklist diff. Each `missing[]` item carries `priority` (`P0`/`P1`/`P2`), `category` (`pathology`/`imaging`/`lab`/`molecular`/`history`/`consent`), `item` (plain-language description), and `reason` (why it's needed). Priorities are driven by `checklists/<cancer_type>.yaml`.
 - **`readiness.json`** — `blocking_gaps[]` (`{domain, reason}`, the honesty gate's hard gaps) and per-domain `domains.<name>.gaps[]`. A domain that is both a `blocking_gap` AND has a P0/P1 checklist item behind it is the strongest candidate to surface.
 - **`gap_asks.json`** (patient_dir root, this behavior's own ledger — see §7) — what has already been surfaced, so we never re-ask.
 - **`profile.json.locale`** — all patient-facing text is rendered in this locale (clinical entities stay verbatim, see §8).
@@ -198,7 +198,7 @@ If `gap_asks.json` does not exist yet (first organize), create it with an empty 
 - **选得准，不是全都催** — top 2–3 post-organize, exactly one in Q&A; NEVER the full list, NEVER P2/low-value items.
 - **Patient can decline** — the ask is always optional and open-ended; ignoring it is fine and never blocks anything.
 - **No treatment advice** — cancer-buddy stays out of clinical decisions. Describe why a *record* helps the analysis/doctor/understanding; never imply which drug/regimen/decision it points to. (This mirrors the meta router's "我不做的事" boundary.)
-- **Locale + verbatim clinical entities** — render the scaffold/prose in `profile.json.locale`; keep drug/gene/variant/TNM/biomarker names and numbers verbatim regardless of locale (mistranslation is a P0 safety bug — see `../../references/safety-guardrails.md`).
+- **Locale + verbatim clinical entities** — render the scaffold/prose in `profile.json.locale`; keep drug/gene/variant/TNM/biomarker names and numbers verbatim regardless of locale (mistranslation is a P0 safety bug — see `../../cancer-buddy/references/safety-guardrails.md`).
 
 ---
 

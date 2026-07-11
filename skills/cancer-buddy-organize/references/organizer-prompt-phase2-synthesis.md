@@ -12,7 +12,7 @@ This makes organize output reproducible: the same `patient_dir` must produce the
 
 ## Locale (i18n) — read before you classify or write any prose
 
-This worker is the **canonical writer of `profile.json.locale`** (per [`../../../references/i18n.md`](../../../references/i18n.md) §3). Before Step 1:
+This worker is the **canonical writer of `profile.json.locale`** (per [`../../cancer-buddy/references/i18n.md`](../../cancer-buddy/references/i18n.md) §3). Before Step 1:
 
 1. If the caller supplies `locale` (BCP-47, from the user's explicit product UI / language setting), use it as the canonical locale for this run and **write / overwrite** `profile.json.locale = "<locale>"` (Step 2.4). Do not re-detect from records even when most uploaded documents are in another language.
 2. Otherwise read `profile.json.locale` if a `profile.json` already exists (incremental / re-run) — if present, **reuse it, do not re-detect.**
@@ -23,7 +23,7 @@ Everything you write splits into two layers (i18n.md §4):
 - **Clinical entities stay verbatim** — drug names, gene/variant symbols, TNM/stage strings, numbers + units, biomarker labels keep their exact source form. NEVER translate, transliterate, or normalize them. `doc_type` (病理报告 / NGS报告 …) is a clinical label quoted from the document itself — keep it verbatim as the source wrote it; it is NOT scaffold to localize.
 - **Scaffold is rendered in `locale`** — bucket folder slugs (§Step 1 below), `timeline.md` connectives, `case_text.md` section headers, `review_summary.md` copy, `readiness.json` gap/warning prose, the relevance disposition notice. Output all such prose **in the resolved locale**.
 
-The full contract (detection, persist/reuse, verbatim policy, bucket-name map) is [`../../../references/i18n.md`](../../../references/i18n.md); read it.
+The full contract (detection, persist/reuse, verbatim policy, bucket-name map) is [`../../cancer-buddy/references/i18n.md`](../../cancer-buddy/references/i18n.md); read it.
 
 ## Inputs (caller supplies)
 
@@ -61,7 +61,7 @@ If complete: `"coverage_complete": true`.
 
 Each file's text-masked MD ends up at `<bucket>/<canonical>.md`; **the uploaded original stays in `raw/` (single copy — never duplicated into the bucket)**. The central `ocr/` staging dir is drained and deleted (Step 1e). This borrows the local-skill Layer 2.5/2.6 mechanism: **you** make the semantic naming judgment (LLM, not regex), write a `.rename_plan.json`, then a mechanical bash pass does the atomic moves and `_FILENAME_MAPPING` backfill.
 
-Bucket scheme (each file MUST land in a bucket; bucket-root files are forbidden — use a typed subdirectory). The `zh` rendering is shown below; **the `NN_` two-digit prefix is the language-independent stable key**. **Folder slugs come in exactly two pinned sets**: `zh` (when `locale=zh`) and `en` (**every other locale**) — per [`../../../references/i18n.md`](../../../references/i18n.md) §6. A non-`zh` locale (fr/es/de/…) uses the **`en` slugs** (domains §6.1, typed subdirs [`bucket-taxonomy.md`](bucket-taxonomy.md) §1.1a); slugs are **never runtime-translated** into the patient's language. Downstream anchors / `_FILENAME_MAPPING` / `[[src:…]]` match on the `NN_` numeric prefix, never on the slug — so pinning the folder name never breaks resolution:
+Bucket scheme (each file MUST land in a bucket; bucket-root files are forbidden — use a typed subdirectory). The `zh` rendering is shown below; **the `NN_` two-digit prefix is the language-independent stable key**. **Folder slugs come in exactly two pinned sets**: `zh` (when `locale=zh`) and `en` (**every other locale**) — per [`../../cancer-buddy/references/i18n.md`](../../cancer-buddy/references/i18n.md) §6. A non-`zh` locale (fr/es/de/…) uses the **`en` slugs** (domains §6.1, typed subdirs [`bucket-taxonomy.md`](bucket-taxonomy.md) §1.1a); slugs are **never runtime-translated** into the patient's language. Downstream anchors / `_FILENAME_MAPPING` / `[[src:…]]` match on the `NN_` numeric prefix, never on the slug — so pinning the folder name never breaks resolution:
 
 Authoritative scheme: [`bucket-taxonomy.md`](bucket-taxonomy.md) (scheme_version 3) — 14 clinical domains `01_…14_` + 2 hidden infra buckets (`raw/`, `99_无关文件`). `zh` rendering shown below.
 
@@ -95,7 +95,7 @@ Before deciding which bucket a file belongs in, decide whether it belongs in the
 For each file, assign exactly one relevance class:
 
 - **medical** → proceed to Step 1a (normal classify+rename). When in real doubt but it *plausibly* carries clinical value, lean **medical** — a dropped record is the costly error.
-- **non-medical, high-confidence** (风景/自拍/餐食/无关聊天截图/广告/纯生活收据/误拍…, "you'd bet money it has no clinical value") → do NOT add to `.rename_plan.json`; move it to `99_无关文件/high_confidence/` and STOP — it never enters the 14 clinical buckets, gets no MD/anchor, and is eligible for auto-delete on no-confirm.
+- **non-medical, high-confidence** (风景/自拍/餐食/无关聊天截图/广告/纯生活收据/误拍…, "you'd bet money it has no clinical value") → do NOT add to `.rename_plan.json`; move its agent-side staging copy to `99_无关文件/high_confidence/` and STOP — it never enters the 14 clinical buckets, gets no MD/anchor, and is excluded from the archive. The user's source file stays untouched at its original location and is **never auto-deleted**; disposition (纳入/不归档/清理临时副本) is resolved at the SKILL.md 处置门 per `relevance-gate.md` + `confirm-gate.md`.
 - **borderline / 拿不准** (could be a report but you genuinely can't tell) → move it to `99_无关文件/uncertain/`, do NOT classify, and emit a `relevance_uncertain` review_flag (Step 3, 8th category). **Never auto-deleted** — held until the user explicitly decides 删/留.
 
 ```bash
@@ -107,7 +107,7 @@ mkdir -p "$patient_dir/$q99/high_confidence" "$patient_dir/$q99/uncertain"
 # for each borderline file:                  mv it into uncertain/ AND add a relevance_uncertain flag
 ```
 
-`99_无关文件/` is a quarantine staging area outside the `01_…14_` clinical scheme — downstream sub-skills never read it; nothing there is anchored. Only files judged **medical** flow into Step 1a below. The disposition (告知 + 删/留/回收 解析) happens at the SKILL.md "无关文件处置门" step after organize, governed by the privacy floor: **we don't keep raw unrelated files — high-confidence non-medical files are auto-deleted on no-confirm; borderline files are never auto-deleted.** Record isolated/deleted/reclassified/held counts in `update_log.json.relevance` (see `relevance-gate.md`).
+`99_无关文件/` is a quarantine staging area outside the `01_…14_` clinical scheme — downstream sub-skills never read it; nothing there is anchored. It holds **agent-side staging copies only** — if Phase 1 already mirrored a now-excluded file into `raw/`, move that mirror into the matching `99_无关文件/` child as part of quarantining (`raw/` holds in-scope medical originals only); the user's source file stays untouched at its original location. Only files judged **medical** flow into Step 1a below. The disposition (告知 + 纳入/不归档/清理临时副本 解析) happens at the SKILL.md "无关文件处置门" step after organize, governed by `relevance-gate.md` + `confirm-gate.md`: **excluded originals stay at the user-controlled source; silence/no-confirm means exclude-and-preserve, never delete. Only agent-created temporary copies (the `99_无关文件/` staging copies) may be cleaned, and only after verifying the user's source still exists; deleting a user-controlled file requires an explicit, itemized confirmation immediately before the action.** Record `excluded_source_preserved` / `held_uncertain_source_preserved` / `reclassified_after_confirmation` / `temporary_copies_cleaned` / `explicitly_confirmed_source_deletions` in `update_log.json.relevance` (see `relevance-gate.md`).
 
 ### Step 1a — Per-file semantic judgment (LLM, not regex)
 
@@ -266,7 +266,7 @@ If `ocr_drain_incomplete` fires, add `"ocr_drain_incomplete: <basename>"` for ea
 
 ### Step 1f — Write `source_inventory.json`
 
-`source_inventory.json` is the run-level proof that every source file/content unit went through LLM Markdown ingestion, and the machine-readable deep-link from each sidecar (content unit) back to its verbatim original in `raw/`. Build it from `.rename_plan.json` and the sidecar headers. Schema: [source_inventory.schema.json](references/schemas/source_inventory.schema.json) (`source_inventory_v1`).
+`source_inventory.json` is the run-level proof that every source file/content unit went through LLM Markdown ingestion, and the machine-readable deep-link from each sidecar (content unit) back to its verbatim original in `raw/`. Build it from `.rename_plan.json` and the sidecar headers. Schema: [source_inventory.schema.json](schemas/source_inventory.schema.json) (`source_inventory_v1`).
 
 **`raw_path` always deep-links to the verbatim original under `raw/`.** Uploaded originals are kept verbatim and are never pixel-redacted (see `bucket-taxonomy.md` §4–§5) — the only CONTENT-level desensitization of the archived data is the text masking in the `.md` sidecar (the raw/ on-disk filename is separately de-identified by Phase 1). One upload may yield several content units (e.g. a PDF that is discharge summary + labs): each gets its own `file_id` + `page_range`, all sharing the same `source_id` and `raw_path`.
 
@@ -333,7 +333,7 @@ SOURCE: <source_type> | CONFIDENCE: <level>
 
 The `<hospital>` in this header is 出具机构 as a **clinical-provenance claim** (see Step 1a `hospital` HARD RULE): use the report body's verbatim institution name, OR the literal **`医院待核实`** when the body institution was illegible / low-confidence / absent — **never a name borrowed from the filename / `caller_default_hospital` / a sibling document**. Same rule for the `<hospital>` slot in the §2.2 `timeline.md` line: a low-confidence / absent body institution renders `医院待核实`, not a borrowed name.
 
-**Anchor contract** (full spec: `references/schemas/anchor-contract.md`):
+**Anchor contract** (full spec: `schemas/anchor-contract.md`):
 - Syntax `[[src:<bucket-relative-path>]]` or `[[src:<bucket-relative-path>#<fragment>]]`, or the conversation form `[[src:conversation:<ISO8601>]]` (段C only).
 - `<bucket-relative-path>` MUST begin with an `NN_` bucket segment (e.g. `04_诊断与分期/病理报告/...md`) and point to an MD sidecar that now lives **inside its bucket** next to its image. The legacy `ocr/` and `02_脱敏病历/` prefixes are **deprecated and rejected** — the central `ocr/` dir no longer exists at this point. Any other prefix is rejected: the artifact is not written and the offending path is logged into `readiness.json.warnings` as `anchor_dangling: <path>`.
 - Fragment: `#L<start>-L<end>` for line ranges, or `#<slug>` for section anchors.
@@ -352,7 +352,7 @@ Canonical section order: 基本信息 → 当前状态 → 诊断与分期 → �
 
 ### 2.4 `profile.json` (canonical schema `cancer_buddy_profile_v3`)
 
-Authoritative shape: [`../../../references/patient-profile-schema.md`](../../../references/patient-profile-schema.md). profile.json is the **slim first-read snapshot** — identity + locale + a denormalized `summary` + `latest_status`. Detailed structured facts are NOT duplicated here: they live in the structured JSONs (`patient_summary.json` demographics/diagnosis, `molecular.json` drivers/variants, `treatment_lines.json` ordered lines, `comorbidities.json`, `labs.json`).
+Authoritative shape: [`../../cancer-buddy/references/patient-profile-schema.md`](../../cancer-buddy/references/patient-profile-schema.md). profile.json is the **slim first-read snapshot** — identity + locale + a denormalized `summary` + `latest_status`. Detailed structured facts are NOT duplicated here: they live in the structured JSONs (`patient_summary.json` demographics/diagnosis, `molecular.json` drivers/variants, `treatment_lines.json` ordered lines, `comorbidities.json`, `labs.json`).
 
 ```json
 {
@@ -389,13 +389,13 @@ Authoritative shape: [`../../../references/patient-profile-schema.md`](../../../
 
 **Stage (verbatim-only — do NOT synthesize)**: `summary.stage` is the **verbatim TNM / stage string from the source, and nothing else**. Keep the existing verbatim / NEVER-normalize mandate (this prompt §Locale, clinical entities stay verbatim). Additionally: **do NOT synthesize a stage interpretation** the source does not literally state — do not label a node `M1` / `N3`, do not infer an overall stage group from components, do not append editorial qualifiers like `区域外` / `M1范畴` / `已属晚期`. If the source lacks a single clean overall stage (only fragments — a T from pathology, an N from imaging, no assembled group), record the components **verbatim** (e.g. `"pT3 / cN+（未见整体分期）"`) and write a `review_flags.md` entry (category `unverified_critical_field`, `field_path: "summary.stage"`) for MTB to adjudicate — never quietly assemble the group yourself. Organize 是整理不是分析: staging judgment is a downstream (vMTB/clinician) act.
 
-**Response / efficacy (verbatim-only — do NOT synthesize)** — 见 `../../../references/safety-guardrails.md` → *Efficacy / response is a clinician's judgment (P0)*。`latest_status.response` 与 `treatment_lines.json[*].best_response` 的响应类别(CR/PR/SD/PD/NE)**只有当来源报告 / 医生逐字写出该响应码或"部分缓解/完全缓解/疾病稳定/进展"时才填,并挂 `source_refs`**;来源只有**描述性影像**("病灶较前缩小 / 减轻 / 增大 / 稳定")→ `response`/`best_response` 一律 `null`,**绝不**把描述性发现转写成 RECIST 类别(缩小 ≠ PR)。`case_text.md` 也**禁止**写"影像疗效评估为部分缓解(PR)"这类合成句——只能写"影像描述:病灶较前缩小(见引用)"。没有基线可比、没有医生判读时尤其不许合成。判疗效是下游(vMTB / 主诊医生)的事,organize 是整理不是分析。
+**Response / efficacy (verbatim-only — do NOT synthesize)** — 见 `../../cancer-buddy/references/safety-guardrails.md` → *Efficacy / response is a clinician's judgment (P0)*。`latest_status.response` 与 `treatment_lines.json[*].best_response` 的响应类别(CR/PR/SD/PD/NE)**只有当来源报告 / 医生逐字写出该响应码或"部分缓解/完全缓解/疾病稳定/进展"时才填,并挂 `source_refs`**;来源只有**描述性影像**("病灶较前缩小 / 减轻 / 增大 / 稳定")→ `response`/`best_response` 一律 `null`,**绝不**把描述性发现转写成 RECIST 类别(缩小 ≠ PR)。`case_text.md` 也**禁止**写"影像疗效评估为部分缓解(PR)"这类合成句——只能写"影像描述:病灶较前缩小(见引用)"。没有基线可比、没有医生判读时尤其不许合成。判疗效是下游(vMTB / 主诊医生)的事,organize 是整理不是分析。
 
 **Regimen**: `summary.current_regimen` and `latest_status.regimen` are STRINGS (the LATEST regimen when the patient has multiple hospitalizations). Per-cycle / per-line structure and older lines of therapy go in `treatment_lines.json`, NOT in profile.json. Molecular drivers go in `molecular.json`; demographics / comorbidities / treating hospitals go in `patient_summary.json` / `comorbidities.json`. profile.json carries **none** of the old flat `primary_cancer` / `molecular_drivers_known` / `treatment_history` / `demographics` / `key_comorbidities` / `data_sources` fields — those are the retired flat shape.
 
 **`alias`**: when `summary.primary` AND the earliest diagnosis year are both known, set `alias = "{patient_id_short}_{cancer_code}_{year}"`, where:
 - `patient_id_short` = `patient_code` with `PT-` stripped, truncated to 6 chars. E.g. `PT-17CE02BC33` → `17CE02`.
-- `cancer_code` = the cancer-type code used by `references/checklists/` — the most widely recognized abbreviation (see `references/checklists/README.md` for the shipped set + conventions; e.g. CRC / NSCLC / BC / GC / HCC / SCLC / PDAC / OC / CCA / EC / PC / CC / UCEC / THCA / NPC / RCC / BLCA / DLBCL / HNSCC). When uncertain, omit `alias`.
+- `cancer_code` = the cancer-type code used by `checklists/` — the most widely recognized abbreviation (see `checklists/README.md` for the shipped set + conventions; e.g. CRC / NSCLC / BC / GC / HCC / SCLC / PDAC / OC / CCA / EC / PC / CC / UCEC / THCA / NPC / RCC / BLCA / DLBCL / HNSCC). When uncertain, omit `alias`.
 - `year` = 4-digit earliest diagnosis year (from pathology / first hospitalization).
 
 Example: `17CE02_CRC_2019`. Never overwrite a previously set alias on incremental runs — alias is sticky.
@@ -428,20 +428,20 @@ Grade mapping: A ≥ 0.90, B ≥ 0.75, C ≥ 0.60, D ≥ 0.40, F < 0.40.
 
 ### 2.6 Structured JSON outputs (NEW — 6 files, schema-validated)
 
-Write the following six files under `<patient_dir>/`. Each conforms to the matching schema in `references/schemas/`. Every factual field carries `source_refs: ["<bucket>/<canonical>.md#L<a>-L<b>", ...]` (bucket-relative; or `"conversation:<ISO8601>"` for 段C facts) per the anchor contract.
+Write the following six files under `<patient_dir>/`. Each conforms to the matching schema in `schemas/`. Every factual field carries `source_refs: ["<bucket>/<canonical>.md#L<a>-L<b>", ...]` (bucket-relative; or `"conversation:<ISO8601>"` for 段C facts) per the anchor contract.
 
 | File | Schema | What it carries |
 |---|---|---|
-| `patient_summary.json` | [patient_summary.schema.json](references/schemas/patient_summary.schema.json) | demographics + diagnosis + current_status rollup |
-| `timeline.json` | [timeline.schema.json](references/schemas/timeline.schema.json) | machine-readable mirror of timeline.md |
-| `molecular.json` | [molecular.schema.json](references/schemas/molecular.schema.json) | NGS somatic variants + germline (incl. VUS) + pharmacogenomics + IHC + MSI/MMR + TMB |
-| `treatment_lines.json` | [treatment_lines.schema.json](references/schemas/treatment_lines.schema.json) | ordered lines of therapy |
-| `labs.json` | [labs.schema.json](references/schemas/labs.schema.json) | lab panels with serial values |
-| `comorbidities.json` | [comorbidities.schema.json](references/schemas/comorbidities.schema.json) | conditions + meds + allergies |
+| `patient_summary.json` | [patient_summary.schema.json](schemas/patient_summary.schema.json) | demographics + diagnosis + current_status rollup |
+| `timeline.json` | [timeline.schema.json](schemas/timeline.schema.json) | machine-readable mirror of timeline.md |
+| `molecular.json` | [molecular.schema.json](schemas/molecular.schema.json) | NGS somatic variants + germline (incl. VUS) + pharmacogenomics + IHC + MSI/MMR + TMB |
+| `treatment_lines.json` | [treatment_lines.schema.json](schemas/treatment_lines.schema.json) | ordered lines of therapy |
+| `labs.json` | [labs.schema.json](schemas/labs.schema.json) | lab panels with serial values |
+| `comorbidities.json` | [comorbidities.schema.json](schemas/comorbidities.schema.json) | conditions + meds + allergies |
 
 **Schema validation gate**: before writing each file, validate against its schema. If validation fails, do NOT write the file. Emit warning `"schema_validation_failed: <file> — <jsonpath>: <reason>"` into `readiness.json.warnings`.
 
-Validation rule of thumb you can apply mentally without a library (full regex in `references/schemas/anchor-contract.md` §4):
+Validation rule of thumb you can apply mentally without a library (full regex in `schemas/anchor-contract.md` §4):
 - All `source_refs[]` entries match `^(([0-9]{2}_[^\s/]+(/[^\s/]+)*\.md(#L\d+(-L\d+)?|#[A-Za-z0-9_-]+)?)|(conversation:\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})?))$` — bucket-relative `.md` path (leading `NN_` segment) or a `conversation:<ISO8601>` ref. The legacy `ocr/` prefix is rejected by this regex (no `NN_` segment); the retired `02_脱敏病历/` bucket is not part of the v3 taxonomy and is caught at the dangling-anchor filesystem check.
 - All enums constrained in the schema have valid values.
 - All `format: date` fields parse as `YYYY-MM-DD`.
@@ -462,13 +462,13 @@ before writing and check anchors as above.
 
 ### 2.6a `longitudinal_observations.json` (conditional — only when timeseries / trended data exists)
 
-When any source carries `modality: timeseries` (wearable / PRO / device logs) **OR** a `structured` source is genuinely trended (serial lab / vital values across ≥2 timepoints), write `<patient_dir>/longitudinal_observations.json` (schema `longitudinal_observations_v1`, [longitudinal_observations.schema.json](references/schemas/longitudinal_observations.schema.json)) beside `profile.json`. Each parsed point is one `observations[]` entry: `{obs_type ∈ vital|lab|symptom|pro|adherence|activity, metric (verbatim, e.g. "HbA1c"), value, unit (verbatim, "" when unitless), timestamp (ISO-8601), modality, source_ref}` — `source_ref` is the bucket-relative anchor back to the filed raw export under `10_随访与监测`. This is the substrate for 单时间点 → 纵向曲线 → 治疗反应轨迹; `profile.json.latest_status` keeps only the latest snapshot and points consumers here for the trajectory.
+When any source carries `modality: timeseries` (wearable / PRO / device logs) **OR** a `structured` source is genuinely trended (serial lab / vital values across ≥2 timepoints), write `<patient_dir>/longitudinal_observations.json` (schema `longitudinal_observations_v1`, [longitudinal_observations.schema.json](schemas/longitudinal_observations.schema.json)) beside `profile.json`. Each parsed point is one `observations[]` entry: `{obs_type ∈ vital|lab|symptom|pro|adherence|activity, metric (verbatim, e.g. "HbA1c"), value, unit (verbatim, "" when unitless), timestamp (ISO-8601), modality, source_ref}` — `source_ref` is the bucket-relative anchor back to the filed raw export under `10_随访与监测`. This is the substrate for 单时间点 → 纵向曲线 → 治疗反应轨迹; `profile.json.latest_status` keeps only the latest snapshot and points consumers here for the trajectory.
 
 Same schema-validation gate as §2.6 (validate before writing; on failure emit `schema_validation_failed` and do not write). **Omit the file entirely when there is no timeseries/trended data** — its absence is normal, and the acceptance gate (`validate_structured_outputs.py`) treats it as optional (validated only when present).
 
 You may run the acceptance gate:
 ```bash
-python3 scripts/validate_structured_outputs.py "$patient_dir"
+python3 "$ORGANIZE_SKILL_DIR/scripts/validate_structured_outputs.py" "$patient_dir"
 ```
 It checks the structured JSONs + anchors, PII residue rescan of the text sidecars AND the delivered + synthesized surfaces (INDEX.md / source_inventory.json / dotfiles / update_log.json / 病情简要总结.html / 就诊准备包.html / AGENTS.md + case_text.md / profile.json / patient_summary.json / timeline.md / review_summary.md / review_flags.md — `pii_rescan.py` is the source of truth),
 `source_inventory.json` (every content unit carries a `raw_path` + a text-masked
@@ -479,10 +479,10 @@ to manual mental validation for the Phase2 structured JSONs.
 
 ### 2.7 `missing_items.json` (NEW — cancer-checklist diff)
 
-1. Map `profile.json.summary.primary` to a cancer-type code (the most widely recognized abbreviation — see `references/checklists/README.md`). If the cancer type itself is genuinely unmappable/ambiguous, set `cancer_type: null`, `missing: []`, `checklist_version: "unmapped"`, then add a warning `"checklist_unmapped: <summary.primary>"`.
+1. Map `profile.json.summary.primary` to a cancer-type code (the most widely recognized abbreviation — see `checklists/README.md`). If the cancer type itself is genuinely unmappable/ambiguous, set `cancer_type: null`, `missing: []`, `checklist_version: "unmapped"`, then add a warning `"checklist_unmapped: <summary.primary>"`.
 2. Resolve the checklist:
-   - If `references/checklists/<cancer_type>.yaml` **exists**, load it (the shipped set covers the common cancer types) and set `missing_items.json.checklist_version` = the YAML's `version` field (e.g. `CRC-v1`).
-   - If it does **NOT** exist (a less-common type not yet shipped), **generate the checklist in-session** for this `<cancer_type>` + stage, grounded in current NCCN / CSCO / ESMO standard-of-care workup, following the SAME schema as the shipped YAMLs (each item: `item` / `priority` P0|P1|P2 / `category` ∈ pathology|imaging|lab|molecular|history|consent / `reason`). Set `checklist_version: "<cancer_type>-rt<YYYY-MM-DD>"` (`rt` = runtime-generated) and add a warning `"checklist_generated_runtime: <cancer_type>"` so the run is transparent that it used a generated (not human-curated) checklist. **Do NOT silently emit `missing: []` and do NOT skip** — a real generated checklist is required here (no silent degradation). Keep it run-local (do not write into the shared `references/checklists/` package).
+   - If `checklists/<cancer_type>.yaml` **exists**, load it (the shipped set covers the common cancer types) and set `missing_items.json.checklist_version` = the YAML's `version` field (e.g. `CRC-v1`).
+   - If it does **NOT** exist (a less-common type not yet shipped), **generate the checklist in-session** for this `<cancer_type>` + stage, grounded in current NCCN / CSCO / ESMO standard-of-care workup, following the SAME schema as the shipped YAMLs (each item: `item` / `priority` P0|P1|P2 / `category` ∈ pathology|imaging|lab|molecular|history|consent / `reason`). Set `checklist_version: "<cancer_type>-rt<YYYY-MM-DD>"` (`rt` = runtime-generated) and add a warning `"checklist_generated_runtime: <cancer_type>"` so the run is transparent that it used a generated (not human-curated) checklist. **Do NOT silently emit `missing: []` and do NOT skip** — a real generated checklist is required here (no silent degradation). Keep it run-local (do not write into the shared `checklists/` package).
 3. Stage-context resolution: reduce the patient's stage/histology to the coarsest matching key **among the keys the loaded YAML actually ships** (the keying convention varies by cancer type — TNM, histology, risk group, or early/advanced):
    - **TNM-keyed** (most types): `cI`/`cII`/`pI`/`pII` → `I-II`; `cIII`/`pIII`/`ypIII` → `III` (or `II-III` if that is the shipped key); `cIV`/`pIV`/`yp`+M1 → `IV`.
    - **HCC**: use BCLC stage if present in case_text, else map TNM crudely.
@@ -497,7 +497,7 @@ to manual mental validation for the Phase2 structured JSONs.
    - **pathology** items: present in `profile.json.summary.histology` or `timeline.json` `category: diagnosis`.
    - **history** items: present in `profile.json` (e.g. `latest_status.ecog`).
    - **consent** items: presence of a sidecar with type `知情同意书`.
-6. Emit residual into `missing_items.json` sorted by priority. Schema: [missing_items.schema.json](references/schemas/missing_items.schema.json).
+6. Emit residual into `missing_items.json` sorted by priority. Schema: [missing_items.schema.json](schemas/missing_items.schema.json).
 
 ### 2.8 Business-readable alias (top-level)
 
@@ -580,12 +580,12 @@ For every file the Step 1·0 relevance triage diverted to `99_无关文件/uncer
   "current_value": "isolated as uncertain-relevance",
   "issue": "拿不准这张是不是病历资料 — 隔离待用户定夺，未自动删除。",
   "source_evidence": [],
-  "suggested_action": "请用户确认：这张是病历资料(归档回去) / 还是无关文件(删除)。在用户显式选择前不删。",
+  "suggested_action": "请用户确认：这张是病历资料(归档回去) / 还是无关文件(不归档、原文件保留在你提供的位置；仅清理 agent 暂存副本，删除你的原文件需另行逐项确认)。在用户显式选择前一律保留。",
   "user_confirmed": false
 }
 ```
 
-`severity` is `yellow`, not `red`: an isolated file gates no eligibility/dosing decision (it's not in the archive), but the user must still decide. Also append one warning per uncertain file to `readiness.json.warnings`: `"relevance_uncertain: 99_无关文件/uncertain/<filename> — 待用户确认删/留"`. **High-confidence non-medical files get NO review_flag** — they auto-delete on no-confirm and are surfaced collectively in the SKILL.md disposition notice; only the borderline batch (the files we *hold*) needs per-file flags. Relevance triage does NOT lower the 8-domain readiness score (无关文件 are not missing clinical data).
+`severity` is `yellow`, not `red`: an isolated file gates no eligibility/dosing decision (it's not in the archive), but the user must still decide. Also append one warning per uncertain file to `readiness.json.warnings`: `"relevance_uncertain: 99_无关文件/uncertain/<filename> — 待用户确认删/留"`. **High-confidence non-medical files get NO review_flag** — they are surfaced collectively in the SKILL.md disposition notice (no reply ⇒ excluded from the archive with the source preserved in place — never auto-deleted); only the borderline batch (the files we *hold*) needs per-file flags. Relevance triage does NOT lower the 8-domain readiness score (无关文件 are not missing clinical data).
 
 ### Step 3c — adjudicate + annotate a load-bearing `cross_doc_contradiction`
 
@@ -633,7 +633,7 @@ A `cross_doc_contradiction` on a **load-bearing fact** — 手术/关键日期, 
 - 🟡 `yellow` — should be reviewed, doesn't break downstream
 - 🟢 `green` — informational
 
-If `review_flags` non-empty → write `review_flags.md` — the human-readable rendering of the `review_flags[]` array (source of truth is the JSON; regenerated every run). Format contract: `../../../references/patient-profile-schema.md` § review_flags[].
+If `review_flags` non-empty → write `review_flags.md` — the human-readable rendering of the `review_flags[]` array (source of truth is the JSON; regenerated every run). Format contract: `../../cancer-buddy/references/patient-profile-schema.md` § review_flags[].
 
 ## Step 4 — review_summary.md (ALWAYS WRITTEN)
 
@@ -761,7 +761,7 @@ Pure JSON, no prose:
 
 - NEVER invent medical facts. Read what sidecars say, don't fill in plausible-sounding gaps.
 - NEVER skip the §3 review_flags audit — even if you find nothing, write `"review_flags": []`.
-- NEVER classify a non-medical/borderline file into the 14 clinical buckets — the Step 1·0 relevance gate diverts them to `99_无关文件/` first; only **medical** files reach Step 1a. Borderline files MUST get a `relevance_uncertain` flag and are NEVER auto-deleted by you (the SKILL.md disposition门 handles 删/留/回收 after user告知).
+- NEVER classify a non-medical/borderline file into the 14 clinical buckets — the Step 1·0 relevance gate diverts them to `99_无关文件/` first; only **medical** files reach Step 1a. Borderline files MUST get a `relevance_uncertain` flag. **No relevance class is ever auto-deleted by you** — excluded sources stay at the user's original location; the SKILL.md disposition门 resolves 纳入/不归档/清理临时副本 after user告知, and a user-controlled file is deleted only on explicit itemized confirmation (`confirm-gate.md`).
 - NEVER skip writing review_summary.md — required even when grade is A and review_flags is empty.
 - NEVER write a structured-JSON file that fails its schema; surface validation errors into `readiness.json.warnings`.
 - NEVER write a `case_text.md` containing dangling anchors — surface the gap, don't ship a broken file.
@@ -772,7 +772,7 @@ Pure JSON, no prose:
 - ALWAYS write `source_inventory.json` (Step 1f) before returning — it is the proof that every content unit produced a text-masked MD and the deep-link (`raw_path` + `page_range`) back to its verbatim original in `raw/`.
 - `coverage_complete: false` is acceptable as long as you list the missing files; caller will retry-mini-Phase1 + re-run you.
 - The alias is sticky: never overwrite a previously set `profile.json.alias` on incremental runs.
-- ALWAYS resolve+persist `profile.json.locale` (caller-supplied `locale` first; otherwise reuse if already set; otherwise detect) and render every patient-facing scaffold string (bucket slugs, timeline/case_text/review_summary prose, gap/warning text) in that locale per [`../../../references/i18n.md`](../../../references/i18n.md). NEVER translate a clinical entity (drug/gene/variant/TNM/number/unit) or a `doc_type` — those are verbatim; mistranslation is a P0 safety bug.
+- ALWAYS resolve+persist `profile.json.locale` (caller-supplied `locale` first; otherwise reuse if already set; otherwise detect) and render every patient-facing scaffold string (bucket slugs, timeline/case_text/review_summary prose, gap/warning text) in that locale per [`../../cancer-buddy/references/i18n.md`](../../cancer-buddy/references/i18n.md). NEVER translate a clinical entity (drug/gene/variant/TNM/number/unit) or a `doc_type` — those are verbatim; mistranslation is a P0 safety bug.
 - The `NN_` two-digit bucket prefix is a **language-independent stable key**: localize the slug after it, never the number. Downstream consumers match on `NN_`; keep `bucket_path` / `md_dest` / anchors using the same localized slug so on-disk path and anchor agree.
 - Output pure JSON only at the end — narrative goes in case_text.md / timeline.md / review_flags.md / review_summary.md.
 
@@ -787,4 +787,4 @@ This prompt is the **Claude Code reference implementation** of the runtime-neutr
 | Agent writes everything into `patient_dir` on local disk | **CC-specific binding** | A headless host may **persist selected files to 对象存储 / 库** instead (`organize-contract.md` §6「存储」). The canonical 输出集 (结构化产物 + 桶 + `raw/` 逐字原件 + `source_inventory.json`) is the contract; the storage primitive is the binding. |
 | Confirm/disposition gates rendered as inline diff cards (段E / upload-reconciliation) | **CC-specific binding** | **confirm-as-product + 宿主 UI 两轮往返** (headless) is equally compliant (`organize-contract.md` §3 / §6「确认门」) — see `relevance-gate.md` / `upload-reconciliation.md` / `confirm-gate.md`. |
 
-**Logic / invariants do NOT move with the binding.** Regardless of which host drives Phase2: **文本脱敏**保真(sidecar 是唯一明文读取源)、`raw/` 原件逐字保存永不打码、`NN_` 数字前缀作语言无关稳定 key、临床实体 / `doc_type` 永远 verbatim(误译是 P0)、暂存区不残留、`source_inventory.json` 必产(每 content unit 带 `raw_path` 回链)、未确认不落正式字段 / 不可逆删除非对称(§3 确认门)、schema gate / 锚点 dangling 检查、review_flags 9 类审计与 review_summary 必写 — all stand verbatim. A binding may only change **who runs the mechanism**, never the behavioral contract or the产物结构.
+**Logic / invariants do NOT move with the binding.** Regardless of which host drives Phase2: **文本脱敏**保真(sidecar 是唯一明文读取源)、`raw/` 原件逐字保存永不打码、`NN_` 数字前缀作语言无关稳定 key、临床实体 / `doc_type` 永远 verbatim(误译是 P0)、暂存区不残留、`source_inventory.json` 必产(每 content unit 带 `raw_path` 回链)、未确认不落正式字段 / 无静默删除(§3 确认门:删用户文件必须逐项显式确认)、schema gate / 锚点 dangling 检查、review_flags 9 类审计与 review_summary 必写 — all stand verbatim. A binding may only change **who runs the mechanism**, never the behavioral contract or the产物结构.

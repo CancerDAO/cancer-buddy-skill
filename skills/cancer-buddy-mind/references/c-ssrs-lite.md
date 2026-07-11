@@ -1,61 +1,24 @@
-# C-SSRS Lite — 哥伦比亚自杀严重程度量表（精简版）
+# C-SSRS Screener — 使用边界与流程
 
-> **Locale (i18n).** The 6 items below are the `zh` source rendering. Per `../../../references/i18n.md`: present them to the patient in the resolved locale (host `locale` first, otherwise `profile.json.locale`, otherwise conversation-language fallback), using the validated C-SSRS translation for that locale where one exists. Keep the scale name "C-SSRS", item order, the yes/no logic and the "any yes → crisis rule" trigger **invariant across locales** — the trigger keys on the boolean answer, never on language. When a positive answer fires the crisis rule, the crisis acknowledgment and `crisis-resources.md` guidance are also surfaced in `locale` (hotline numbers/institutions verbatim).
+C-SSRS 是结构化筛查工具，不替代临床风险评估，也不是获得危机帮助的前置条件。只在用户同意且使用其语言的官方验证版本时，称为“C-SSRS 筛查”。不要自行翻译、改写题目后仍套用官方分层。
 
-## 问题 1
+官方表单与培训：<https://cssrs.columbia.edu/the-columbia-scale-c-ssrs/cssrs-for-communities-and-healthcare/>。使用与当前场景、时间窗、语言相匹配的官方版本；记录具体表单名称/版本/来源 URL。
 
-过去一个月里，你是否有过希望自己死去的念头？
+## Skip logic
 
-- [ ] 是
-- [ ] 否
+1. 先问被动死亡愿望与主动自杀想法两项。
+2. 若主动自杀想法为“是”，继续询问方法、意图与具体计划。
+3. 无论前两项怎样，都要询问近期自杀行为或准备行为；不要因被动愿望阳性就停止后续安全评估。
+4. 对任何阳性回答，回到 `cancer-buddy-mind` 的直接安全问题，确认**现在**是否已经行动、是否有当前意图/计划、手段是否可及、是否独处。
 
-## 问题 2
+## Action mapping
 
-过去一个月里，你是否有过自杀的念头？
+- 已经行动/过量，或有当前意图 + 具体计划 + 可及手段，或无法先暂停行动：当地急救/急诊，联系身边可信任的人，安全地减少手段可及性，并持续陪伴。
+- 有主动或被动想法但无当前意图/计划/手段：认真支持，安排同日/尽快的专业联系，协作安全计划与升级条件；不要声称这是“低风险”或自动结束对话。
+- 表单全阴性但用户叙述或行为仍令人担忧：以临床语境和直接安全评估为准，不让量表覆盖现实信号。
 
-- [ ] 是
-- [ ] 否
+不要把“任何一题阳性”机械等同于正在实施的急症；也不要用量表分数预测自杀。最终临床风险判断由受训专业人员完成。
 
-若以上均为否 → 筛查通过，返回主对话。
+## Privacy
 
-若问题 2 为是，继续：
-
-## 问题 3
-
-你是否想过怎么做？
-
-- [ ] 是
-- [ ] 否
-
-## 问题 4
-
-你是否有过真的想做的意图？
-
-- [ ] 是
-- [ ] 否
-
-## 问题 5
-
-你是否开始具体计划过细节（时间、地点、方式）？
-
-- [ ] 是
-- [ ] 否
-
-## 问题 6
-
-你是否为此做过任何准备或行动（例如获取药物、工具、写遗书）？
-
-- [ ] 是
-- [ ] 否
-
-## 评估规则
-
-**任何一题为"是"都触发 `cancer-buddy-mind` 危机规则。** 不需要所有题都回答。问题 3-6 任一阳性属于"活跃自杀意念"，是高风险。
-
-## 执行
-
-发现阳性答案时：
-1. 立即停止 C-SSRS 继续提问——不要继续施加"你有计划吗"这类问题
-2. 运行 `crisis-resources.md` 全文
-3. 保存 `patients/<patient_code>/reports/mind/crisis-YYYY-MM-DD.md` 记录
-4. 陪伴用户完成至少一个具体的求助行动（拨打热线 / 联系家人 / 去急诊）后才结束会话
+默认不保存答案。若用户在稳定后明确同意保存，只记录最小必要结果、表单版本、时间和已同意的安全计划；不要保存方法细节或逐字自杀叙述，除非用户明确要求并理解风险。

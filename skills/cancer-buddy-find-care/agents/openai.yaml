@@ -1,0 +1,4 @@
+interface:
+  display_name: "就医资源查找"
+  short_description: "基于可核验的一手来源查找医院、医生与临床试验专业中心"
+  default_prompt: "Use $cancer-buddy-find-care to research verifiable hospitals, specialists, or trial centers that fit my constraints."

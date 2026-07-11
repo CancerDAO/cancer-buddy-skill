@@ -2,8 +2,8 @@
 
 > This file is the **one authoritative definition** of the `cancer-buddy-organize` bucket scheme.
 > Every other reference (`organize-contract.md`, `organizer-prompt-phase2-synthesis.md`,
-> `organizer-prompt-phase1-ocr.md`, `../../../references/i18n.md §6`, `SKILL.md`,
-> `references/patient-profile-schema.md`, `schemas/anchor-contract.md`, runtime bindings, the
+> `organizer-prompt-phase1-ocr.md`, `../../cancer-buddy/references/i18n.md §6`, `SKILL.md`,
+> `../../cancer-buddy/references/patient-profile-schema.md`, `schemas/anchor-contract.md`, runtime bindings, the
 > redaction job, and every sibling/downstream skill) MUST agree with the tables below. If they
 > disagree, **this file wins** and the other is a drift bug to fix.
 
@@ -38,8 +38,8 @@ longitudinal time series**, not only "tumor patient + image/text". The redesign 
 
 `NN_` is a **language-independent stable key** — downstream anchors, `_FILENAME_MAPPING`, and every
 `[[src:…]]` resolve on the `NN_` numeric prefix (anchor regex `^[0-9]{2}_…`), never on the localized
-slug (see `../../../references/i18n.md §6`). The `zh` slug is the on-disk folder name for `locale=zh`; the `en` slug per
-`../../../references/i18n.md §6.1`. The scheme is disease-agnostic: the same 14 domains serve oncology, rare-disease
+slug (see `../../cancer-buddy/references/i18n.md §6`). The `zh` slug is the on-disk folder name for `locale=zh`; the `en` slug per
+`../../cancer-buddy/references/i18n.md §6.1`. The scheme is disease-agnostic: the same 14 domains serve oncology, rare-disease
 (firefly), chronic-disease, and healthy-baseline records — no domain hardcodes a cancer-only concept
 (`TNM`, `肿瘤标志物` are *typed subdirs / schema fields*, not bucket-level identity).
 
@@ -276,10 +276,11 @@ content unit := {
   (`phase1-ocr.md §2.4`) and `pii_rescan.py` still rescans the text — the sidecar remains the
   downstream-only read source with no plaintext PII, so structured JSONs and patient-facing answers
   stay de-identified.
-- **段E (unrelated-file deletion) is unchanged** — high-confidence non-medical files are still
-  auto-deleted on no-confirm; that privacy floor is independent of 段B.
-- Net: the patient keeps every original as uploaded (frontend can show it), while downstream artifacts
-  built from the text sidecars remain desensitized.
+- **段E relevance happens before archival copying.** Clearly unrelated and uncertain inputs are not
+  copied into `raw/` unless the user explicitly reclassifies them as medical. The user-controlled
+  source is preserved; no-confirm never means deletion.
+- Net: the patient keeps every in-scope medical original as uploaded (frontend can show it), while
+  downstream artifacts built from the text sidecars remain desensitized.
 
 ## 6. Clean replacement — no backward compatibility
 

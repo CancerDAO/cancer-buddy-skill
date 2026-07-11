@@ -24,7 +24,7 @@ Phase2 结构化整理完成、Profile Card 之后自动触发。读结构化文
 
 ## locale（i18n）— 先读再填
 
-先读 `profile.json.locale`（organize 已在 Phase2 写入）。整张 HTML 的**脚手架按该 locale 出**，**临床实体一律 verbatim**（药名/基因/变异/TNM/数值单位/VAF 记法照抄，禁止翻译 —— 误译=医疗风险，见 [`../../../references/i18n.md`](../../../references/i18n.md) §4）。
+先读 `profile.json.locale`（organize 已在 Phase2 写入）。整张 HTML 的**脚手架按该 locale 出**，**临床实体一律 verbatim**（药名/基因/变异/TNM/数值单位/VAF 记法照抄，禁止翻译 —— 误译=医疗风险，见 [`../../cancer-buddy/references/i18n.md`](../../cancer-buddy/references/i18n.md) §4）。
 
 - **药名规范化：去研发代号、全文一致（硬约束）**：患者向输出一律用药物的**标准通用名 / 中文药名**，**绝不用研发 / 开发代号**（如 `AMG510`→`索托拉西布`、`MRTX849`→`阿达格拉西布`；`TAS-102` 若为其上市名则原样保留）。同一药物在文档多处出现（`treatment_markers[].label`、`line_regimen`、叙事 `病情概要`）时，**必须全文使用同一种名称形式**，不得一处代号一处通用名。这是把代号**去术语化**到标准名（**同一药物、不改是哪个药**），**不是翻译**——与"药名 verbatim / 禁误译"规则兼容：不改 WHICH drug，只在"代号 vs 标准名"之间取标准名并保持全文一致。
 
@@ -48,7 +48,7 @@ Phase2 结构化整理完成、Profile Card 之后自动触发。读结构化文
 - `longitudinal_observations.json`（**若存在** —— 关键趋势 hero + 实验室趋势行的**多时间点 series 来源**；每个 `observations[]` 元素带 `{metric, value, unit, timestamp}`。按 metric 分组、按 timestamp 升序即得一条 series）
 - `case_text.md`（仅取影像段，用于病灶分布）
 - 模板（**只读，不改**）：`references/templates/case-summary.template.html`
-- 数据契约（你的产物结构）：`references/schemas/case_summary_data.schema.json`
+- 数据契约（你的产物结构）：`schemas/case_summary_data.schema.json`
 
 ## 数据来源映射表（§3）
 
@@ -149,7 +149,7 @@ Phase2 结构化整理完成、Profile Card 之后自动触发。读结构化文
 - 遍历 treatment_lines.lines（按 line 升序）。
 - 已结束或进行中的线：`{{line_marker_class}}` 留空（红框）。徽章两字段各有明确规则（**硬约束**，两个都要填，不能只填其一）：
   - `{{line_badge_text}}` = 该线的**最佳缓解 / 缓解类别**，**逐字取自来源**（`treatment_lines.json.best_response`，或该记录 / timeline **明确写出**的缓解词：`PD` / `SD` / `PR` / `CR` / `CC0` / `维持中` / `肿标↑` / `肿标↓` / `术前桥接` / `新辅助` 等）。**CC0、SD、维持中 是有据可查的事实、不是推断——来源写明就必须填，绝不留 `null`。** 仅当来源对该线**根本没有记录任何缓解**时才置 `null`（→ 渲染 `资料缺失`，此时才是正确的）。
-    - **疗效红线（P0，见 `../../../references/safety-guardrails.md`）**：`best_response` 若为 `null`（来源没逐字写响应类别），这里就是 `null`——**绝不**自己把影像的描述性发现（"病灶缩小/减轻"）转写成 `PR`/`SD` 填进徽章；也**绝不**在徽章或叙述里加 RECIST 定义式注解（如"部分缓解，病灶缩小超过 30%"——那个 30% 是**定义**不是这个患者的实测）。判疗效是医生的事。
+    - **疗效红线（P0，见 `../../cancer-buddy/references/safety-guardrails.md`）**：`best_response` 若为 `null`（来源没逐字写响应类别），这里就是 `null`——**绝不**自己把影像的描述性发现（"病灶缩小/减轻"）转写成 `PR`/`SD` 填进徽章；也**绝不**在徽章或叙述里加 RECIST 定义式注解（如"部分缓解，病灶缩小超过 30%"——那个 30% 是**定义**不是这个患者的实测）。判疗效是医生的事。
   - `{{line_badge_class}}` = 仅当缓解为**进展（`PD` / 进展）**时填 `pd`（红）；其余任何缓解（`SD`/`PR`/`CR`/`CC0`/`维持中`/`肿标↓`/`术前桥接`…）一律填**空字符串 `""`**（中性基座 `.tl-badge` 样式，**不红**，避免给一条稳定 / 有反应的线过度报警）。（对应模板可用 class：`.tl-badge.pd` 红 / `.tl-badge.pending` 黄 / 基座中性。）
 - `ended_at` 为 null 且未启动（待启动）：`{{line_marker_class}}`=`pending`（黄框），`{{line_badge_class}}`=`pending`，`{{line_date_range}}`=`{{i18n.val_to_start}}`。
 - `{{line_label}}`（**硬约束，违反即临床不准确、整份 fail**）：**用治疗意图渲染，绝不自动编序数**。取 `treatment_lines.json` 每条线的 `intent` 字段，按 locale 映射为临床意图标签：`neoadjuvant`→新辅助、`adjuvant`→术后辅助、`perioperative`→围手术期、`palliative`→姑息治疗、`maintenance`→维持治疗、`definitive`→根治、`consolidation`→巩固（`intent` 取值即 `treatment_lines.schema.json` 的 7 项 enum，无 `radical` 这一项——根治意图统一记 `definitive`）。**严禁从 `line` 整数推导 `一线`/`二线`/`三线`… 这类裸序数标签**（validator 会对 ≥2 条裸序数 `^[一二三四五六七八九十]+线$` 直接 FAIL）——围手术期 / 新辅助治疗本身已是一线，再把手术、新辅助、后续晚期线编号成"一线/二线/…/十二线"临床不准确。`intent` 缺失时用中性时段标签（按 locale 的"第 N 段治疗"/"Phase N"），按 `started_at` 先后排，不臆断线序；仅当病历**逐字写明**了线序（如"姑息一线"）才 verbatim 照抄该原文，不另行推算。
@@ -196,25 +196,25 @@ Phase2 结构化整理完成、Profile Card 之后自动触发。读结构化文
 
 `<patient_dir>` 是上游（SKILL.md / INSTALL.md）按**单一解析规则** `$CANCER_BUDDY_PATIENTS_DIR → $VMTB_PATIENT_DATA_ROOT → $HOME/CancerDAO/patients` 解析出来、再作为 call parameter 传给你的绝对路径。你**直接用这个 `patient_dir`**，自己**绝不重新发明输出根**、不另解析环境变量。
 
-1. 把渲染数据对象写到 **`<patient_dir>/.case_summary_data.json`**（**点开头的隐藏文件** —— 它只是喂给模板引擎的渲染中间产物，不是患者向产物，不应出现在目录顶层可见清单里；渲染成功后保留作 re-render/debug 即可），结构遵 `references/schemas/case_summary_data.schema.json`（i18n 串表 + fallbacks + 各标量 + `trend_charts` + `lab_trends`/lesions/molecular_rows/treatment_lines/path_items 数组；`version_delta` 与所有 SVG 坐标字段留给下一步的确定性脚本注入，你不写）。
+1. 把渲染数据对象写到 **`<patient_dir>/.case_summary_data.json`**（**点开头的隐藏文件** —— 它只是喂给模板引擎的渲染中间产物，不是患者向产物，不应出现在目录顶层可见清单里；渲染成功后保留作 re-render/debug 即可），结构遵 `schemas/case_summary_data.schema.json`（i18n 串表 + fallbacks + 各标量 + `trend_charts` + `lab_trends`/lesions/molecular_rows/treatment_lines/path_items 数组；`version_delta` 与所有 SVG 坐标字段留给下一步的确定性脚本注入，你不写）。
 
 1.5. **确定性富化（两个零医学逻辑脚本，按序在 render 之前跑）**：
 
    ```
    # (a) 保底 —— lab_trends 空则从 labs.json 的 panels 自动补齐(已有则 no-op)
-   python3 scripts/backfill_lab_trends.py --data <patient_dir>/.case_summary_data.json --labs <patient_dir>/labs.json --profile <patient_dir>/profile.json
+   python3 "$ORGANIZE_SKILL_DIR/scripts/backfill_lab_trends.py" --data <patient_dir>/.case_summary_data.json --labs <patient_dir>/labs.json --profile <patient_dir>/profile.json
 
    # (b) 自上次总结的变化 —— 对比上一版快照(若有);首版无快照 → version_delta:null
    prev=$(ls -1 <patient_dir>/case_summary_versions/case_summary_data_*.json 2>/dev/null | sort | tail -1)
    if [ -n "$prev" ]; then
-     python3 scripts/compute_version_delta.py --data <patient_dir>/.case_summary_data.json --prev "$prev"
+     python3 "$ORGANIZE_SKILL_DIR/scripts/compute_version_delta.py" --data <patient_dir>/.case_summary_data.json --prev "$prev"
    else
-     python3 scripts/compute_version_delta.py --data <patient_dir>/.case_summary_data.json
+     python3 "$ORGANIZE_SKILL_DIR/scripts/compute_version_delta.py" --data <patient_dir>/.case_summary_data.json
    fi
 
    # (c) 注入 SVG 趋势坐标 + 反造假门(每个画出的点必须在纵向库/labs 里查得到,否则 exit 3 拦停)
    long=""; [ -f <patient_dir>/longitudinal_observations.json ] && long="--longitudinal <patient_dir>/longitudinal_observations.json"
-   python3 scripts/compute_sparklines.py --data <patient_dir>/.case_summary_data.json $long --labs <patient_dir>/labs.json
+   python3 "$ORGANIZE_SKILL_DIR/scripts/compute_sparklines.py" --data <patient_dir>/.case_summary_data.json $long --labs <patient_dir>/labs.json
    ```
 
    compute_sparklines exit 3 = 你的 `series[]` 里有 `longitudinal_observations.json`/`labs.json` 查不到的点（造假/改写）→ **不要绕过**，回去把该点改成 verbatim 原值或删除，再重跑。
@@ -222,8 +222,8 @@ Phase2 结构化整理完成、Profile Card 之后自动触发。读结构化文
 2. 跑确定性模板引擎填模板、落 HTML：
 
    ```
-   python3 scripts/render_html_template.py \
-     --template references/templates/case-summary.template.html \
+   python3 "$ORGANIZE_SKILL_DIR/scripts/render_html_template.py" \
+     --template "$ORGANIZE_SKILL_DIR/references/templates/case-summary.template.html" \
      --data <patient_dir>/.case_summary_data.json \
      --out <patient_dir>/病情简要总结.html
    ```
@@ -235,9 +235,9 @@ Phase2 结构化整理完成、Profile Card 之后自动触发。读结构化文
 3. 跑"形"不变量校验器（模板固定、与病人无关的骨架检查 —— style 块逐字节一致、无越界 CSS class、无残留 `{{...}}`、无 PII（DOB/邮箱/身份证/电话——**精确年龄允许**，临床试验匹配需要）、骨架 section 齐、provenance template_sha256 与本次模板一致）：
 
    ```
-   python3 scripts/validate_case_summary_html.py \
+   python3 "$ORGANIZE_SKILL_DIR/scripts/validate_case_summary_html.py" \
      --html <patient_dir>/病情简要总结.html \
-     --template references/templates/case-summary.template.html
+     --template "$ORGANIZE_SKILL_DIR/references/templates/case-summary.template.html"
    ```
 
    validator **只查形、不查具体临床内容**（绝不断言"必须有某化验 / 某 `.lab-grid`" —— 无化验的病人合法地没有这些）。exit 0 = 形不变量成立；exit 1 = 形被破坏（手写过 HTML / 漏渲染 / 泄 PII / 越界 class）。

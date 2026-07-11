@@ -40,6 +40,23 @@ jobs:
           done
           exit "$failed"
 
+      - name: Run python unit tests
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          failed=0
+          for f in tests/unit/*.test.py; do
+            echo "::group::$f"
+            if python3 "$f"; then
+              echo "PASS: $f"
+            else
+              echo "::error file=$f::python unit test failed"
+              failed=1
+            fi
+            echo "::endgroup::"
+          done
+          exit "$failed"
+
       - name: Run integration tests
         run: |
           set -euo pipefail
@@ -56,3 +73,9 @@ jobs:
             echo "::endgroup::"
           done
           exit "$failed"
+
+      - name: Run static safety lints (tests/eval)
+        run: bash tests/eval/run.sh
+
+      - name: Validate Codex skill packaging
+        run: python3 scripts/validate_codex_skills.py

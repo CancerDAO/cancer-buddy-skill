@@ -106,7 +106,7 @@ subagent 各自返回 raw JSON，**主 agent 合并**时去重：
 
 ## 5. Live-lookup 红线
 
-- **不使用陈旧静态快照**——每次现场查 PubMed / Europe PMC（`../../references/safety-guardrails.md` → no-silent-snapshot）。
+- **不使用陈旧静态快照**——每次现场查 PubMed / Europe PMC（`../../cancer-buddy/references/safety-guardrails.md` → no-silent-snapshot）。
 - 网络不可达 / API 报错 → 标 **"需现场核实"**，如实报错，**绝不 LLM 编造个案 / 编造 PMID / 编造结局**（G-LIVE + 反幻觉）。
 - 返回 0 条 → 诚实报"未找到相似个案"，不降级、不编。
 

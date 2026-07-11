@@ -6,7 +6,7 @@ the patient/family can read without medical training.
 
 ## Locale
 
-Resolve locale per `../../../references/i18n.md` (host `locale` first, otherwise
+Resolve locale per `../../cancer-buddy/references/i18n.md` (host `locale` first, otherwise
 `profile.json.locale`, otherwise detection fallback + persist). The diagrams and explanations below are the **`zh` source rendering**.
 When the patient's `locale` is not `zh`:
 

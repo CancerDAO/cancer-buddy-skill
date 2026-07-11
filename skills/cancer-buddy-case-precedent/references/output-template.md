@@ -2,7 +2,7 @@
 
 本 skill 产**两份**，写给两种读者。**默认先给 §A 患者版**；§B 附录默认不主动展开，只提一句"给医生看的详细版我也生成了，随时可展开"。
 
-> **i18n**：两层都**按 `profile.json.locale` 渲染**（见 `../../../references/i18n.md`）。中文骨架是 `zh` 渲染样例；其它 locale 时所有脚手架字符串查下方 §locale 表渲染，markdown 结构 1:1 不变。**临床实体逐字不译**（P0，`../../references/safety-guardrails.md` → 临床实体禁译）：癌种/组织学、基因、变异、TNM/分期、RECIST 码（CR/PR/SD/PD）、药名/方案、数值+单位、期刊原名、**PMID** 一律保持源文；每个抽取字段挂论文**逐字来源引文**（子串可回溯）。
+> **i18n**：两层都**按 `profile.json.locale` 渲染**（见 `../../cancer-buddy/references/i18n.md`）。中文骨架是 `zh` 渲染样例；其它 locale 时所有脚手架字符串查下方 §locale 表渲染，markdown 结构 1:1 不变。**临床实体逐字不译**（P0，`../../cancer-buddy/references/safety-guardrails.md` → 临床实体禁译）：癌种/组织学、基因、变异、TNM/分期、RECIST 码（CR/PR/SD/PD）、药名/方案、数值+单位、期刊原名、**PMID** 一律保持源文；每个抽取字段挂论文**逐字来源引文**（子串可回溯）。
 
 ---
 
@@ -11,9 +11,10 @@
 写给一个害怕的患者/家属，**不是写给医生**。**默认是聊天气泡直接回给用户**（下面的 markdown 是同内容的可存档副本形态，不是要求先甩一份 `.md`）。规则（对齐 SKILL 的 **G-PATIENT-FIRST**）：
 - **聊天优先、文档次之**：先一句接住 + 治疗方向 + 一个问句，重装内容（§B）藏在"展开详细版"之后。
 - **开口先接住情绪**（承接 Step 0 的对话），**不砌偏倚墙**。
-- 只讲 **治疗方向**（把相似病例试过的方案**按类别归并**），**不逐例摊结局、不放死亡/急速恶化个案卡片**。
+- 先按类别归并 **治疗方向**，再给一张精简的逐例结局表。不渲染不良结局，也不隐藏死亡、进展、严重不良事件或治疗停止。
 - 偏倚提醒**轻编织进一句正文**（文案见 `bias-disclosure.md` 患者版一节），不是顶部横条。
 - **每个方向挂一条可点来源（PMID 超链接，每方向 ≤1 条）**——让患者/医生能一键核对、带去问医生。**仍无** 6 维对照表、**无**证据分级术语、**无**逐例 PMID 轰炸、**无**偏倚横条——想看细节 → 指向 §B。（这放宽了旧口径的"患者版零 PMID"：从"零引用"改为"每方向一条可点来源"，目标是可核验且不砌墙。）
+- **结局简表覆盖所有纳入病例**：一例一行，只放 `PMID / best response / follow-up / status / 严重不良事件`；字段逐字接地，未报告就写未报告。不允许只放有利结局。
 - 结尾**一个具体下一步**（推向医生 / visit-prep / second-opinion）。
 
 **模板**：
@@ -27,7 +28,13 @@
 - **<方向二>** —— … 来源：[PMID <pmid>](https://pubmed.ncbi.nlm.nih.gov/<pmid>/)
 - **<方向三>** —— … 来源：[PMID <pmid>](https://pubmed.ncbi.nlm.nih.gov/<pmid>/)
 
-（我没有把每个人的结局一个个列出来——单个病例的结局既代表不了你、也容易误导。给医生看的完整版在 `PRECEDENTS_临床附录.md`，你或医生想看细节随时展开。）
+**文献记录的结局（不是你的预后）**
+
+| PMID | best response | follow-up | status | 严重不良事件 |
+|---|---|---|---|---|
+| [<pmid>](https://pubmed.ncbi.nlm.nih.gov/<pmid>/) | <verbatim / 未报告> | <verbatim / 未报告> | <alive / deceased / progression / NED / 未报告> | <verbatim / 未报告> |
+
+> 这张表如实保留好与坏的结局，不计算有效率/生存率，也不能预测你。完整相似性、治疗逐线与原文引文在 `PRECEDENTS_临床附录.md`。
 
 **下一步我能帮你**：把这几个方向整理成你下次见医生可以直接问的问题（"这些对我适用吗？"），要不要？
 
@@ -45,7 +52,15 @@
 - **同步放化疗 + 免疫维持** —— 局部复发时有人走过这条。来源：[PMID 37990011](https://pubmed.ncbi.nlm.nih.gov/37990011/)
 - **针对特定靶点的方案** —— 前提是先做基因检测明确靶点（你爸目前没测）。来源：[PMID 39004567](https://pubmed.ncbi.nlm.nih.gov/39004567/)
 
-（每个人的结局我没有一个个摊开——单个病例的好坏都代表不了你爸。给医生看的完整版在 `PRECEDENTS_临床附录.md`。）
+**文献记录的结局（不是你爸的预后）**
+
+| PMID | best response | follow-up | status | 严重不良事件 |
+|---|---|---|---|---|
+| [38712345](https://pubmed.ncbi.nlm.nih.gov/38712345/) | <来自原文> | <来自原文> | <来自原文，可为 deceased/progression> | <来自原文 / 未报告> |
+| [37990011](https://pubmed.ncbi.nlm.nih.gov/37990011/) | <来自原文> | <来自原文> | <来自原文> | <来自原文 / 未报告> |
+| [39004567](https://pubmed.ncbi.nlm.nih.gov/39004567/) | <来自原文> | <来自原文> | <来自原文> | <来自原文 / 未报告> |
+
+> 不从这些个案计算有效率或生存率。详细接地引文在 `PRECEDENTS_临床附录.md`。
 
 **下一步**：要不要我把这三个方向整理成你下次见主诊医生能直接问的问题？
 
@@ -248,7 +263,7 @@
 | `audit.databases` | 查询数据库 | Databases queried |
 | `disclaimer.footer` | 这些是有文献记录的真实病例，不是对你结局的预测，也不是治疗建议。个案报告往往因罕见或疗效突出才被发表，系统性偏乐观、不代表总体，更不替代主诊医生的判断。请把这份清单带给你的主诊医生一起看。 | These are real cases documented in the literature — not a prediction of your outcome, and not treatment advice. Case reports tend to be published because they are rare or the response stood out, so they skew optimistic and don't represent the whole; they do not replace your treating physician's judgment. Bring this list to your treating physician and read it together. |
 
-> 叙事段（per-case bias tag、判定理由句、证据强度说明）走 prompt 指令直接用 locale 写，不查表——prompt 写明 "Output all patient-visible scaffold prose in `<locale>`; keep clinical entities + PMIDs + journal names + RECIST codes verbatim per `../../references/i18n.md` §4 and `../../references/safety-guardrails.md` → 临床实体禁译."
+> 叙事段（per-case bias tag、判定理由句、证据强度说明）走 prompt 指令直接用 locale 写，不查表——prompt 写明 "Output all patient-visible scaffold prose in `<locale>`; keep clinical entities + PMIDs + journal names + RECIST codes verbatim per `../../cancer-buddy/references/i18n.md` §4 and `../../cancer-buddy/references/safety-guardrails.md` → 临床实体禁译."
 
 ## 渲染原则
 
@@ -260,7 +275,7 @@
 - **撤稿 / 存疑 / 去重条目进"检索到但未纳入"表**，绝不当有效证据混入正文（撤稿检查见 `retrieval-sources.md` §4）。
 - **审计 footer 不能省**——生成时间 + skill 名+版本 + profile hash 前 8 位 + 查询数据库，供主诊医生核验（`safety-guardrails.md` → Audit trail）。
 - **末尾 canonical 免责不能省**——须同时表达「不替代主诊医生的判断」+「不是预后预测」+「不是治疗建议」三层（`safety-guardrails.md` → Always say；对齐 `bias-disclosure.md`）。
-- **披露抑制态**（`disclosure_state == "suppressed"` 且 `role=patient`）：结局字段照实但用临床中性语，避免"晚期/进展后/生存期"等加重情绪的表述（`../../references/disclosure-behavior.md`）。
+- **披露抑制态**（`disclosure_state == "suppressed"` 且 `role=patient`）：结局字段照实但用临床中性语，避免"晚期/进展后/生存期"等加重情绪的表述（`../../cancer-buddy/references/disclosure-behavior.md`）。
 
 ---
 

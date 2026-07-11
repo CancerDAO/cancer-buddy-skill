@@ -1,0 +1,4 @@
+interface:
+  display_name: "照护者支持"
+  short_description: "帮助癌症照护者分担任务、评估压力并连接现实支持资源"
+  default_prompt: "Use $cancer-buddy-caregiver to help me manage caregiving stress, responsibilities, and support options."

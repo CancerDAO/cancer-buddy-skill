@@ -1,9 +1,12 @@
 ---
 name: cancer-buddy-case-precedent
-description: "从患者已整理的病历档案出发，去 PubMed / Europe PMC 检索 **publication type = Case Reports** 的相似真实病例，逐病例返回「这位真实患者试过什么治疗、发生了什么」，作为**去研究和找医生讨论的线索**。**不是预后预测，不是治疗建议。** 个案报告是最弱证据且被发表偏倚系统性拉向乐观——每条结果强制披露偏倚、显式标 N、绝不聚合成生存率、逐维展示相似/分歧、PMID 逐字接地、过撤稿检查。输入：profile.json（癌种/分子/治疗线）+ 一个"想看像我这样的人怎么治"的诉求。输出：一份相似先例清单（PRECEDENTS.md），可打印分享、可对话追问细化。Triggers on: 相似病例, 像我这样的患者, 别人怎么治的, 有没有和我一样的, 同样情况的人怎么治, case report, 病例报告, 真实病例, 先例, precedent, 类似病例, 别人的治疗路径. **软触发（弱信号，只触发『提一句 + 问意图』，绝不自动检索）**：还有没有别的办法, 是不是只有我这样, 别人遇到这种情况怎么办, 换了方案不知道还有什么路, 别人是不是也这样, 是不是没别的路了. 这类是『找别人/找方向』形状的弱信号——按 Step 0 先接住、只问一句意图（求连接还是求方向），不砌文献墙、不直接跑检索；**纯绝望/自伤语（不想活了/撑不下去了）不归本 skill，走 cancer-buddy 危机路径 + mind**。"
+description: >-
+  从已整理的患者档案出发，在 PubMed 和 Europe PMC 实时检索相似的 Case Reports，逐例呈现治疗经过、结局、相似点、差异点、PMID 与发表偏倚，供患者带去和主诊医生讨论；不预测个人预后，不聚合成生存率，也不给治疗建议。Use when the user asks 相似病例、像我这样的患者、别人怎么治、真实病例、病例报告、case report 或 precedent。对“还有没有别的办法”“是不是只有我这样”等弱信号，只先共情并确认用户想获得情绪连接还是文献线索；不要自动检索。自伤或自杀表达优先进入 cancer-buddy-mind 危机支持。
 ---
 
 # cancer-buddy-case-precedent
+
+Before role checks, archive reads, or literature retrieval, run [`medical-emergency-gate.md`](../cancer-buddy/references/medical-emergency-gate.md) and the suicide-safety rules in [`safety-guardrails.md`](../cancer-buddy/references/safety-guardrails.md). Never delay urgent care to find a case report.
 
 帮你找有文献记录的**相似真实病例**，看别人试过什么、发生了什么——作为线索，不替你判断结局。
 
@@ -31,20 +34,20 @@ description: "从患者已整理的病历档案出发，去 PubMed / Europe PMC 
 
 ## Locale (i18n)
 
-读共享 `../../references/i18n.md`。流程开始时：
+读共享 `../cancer-buddy/references/i18n.md`。流程开始时：
 
-1. caller / host 传入 `locale` → 直接用并写回 `profile.json.locale`。
+1. caller / host 传入 `locale` → 直接用。
 2. 否则读 `patients/<patient_code>/profile.json` 的 `locale`，有值直接复用，**不重新检测**。
-3. 无 profile / locale 为 null → 从当前对话语言检测 BCP-47，写回。
-4. 用户显式换语言 → 更新 `profile.json.locale` 并照办。
+3. 无 profile / locale 为 null → 从当前对话语言检测 BCP-47，仅本会话使用——不为保存语言偏好创建/修改 `profile.json`（organize 是唯一权威写入方）。
+4. 用户显式换语言 → 立即照办并沿用；仅在已打开经授权 profile 时经权威写入方更新 `profile.json.locale`。
 
-**临床实体逐字禁译（P0）**：药名 / 基因 / 变异 / TNM / 分期 / 数值+单位 / biomarker / PMID / 期刊名一律 verbatim（见 `../../references/safety-guardrails.md` → 临床实体禁译）。只本地化脚手架（section 标题、字段标签、偏倚披露文案、匹配/分歧档位词、免责声明、日期）。派发 subagent 时在 prompt 写明 "Output all patient-visible scaffold prose in `<locale>`; keep clinical entities + PMIDs verbatim."
+**临床实体逐字禁译（P0）**：药名 / 基因 / 变异 / TNM / 分期 / 数值+单位 / biomarker / PMID / 期刊名一律 verbatim（见 `../cancer-buddy/references/safety-guardrails.md` → 临床实体禁译）。只本地化脚手架（section 标题、字段标签、偏倚披露文案、匹配/分歧档位词、免责声明、日期）。派发 subagent 时在 prompt 写明 "Output all patient-visible scaffold prose in `<locale>`; keep clinical entities + PMIDs verbatim."
 
 ## Preflight
 
 ### Role check
 - `role=patient` / `role=caregiver`：正常工作。
-- `role=family`（远亲/朋友）：refuse + 引导回主照护者（按 locale 出同义文案）：`找相似病例涉及具体病情，需要患者本人或主照护者来推进。我可以把找到的信息整理给 Ta 看。`
+- `role=family`（远亲/朋友）：走**通用文献解释模式**——不读患者档案、不做个性化相似检索，可解释一般文献证据与检索思路（会话角色只影响内容形态，不是权限门）。按 locale 出同义文案：`我可以帮你了解一般的文献证据和怎么找相似病例；涉及 Ta 具体病情的检索需要患者本人或主照护者授权推进。`
 
 ### 危机与披露前置
 - 会话中出现自杀意念 → 立即走 `cancer-buddy` 危机路径（凌驾一切），热线以 `../cancer-buddy-mind/references/crisis-resources.md` 为准。
@@ -136,39 +139,39 @@ subagent 输出 JSON 写到 `.../raw/<subagent-name>.json`（schema 见 retrieva
 - **分歧维必须显式列出**（不只列相似）。
 - 可按综合相似度排序，但**不把总分作为主视觉**（避免"最像=最该学"误读）；每条都展示 mismatch。
 
-### Step 5 — 两层输出：患者版（主体）+ 医生版附录
+### Step 5 — 两层输出：患者版（主体）+ 临床细节附录
 
 产两份，写给两种读者。**默认先给患者版**；附录默认不主动展开，只提一句"要给医生看的详细版我也生成了，随时可展开"。脚手架按 locale，临床实体 + PMID 逐字。
 
 **A. 患者版 brief（主体，是你回给用户的东西）** → 默认**聊天气泡语气**直接回给用户；同时把同样内容存一份 `相似病例_我可以问医生的.md`（可存档副本，非主体形态）。
-- **聊天优先，文档次之**：默认输出是对话（先一句接住 + 治疗方向 + 一个问句），**不是甩一份 `.md` 清单**。6 维表 / 证据分级 / 结局明细都在"展开详细版"（§B）之后，用户说"展开详细版"才给。
+- **聊天优先，文档次之**：默认输出是对话（先一句接住 + 治疗方向 + 简短平衡结局摘要 + 一个问句），**不是甩一份 `.md` 清单**。6 维表、治疗逐线与长引文在§B；但患者版默认仍要如实显示每个纳入病例的 `best response / follow-up / status`简表。
 - **开口先接住**（承接 Step 0），**不开场砌偏倚墙**。
-- 只讲 **治疗方向**：把相似病例里试过的方案**按类别归并**（"有人用过 X 类、有人试过 Y 类方向"），**不逐例摊结局、不把预后当卖点**。
+- 先讲 **治疗方向**：把相似病例里试过的方案按类别归并，**不把任何方向写成推荐或希望故事**。随后给一张简短、中性的逐例结局表，让有利、无效、进展、严重不良事件与死亡（如原文有记录）在同一口径下可见。
 - **每个方向挂一条可点来源（PMID 超链接，每方向 ≤1 条）**：格式 `来源：[PMID <pmid>](https://pubmed.ncbi.nlm.nih.gov/<pmid>/)`（有 OA 全文可并挂 Europe PMC 链接）。这是让患者/医生能**一键核对、带去问医生**的锚——但**仍不逐例摊结局、不上 6 维表、不上偏倚横条**（那些在 §B）。这刻意放宽了旧的"患者版无 PMID"口径：目标是"可核验且不砌墙"，不是"零引用"。
-- **不渲染死亡 / 急速恶化个案卡片**——单个 N=1 坏结局对患者是纯惊吓噪音（偏倚小 N，既非真希望也非诚实预后），这类结局只留在医生版附录作事实记录。
+- **不渲染，也不隐藏不良结局**：患者版不做戏剧化的"死亡卡片"，但必须在结局简表如实保留 `deceased`、`progression`、严重不良事件或治疗停止；论文没写就标 `未报告`，不推断。不允许只选好结局或只展示存活者。
 - **偏倚提醒轻编织进正文一句**（不是顶部一堵墙）：如"这些都是零散的个案、因为少见才被写下来，代表不了大多数人、更预测不了你——所以是**去问医生的线索**，不是答案"。
 - **结尾一个具体下一步**（把人推向医生，不是推向更多文献）："我把这几个方向整理成你下次见医生能直接问的问题好不好？" → 路由 `cancer-buddy-visit-prep` / `cancer-buddy-second-opinion`。
 - 末尾一行 canonical 免责（`不替代主诊医生的判断` 之义）。
 
-**B. 医生版附录（次，默认不主动展开）** → `PRECEDENTS_临床附录.md`
+**B. 临床细节附录（次，默认不主动展开）** → `PRECEDENTS_临床附录.md`
 - 完整严谨版：顶部偏倚横条 + 显式 N（含去重计数）+ 每例 6 维 match/mismatch（分歧必列）+ 逐线治疗 + **结局（含死亡，逐字接地）** + PMID + 逐字引文 + 审计 footer。
-- 这是**给医生看的**，患者可点开但不是主体。证据分级 / 术语 / 结局明细都在这层，不进患者版。
+- 这是为就诊讨论准备的完整记录，患者与医生都可打开。证据分级、6 维、治疗逐线与长引文在这层；患者版仍保留精简结局事实。
 
 模板见 [`references/output-template.md`](references/output-template.md)（§A 患者版 / §B 医生版）；患者版轻编织文案见 [`references/bias-disclosure.md`](references/bias-disclosure.md) 患者版一节。
 
 **对话追问细化**：用户说"只看有脑转的 / 用过 XX 药的" → 在已检索结果上按维度过滤/重排；需新维度则二次检索（走 Step 2）。
 
 ## Role behavior
-- **patient**：第二人称"你"，画像对照以本人为参照。
-- **caregiver**：第二人称"你"，任务理解为帮家人；输出可分享给患者/医生。
-- **family**：refuse（见 Preflight）。
+- **Role = patient**：第二人称"你"，画像对照以本人为参照。
+- **Role = caregiver**：有经核验的病历读取授权时可做个性化检索；否则只使用当前用户主动提供的去标识特征做通用检索。
+- **Role = family**：不读患者档案；可解释个案报告的证据局限，或基于非识别性公开问题做一般检索。
 
 ## Disclosure 行为
-`profile.json.disclosure_state == "suppressed"` 且 `role=patient`：正常执行检索，但 PRECEDENTS.md 里**避免**渲染"晚期/IV/进展后/生存期"等可能加重情绪的表述，用临床中性语；结局字段照实但克制呈现。详见 `../../references/disclosure-behavior.md`。
+`disclosure_state` 只指导沟通节奏，不是访问控制。已授权的患者本人可选择输出细节深度；不要因照护者设置的 `suppressed` 自动隐藏其本人记录。详见 `../cancer-buddy/references/disclosure-behavior.md`。
 
 ## Safety — P0 安全门（每条输出都过，违反即 bug）
 
-- **G-BIAS**：每条结果 + 清单顶部强制发表/幸存者偏倚披露文案（`bias-disclosure.md`）。
+- **G-BIAS**：患者版以一句轻量提醒披露发表/幸存者偏倚；临床细节附录顶部用完整横条，逐例保留偏倚标签。
 - **G-N**：显式标 N；N 小不得暗示任何"率"或"大多数人"。
 - **G-NO-AGGREGATE**：**绝不**计算/输出生存率、有效率、缓解率、预后百分比或"中位生存"——个案不可聚合。
 - **G-SIMILARITY-TRANSPARENCY**：6 维 match/mismatch，**分歧维必列**。
@@ -176,7 +179,7 @@ subagent 输出 JSON 写到 `.../raw/<subagent-name>.json`（schema 见 retrieva
 - **G-NO-ADVICE / NO-PROGNOSIS**：无治疗推荐、无换线建议、无本人预后预测；用"匹配理由"不用"推荐理由"；决策权归患者+医生（`safety-guardrails.md` → Never say / Scoring and ranking）。
 - **G-TIER**：明确标注为**最弱证据（个案报告，证据层 C→D）**，低于试验、低于指南（`safety-guardrails.md` → Evidence grading）。证据分级/术语只进医生版附录。
 - **G-LIVE**：live lookup，不用陈旧快照，网络不可达标"需现场核实"，不静默降级、不 LLM 合成个案。
-- **G-PATIENT-FIRST（交互层）**：先厘清意图再检索（Step 0，含软信号只提一句不检索）；患者版**聊天优先、文档次之**，先接情绪、只给治疗方向、**每方向挂一条可点 PMID 来源**（可核验、可带去问医生）、**不摊死亡结局卡片**、偏倚轻编织不砌墙、结尾给一个下一步（推向医生非文献）。6 维表 / 证据分级 / 结局明细（含死亡）/ 偏倚横条降级到医生版附录（§B，用户说"展开详细版"才给），不作患者版主体。
+- **G-PATIENT-FIRST（交互层）**：先厘清意图再检索；患者版聊天优先，先接情绪、按方向组织、每方向挂可核验 PMID，并默认给出不选择性的逐例结局简表。不渲染死亡，也不隐藏死亡/进展/严重不良事件；6 维表、治疗逐线和长引文留在§B。
 - 其它：临床实体逐字禁译（P0）；绝不读 `raw/`/`99_`；危机/披露规则照 `cancer-buddy` + `safety-guardrails.md`。
 
 ## Output
@@ -208,5 +211,5 @@ patients/<patient_code>/reports/case-precedent/<slug>/
 - [similarity-axes.md](references/similarity-axes.md) — 6 维相似度规则 + 分歧透明
 - [bias-disclosure.md](references/bias-disclosure.md) — 偏倚披露文案（**患者版轻编织** + 医生版完整横条）+ no-aggregate 规则
 - [output-template.md](references/output-template.md) — 两层输出模板：**§A 患者版 brief**（治疗方向 + 一个下一步）/ §B 医生版临床附录（6 维 + PMID + 结局 + 审计 footer）
-- 共用：`../../references/roles.md`, `../../references/safety-guardrails.md`, `../../references/disclosure-behavior.md`, `../../references/i18n.md`, `../../references/patient-profile-schema.md`
+- 共用：`../cancer-buddy/references/roles.md`, `../cancer-buddy/references/safety-guardrails.md`, `../cancer-buddy/references/disclosure-behavior.md`, `../cancer-buddy/references/i18n.md`, `../cancer-buddy/references/patient-profile-schema.md`
 - 联网底层依赖：`../web-access/SKILL.md`（subagent 必须加载）
