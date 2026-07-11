@@ -20,6 +20,8 @@ This mode does NOT re-OCR files and does NOT re-run Phase-1/Phase-2 synthesis. I
 - `conversation_turn` (required): the user's message(s) this run is examining, plus enough surrounding context to disambiguate. Verbatim — do not pre-summarize.
 - `turn_timestamp` (required): ISO-8601 timestamp of the user turn, used to build the conversation anchor. e.g. `2026-06-07T14:32:05Z`.
 - `actor_role` (required): `patient` | `caregiver` (family role does not write — see SKILL.md Role behavior).
+- `owner_reviewed` (optional, default `false`): when `true`, the vault owner already reviewed and approved this exact text. Execute [`owner-reviewed-text.md`](owner-reviewed-text.md) instead of Steps 1–6 below; do not show a second diff card.
+- `source_label` (optional): human-readable source for the owner-reviewed branch, e.g. `爸爸体温血压日记`.
 
 ## What counts as an archivable fact
 
