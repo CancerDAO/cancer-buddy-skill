@@ -39,6 +39,16 @@ When authorized and explicitly requested, create only:
 
 Do not claim to create signed URLs, authenticate clinicians, send email, log remote access, revoke a file already copied elsewhere, or provide cloud storage unless a separately installed and user-authorized system actually implements and verifies those capabilities.
 
+## Trust by inspection
+
+A skeptical user should be able to verify the privacy claims themselves, not take them on faith. When they doubt "文件真的在我这里 / 你们没偷偷上传"，surface these three concrete, available-now checks (offer them plainly, in the user's language):
+
+- **Look at the raw files yourself, right now.** Give the exact local path (e.g. `patients/<你的编号>/`) and tell them to open it in their own 文件管理器 / Finder / `ls` — every record is a plain file on their own disk, readable without this skill. Nothing is hidden inside a proprietary blob.
+- **Export a copy to your own folder — available now.** Alongside the manifest and delete actions, offer "把一份副本导出到你自己的文件夹" as a present, do-it-now owner operation, not a future consent-gated promise. This is the owner keeping their own backup (no external recipient, so no recipient/cross-border consent gate); still show the file list before writing, and let them pick the destination folder. Personal backups to a folder the owner controls may include originals — only third-party shares strip `raw/`.
+- **Confirm it makes no outbound call.** Tell a technical user how to check the "本地、不在我们云上" claim rather than just asserting it: this skill reads and writes only local files under the archive path and calls no network API; they can watch for themselves with a network monitor (e.g. Little Snitch / `lsof -i` / a firewall log) while it runs and see zero outbound connection. If any component ever needs the network, it must say so first.
+
+Never overstate: verification shows what this skill does locally; it is not a security audit of the wider device or OS.
+
 ## Workflow
 
 1. Verify authorization and the requested operation scope.

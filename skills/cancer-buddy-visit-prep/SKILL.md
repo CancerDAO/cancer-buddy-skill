@@ -19,6 +19,15 @@ Turn an already-organized patient archive into a one-page pack the patient bring
 - `patient_dir` = `patients/<pid>/` — requires organize to have run. If `profile.json` is absent, **route to `cancer-buddy-organize` first** ("先把病历整理成档案，再回来出就诊准备包"), then return here.
 - Optional `visit_type` ∈ {`first` 初诊, `followup` 复诊, `switch` 换线决策}. If the caller passed it, use it; if it can't be detected from context, ask the user one short question and wait before assembling.
 
+## No archive yet but the visit is imminent
+
+If there is **no `patient_dir`** and the consult is soon (用户说"明天/后天/这周就要看"），**不要**只丢一张通用初诊清单、然后把个性化推给"两天后上传病历再整理"——来不及。改走对话内即时收敛：
+
+1. **先问 1–2 个轻量澄清**（一次问完，别逐条盘问）：已确诊还是还在等确诊？做过手术 / 化疗没有？有没有基因检测（NGS）结果？—— 只问这几项就够把通用清单收窄成明显对得上号的那一版。
+2. **这一轮就把清单收敛成贴合情况的版本**：拿到答复后，当场把 [references/question-frameworks.md](references/question-frameworks.md) 里对应 `visit_type` 的骨架按用户答复替换 slot、删掉用不上的问题、按癌种补上场景专属追问，直接把这份 situation-specific 的问题清单发给用户——**不拖到上传病历之后**。
+3. **加急 / 时间来不及的兜底**：明确给用户台阶——"时间来不及就先用这张对话里的清单去看诊；或者你现在把关键几项（确诊结论、最近一次影像/病理、在用的药、基因结果）发我，我 1 小时内帮你压成一页纸带去。"
+4. 看诊结束、有空时再走 `cancer-buddy-organize` 建档，之后复诊就能出完整的一页纸就诊准备包。这一步是**兜底的对话版**，不产出 `.visit_prep_data.json` / HTML（那条链路要求已建档）；照样守 Guardrails——不下诊断、不解读结果、不给治疗方案，只是把"该问医生什么"整理好。
+
 ## Locale
 
 Read [../cancer-buddy/references/i18n.md](../cancer-buddy/references/i18n.md). The pack is a patient-visible template artifact:
