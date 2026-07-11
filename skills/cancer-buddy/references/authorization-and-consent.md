@@ -19,6 +19,15 @@ Before reading, writing, exporting, or sharing `patients/<patient_code>/`, requi
 
 A self-declared `role=caregiver` or knowledge of `patient_code` is never enough. If the host cannot authenticate or verify a grant, stay in stateless mode and explain what authorization is needed. Do not invent an authentication mechanism.
 
+## Identity hard-gate (demographic mismatch)
+
+This is separate from the routine role/authorization ask above. When the **basic demographics in uploaded records (sex / age) clearly conflict with what the user says about the patient** — e.g. the records read 男 63 but the user calls the patient "我妈", or the age is off by a generation — **STOP and raise a hard identity-confirmation gate BEFORE presenting any full condition summary.**
+
+- The reports may belong to two different people mixed together; showing one patient's sensitive records as another's is a serious harm.
+- Name the specific mismatch plainly and ask the user to confirm whose records these are, e.g. `这份报告上写的是男性、63 岁，你说的是你妈妈——这两个对得上吗？会不会是两个人的报告混在一起了？`
+- Do **not** proceed to a condition summary, diagnosis name, or source citations until the user resolves the conflict. If it stays unresolved, keep the archive closed and stay in stateless mode.
+- This gate fires on the mismatch itself; it is not satisfied by role self-declaration or knowledge of `patient_code`.
+
 ## Consent boundaries
 
 Obtain a separate, explicit confirmation immediately before each material operation:

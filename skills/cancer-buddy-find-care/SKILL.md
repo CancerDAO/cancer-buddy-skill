@@ -75,6 +75,10 @@ Before location research, role checks, or archive reads, run [`medical-emergency
 
 **病历侧字段不全时**：不要让 subagent 瞎跑。先回过头让用户补齐（或先去 `organize` 整理病历 / 做 NGS），再调研。query 侧字段直接在对话里问用户。
 
+**先别一次抛四张表。** 对一个已经很慌的患者（尤其是四五线城市、第一次面对这件事），开口就要"城市+预算+完整病史+肝功能"太重了，容易把人问住。**唯一的阻断字段是：你现在在哪个城市 + 大概能去多远（本市 / 能到省城 / 能去北上广）**——先把这一条问清楚，其余（预算档位、异地医保、更细的病史）后面边聊边补，不作为开工前提。
+
+**问完城市，这一轮就给锚点，别只留问题。** 拿到城市 + 范围后，立刻从 [mtb-centers-cn-seed.md](references/mtb-centers-cn-seed.md) 挑 2–3 家该城/邻近可及的医院作为**临时锚点**先报给用户看（例："你能到的范围里，这几家一般是先看的——X / Y / Z"），并明确标注：**这是种子库里的起点，最新的接诊状态、MDT 是否在开、怎么挂号，还要你确认 / 我这就去核实**。让用户先手里有几个具体名字，不是被一堆问题晾在原地。给锚点时守住"不承诺能被收治"：说"大医院的 MDT 门诊是收外院病人的、可以去申请"，**不要**说成"这家一定能收你"。
+
 ## Core workflow
 
 ### Step 1 — Clarify the ask
@@ -99,7 +103,7 @@ constraints:
 patient_profile_ref: patients/PT-XXXX/profile.json
 ```
 
-不确定的字段当面问用户，**别让 subagent 替你猜**。问用户的话术按 locale 出。
+不确定的字段当面问用户，**别让 subagent 替你猜**。问用户的话术按 locale 出。但**只有城市 + 能去多远是开工前必须问清的**（见 Profile completeness）——其余字段边聊边补即可，且问城市的同时就先按 [mtb-centers-cn-seed.md](references/mtb-centers-cn-seed.md) 给 2–3 个临时锚点（标注"待你确认最新状态 / 我去核实"），别让用户只拿到一串问题。
 
 > QUERY.md 的 YAML **键（key）是语言无关的稳定结构**，不本地化；值里的临床实体（cancer_type / molecular / stage…）保持病历原文逐字，叙事性自由文本（service_needed 描述、constraints 说明）按 locale 出。
 

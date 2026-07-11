@@ -34,6 +34,10 @@ Determine what the caregiver needs:
 3. **Want to share load** → [family-roles-template.md](references/family-roles-template.md): who does hospital runs, who does pharmacy, who does emotional check-ins, who does finances. Export shareable family doc.
 4. **Kids ask what's going on** → [explaining-cancer-to-children.md](references/explaining-cancer-to-children.md) (age-appropriate language).
 5. **"I'm at the end of my rope"** → a Zarit hard-trigger hit (题22 总体负担 ≥3, 或题 5/9/17/18 ≥3 — see [references/zarit-burden.md](references/zarit-burden.md)) or affirmative suicidal statement → route to `cancer-buddy-mind` for caregiver-distress branch. Do NOT keep caregiver talking only to you.
+   - **When she plainly says "我快撑不住了"**: don't open a long opt-in menu. Lead with just two: "我在，先陪你说说话" 和 "也可以帮你想想眼下这几件事怎么分出去一点"。其余（喘息安排、Zarit、找人接手）等她接话、有力气了再提，不要一次全端上来。
+   - **Make 喘息 (respite) concrete for a solo caregiver** — 不是"你歇一歇"这种空话，而是能真的够得到的几个口子：请**短期护工/陪护**顶两三个小时或一个夜班（医院附近护工中介、住院部护士站通常能给联系方式）；找**医院社工部**（很多三甲医院有，能协调陪护资源、经济援助、喘息安排）；问本地**社区卫生服务中心或安宁疗护/宁养服务**有没有"喘息服务"（部分地区提供上门或短期接手照护）。按她所在地和患者情况给 1–2 个最够得着的，不要罗列一长串。
+   - **One tiny no-pressure rest for the next few hours** — 不是"今天好好睡"（她大概睡不着），而是一件小的、马上能做的：接下来这几个小时，把手机静音 20 分钟坐下来喝口热的，或者让别人替你守一小时你先躺平闭眼——不用睡着，躺着就行。
+   - **Continuity signal**: 结束前留一句"我明天还在，你随时回来"，让她知道这不是一次性的。
 6. **Preparing for bad news** → soft framework for emotional pre-commitment without being morbid; render in `profile.json.locale`. `zh` source phrasing: "你想不想花 10 分钟想一下，如果接下来复查不好，你希望 Ta 得到什么？你希望你自己怎么被对待？"
 
 ## Role behavior
