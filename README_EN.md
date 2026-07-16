@@ -19,7 +19,7 @@ These questions don't have standard answers, but you shouldn't have to face them
 
 Hand over your medical records, your feelings, your family situation.<br>
 Your buddy will **walk this road with you, step by step**.<br>
-Organizing records, helping the caregiver catch a breath, mental-health screening, figuring out how to start a disclosure conversation,<br>
+Organizing records, helping the caregiver catch a breath, figuring out how to start a disclosure conversation,<br>
 drafting a handbook your parents can actually read, packing a referral case for another hospital. One Skill holds all of it.
 
 [Features](#features) · [Install](#install) · [Usage](#usage) · [Examples](#examples) · [**中文**](README.md)

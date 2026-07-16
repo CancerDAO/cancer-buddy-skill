@@ -39,7 +39,6 @@ When any patient-facing output is localized (see `references/i18n.md`), **only t
 **放开时的护栏（硬）：**
 - 别一上来渲染最坏那一支；honest 前提下先给站得住的框架，**不堆生存率 / 百分比当"你的"结局**。
 - 尊重 `disclosure_state`：`suppressed` + role=patient 时，可能戳破隐瞒的条件式预后**让位**（`disclosure-behavior.md`）。
-- 危机检测优先。
 - 每次条件式展开都以"你具体落在哪一支，病理 + 主诊医生定" + 一份"带去问医生的问题"收口；帮患者**理解一般规律**，不替他**做临床决策**。
 
 具体 few-shot 样例（"严不严重 / 还能活多久"怎么回）见 `../skills/cancer-buddy/SKILL.md` 「条件式教育」节。
