@@ -10,7 +10,7 @@
 
 <br>
 
-Just diagnosed, a pile of reports and no idea how to sort them? Caring for a family member with cancer, about to burn out? Lying awake at 3am, running through the worst-case scenarios? Not sure whether — or how — to tell your family?<br>
+Just diagnosed, a pile of reports and no idea how to sort them? Caring for a family member with cancer, about to burn out? Not sure whether — or how — to tell your family?<br>
 These questions don't have standard answers, but you shouldn't have to face them alone.<br>
 
 **You need a buddy. One that doesn't judge, doesn't decide for you, but is always there.**
