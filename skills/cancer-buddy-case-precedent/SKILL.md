@@ -159,9 +159,9 @@ subagent 输出 JSON 写到 `.../raw/<subagent-name>.json`（schema 见 retrieva
 **对话追问细化**：用户说"只看有脑转的 / 用过 XX 药的" → 在已检索结果上按维度过滤/重排；需新维度则二次检索（走 Step 2）。
 
 ## Role behavior
-- **patient**：第二人称"你"，画像对照以本人为参照。
-- **caregiver**：第二人称"你"，任务理解为帮家人；输出可分享给患者/医生。
-- **family**：refuse（见 Preflight）。
+- **role=patient**：第二人称"你"，画像对照以本人为参照。
+- **role=caregiver**：第二人称"你"，任务理解为帮家人；输出可分享给患者/医生。
+- **role=family**：refuse（见 Preflight）。
 
 ## Disclosure 行为
 `profile.json.disclosure_state == "suppressed"` 且 `role=patient`：正常执行检索，但 PRECEDENTS.md 里**避免**渲染"晚期/IV/进展后/生存期"等可能加重情绪的表述，用临床中性语；结局字段照实但克制呈现。详见 `../../references/disclosure-behavior.md`。
