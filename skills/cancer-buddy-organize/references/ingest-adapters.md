@@ -50,8 +50,9 @@ Sidecar (`10_随访与监测/<subtype>/<canonical>.md`):
 Phase 2 parses the full series into `longitudinal_observations.json`
 (`schemas/longitudinal_observations.schema.json`), one entry per observation:
 `{obs_type, metric, value, unit, timestamp, modality:"timeseries", source_ref:"10_随访与监测/...md#L.."}`.
-`obs_type` ∈ {vital, lab, symptom, pro, adherence, activity}. PRO instrument scores (PHQ-9, distress
-thermometer, ESAS) map to `obs_type:"pro"` with `metric` = the instrument name verbatim. Trended
+`obs_type` ∈ {vital, lab, symptom, pro, adherence, activity}. PRO instrument scores that appear in the
+uploaded records (e.g. ESAS symptom scores, or any validated PRO already documented by a clinician) map to
+`obs_type:"pro"` with `metric` = the instrument name verbatim. Trended
 `structured` labs (same analyte across dated panels) are ALSO appended here as `modality:"structured"` so
 a trajectory exists, while the per-panel value still lives in `labs.json`.
 

@@ -7,7 +7,7 @@
     {
       "name": "cancer-buddy",
       "source": "./",
-      "description": "抗癌搭子 — CancerDAO's patient-facing AI cancer companion. Meta-skill + companion sub-skills covering record organize, nutrition, mind/crisis support, find-care, caregiver, education, disclosure, second-opinion, and an N=1 data vault. Audit-hardened to never fabricate medical facts.",
+      "description": "抗癌搭子 — CancerDAO's patient-facing AI cancer companion. Meta-skill + companion sub-skills covering record organize, nutrition, find-care, caregiver, education, disclosure, second-opinion, and an N=1 data vault. Does not perform mental-health screening or crisis intervention. Audit-hardened to never fabricate medical facts.",
       "version": "0.2.0",
       "author": "CancerDAO",
       "license": "MIT"

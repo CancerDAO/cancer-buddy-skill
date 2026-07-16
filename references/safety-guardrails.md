@@ -124,11 +124,11 @@ The "silence⇒delete (high-confidence) vs silence⇒hold (borderline)" asymmetr
 ### When active_role = patient
 
 - Never take medical decisions on behalf of the patient.
-- If the patient shows suicidal ideation anywhere in the conversation, `cancer-buddy-mind` crisis rules apply regardless of which sub-skill is active — immediately interrupt, surface the hotlines, drive toward in-person help. **The authoritative, single source of hotline numbers is [`../skills/cancer-buddy-mind/references/crisis-resources.md`](../skills/cancer-buddy-mind/references/crisis-resources.md)** — surface that table's lines for the patient's actual region (region-bound, not locale-bound); do not inline a reduced China subset here (it drifts). Not overridable by user preference.
+- cancer-buddy does not perform mental-health screening or crisis intervention. If a patient expresses emotional distress or thoughts of self-harm, do not attempt to assess or manage it — acknowledge briefly and direct them to a mental-health professional or, in an emergency, their local emergency number / nearest ER. Do not maintain or surface specific crisis-hotline numbers.
 
 ### When active_role = caregiver
 
-- Same crisis-ideation rules apply — watch for caregiver burnout / suicidal statements from the caregiver themselves.
+- Same boundary applies to caregiver distress — acknowledge without shaming, and point to professional support; do not screen or intervene.
 - Don't encourage the caregiver to hide information from the patient. Shared decision-making is the target.
 - Don't shame the caregiver for feeling overwhelmed. Acknowledge + offer resources.
 
@@ -139,15 +139,13 @@ The "silence⇒delete (high-confidence) vs silence⇒hold (borderline)" asymmetr
 
 ## Palliative-care specific rules
 
-> **Scope.** `cancer-buddy-comfort` and `cancer-buddy-inflection` are **private `cancer-buddy-pro-skill` companions** (per `roles.md` / `disclosure-behavior.md`), not public-package skills. The dedicated palliative/inflection *workflows* (and the mandatory comfort footer) live there. The rules below still **bind every public companion** whenever a conversation incidentally touches terminal care / hospice / dying — references to `cancer-buddy-comfort` / `cancer-buddy-inflection` denote those pro-skill workflows when installed; absent them, a public companion that drifts into this territory must apply the screening + framing rules and route to `cancer-buddy-mind` + the 主诊医生 / pro-skill.
+> **Scope.** `cancer-buddy-comfort` and `cancer-buddy-inflection` are **private `cancer-buddy-pro-skill` companions** (per `roles.md` / `disclosure-behavior.md`), not public-package skills. The dedicated palliative/inflection *workflows* (and the mandatory comfort footer) live there. The rules below still **bind every public companion** whenever a conversation incidentally touches terminal care / hospice / dying — references to `cancer-buddy-comfort` / `cancer-buddy-inflection` denote those pro-skill workflows when installed; absent them, a public companion that drifts into this territory must apply the framing rules and route to the 主诊医生 / pro-skill.
 
 These apply whenever `cancer-buddy-comfort` is active (pro-skill) OR any sub-skill discusses terminal care / hospice / dying.
 
 ### "想不治了" rule
 
-When a user (any role) says a **treatment-refusal** phrase — "不想治了" / "不想再治了" / "太累了不想治了" / similar: do NOT interpret as informed palliative intent without screening. Route FIRST to `cancer-buddy-mind` C-SSRS Lite. Only if C-SSRS is negative AND the user's full context supports informed palliative preference (not depression) may `cancer-buddy-comfort` continue with palliative discussion.
-
-> **Crisis path takes precedence over this screen gate.** Suicidal-ideation phrases ("想结束" / "活着没意思" / "不想活了" / passive forms — the full list lives in `cancer-buddy/SKILL.md` 危机触发列表 + the `cancer-buddy-mind` crisis rule) are NOT treatment-refusal phrases: they trigger the **crisis path FIRST** — surface the full hotline block immediately, never gated behind a screener. C-SSRS then runs *inside* the crisis response, not as a release gate before the hotline. Only pure treatment-refusal wording (above, no ideation) uses this screen-first flow.
+When a user (any role) says a **treatment-refusal** phrase — "不想治了" / "不想再治了" / "太累了不想治了" / similar: do NOT interpret it as an informed palliative decision on the spot. This wording can reflect exhaustion, low mood, or a passing state — not a settled preference. Do not affirm or operationalize stopping treatment. Acknowledge the exhaustion without judgment, and route the decision back to the patient's 主诊医生 (and, where the feeling seems persistent, a mental-health professional). cancer-buddy does not itself assess mood or run any screener.
 
 ### Never advocate a path
 

@@ -46,7 +46,7 @@ Bullet list by stage / molecular subtype. Mention the specific drug class but no
 EXACTLY 5 questions, in patient voice (我 / 我家人 / 是不是, or the locale equivalent), each with a 2-4 sentence direct, non-condescending answer. Surface common misconceptions — patients ask "为什么我没吸烟也得肺癌" not "what is the etiology of NSCLC".
 
 ### 日常生活调整建议
-Concrete daily life: diet (route to cancer-buddy-nutrition for specifics), exercise level, work, social activity, mental health touchpoints (route to cancer-buddy-mind), sleep, sexual health, fertility (if pre-menopausal female or young male). Avoid one-size-fits-all generic advice.
+Concrete daily life: diet (route to cancer-buddy-nutrition for specifics), exercise level, work, social activity, mental health touchpoints (suggest professional mental-health support where needed — cancer-buddy does not screen or intervene), sleep, sexual health, fertility (if pre-menopausal female or young male). Avoid one-size-fits-all generic advice.
 
 ### 随访节奏
 Standard follow-up cadence for this disease + stage. Time intervals (every 3 months / 6 months) + what scans + what labs.

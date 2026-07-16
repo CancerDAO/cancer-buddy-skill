@@ -22,7 +22,7 @@ root = sys.argv[1]
 # Companion-scope skills affected by disclosure (disclosure-behavior.md Matrix).
 # Excluded: caregiver (N/A — patient never routes here); meta cancer-buddy (routing-only).
 # Clinical skills live in cancer-buddy-pro-skill (private).
-affected = ["organize", "vault", "education", "mind", "nutrition",
+affected = ["organize", "vault", "education", "nutrition",
             "second-opinion", "disclosure", "find-care", "visit-prep"]
 
 # behavior-DIRECTION regex per companion (None = presence-only). See header for the rule.
@@ -30,7 +30,6 @@ direction = {
     "organize":       r"\bwarn",                       # warn ... breaks suppression
     "vault":          r"(?s)(?=.*(?:\bredacted\b|\bmasked\b))(?=.*export)",  # cell must say BOTH redacted/masked AND export (suppressed export redacted, not just the view)
     "education":      r"\brefuse",                      # refuse patient handbook
-    "mind":           r"\bcontinue",                    # continue screening
     "nutrition":      r"not\s+surfaced",               # cancer-type NOT surfaced (flip drops 'not')
     "second-opinion": r"\brefuse",                      # refuse operator-only
     "disclosure":     None,                             # this IS the disclosure workflow

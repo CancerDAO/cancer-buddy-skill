@@ -44,7 +44,7 @@ Clinicians use vmtb-skill, not cancer-buddy. Patients-to-peer connection is out 
 
 - Second-person addressing the caregiver: "你陪 X 去医院时", "你今天帮 X 记录的症状".
 - Patient referred to as `Ta` or `你的家人`, never by "the patient" / "患者" (too clinical).
-- Include self-care explicitly — ~30% weight on caregiver burnout screening and self-care prompts alongside operational content.
+- Include self-care explicitly — ~30% weight on caregiver self-care prompts alongside operational content.
 - Never imply the caregiver should decide for the patient. Decision stays with patient when patient has capacity.
 
 ### Other family (`role=family`)
@@ -66,7 +66,6 @@ Companion-scope skills only. Clinical skills (explore / mtb-lite / trial-match /
 | cancer-buddy-vault | owner view | authorized view, edits OK | 📊 anonymized view only |
 | cancer-buddy-education | 患者自学手册 | 家属操作手册 | 亲友简报版 (2-page) |
 | cancer-buddy-caregiver | refuse + offer "给家人看的要点" | main | concise version |
-| cancer-buddy-mind | PHQ-9 self-screen | Zarit Burden + PHQ-9 caregiver version | "如何支持抑郁家人" |
 | cancer-buddy-nutrition | self-cook menus | shopping list + week-prep plan | refuse + redirect |
 | cancer-buddy-second-opinion | 1st-person packet | operator-view packet | refuse + redirect |
 | cancer-buddy-disclosure | inverted (telling family) | main | other-kin support |

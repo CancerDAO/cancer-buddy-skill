@@ -13,7 +13,6 @@ Clinical sub-skills (mtb-lite / trial-match / explore / access / comfort / adher
 | cancer-buddy-vault | redacted view — diagnosis fields masked, treatment_history entries shown with drug names but no cancer-type label. Patient can export but export is redacted. |
 | cancer-buddy-education | refuse patient-version handbook. Offer "一般健康与治疗期生活建议" as non-diagnostic alternative. |
 | cancer-buddy-caregiver | N/A — patient never routes here |
-| cancer-buddy-mind | continue — depression/anxiety screening works without "because cancer" framing. Use generic phrasing: "你最近心情怎么样" rather than "你癌症相关的焦虑". |
 | cancer-buddy-nutrition | normal — nutrition discussed abstractly ("你现在吃 X 药，饮食注意这些"). Drug name OK; cancer-type not surfaced. |
 | cancer-buddy-second-opinion | refuse — operator-only skill |
 | cancer-buddy-disclosure | main workflow — this is exactly the case it handles |

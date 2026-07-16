@@ -10,7 +10,6 @@ This is the single most important rule. **Every factual medical claim must
 trace to a live, verifiable source.** Specifically, the following may never be
 invented, guessed, or LLM-synthesized:
 
-- **Hotlines** (crisis lines, helplines) — must be a verified, current number.
 - **Doctors, hospitals, clinics** — must come from a real, citable source.
 - **Clinical trials** — must come from a live registry query (e.g.
   ClinicalTrials.gov, ChiCTR), not generated from memory.
@@ -32,7 +31,6 @@ documented in [`references/sid-framework.md`](references/sid-framework.md)
 Changes to the following files are **safety-critical** and require extra review
 (a second maintainer sign-off and a passing test run before merge):
 
-- `skills/cancer-buddy-mind/references/crisis-resources.md`
 - `references/safety-guardrails.md`
 - `references/disclosure-behavior.md`
 - `skills/cancer-buddy-nutrition/references/drug-food-interactions.md`
@@ -52,7 +50,6 @@ bash tests/unit/validate-profile-schema.test.sh
 # Integration / structural checks
 bash tests/integration/trigger-words.sh
 bash tests/integration/disclosure-gate.sh
-bash tests/integration/mind-crisis.sh
 bash tests/integration/role-matrix.sh
 ```
 
@@ -71,7 +68,6 @@ All tests must pass (and CI must be green) before a PR is merged.
 This project uses [Conventional Commits](https://www.conventionalcommits.org/).
 Examples:
 
-- `fix(mind): correct national crisis hotline to 12356`
 - `feat(find-care): add never-fabricate gate before returning results`
 - `docs(contributing): add safety-critical files list`
 - `chore(release): cut v0.2.0`

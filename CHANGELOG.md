@@ -6,6 +6,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Removed — 下线心理筛查与危机干预（mental-health screening + crisis intervention）(2026-07-16)
+
+产品决策：抗癌搭子不再提供心理评估、精神科筛查或心理危机干预——这类功能涉及精神卫生监管、量表商用授权与"答错即高风险"的责任敞口，改由用户寻求精神卫生专业人员或当地急救/急诊。本次为**破坏性变更**（BREAKING）：删除整个 `cancer-buddy-mind` 子技能、照护者 Zarit 负担自评，以及贯穿路由与安全护栏的危机检测/热线机制。
+
+- **删除** `skills/cancer-buddy-mind/`（PHQ-9 / GAD-7 / NCCN 距离温度计 / C-SSRS Lite / `crisis-resources.md` 热线表）。公开陪伴模块由 11 个减为 **10 个**。
+- **删除**照护者 `zarit-burden.md`；`cancer-buddy-caregiver` 不再做负担自评或危机路由，仅保留分工 / 陪诊 / 喘口气 / 告知框架等非筛查支持；严重困扰改为"接住 + 转介专业帮助"。
+- **移除**主入口 `cancer-buddy/SKILL.md` 的"进门前：危机检测"整节、相关触发词（睡不着 / 焦虑 / 抑郁）与路由表行；`safety-guardrails.md` 的角色危机规则与"想不治了"C-SSRS 闸门改写为"不自行评估、转介主诊医生 / 精神卫生专业人员"。
+- **清理**所有对 mind / 危机 / 热线的悬空引用：`roles.md`、`disclosure-behavior.md`、`case-precedent` / `disclosure` / `education` / `organize` 等子技能、README / README_EN、插件清单、CONTRIBUTING，以及测试（删除 `mind-crisis.sh`、`02-crisis-path.sh`、`scenarios/cancer-buddy-mind.md`，更新 EVAL / journey / trigger-words / eval 维度）。
+- **患者可见变更**：所有患者朝向文案统一声明"本工具不提供心理筛查、精神科诊断或心理危机干预；如有情绪困扰或危机，请寻求精神卫生专业人员或当地急救/急诊"。
+
 ### Changed — 三块迭代：case-precedent 自然触发+可点 PMID / organize 段D 抗压缩 / 补料邀请体验重做 (2026-07-10)
 
 一次迭代覆盖三处：让 case-precedent 更自然可触发且可核验、修 organize 段D HTML 在上下文压缩下不走模板的问题、把"补料邀请"从"整理完就推、错过即永久沉默"重做成"挑对时机 + 冷却期 + 有回声"。

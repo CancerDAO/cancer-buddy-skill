@@ -37,8 +37,7 @@ What cancer brings isn't just the treatment — it's the pile of information, th
 | What you're facing | How cancer-buddy helps |
 |-------------------|------------------------|
 | A pile of records you don't know how to sort | Auto OCR, classification, filing — a usable structured archive |
-| Caring for someone, about to break | Caregiver division-of-labor templates, Zarit self-assessment, breathing-room toolkit |
-| 3am insomnia, anxiety, thoughts of ending it | PHQ-9 / GAD-7 / C-SSRS Lite screeners, crisis hotlines surfaced right away |
+| Caring for someone, about to break | Caregiver division-of-labor templates, breathing-room toolkit (no mental-health screening; for a crisis, seek professional help) |
 | Should we tell Mom / Dad / the kids? | Layered, context-aware disclosure — not a binary yes/no |
 | Want my own health archive | N=1 structure + sharing levels (🔒 private → 🌐 public), you own it |
 | Need a handbook my parents can actually read | Patient education booklet with Mermaid diagrams, daily-living guide, follow-up schedule |
@@ -50,12 +49,11 @@ What cancer brings isn't just the treatment — it's the pile of information, th
 
 ## Features
 
-### 11 companion modules
+### 10 companion modules
 
 ```
 organize        Turn PDFs / images / docx records into a structured archive (auto-isolates irrelevant files, reconciles re-uploads)
-caregiver       Caregiver support: division of labor, self-care, burnout screening
-mind            Mental-health screening + crisis response (depression / anxiety / suicide risk)
+caregiver       Caregiver support: division of labor, self-care, breathing-room toolkit
 disclosure      Whether to tell, how to tell, when to tell
 vault           Your own N=1 health archive with sharing levels
 education       Patient education handbook for family (with diagrams)
@@ -88,10 +86,9 @@ What cancer-buddy won't do:
 
 - Provide treatment plans or specific medication advice
 - Replace a physician's clinical judgment
+- Perform mental-health screening, psychiatric diagnosis, or crisis intervention
 
-But there's one thing cancer-buddy will always do:
-
-When clear signals of a mental-health crisis show up, surface real-world help first.
+If you or someone near you is in emotional distress or having thoughts of self-harm, please seek help from a mental-health professional, or contact your local emergency number / ER and someone you trust.
 
 ---
 
@@ -105,7 +102,7 @@ npx skills add CancerDAO/cancer-buddy-skill -g --all
 npx skills add CancerDAO/cancer-buddy-skill --all
 ```
 
-`--all` installs all 13 sub-skills (the meta entry + 11 companions + 1 web-access dependency) at once, no interactive picking. Restart Claude Code, then say `cancer-buddy` or `抗癌搭子` to get going.
+`--all` installs all 12 sub-skills (the meta entry + 10 companions + 1 web-access dependency) at once, no interactive picking. Restart Claude Code, then say `cancer-buddy` or `抗癌搭子` to get going.
 
 > If you only want a subset, drop `--all` and the CLI will enter interactive mode.
 >
@@ -168,16 +165,9 @@ User         ❯ My dad has stage-III lung cancer. I'm caring for him alone.
                Haven't slept properly in a month.
                Cried in the hospital hallway for half an hour yesterday.
 
-cancer-buddy ❯ You've been carrying this for a long time. Let's do a quick
-               self-check first:
-
-               [Zarit Caregiver Burden Scale — 5 questions, 2 minutes]
-
-               ...
-
-               You're scoring high on "emotional exhaustion" and
-               "financial stress." This isn't you being weak — this is a
-               normal response.
+cancer-buddy ❯ You've been carrying this for a long time. Doing it alone for
+               a month, and crying in the hallway, is a normal response —
+               not you being weak.
 
                Three things you can do this week:
                1. Share the load — I'll draft a family-chat message
@@ -189,8 +179,10 @@ cancer-buddy ❯ You've been carrying this for a long time. Let's do a quick
                   psychiatry or medical-social-work visit.
                   Not for your dad — for you.
 
-               If thoughts of "disappearing" or "ending it" show up,
-               call 400-161-9995 immediately (24-hour line).
+               I don't do mental-health assessment or crisis intervention;
+               if you're in distress or having thoughts of self-harm,
+               please reach a mental-health professional or your local
+               emergency number / ER.
 ```
 
 ### Scenario 3: Should we tell him?
@@ -233,10 +225,9 @@ cancer-buddy-skill/
 ├── README_EN.md                       # you are here
 ├── INSTALL.md                         # detailed install guide
 └── skills/
-    ├── cancer-buddy/                  # meta entry (routes to the 11 companions below)
+    ├── cancer-buddy/                  # meta entry (routes to the 10 companions below)
     ├── cancer-buddy-organize/         # record organization
     ├── cancer-buddy-caregiver/        # caregiver support
-    ├── cancer-buddy-mind/             # mental-health screening + crisis
     ├── cancer-buddy-disclosure/       # disclosure conversations
     ├── cancer-buddy-vault/            # N=1 health archive
     ├── cancer-buddy-education/        # patient handbook generator
@@ -272,7 +263,7 @@ The organized archive also ships an `AGENTS.md` index: compatible agent tools (p
 
 - This tool does not provide medical diagnosis or treatment advice
 - All medical decisions should be confirmed with a qualified physician
-- In a mental-health crisis, seek real-world help first
+- This tool does not provide mental-health screening, psychiatric diagnosis, or crisis intervention; for emotional distress or a crisis, seek a mental-health professional or contact your local emergency number / ER
 
 ---
 
@@ -281,8 +272,7 @@ The organized archive also ships an `AGENTS.md` index: compatible agent tools (p
 Contributions welcome, especially:
 
 - Disclosure scripts and caregiver division-of-labor templates for Chinese family contexts
-- Mental-health screener localization (PHQ-9 / GAD-7 done; C-SSRS still in progress)
-- Updates to local cancer centers, social-work resources, and hotline information
+- Updates to local cancer centers and social-work resources
 - Cancer-type templates for patient education handbooks
 - Bug fixes and UX improvements
 
