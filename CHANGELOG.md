@@ -6,6 +6,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Changed — 来源引用扩到联网/文献来源，与档案锚共用同一编号序列 (2026-07-17)
+
+此前 `cancer-buddy/SKILL.md` 的「来源引用」节只给**档案里的事实**编 `<sup>[n]</sup>` 角标，联网检索来的内容（find-care 的 URL 列表、case-precedent 的 PMID）各用各的格式、不带内联编号，两套溯源体系割裂。本次把该节（引用渲染的 single source of truth）扩成两条溯源通道、**共用一条全局递增编号序列**：
+
+- **档案锚**：事实取自 `patients/<patient_code>/` 结构化 JSON → 复用 `source_refs[]`（不变）。
+- **联网锚**（新增）：事实取自当场联网检索（`web-access` / WebSearch / 本地联网 MCP / PubMed·EPMC）→ 锚到真实抓取的 URL 或 PMID。角标与档案锚**混排连续编号**。
+- 脚注前缀来源类型标签 〔档案〕/〔联网〕/〔文献〕，一眼分清；标签与脚手架按 `locale` 渲染，URL/PMID/期刊名/抓取日期逐字保留。
+- **反幻觉硬门**：只有**真检索到、能逐字回溯原文**的事实才配联网角标；LLM 记忆里的"我记得指南大概这么写"不算来源、不得凭空挂角标（no-silent-snapshot / 反幻觉）；联网不可达标"需现场核实"，不静默降级到模型记忆。PMID 类须过撤稿检查。
+
 ### Removed — 下线心理筛查与危机干预（mental-health screening + crisis intervention）(2026-07-16)
 
 产品决策：抗癌搭子不再提供心理评估、精神科筛查或心理危机干预——这类功能涉及精神卫生监管、量表商用授权与"答错即高风险"的责任敞口，改由用户寻求精神卫生专业人员或当地急救/急诊。本次为**破坏性变更**（BREAKING）：删除整个 `cancer-buddy-mind` 子技能、照护者 Zarit 负担自评，以及贯穿路由与安全护栏的危机检测/热线机制。
