@@ -12,6 +12,8 @@ Deleted because:
 
 What this file contains now is a **template scaffold** that the agent fills using its own training knowledge + the patient's actual profile.
 
+> **指南级方案不在这里靠记忆答**。本静态框架只供**疾病生物学的一般描述**（疾病简介 / 一般随访节奏 / 红旗症状）。当患者问的是**指南级断言**——"NCCN/CSCO 标准治疗是什么 / 一线二线什么方案 / 我这类一般用什么药 / 最新获批"——那是版本敏感的外部目录事实，走 [`guideline-lookup.md`](guideline-lookup.md) 的 **web-access 实时检索**（禁 LLM 凭记忆合成、带编号引用），不要用本文件或训练记忆直接给方案。理由 2（canned 必然滞后）同样适用于"凭记忆报指南方案"。
+
 ## Locale
 
 Render all section headings, prose, daily-life advice and red-flag wording in the locale resolved per `../../../references/i18n.md` (host `locale` first, otherwise `profile.json.locale`, otherwise detection fallback + persist). Keep clinical entities verbatim in every locale: cancer-subtype acronyms (NSCLC, SCLC, TNBC, MSI-H), drug names, genes/variants, TNM/stage, response codes, numbers + units. The 6 fixed subsection headings are scaffold — they have a stable key per row and a per-locale rendering (table below); this is the only allowed fixed string mapping in this file. Everything else is generated prose, written directly in `locale`.

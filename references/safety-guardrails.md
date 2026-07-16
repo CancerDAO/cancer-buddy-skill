@@ -36,6 +36,10 @@ When any patient-facing output is localized (see `references/i18n.md`), **only t
 - **收紧（对个案 firm，不动）**：不凭不足的资料给你本人的分期 / 预后 / 严重程度 / 疗效结论，不编个人数字。（呼应 Never say + 上面的疗效红线。）
 - **放开（对一般规律，鼓励）**：用"**一般而言 / 如果…通常… / 最终以正式病理 + 主诊医生为准**"的框架，讲清"接下来会看哪几项、每一项大致意味着什么、不同结果一般怎么走"。**遇到判不了个案的问题，别停在"要问医生"——先给这张条件式地图，再落回医生。**
 
+**两种子问法，证据来源不同（别混）：**
+- **(a) 严重度/预后一般规律**（严不严重 / 能治好吗 / 是不是晚期 / 还能活多久 / 会不会复发）＝疾病生物学通识 → 模型知识 + 静态癌种框架即可。
+- **(b) 指南级断言**（NCCN/CSCO/ESMO 建议 / 标准治疗 / 具体方案·线数 / 证据级别 / 获批状态）＝**版本敏感的外部目录事实** → 落下面 "Live external lookup" 红线：**必须 answer-time 实时查、禁 LLM 凭记忆合成**，带真实 URL/PMID 编号引用（走 `cancer-buddy-education/references/guideline-lookup.md`）。呈现仍是一般条件图、非个案换线判决。
+
 **放开时的护栏（硬）：**
 - 别一上来渲染最坏那一支；honest 前提下先给站得住的框架，**不堆生存率 / 百分比当"你的"结局**。
 - 尊重 `disclosure_state`：`suppressed` + role=patient 时，可能戳破隐瞒的条件式预后**让位**（`disclosure-behavior.md`）。
@@ -191,3 +195,5 @@ Separate track. Capacity assessment → surrogate decision-maker rules. Do NOT a
 ## Live external lookup over static snapshot (no silent staleness)
 
 Any sub-skill that consults an external catalogue (drug approvals, reimbursement, clinical-trial registries, guideline versions, expanded-access / 同情用药 programs, treatment-center lists) MUST prefer a **live lookup at answer time** over a bundled static snapshot. If the network is unreachable or a source cannot be confirmed, **mark the item as unconfirmed / "需现场核实"** — never silently present a stale snapshot as current, and never LLM-synthesize the evidence. This is the **no-silent-snapshot red line** cited by `cancer-buddy-second-opinion` and `cancer-buddy-find-care`.
+
+This red line **explicitly covers guideline-level conditional education** — a "指南/NCCN/CSCO 一般怎么治 / 标准治疗是什么" answer is a *guideline-version* lookup, so it goes through `cancer-buddy-education/references/guideline-lookup.md` (web-access at answer time, verbatim grounding, numbered 联网锚 citation, NCCN pointed-to not table-reproduced), **not** the model's oncology memory. General severity/prognosis *biology* (子问法 a) is exempt; named-regimen / line / evidence-level *guideline* claims (子问法 b) are not.

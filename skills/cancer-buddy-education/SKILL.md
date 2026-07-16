@@ -1,6 +1,6 @@
 ---
 name: cancer-buddy-education
-description: "Generate a patient-friendly education handbook (Markdown with Mermaid diagrams) from the patient profile + organize's structured JSONs (and an MTB report when one is available — not required). Includes quick reference card, my-health-summary in plain language, drug sheets with side-effect management, daily living guide, follow-up schedule, cost/insurance navigation, FAQ. Absorbs mechanism diagrams, cancer-type modules, and phase-organized FAQ from vmtb-patient-education. Also provides **conditional / severity education** — general 'if the pathology shows X, generally the management is Y' scenario-mapping for questions like 严不严重 / 能治好吗 / 是不是晚期 / 预后 / 会不会复发 / 要不要化疗, framed as '一般而言 / 如果…通常… / 最终以病理 + 主诊医生为准' — never a personal verdict, stage, prognosis number, or treatment decision. Triggers on 宣教手册, 给我爸妈看的版本, patient handbook, 患者教育, 严不严重, 能治好吗, 是不是晚期, 预后, 会不会复发, 要不要化疗."
+description: "Generate a patient-friendly education handbook (Markdown with Mermaid diagrams) from the patient profile + organize's structured JSONs (and an MTB report when one is available — not required). Includes quick reference card, my-health-summary in plain language, drug sheets with side-effect management, daily living guide, follow-up schedule, cost/insurance navigation, FAQ. Absorbs mechanism diagrams, cancer-type modules, and phase-organized FAQ from vmtb-patient-education. Also provides **conditional / severity education** — general 'if the pathology shows X, generally the management is Y' scenario-mapping for questions like 严不严重 / 能治好吗 / 是不是晚期 / 预后 / 会不会复发 / 要不要化疗, framed as '一般而言 / 如果…通常… / 最终以病理 + 主诊医生为准' — never a personal verdict, stage, prognosis number, or treatment decision. **Guideline-level questions** (NCCN/CSCO/ESMO 指南建议 / 标准治疗 / 一线二线方案 / 我这类一般用什么药) are answered by a **live web-access lookup at answer time** (never from model memory) and returned as general conditional guidance with numbered source citations — see `references/guideline-lookup.md`. Triggers on 宣教手册, 给我爸妈看的版本, patient handbook, 患者教育, 严不严重, 能治好吗, 是不是晚期, 预后, 会不会复发, 要不要化疗, 指南建议, 标准治疗, NCCN, CSCO."
 ---
 
 # cancer-buddy-education
@@ -12,6 +12,9 @@ Turn clinical output into something the patient (and their family) can actually 
 - Patient has at least `profile.json` + organize's structured JSONs. An MTB report (`mtb-full` from `vmtb-skill`, or `mtb-lite` from the private pro-skill) **enriches** the handbook but is **not required** — education works from organize's outputs alone.
 - Patient says: 宣教手册 / 给我爸妈看的版本 / 我爸妈看不懂报告 / patient handbook.
 - **Conditional / severity education (不生成整本手册，行内条件式解释)**: patient asks 严不严重 / 能治好吗 / 是不是晚期 / 预后 / 会不会复发 / 要不要化疗 — give the general "如果病理是 X，一般怎么处理、大致怎么走" scenario map, drawing cancer-type depth from [`references/cancer-type-modules.md`](references/cancer-type-modules.md). **This follows the router's 条件式教育 pattern + guardrails verbatim** (see `../cancer-buddy/SKILL.md` 「条件式教育」 and `../../references/safety-guardrails.md` → *Conditional education is allowed*): 一般而言 / 如果…通常… framing, **never** a personal stage/prognosis/verdict/number or a treatment decision, respect `disclosure_state`, always close with "你具体落在哪一支，病理 + 主诊医生定" + a doctor-question list.
+  - **两种子问法（判定见 [`references/guideline-lookup.md`](references/guideline-lookup.md)）**：
+    - **(a) 严重度/预后**（严不严重 / 能治好吗 / 是不是晚期 / 还能活多久 / 会不会复发）＝疾病生物学一般规律 → 模型通识 + `cancer-type-modules.md` 框架（现状不变）。
+    - **(b) 指南级**（NCCN/CSCO/ESMO 指南建议 / 标准治疗 / 一线二线方案 / 我这类一般用什么药 / 最新获批）＝版本敏感的外部目录事实 → **走 `references/guideline-lookup.md` 的 web-access 实时检索子路径，禁 LLM 凭记忆合成**，用联网锚编号引用（见 `../cancer-buddy/SKILL.md` 「来源引用」）。边界模糊时倾向 (b)。**(b) 仍是一般性条件图、不是个人换线判决。**
 
 ## Locale
 
@@ -73,6 +76,7 @@ See [references/handbook-template.md](references/handbook-template.md) for the f
 Apply `safety-guardrails.md` rules:
 - **Mandatory footer** on every handbook, quick-reference card, and drug sheet, rendered in `locale` (zh: `本手册为信息参考，任何治疗调整必须与主诊医生确认。` — render the same disclaimer meaning in the patient's locale otherwise). The footer must be present in every locale; it is scaffold copy, not a clinical entity.
 - **No medical recommendations** — explain what drugs / tests / side-effects are, never instruct the patient to change dose, stop a drug, or skip a visit without clinician sign-off.
+- **Guideline-level claims must be live-retrieved, never LLM-synthesized** — any "指南/NCCN/CSCO 一般怎么治 / 标准治疗是什么" content follows `references/guideline-lookup.md`: web-access lookup at answer time, verbatim grounding, numbered 联网锚 citation, NCCN only pointed-to (not table-reproduced, licensing), retraction-checked. Model-memory guideline recall may **not** be presented as sourced fact (`../../references/safety-guardrails.md` → no-silent-snapshot). This is a general conditional map, never a personal treatment/换线 verdict.
 - **ER criteria are absolute** — the *thresholds* are clinical entities and stay verbatim in every locale (fever > 38.5°C, new bleeding, severe dyspnea, altered mental status); the surrounding call-to-action is scaffold, rendered in `locale` (zh: `立即就医，不要等门诊`).
 
 ## Role behavior
@@ -85,6 +89,7 @@ Apply `safety-guardrails.md` rules:
 ## References
 
 - [handbook-template.md](references/handbook-template.md) — full template
+- [guideline-lookup.md](references/guideline-lookup.md) — 条件式教育 (b) 指南级子路径：web-access 实时检索 + 源面优先级 + 逐字接地 + 联网锚引用
 - [mechanism-diagrams.md](references/mechanism-diagrams.md) — disease mechanism Mermaid diagrams (absorbed from vmtb-patient-education)
 - [cancer-type-modules.md](references/cancer-type-modules.md) — per-cancer-type patient modules
 - [expanded-faq.md](references/expanded-faq.md) — FAQ organized by treatment phase
