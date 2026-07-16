@@ -80,7 +80,6 @@ What cancer-buddy does:
 
 - Organize information (records, timeline, indicator trends) — each time you add material, the one-page **Case Summary** auto-refreshes with trend charts of tumor markers/labs (with treatment-line changes on the same axis) and a "what changed since last summary" strip
 - Help you prepare questions (so every clinic visit goes further)
-- Offer support under emotional pressure
 
 What cancer-buddy won't do:
 
@@ -129,7 +128,6 @@ The system routes you into the right module based on context.
 |-------|--------|
 | Pathology / genomic / imaging / blood reports | PDF / image / plain text — any of them work |
 | What's happening right now | Just tell the buddy in your own words |
-| Emotional state | No need to compose it — say it however it comes |
 | Family situation | Who's caring, who doesn't know, who won't allow disclosure |
 
 ---
