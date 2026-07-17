@@ -6,6 +6,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Fixed — 指南级回答的编号脚注列表必须出现在回复里（不止落盘）(2026-07-17)
+
+E2E 真机测试(食管胃结合部腺癌 PT-449DE685)发现:(b) 指南级路径接地扎实(每个 OS/HR 数字都有逐字 quote + 真 PMID、NCCN 仅 pointer、无个案判决),但**内联 `[1]…[14]` 的编号脚注映射被写进了 `SYNTHESIS.md` 文件、没渲染在给患者的那条回复里**——患者只看到内联数字、查不到源,恰是本功能最初要修的毛病的变体。
+
+- `guideline-lookup.md` 呈现步:新增硬要求——`[n] → 源` 脚注列表**必须直接出现在面向用户的回复末尾**,`SYNTHESIS.md` 只作可另附的落盘记录;回复必须自包含。
+- 同增**出稿前自洽检查**:计数措辞("三条/四项")须与实际条目数一致(修真机里"三条"却列 4 条的笔误);内联最大 `[n]` = 列表长度、两边一一对应。
+- `cancer-buddy/SKILL.md`「来源引用」补通用规则:脚注列表必须在回答本身里(防同类退化扩散到 find-care 等)。
+
 ### Added — 指南级证据实时联网并入 education 条件式教育分支 (2026-07-17)
 
 此前"基于我的病情，NCCN 指南建议是什么 / 标准治疗是什么"这类**指南级**问法，条件式教育靠 LLM 记忆 + 静态 `cancer-type-modules.md` 回答——而 `cancer-type-modules.md` 自认"NCCN/CSCO 方案是训练知识、canned 内容必然滞后"，`safety-guardrails.md` 的 no-silent-snapshot 红线又已点名"guideline versions"必须实时查、禁 LLM 合成。这是潜在合规缺口。本次把条件式教育拆成两种子问法，只给 (b) 补实时检索：
