@@ -11,10 +11,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 此前"基于我的病情，NCCN 指南建议是什么 / 标准治疗是什么"这类**指南级**问法，条件式教育靠 LLM 记忆 + 静态 `cancer-type-modules.md` 回答——而 `cancer-type-modules.md` 自认"NCCN/CSCO 方案是训练知识、canned 内容必然滞后"，`safety-guardrails.md` 的 no-silent-snapshot 红线又已点名"guideline versions"必须实时查、禁 LLM 合成。这是潜在合规缺口。本次把条件式教育拆成两种子问法，只给 (b) 补实时检索：
 
 - **(a) 严重度/预后**（严不严重 / 能治好吗 / 是不是晚期 / 会不会复发）＝疾病生物学一般规律 → 模型通识 + 静态框架（不变）。
-- **(b) 指南级**（NCCN/CSCO/ESMO 建议 / 标准治疗 / 一线二线方案 / 我这类一般用什么药）＝版本敏感外部目录事实 → **走新增 `cancer-buddy-education/references/guideline-lookup.md` 的 web-access 实时检索子路径**，禁 LLM 凭记忆合成，带联网锚编号引用。
+- **(b) 指南级**（NCCN/CSCO/ESMO 建议 / 标准治疗 / 一线二线方案 / 我这类一般用什么药）＝版本敏感外部目录事实 → **走新增 `cancer-buddy-education/references/guideline-lookup.md` 的 web-access live-first 检索子路径**，带联网锚编号引用；**联网不可达时优雅降级**：允许显式标注（`⚠️ 未经实时核实 · 基于模型知识`）、不挂角标、催核实的模型知识兜底——绝不静默把记忆冒充成已核实来源。
 - **源面优先级（licensing）**：NCI PDQ（美政府公开）/ CSCO（中文对口）/ ESMO / PubMed 优先；**NCCN 只指向 + 引 category，不复制表格全文**（版权/登录墙灰区）。
 - **边界重构（router「我不做的事」）**：换线/诊断路径的**个案判决**仍归主诊医生，但删掉"一律甩回医生"的反射开场——先给一般条件图（指南级走实时检索），"要不要换由医生定"降为收口 footer。**"不做个案判决" ≠ "什么都不讲"。**
-- 安全门：G-NO-SYNTH（禁记忆合成）/ G-NO-VERDICT（非个案判决）/ G-LICENSE（NCCN 不复制）/ G-LIVE-OR-HONEST（不可达标"需现场核实"）/ G-CITE（编号引用+撤稿检查）/ **G-NO-OVERFETCH（纯严重度问法不联网，负向测试守住）**。
+- 安全门：G-NO-SYNTH（角标只挂真实抓取源，记忆只作显式标注兜底）/ G-NO-VERDICT（非个案判决）/ G-LICENSE（NCCN 不复制不改写）/ G-LIVE-OR-HONEST（不可达→优雅降级显式标注）/ G-CITE（编号引用+撤稿检查）/ **G-NO-OVERFETCH（纯严重度问法不联网，负向测试守住）**。
 - 文件：新增 `guideline-lookup.md`；改 `cancer-buddy-education/SKILL.md`（含 description）、`cancer-buddy/SKILL.md`、`references/safety-guardrails.md`、`cancer-type-modules.md`；`tests/eval/scenarios/cancer-buddy-conditional-education.md` 加 ce-04（正向）+ ce-05（负向 no-overfetch）。PRD：`docs/prd/education-guideline-lookup.md`。
 
 ### Changed — 来源引用扩到联网/文献来源，与档案锚共用同一编号序列 (2026-07-17)
