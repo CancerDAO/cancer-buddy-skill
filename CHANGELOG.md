@@ -6,6 +6,20 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Changed — 放宽指南级闸门：入口继承 §Conditional education (2026-07-17)
+
+修一个“上紧下松”的自相矛盾：`safety-guardrails.md` 早已有 §Conditional education（放开一般规律、
+允许 answer-time 查证指南），但旗舰 `cancer-buddy/SKILL.md` 入口只留了光秃秃的禁令，与 education
+子 skill 宣传的“实时查指南（NCCN/CSCO/ESMO）”顶撞。把已认可的 nuance 提升到入口：
+
+- `cancer-buddy/SKILL.md`：description、Hard boundaries、路由收口三处重写——明确 cancer-buddy **可实时
+  联网查证并解释指南/标准治疗的一般情况（含具体方案/线次名称，带编号来源）**，讲“一般怎么治 / 接下来
+  评估什么”。
+- 红线切在“一般 vs 你个人”，不切在“指南能不能碰”：仍**不**替本人做诊断、分期/ECOG/疗效/进展/预后判决
+  与治疗/换线/用药调整决策，不判个体试验资格——这些整理成带去问主诊团队的问题。
+- `safety-guardrails.md` (b) 指南级：补一句“可如实转述指南对‘这类情况’的一般推荐，但不等于替患者选定
+  方案”以消歧义。README 对外担责声明保持不变。
+
 ### Changed — 全量临床安全整改与来源治理 (2026-07-17)
 
 - 审阅并修订全部 99 个 reference：删除跨方案器官阈值、跨癌种固定随访/检查建议、
