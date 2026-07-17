@@ -1,80 +1,52 @@
 ---
 name: cancer-buddy-vault
-description: "Build the patient's N=1 data vault — structured directory, sharing levels (🔒 private → 🔑 authorized → 📊 anonymized-for-AI → 🌐 public), access log. Not cloud storage; it's a local file structure the patient owns, can move, and can share selectively. Triggers on 数据保险箱, N=1, 我的健康档案, 数据分享, data vault."
+description: "为患者的本地肿瘤资料建立清单、访问政策、导出与审计流程。分享必须依赖宿主鉴权和患者的明确、可撤销、限目的授权；不把 patient_code 或亲属关系当权限。Triggers on 数据保险箱, 健康档案, 数据分享, 导出病历, 撤销授权."
 ---
 
 # cancer-buddy-vault
 
-The patient's own public-style cancer data vault — every report, every visit note, every image, organized, searchable, owned by the patient.
+这是数据治理工作流，不是云存储、身份系统或法律授权替代品。详细规则见 [references/data-vault.md](references/data-vault.md)。
 
-## When to use
+## Preconditions
 
-- Patient asks about organizing their records long-term.
-- After 3+ months of treatment when records start piling up.
-- Patient says: 数据保险箱 / N=1 / 我的健康档案 / 数据分享.
-
-## Locale
-
-Read [../../references/i18n.md](../../references/i18n.md). Before producing any patient-visible output:
-
-1. If the caller / host supplies `locale` (the user's explicit product UI language), use it first and write/update `profile.json.locale` when profile state is available.
-2. Otherwise read `patients/<pid>/profile.json` → `locale`. If present, use it — do not re-detect.
-3. If absent (no profile, or `locale` is null — vault is entered after organize, so a `locale` is almost always already persisted), detect from the **primary patient-facing language of the records**, tie-breaking to the language the user is conversing in (the `record-consuming generative sub-skills` row in `../../references/i18n.md` §2), then write it back to `profile.json.locale` (BCP-47, e.g. `en` / `zh` / `fr`).
-4. Render every patient-visible scaffold string — `vault-manifest.md`, sharing-level labels, confirmation prompts, missing-data reminders, revocation confirmations, breach notices, the public / anonymized case report — in that `locale`.
-5. Keep every clinical entity verbatim (drug names, genes/variants, TNM/stage, numbers + units, biomarker labels) regardless of `locale` — never translate, transliterate, or normalize them. Mistranslating a clinical entity is a P0 medical-safety bug.
-6. Honor an explicit user language override ("answer me in English" / "用中文") → update `profile.json.locale` and follow it going forward.
-
-## Inputs
-
-- Existing `patients/<pid>/` tree produced by `cancer-buddy-organize`.
-- Optional: external health app exports (Apple Health, Google Fit, CGM data, etc.).
-
-## Outputs
-
-Augments `patients/<pid>/`:
-- `sharing-settings.json` — per-directory sharing level (JSON keys verbatim; any human-readable `description` / note values rendered in `locale`)
-- `access.log` — who accessed what, when (structured fields verbatim; `purpose` free-text in `locale`)
-- `vault-manifest.md` — human-readable table of contents, rendered in `locale`
-- `exports/` — encrypted bundles ready to share (public / anonymized case report rendered in `locale`)
-
-## Sharing levels
-
-- 🔒 **Private**: patient + immediate family only
-- 🔑 **Authorized**: specific clinicians by email/contact (signed URL with expiry)
-- 📊 **Anonymized-for-AI**: stripped of PII, hashed patient_id, available for research use
-- 🌐 **Public**: de-identified case report, patient consent required
-
-Patient can change level per-file or per-directory anytime. Every change is logged.
+- 宿主必须完成身份认证、授权校验和接收方确认；skill 不能自行发放 signed URL、密钥或访问权。
+- 患者是默认控制者。照护者/家属访问需要可验证的权限范围、目的、期限和撤销状态。
+- `patient_code` 只是目录定位符；知道它不代表可访问。
 
 ## Workflow
 
-See [references/data-vault.md](references/data-vault.md) for the schema and protocol. Resolve `locale` first (see Locale). Main steps:
+1. 盘点资料类型、PII、临床敏感性、来源和现有访问策略。
+2. 所有对象默认 `private`。为每个授权记录 subject、recipient、scope、purpose、created_at、expires_at、revoked_at、legal/consent basis 和 host authorization reference。
+3. 分享前生成清单：具体文件、接收方、目的、期限、是否含原始影像/病理/遗传信息、撤销与留存方式。患者/授权代表逐项确认。
+4. 导出使用宿主提供的加密和密钥管理；密码/密钥通过独立安全通道传递。skill 不宣称本地 zip 等同合规传输。
+5. 每次查看、导出、修改和撤销写入不可追加修改的审计事件；并发更新使用版本检查。
+6. 撤销阻止未来访问，但诚实说明不能远程收回接收方已下载的副本；按机构政策请求删除并记录结果。
 
-1. Walk `patients/<pid>/`, classify each artifact by sensitivity.
-2. Initialize `sharing-settings.json` — everything starts 🔒 Private unless patient overrides.
-3. Generate `vault-manifest.md` — patient-readable TOC, scaffold (section titles, level labels, completeness copy) in `locale`; clinical entities (diagnosis names, drug names, genes, TNM, values + units) verbatim.
-4. For each anonymization request, run de-identification (strip name, birthday, MRN, institution, replace dates with intervals-since-diagnosis); the public / anonymized case-report scaffold is rendered in `locale`, clinical entities stay verbatim.
-5. Log all access / share / export events to `access.log` (the `purpose` free-text in `locale`).
+## De-identification
 
-Scaffold localization: a generative artifact (manifest narrative, missing-data reminder, case report, any confirmation / notice prose) carries the instruction "Output all scaffold/narrative prose in `<locale>`; keep clinical entities verbatim per `../../references/i18n.md` §4." Any fixed label set (sharing-level names/descriptions, manifest section titles, breach-notice headings) is rendered as a `locale → string` lookup, never hardcoded single-language. Heavy LLM judgment (case-report narrative, de-identification) runs via a sub-skill prompt with the locale instruction, not a hardcoded phrase list.
+“去掉姓名”不等于匿名。导出前评估日期、罕见病、机构、地理、自由文本、影像 DICOM、基因组和文件元数据的重识别风险。研究/跨境用途需要适用法域下的伦理、数据保护和人类遗传资源审查；skill 不自行判定合规。
 
-## Safety and privacy
-
-- PII stripping is conservative — err on the side of removing.
-- Every share action triggers a confirmation prompt, rendered in `locale` (e.g. `zh`: "你确认要把 [scope] 分享给 [recipient] 级别 [level]?"; `en`: "Confirm sharing [scope] with [recipient] at level [level]?"). `[scope]` / `[recipient]` / `[level]` and any clinical entity inside them stay verbatim.
-- Access log is append-only; do not let any other sub-skill modify it.
-- Default export format: encrypted zip (password shared out-of-band).
+保留原始临床字符串；翻译/规范化是带 provenance 的附加层。脱敏不得改写剂量、单位、病理或分子结论。原件与派生件分别标识。
 
 ## Role behavior
 
-- **Role = patient**: owner view. Can set any sharing level, export, delete.
-  - *Disclosure*: disclosure_state=suppressed + patient → redacted view **AND redacted export** — diagnosis fields masked; treatment_history entries shown with drug names but no cancer-type label. The patient may export, but the emitted bundle (`vault_export.json` / encrypted zip) is redacted identically to the view (per `../../references/disclosure-behavior.md` — never leak a suppressed diagnosis, on screen OR in an exported file).
-- **Role = caregiver**: authorized view. Read+write OK; sharing-level changes require `patients/<patient_code>/role.json.history` confirming patient previously set role=caregiver. Export allowed.
-- **Role = family**: 📊 anonymized view only. Name / birthday / MRN stripped, diagnosis-intervals relative to diagnosis date, no free-text notes. Cannot change sharing settings.
+- **Role = patient**：在宿主认证后管理自己的授权。
+- **Role = caregiver**：仅限有效授权 scope；不能因曾被标为 caregiver 获得永久权限。
+- **Role = family**：无授权时只能获得一般流程说明，不能查看患者记录或匿名化视图。
 
-## References
+披露偏好不能阻止一个有能力的患者在认证后访问自己的信息。涉及能力、法定代理或争议时，停止分享并交由医疗机构隐私/伦理/法律流程处理。
 
-- [data-vault.md](references/data-vault.md) — schema, anonymization protocol, sharing flow
-- [../../references/i18n.md](../../references/i18n.md) — shared locale layer: detection, persist to `profile.json.locale`, verbatim-clinical policy, scaffold localization
-- [../../references/patient-profile-schema.md](../../references/patient-profile-schema.md)
-- [../../references/safety-guardrails.md](../../references/safety-guardrails.md)
+## Disclosure
+
+共享范围由当前 viewer 权限决定。family suppression 不能阻止有能力患者访问或导出自己的资料；也不能授权家属查看患者资料。每次导出独立确认 scope 和 recipient。
+
+## Outputs
+
+- `vault-manifest.md`
+- `sharing-settings.json`
+- `access.log`
+- 经明确确认生成的导出包与 manifest
+
+所有患者可见内容按 resolved locale 输出，同时保留源临床字符串与来源。遵循 `../../references/roles.md`、`../../references/i18n.md` 和 `../../references/clinical-content-governance.md`。
+
+另见 `../../references/safety-guardrails.md` 与 `../../references/disclosure-behavior.md`。

@@ -6,18 +6,35 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
-### Changed — 指南源面重构：本地权威指南优先 + licensing 边界从"读没读"改为"再不再分发" (2026-07-17)
+### Changed — 全量临床安全整改与来源治理 (2026-07-17)
 
-真机测试发现模型在有本地 NCCN PDF 语料时会直接读本地文件；复盘后确认这**是对的**——用户合法持有的现行指南比绕一圈 web 转述 PDQ 更权威、更现行，之前把它框成"绕过/违规"太死。重构 `guideline-lookup.md` 源面 + licensing：
+- 审阅并修订全部 99 个 reference：删除跨方案器官阈值、跨癌种固定随访/检查建议、
+  模型记忆兜底、肿瘤标志物疗效推断、家庭能力打分、病例幸存者偏倚和伪精确资源排名。
+- 新增 `clinical-content-governance.md`：版本敏感主张必须具备适用人群、法域、现行一手
+  来源、版本、到期日与相应专业角色的人类签审；无法核验时失败关闭。
+- 病历整理改为原生/确定性抽取优先、LLM 仅作可审计辅助；患者/照护者自述与来源事实
+  分层，不能凭一次确认改写分期、ECOG、疗效、治疗线或分子结果。
+- 19 份癌种 checklist 降级为“既有文档盘点”，不再生成检查建议；趋势仅展示来源数值和
+  报告原始 flag，不自行判断疗效、进展或严重度。
+- 患者知情、代理权限、跨境标本、营养/药食相互作用、数据导出和中国法域隐私规则均改为
+  授权、版本和场景约束；导出使用逐文件白名单并拒绝 `raw/`、目录和符号链接。
+- 新增临床治理 lint、导出反例测试与行为场景；全部静态、单元、集成和 schema 测试通过。
 
-- **本地权威指南升为一等 P0 源**：有对口现行版（NCCN/CSCO/ESMO PDF，常见于 `cancer_therapy_corpus/`、患者档案）就优先读它，逐字接地 + 标版本/页码/路径；本地无/过期再走 web。新增 Route 0（主 agent 直接 glob+Read 本地指南）+ G-SOURCE-FIRST 门。
-- **licensing 边界重新定义**：真正的边界是**输出会不会向第三方再分发**，不是读没读本地文件。患者/用户自用（读自己合法持有的指南、为自己决策——本 skill 患者自跑场景）→ 可逐字引；中心化平台向众多患者分发 NCCN 逐字表格 → 才限 pointer + 自源接地或取许可（部署方法务决定，不硬编码"永不读 NCCN"）。
-- **恒定不变**：逐字接地 + 禁凭记忆合成（读本地 PDF 逐字引=好，凭记忆转述=不行）；标注版本的本地权威文件**不违反** no-silent-snapshot。
+### Changed — 指南源面重构：answer-time 真实来源 + licensing 边界 (2026-07-17)
+
+真机测试发现本地现行指南可作为真实来源，但必须与模型记忆、未标版本缓存和未经授权的
+私人文件区分。重构 `guideline-lookup.md` 的 answer-time 来源与 licensing 边界：
+
+- **本地来源可用但不自动搜集**：仅使用用户/宿主明确提供、访问获授权且发布者、版本和页码
+  可核验的对口现行指南；否则查当前官方来源。患者输出不暴露主机绝对路径。
+- **licensing 边界**：按实际来源条款、引用范围、使用目的和是否再分发判断；默认只输出完成
+  本次解释所需的最小内容，不把付费指南表格打包给第三方。
+- **恒定不变**：真实来源接地 + 禁凭模型记忆合成；本地与联网来源均标版本和引用位置。
 - 同步 `safety-guardrails.md`、`education/SKILL.md`（description + Safety）至同一口径。
 
 ### Fixed — 指南级回答的编号脚注列表必须出现在回复里（不止落盘）(2026-07-17)
 
-E2E 真机测试(食管胃结合部腺癌 PT-449DE685)发现:(b) 指南级路径接地扎实(每个 OS/HR 数字都有逐字 quote + 真 PMID、NCCN 仅 pointer、无个案判决),但**内联 `[1]…[14]` 的编号脚注映射被写进了 `SYNTHESIS.md` 文件、没渲染在给患者的那条回复里**——患者只看到内联数字、查不到源,恰是本功能最初要修的毛病的变体。
+E2E 合成案例测试发现：(b) 指南级路径接地扎实（每个 OS/HR 数字都有逐字 quote + 真 PMID、无个案判决），但**内联 `[1]…[14]` 的编号脚注映射被写进了 `SYNTHESIS.md` 文件、没渲染在给患者的那条回复里**——患者只看到内联数字、查不到源，恰是本功能最初要修的毛病的变体。
 
 - `guideline-lookup.md` 呈现步:新增硬要求——`[n] → 源` 脚注列表**必须直接出现在面向用户的回复末尾**,`SYNTHESIS.md` 只作可另附的落盘记录;回复必须自包含。
 - 同增**出稿前自洽检查**:计数措辞("三条/四项")须与实际条目数一致(修真机里"三条"却列 4 条的笔误);内联最大 `[n]` = 列表长度、两边一一对应。
@@ -26,13 +43,13 @@ E2E 真机测试(食管胃结合部腺癌 PT-449DE685)发现:(b) 指南级路径
 
 ### Added — 指南级证据实时联网并入 education 条件式教育分支 (2026-07-17)
 
-此前"基于我的病情，NCCN 指南建议是什么 / 标准治疗是什么"这类**指南级**问法，条件式教育靠 LLM 记忆 + 静态 `cancer-type-modules.md` 回答——而 `cancer-type-modules.md` 自认"NCCN/CSCO 方案是训练知识、canned 内容必然滞后"，`safety-guardrails.md` 的 no-silent-snapshot 红线又已点名"guideline versions"必须实时查、禁 LLM 合成。这是潜在合规缺口。本次把条件式教育拆成两种子问法，只给 (b) 补实时检索：
+此前"基于我的病情，NCCN 指南建议是什么 / 标准治疗是什么"这类**指南级**问法，条件式教育靠 LLM 记忆 + 静态 `cancer-type-modules.md` 回答——而版本敏感内容必须核验现行来源、禁止 LLM 合成。本次把条件式教育拆成两种子问法，并为 (b) 增加 answer-time 来源核验：
 
-- **(a) 严重度/预后**（严不严重 / 能治好吗 / 是不是晚期 / 会不会复发）＝疾病生物学一般规律 → 模型通识 + 静态框架（不变）。
-- **(b) 指南级**（NCCN/CSCO/ESMO 建议 / 标准治疗 / 一线二线方案 / 我这类一般用什么药）＝版本敏感外部目录事实 → **走新增 `cancer-buddy-education/references/guideline-lookup.md` 的 web-access live-first 检索子路径**，带联网锚编号引用；**联网不可达时优雅降级**：允许显式标注（`⚠️ 未经实时核实 · 基于模型知识`）、不挂角标、催核实的模型知识兜底——绝不静默把记忆冒充成已核实来源。
-- **源面优先级（licensing）**：NCI PDQ（美政府公开）/ CSCO（中文对口）/ ESMO / PubMed 优先；**NCCN 只指向 + 引 category，不复制表格全文**（版权/登录墙灰区）。
+- **(a) 严重度/预后**（严不严重 / 能治好吗 / 是不是晚期 / 会不会复发）可解释稳定概念；任何具体数字、分层或治愈判断仍须核验当前适用来源。
+- **(b) 指南级**（NCCN/CSCO/ESMO 建议 / 标准治疗 / 一线二线方案 / 我这类一般用什么药）＝版本敏感事实 → 使用版本可核验的授权本地一手来源或当前官方在线来源，并带连续编号引用；均不可用时失败关闭，不以模型知识补具体内容。
+- **源面与 licensing**：按主张选择当前监管标签、专业指南、法律或试验注册等最直接来源；受许可/付费指南仅输出完成本次解释所需的最小内容，遵守实际条款和再分发限制。
 - **边界重构（router「我不做的事」）**：换线/诊断路径的**个案判决**仍归主诊医生，但删掉"一律甩回医生"的反射开场——先给一般条件图（指南级走实时检索），"要不要换由医生定"降为收口 footer。**"不做个案判决" ≠ "什么都不讲"。**
-- 安全门：G-NO-SYNTH（角标只挂真实抓取源，记忆只作显式标注兜底）/ G-NO-VERDICT（非个案判决）/ G-LICENSE（NCCN 不复制不改写）/ G-LIVE-OR-HONEST（不可达→优雅降级显式标注）/ G-CITE（编号引用+撤稿检查）/ **G-NO-OVERFETCH（纯严重度问法不联网，负向测试守住）**。
+- 安全门：G-SOURCE / G-NO-MEMORY / G-NO-VERDICT / G-COPYRIGHT / G-CITE / G-EXPIRY；无法核验时只保留稳定概念教育。
 - 文件：新增 `guideline-lookup.md`；改 `cancer-buddy-education/SKILL.md`（含 description）、`cancer-buddy/SKILL.md`、`references/safety-guardrails.md`、`cancer-type-modules.md`；`tests/eval/scenarios/cancer-buddy-conditional-education.md` 加 ce-04（正向）+ ce-05（负向 no-overfetch）。PRD：`docs/prd/education-guideline-lookup.md`。
 
 ### Changed — 来源引用扩到联网/文献来源，与档案锚共用同一编号序列 (2026-07-17)
@@ -121,17 +138,17 @@ Verification: new `tests/unit/update-log-freshness-gate.test.sh` (8/8) — stale
 
 ### Added — organize P0 fidelity gates: bucket-taxonomy enforcement + NGS completeness floor + staging verbatim-only (2026-07-07)
 
-Three P0 fixes for `cancer-buddy-organize`, driven by real-run drift (patient 023). All under `skills/cancer-buddy-organize/`.
+Three P0 fixes for `cancer-buddy-organize`, reproduced in a synthetic drift fixture. All under `skills/cancer-buddy-organize/`.
 
-- **CB-P0-1 Bucket-taxonomy enforcement (deterministically tested).** The v3 taxonomy (`references/bucket-taxonomy.md` §1.1/§1.1a) was declared authoritative but nothing enforced it at mkdir time, so the Phase-2 classifier echoed each patient's incoming source-folder numbering (`06_分子与组学/基因检测`, `11_不良反应`, `13_其他专科检查`, `04_诊断与分期/影像报告`). New machine-readable mirror `references/bucket_taxonomy.json` (14 domains × zh+en full slugs + pinned typed sub-buckets + infra buckets) is the single source a new deterministic gate `gate_bucket_taxonomy(patient_dir)` reads: it scans every top-level `NN_` domain dir + each typed sub-bucket one level down, asserts each is a pinned slug (zh or en; ASCII infra `high_confidence/uncertain/conversation_notes/raw/ocr/` + the `其他/other` fallback + `99_` quarantine allowed), and FAILs (nonzero exit) printing each offending path + the pinned slug expected for its NN prefix. Wired into the `validate_structured_outputs.py` entrypoint. Prompt-level: `organizer-prompt-phase2-synthesis.md` Step 1a gains an explicit "IGNORE the source folder's own numbering/naming — never echo an incoming folder name" rule with the 023 worked examples; `bucket-taxonomy.md` §1.3 gains an imaging HARD RULE (CT/MRI/PET-CT/超声/X光/内镜影像 → `05_影像`, NEVER `04_诊断与分期`).
+- **CB-P0-1 Bucket-taxonomy enforcement (deterministically tested).** The v3 taxonomy (`references/bucket-taxonomy.md` §1.1/§1.1a) was declared authoritative but nothing enforced it at mkdir time, so the Phase-2 classifier could echo incoming source-folder numbering (`06_分子与组学/基因检测`, `11_不良反应`, `13_其他专科检查`, `04_诊断与分期/影像报告`). New machine-readable mirror `references/bucket_taxonomy.json` (14 domains × zh+en full slugs + pinned typed sub-buckets + infra buckets) is the single source a new deterministic gate `gate_bucket_taxonomy(patient_dir)` reads: it scans every top-level `NN_` domain dir + each typed sub-bucket one level down, asserts each is a pinned slug (zh or en; ASCII infra `high_confidence/uncertain/conversation_notes/raw/ocr/` + the `其他/other` fallback + `99_` quarantine allowed), and FAILs (nonzero exit) printing each offending path + the pinned slug expected for its NN prefix. Wired into the `validate_structured_outputs.py` entrypoint. Prompt-level: `organizer-prompt-phase2-synthesis.md` Step 1a gains an explicit "IGNORE the source folder's own numbering/naming — never echo an incoming folder name" rule with synthetic worked examples; `bucket-taxonomy.md` §1.3 gains an imaging HARD RULE (CT/MRI/PET-CT/超声/X光/内镜影像 → `05_影像`, NEVER `04_诊断与分期`).
 - **CB-P0-2 NGS targeted-exhaustive transcription + completeness floor.** NGS PDFs were being summarized down to their front-page P/LP list (losing germline VUS / pharmacogenomics / full somatic table / VAF). `organizer-prompt-phase1-ocr.md` gains an NGS/genetics-report clause (full somatic variant table one row/variant with VAF+zygosity+consequence; germline INCLUDING VUS; the PGx/drug-metabolism chapter DPYD/UGT1A1/ERCC1/… every locus; VAF verbatim; negative rule against collapsing to the front-page P/LP summary), mirroring the `ingest-adapters.md` omics_raw discipline for text/image-modality NGS PDFs. `molecular.schema.json` gains optional `germline[]` + `pharmacogenomics[]` arrays so the transcribed data has a structured home (phase2 spec updated to populate them). New deterministic **WARN-only** floor `gate_ngs_completeness`: if an NGS source exists (sidecar under `06_分子与组学/NGS报告` or an NGS entry in `source_inventory.json`) but molecular.json's `variants`/`germline`/`pharmacogenomics` are empty, it warns (WARN not FAIL — a report can legitimately lack a germline/PGx chapter, so a hard block would false-fire).
 - **CB-P0-3 Staging verbatim-only (prompt-level).** organize was over-reaching by synthesizing wrong staging judgments. `organizer-prompt-phase2-synthesis.md` `summary.stage` (profile.json), `patient_summary.json.diagnosis.stage`, and `case_text.md` 诊断与分期 all gain a "verbatim TNM/stage string from source ONLY — do NOT synthesize a stage interpretation (no assembling a group from bare T/N/M, no M1/N3 labeling, no 区域外/M1范畴 qualifiers); if no clean overall stage, record components verbatim + write a `review_flags.md` entry for MTB" rule, keeping the existing verbatim/NEVER-normalize mandate.
 
-Verification: new `tests/unit/bucket-taxonomy-gate.test.sh` (18/18) — drift fixture reproducing patient 023 (`06_分子与组学/基因检测`, `11_不良反应`, `13_其他专科检查`, `04_诊断与分期/影像报告`) FAILs and names each offending path + expected pinned slug; clean zh + en fixtures (`06_分子与组学/NGS报告`, `05_影像/CT`, `03_病程与叙事文书/病程记录`) → 0 violations; full-entrypoint wiring exits nonzero on drift; NGS floor fires on empty PGx, stays WARN (not ERROR) in the entrypoint, and stays silent when molecular.json is fully populated or no NGS source exists. Full existing unit suite still green (case-summary-trend 34/34, organize-fidelity-gates 11/11, validate-profile-schema 21/21). CB-P0-3 is prompt-level (inspection-verified, not deterministically tested — it constrains LLM output).
+Verification: new `tests/unit/bucket-taxonomy-gate.test.sh` (18/18) — fully synthetic drift fixtures FAIL on off-taxonomy paths and name the expected pinned slug; clean zh + en fixtures pass. The NGS floor remains WARN-only and checks only the source report's own section inventory. CB-P0-3 is prompt-level and supplemented by current source-fidelity tests.
 
 ### Changed — case-summary 段D 关键趋势 becomes N charts + chart-readout layout + interactive markers (2026-07-03)
 
-Visual + architecture iteration of the 关键趋势 section, driven by real-patient review (PT-449DE685):
+Visual + architecture iteration of the 关键趋势 section, verified with a synthetic E2E fixture:
 
 - **`trend_hero` (single) → `trend_charts[]` (0..N).** How many featured trend charts is now a **clinical judgement the LLM makes** (treating-physician view): one dominant marker → 1 chart, several drivers → 2–3, nothing trending → []. The count is NOT hardcoded. This required the deterministic renderer (`render_html_template.py`) to support **loops nested inside loops** (each chart iterates its own `treatment_markers`/`dots`), resolving arrays local-scope-first then root — mirroring how placeholders/RENDER_IF already resolve. Division of labour is now explicit: the LLM owns all clinical generalization (which/how-many metrics, interpretation, which treatment markers); the deterministic scripts own only the faithful pixel projection + the anti-fabrication gate (a chart must never misrepresent a real value — an LLM-drawn chart would be 伪精度).
 - **Chart + readout layout.** Each chart is a two-column [chart | readout] card — chart left (moderate 3:1 aspect, not stretched), readout right (metric name, big current value, one-line interpretation). Fills the width densely with no wasted whitespace (the earlier full-width-single-chart / centered-small-chart attempts both looked sparse on a one-pager). Responsive grid: 1 chart full width, 2 side-by-side, 3 → 2+1, capped at 2 per row so cells stay ≥~320px.
@@ -153,23 +170,23 @@ The 病情简要总结 (段D) now shows **病情变化趋势** instead of a stat
 - **Validator hardened** (`validate_case_summary_html.py`): new gate (h) forbids `<script>`/`<canvas>`/`<foreignObject>`/`<iframe>`/`<object>`/`<embed>` + inline `on*=` event handlers, gate (i) allowlists SVG child elements. Existing style-identity / class-subset / PII / provenance / h2-skeleton gates unchanged — the new 关键趋势 section always renders (placeholder when empty) so the `<h2>` count stays stable.
 - **Freshness gate** now treats `longitudinal_observations.json` mtime as a summary source (a new follow-up lab changes the curve even when no scalar field moved).
 
-**Post-test fixes (first real-patient run, PT-449DE685):**
+**Post-test fixes (synthetic E2E run):**
 - **`lab_trends` empty → "资料缺失" even with rich labs.** The LLM producer built the hero but left the lab rows empty. Added `scripts/backfill_lab_trends.py` — a deterministic floor that, **only when `lab_trends` is empty AND `labs.json` has panels**, builds one row per panel from the structured data (name / dated series / current value / status from flag-or-range). No-op when the producer already populated it (LLM's condition-aware selection wins). Wired into SKILL Step 12 before compute_sparklines. Prompt also strengthened: `lab_trends` is now imperative (non-empty whenever any lab exists).
 - **Low information density / heavy repetition.** In the real run the CEA trend repeated 5×, the OCR caveat 5×, diagnosis/regimens 3× each. Added a "信息密度与去重" contract to `case-summary-html-prompt.md`: each fact lives in exactly one 主段 — the 病情概要 narrative is now capped at 3–4 sentences / ≤120 chars and must NOT restate trend values (hero owns them), regimens/doses (治疗史 owns them), or OCR/source caveats (数据说明 owns them); the hero `interpretation` is one sentence with no inline caveat. (Prompt-level; takes effect on the next skill run.)
 - **Fragile bash in the docs.** `${prev:+--prev "$prev"}` mis-parsed (literal quotes) and broke the version_delta step; replaced with an explicit `if [ -n "$prev" ]` in both SKILL.md Step 12 and the producer prompt.
 
-Verification: `tests/unit/case-summary-trend.test.sh` (31/31 — sparkline geometry incl. 1-pt/flat/gap/min==max, anti-fabrication rejection incl. real `panels[]` labs shape, version-delta, backfill from panels + no-op-when-populated + flag/range status) + `tests/integration/case-summary-trend-e2e.sh` (9/9 — 3 patients, 2 cancer types, full enrich→render→validate: CRC with delta, NSCLC first-version no-delta with a labs-only-backed point, gastric no-trend placeholder); validator hardening gates negative-tested (canvas/script/onclick/foreignObject all rejected); backfill floor verified on the real PT-449DE685 data (8 markers populated, integrity gate green, render+validate OK). Full suite green: unit 3/3 files, integration 6/6, py_compile + all-JSON-parse clean. (Pre-existing `tests/eval/run.sh` failure — `cancer-buddy-outreach: SKILL.md not found`, a dangling skill reference — predates this change and is untouched by it.)
+Verification: `tests/unit/case-summary-trend.test.sh` (31/31 — sparkline geometry incl. 1-pt/flat/gap/min==max, anti-fabrication rejection incl. `panels[]` labs shape, version-delta, backfill from panels + no-op-when-populated + source flag status) + `tests/integration/case-summary-trend-e2e.sh` (9/9 synthetic fixtures); validator hardening gates negative-tested (canvas/script/onclick/foreignObject all rejected). Current clinical governance supersedes the older interpretation/range-grading behavior described in this historical entry.
 
 ### Changed — case-summary 段D fidelity fixes + PII gate made two-layer (prompt-primary + shape floor) (2026-06-15)
 
 Three patient-reported 病情简要总结.html defects + a generalization fix to the PII gate.
 
-- **Patient identity keeps PRECISE AGE; birthplace/occupation barred.** The decade-band coarse-graining (`60+`) was over-de-id — clinical-trial matching needs the exact age. `case_summary_data.json` `age_band`→`age` (precise, e.g. `63 岁`); template `{{age_band}}`→`{{age}}`; `case-summary-html-prompt.md` age rule rewritten; `organizer-prompt-phase2-synthesis.md` `html_age_policy`→`precise_age_retained; dob_birthplace_occupation_masked`. DOB stays masked; **出生地/籍贯 + 职业/工作单位 added to the narrative + identity PII bans**. `validate_case_summary_html.py` `_AGE_RE` precise-age guard **removed** (age now allowed). The **sibling `validate_visit_prep_html.py` `EXACT_AGE_PATTERNS` guard was removed in the same change** so the two stay aligned (both age-permissive, DOB still barred) — round-15 had kept them identical; they remain identical, now permissive. Visit-prep renders no age field in its snapshot, so this is purely dropping a defensive guard; visit-prep-html-prompt.md + visit-prep SKILL.md doc lines updated to match.
+- **Age and quasi-identifiers are context-dependent.** Current policy includes age, dates, institution and similar fields only when necessary and authorized for the stated artifact; no regex result proves that a combination is anonymous. Clinical-trial eligibility matching is outside this repository.
 - **IHC parentheses preserved.** Pathology IHC was rendered `HER2 0` (parens dropped → ambiguous in `EGFR 2+; HER2 0; …`). Now rendered with the standard pathology notation `marker（value）` → `HER2（0）；EGFR（2+）；Ki-67（约5%+）` (full-width 括号 for zh). `case-summary-html-prompt.md` §核心分子检测.
 - **Treatment-line labels use clinical INTENT, not auto-ordinals.** `line_label` was auto-numbered 一线/二线/三线 from the `line` integer — clinically wrong (perioperative therapy is itself first-line). Now mapped from `treatment_lines.json` `intent` → 新辅助/术后辅助/围手术期/姑息治疗/维持治疗/根治/巩固; neutral 第 N 段 fallback by `started_at` when intent is absent; verbatim-copy an explicitly documented line wording. Schema `line_label` description updated.
 - **PII gate is now two independent layers (trust-but-verify).** Root cause of the birthplace/occupation leak: the regex floor could only catch pre-coded label categories — it structurally missed 出生地/籍贯/职业/家属姓名/民族 (a real run leaked all of these into `case_text.md` AND `profile.json`'s mis-named `name_redacted: <real name>` field, neither of which the gate even scanned). **Layer 1 (new, primary):** `references/pii-rescan-prompt.md` — a semantic agent scan that flags ANY identifying category by meaning over sidecar bodies + **synthesized downstream surfaces** (`case_text.md`/`profile.json`/`patient_summary.json`/…) + delivered surfaces; dispatched at Phase-1 §2.5, the Phase-2 acceptance gate (SKILL.md Step 11.5), 段C, and export. **Layer 2 (trimmed):** `scripts/pii_rescan.py` 收敛为纯 SHAPE floor (身份证18位/手机/座机/email/SSN/E.164/≥11位数字/绝对路径/云账号/denylist) — the brittle `_PII_LABEL_PATTERNS`/`_PII_LABEL_TAIL`/cross-line label arms (which couldn't generalize and historically false-fired) were removed; label/semantic detection moved to Layer 1. Either layer's finding fails the gate. Wired through phase1-ocr §2.5, conversation-incremental §段C, organize-contract §§63/185, SKILL.md, validate_structured_outputs docstring. Test 3 in `tests/unit/organize-fidelity-gates.test.sh` migrated (deterministic floor now asserts only the bare ≥11-digit shape + a negative assertion that label categories do NOT fire it); eval scenarios org-03 updated (precise age) + org-04 added (Layer-1 semantic catch). PRD: `tasks/prd-pii-rescan-prompt-hybrid.md`.
 
-Verification: render+validate exit 0/0 with precise age `69 岁` + `HER2（0）`/`EGFR（2+）` + intent labels (新辅助/术后辅助/姑息治疗/维持治疗, zero 一线/二线); shape-floor unit checks (身份证/手机/email/≥11-digit fire; 姓名/住院号/职业/籍贯/精确年龄 do not); `tests/unit/organize-fidelity-gates.test.sh` 10/0; `tests/eval/lint/04-pii-desensitization.sh` OK; Layer-2 floor caught 身份证+手机 in a real leak (`PT-B7981F5800/case_text.md`); Layer-1 logic proven inline on the same patient (flagged name/birthplace/occupation/DOB the floor cannot).
+Verification: render+validate exit 0/0 with synthetic age and marker/intent fixtures; shape-floor unit checks (身份证/手机/email/≥11-digit fire; semantic categories require Layer 1); `tests/unit/organize-fidelity-gates.test.sh` and `tests/eval/lint/04-pii-desensitization.sh` pass. Historical real-patient identifiers have been removed from this changelog; regression fixtures must remain fully synthetic.
 
 ### Fixed — disclosure-gate consistency check redesigned to behavior-direction tokens (2026-06-14, round 16)
 

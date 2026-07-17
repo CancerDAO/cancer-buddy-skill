@@ -2,108 +2,73 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://cancerdao.org/schemas/cancer-buddy/patient_summary.schema.json",
   "title": "PatientSummary",
-  "description": "Patient-level rollup. One per patient. Consumed by vMTB and MTB-lite as the primary input. Every factual field carries source_refs that point into the bucket-co-located text-masked MD sidecar set.",
+  "description": "Source-preserving rollup. Extraction confidence is not clinical verification.",
   "type": "object",
-  "required": ["patient_code", "schema_version", "generated_at"],
+  "required": ["patient_code", "schema_version", "generated_at", "demographics", "diagnosis", "current_status"],
   "additionalProperties": false,
   "properties": {
-    "patient_code": { "type": "string", "pattern": "^PT-[A-F0-9]+(_\\d+)?$" },
-    "schema_version": { "const": "1" },
+    "patient_code": { "type": "string", "pattern": "^PT-[A-F0-9]+(_\\d+)?$", "description": "Storage locator, not authentication." },
+    "schema_version": { "const": "2" },
     "generated_at": { "type": "string", "format": "date-time" },
-    "alias": {
-      "type": "string",
-      "description": "Business-readable alias: {patient_id_short}_{cancer_code}_{year}, where patient_id_short = the PT-stripped patient_code truncated to 6 hex chars (e.g. PT-17CE02BC33 → 17CE02). Example 17CE02_CRC_2019. Optional — only set when caller supplies enough metadata.",
-      "pattern": "^[0-9A-Za-z\\-]+_[A-Z]+_\\d{4}$"
-    },
+    "alias": { "type": ["string", "null"], "description": "Optional user-chosen non-clinical label; do not embed diagnosis or identifiers." },
     "demographics": {
       "type": "object",
+      "required": ["sex", "sex_normalized", "age", "height_cm", "weight_kg", "ecog", "function_description", "provenance_layer", "verification_status", "source_refs"],
       "additionalProperties": false,
       "properties": {
-        "name": { "type": ["string", "null"], "description": "Patient name (may be partially Phase-1-masked). Sole purpose: the P0 cross_patient_name_collision check (name + dob_year) in organizer-prompt-phase2-synthesis.md Step 3a. Null when fully masked → the check skips. Not surfaced in any patient-facing artifact." },
-        "sex": { "type": ["string", "null"], "enum": ["M", "F", null] },
-        "age": { "type": ["integer", "null"], "minimum": 0, "maximum": 120 },
-        "dob": { "type": ["string", "null"], "format": "date" },
+        "sex": { "type": ["string", "null"], "description": "Source wording." },
+        "sex_normalized": { "type": ["string", "null"], "enum": ["female", "male", "intersex", "other", "unknown", null] },
+        "age": { "type": ["integer", "null"], "minimum": 0, "maximum": 130 },
         "height_cm": { "type": ["number", "null"] },
         "weight_kg": { "type": ["number", "null"] },
-        "ecog": { "type": ["integer", "null"], "minimum": 0, "maximum": 5 },
-        "ecog_inferred": { "type": "boolean", "default": false },
+        "ecog": { "type": ["integer", "null"], "minimum": 0, "maximum": 5, "description": "Clinician-reported only; never inferred." },
+        "function_description": { "type": ["string", "null"], "description": "Patient/caregiver description kept separate from ECOG." },
+        "provenance_layer": { "$ref": "#/$defs/provenance_layer" },
+        "verification_status": { "$ref": "#/$defs/verification_status" },
         "source_refs": { "$ref": "#/$defs/source_refs" }
       }
     },
     "diagnosis": {
       "type": "object",
+      "required": ["primary", "histology", "icd10", "diagnosed_at", "stage", "metastasis_sites", "provenance_layer", "verification_status", "source_refs"],
       "additionalProperties": false,
       "properties": {
         "primary": { "type": ["string", "null"] },
         "histology": { "type": ["string", "null"] },
         "icd10": { "type": ["string", "null"] },
         "diagnosed_at": { "type": ["string", "null"], "format": "date" },
-        "stage": { "type": ["string", "null"] },
+        "stage": { "type": ["string", "null"], "description": "Verbatim clinician/source stage; never recomputed." },
         "metastasis_sites": { "type": "array", "items": { "type": "string" } },
+        "provenance_layer": { "$ref": "#/$defs/provenance_layer" },
+        "verification_status": { "$ref": "#/$defs/verification_status" },
         "source_refs": { "$ref": "#/$defs/source_refs" }
       }
     },
     "current_status": {
       "type": "object",
+      "required": ["regimen", "response", "ecog", "as_of", "provenance_layer", "verification_status", "source_refs"],
       "additionalProperties": false,
       "properties": {
-        "regimen": { "type": ["string", "null"], "description": "Flat human-readable verbatim string. e.g. '雷替曲塞 5mg d1 + 信迪利单抗 200mg d2 q21d (cycle 2)'." },
-        "response": { "type": ["string", "null"], "enum": ["CR", "PR", "SD", "PD", "NE", null] },
+        "regimen": { "type": ["string", "null"] },
+        "response": { "type": ["string", "null"], "description": "Clinician-reported response only; never calculated." },
+        "ecog": { "type": ["integer", "null"], "minimum": 0, "maximum": 5, "description": "Clinician-reported only." },
         "as_of": { "type": ["string", "null"], "format": "date" },
+        "provenance_layer": { "$ref": "#/$defs/provenance_layer" },
+        "verification_status": { "$ref": "#/$defs/verification_status" },
         "source_refs": { "$ref": "#/$defs/source_refs" }
       }
     },
-    "latest_status": {
-      "type": "object",
-      "description": "Single-time-point snapshot of the patient's most recent status. Per bucket-taxonomy.md §3 this snapshot lives here while the full trajectory lives in longitudinal_observations.json (see longitudinal_observations_ref).",
-      "additionalProperties": false,
-      "properties": {
-        "regimen": { "type": ["string", "null"], "description": "Flat human-readable verbatim string of the most recent regimen." },
-        "response": { "type": ["string", "null"], "enum": ["CR", "PR", "SD", "PD", "NE", null] },
-        "ecog": { "type": ["integer", "null"], "minimum": 0, "maximum": 5 },
-        "as_of": { "type": ["string", "null"], "format": "date" },
-        "source_refs": { "$ref": "#/$defs/source_refs" }
-      }
-    },
-    "longitudinal_observations_ref": {
-      "type": ["string", "null"],
-      "description": "Optional patient-dir-relative path to longitudinal_observations.json (the multi-time-point trajectory store, schema longitudinal_observations_v1). Typically 'longitudinal_observations.json' beside profile.json. Consumers read latest_status for the snapshot and follow this ref for the full 单时间点→纵向曲线→治疗反应轨迹 series. See bucket-taxonomy.md §3."
-    },
+    "longitudinal_observations_ref": { "type": ["string", "null"], "description": "Neutral observations, not a response trajectory." },
     "treating_hospitals": { "type": "array", "items": { "type": "string" } },
-    "patient_location_hint": { "type": ["string", "null"] },
-    "caregivers": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "properties": {
-          "relation": { "type": "string" },
-          "name": { "type": ["string", "null"] },
-          "contact_preference": { "type": ["string", "null"] }
-        }
-      }
-    },
-    "confidence": {
+    "extraction_confidence": {
       "type": "object",
-      "description": "Per-key extraction confidence (0–1), populated by synthesis worker. SINGLE SOURCE OF TRUTH for all per-section confidence — individual section objects (e.g. diagnosis) must NOT carry their own inner confidence. Keys are constrained to a canonical closed set matching the structured-file names, eliminating labs vs lab_values drift; all keys optional.",
-      "additionalProperties": false,
-      "properties": {
-        "diagnosis": { "type": "number", "minimum": 0, "maximum": 1 },
-        "stage": { "type": "number", "minimum": 0, "maximum": 1 },
-        "current_status": { "type": "number", "minimum": 0, "maximum": 1 },
-        "labs": { "type": "number", "minimum": 0, "maximum": 1 },
-        "molecular": { "type": "number", "minimum": 0, "maximum": 1 },
-        "treatment_lines": { "type": "number", "minimum": 0, "maximum": 1 }
-      }
+      "description": "Technical extraction confidence only; not diagnostic confidence.",
+      "additionalProperties": { "type": "number", "minimum": 0, "maximum": 1 }
     }
   },
   "$defs": {
-    "source_refs": {
-      "type": "array",
-      "items": {
-        "type": "string",
-        "pattern": "^(([0-9]{2}_[^\\s/]+(/[^\\s/]+)*\\.md(#L\\d+(-L\\d+)?|#[A-Za-z0-9_-]+)?)|(conversation:\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})?))$",
-        "description": "Anchor token normalized to the path-only string. File anchors begin with an NN_ clinical-domain bucket prefix (01_…14_) and point to a text-masked MD sidecar inside its bucket; conversation anchors are the literal 'conversation:<ISO8601>'. The infrastructure vault raw/ and quarantine 99_无关文件/ are never anchor targets, and the retired ocr/ / 02_脱敏病历/ prefixes are rejected. Optional fragment is #L<start>-L<end> or #section-anchor."
-      }
-    }
+    "source_refs": { "type": "array", "items": { "type": "string" } },
+    "provenance_layer": { "enum": ["source_reported", "patient_reported", "caregiver_reported", "system_normalized"] },
+    "verification_status": { "enum": ["unverified", "clinician_verified", "disputed"] }
   }
 }

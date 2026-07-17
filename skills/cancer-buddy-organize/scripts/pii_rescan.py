@@ -41,8 +41,9 @@ Scope (matches phase1-ocr.md §2.4 — "touches PII tokens ONLY"):
     false-fire); semantic categories there (出生地/职业/民族…) are Layer-1's job.
   - Clinical fidelity wins: this gate flags ONLY pure-shape standalone
     identifiers. It does NOT flag clinical dates, lab values, drug names, TNM,
-    molecular markers, or precise age — those carry no PII shape signature and are
-    left untouched (anti-anchoring §2.2a unaffected). Semantic / label-based PII
+    molecular markers, or age — those carry no reliable standalone PII shape signature and are
+    left untouched by this regex layer. This does not declare them safe to share;
+    task minimization and combination risk belong to Layer 1. Semantic / label-based PII
     (姓名/住院号/出生地/职业/签名 …) is Layer 1's job (pii-rescan-prompt.md).
   - Locale-agnostic by SHAPE: the standalone patterns (中国身份证/手机/座机 +
     email + US-SSN + international/E.164 phone + ≥11-digit numeric id) fire on any
@@ -206,7 +207,7 @@ _PATH_PII = [
     (re.compile(r"(?:CloudStorage|坚果云|OneDrive|Dropbox|iCloud)[^\s\"'\\]*"), "cloud_account_path"),
 ]
 
-# <2-4 CJK personal name>-<Latin> prefixing a report filename: 王国洪-OncoFusion报告.
+# <2-4 CJK personal name>-<Latin> prefixing a report filename: 张测试-OncoFusion报告.
 # Applied ONLY to filename/index/provenance surfaces — NOT to the patient HTML, where
 # it FALSE-FIRES on legitimate verbatim CJK-term-hyphen-Latin oncology entities
 # (微卫星-MSI / 信迪利单抗-PD-1 / 免疫组化-IHC / 基因检测-NGS …) the producer must render,
@@ -231,7 +232,7 @@ def load_deny_tokens(patient_dir: Path) -> set[str]:
     list. Two seeds that survive masking: (1) an optional `.identity_denylist.json`
     (list of strings, or {"tokens":[...]}), written by Phase-1 before it masks; and
     (2) CJK personal names harvested from the verbatim `raw/` filenames the patient
-    uploaded (`王国洪-OncoFusion报告.pdf` → `王国洪`). Any of these tokens appearing
+    uploaded (`张测试-OncoFusion报告.pdf` → `张测试`). Any of these tokens appearing
     in a delivered surface is a leak."""
     tokens: set[str] = set()
     f = patient_dir / _DENYLIST_FILE

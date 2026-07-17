@@ -1,41 +1,36 @@
 # Question frameworks — visit-type scaffolds
 
-Three skeletons of **questions a patient asks their own doctor**, one per `visit_type`. The subagent (see `visit-prep-html-prompt.md` §4) takes the matching set, lightly personalizes each skeleton by slotting in the patient's verbatim fields, and renders them into Block 2 Group D.
+These are neutral questions a patient may choose to ask the treating clinician.
+They do not imply that a test, MDT/MTB review, clinical trial, treatment change, or
+particular follow-up interval is indicated. Include only questions relevant to the
+patient's stated goal and archived facts; preserve source strings and omit empty
+slots.
 
-These are **questions only** — patient-facing, never clinical advice, never a treatment recommendation, never a ranking of options. The patient asks the doctor what the options/plan are; the framework never states them. Render in `profile.json.locale`; keep clinical entities verbatim (`../../../references/i18n.md` §4). The skeletons below are `zh` samples — output the same questions in the patient's locale.
+## First visit (`first`)
 
-Slot tokens like `<诊断>` / `<当前方案>` / `<驱动基因>` are filled verbatim from the patient's structured fields. Drop any skeleton whose slot has no data rather than inventing content.
+1. 当前报告明确写了哪些诊断/分期信息？哪些仍待你们核对？
+2. 为了回答我这次最关心的 `<question>`，现有资料是否够用？如果不够，缺的是既有报告还是需要临床评估？
+3. 目前有哪些需要讨论的选择？每个选择的目标、主要不确定性和权衡是什么？
+4. 我的合并症、过敏史和在用药中，哪些需要你们特别核对？
+5. 请把出现哪些症状、何时联系团队或急诊的书面指示给我。
+6. 下次复诊的时间和要带的资料是什么？
 
-## 初诊 (`first`) — 第一次见这位医生 / 刚确诊
+## Follow-up (`followup`)
 
-1. 我现在确切的诊断和分期是什么？（`<诊断>` / `<分期>`）有没有还没定下来、需要再确认的部分？
-2. 要把分期/治疗方向定清楚，还需要补哪些检查（病理、影像、分子检测）？
-3. 我的分子检测（`<驱动基因>` / 免疫指标）齐了吗？还差哪些、要不要补做？
-4. 针对我这个情况，目前都有哪些治疗方向可以讨论？各自大概是怎么安排的？
-5. 接下来的治疗大概节奏是怎样的（先做什么、多久评估一次效果）？
-6. 治疗期间我自己要重点留意哪些症状？出现什么情况需要马上联系你们/去急诊？
-7. 我这边的合并症 / 在吃的其他药，会不会影响治疗选择？需要先处理什么吗？
-8. 要不要考虑多学科会诊（MDT/MTB）？怎么安排？
-9. 复诊和检查的时间点怎么定？下次我该带什么来？
+1. 请分别说明影像、检验、症状和医生记录本身写了什么，以及你们如何综合判断。
+2. 自上次以来记录到 `<source-stated change>`；这是否需要你们进一步评估？
+3. 我报告的 `<symptom>` 应如何处理？哪些变化需要立即联系团队？
+4. 当前计划是否改变？如果改变，依据、目标、替代方案和主要风险分别是什么？
+5. 下一步评估的项目和时间为何适用于我的具体情况？
 
-## 复诊 (`followup`) — 治疗中 / 定期复查
+## Decision discussion (`decision_discussion`)
 
-1. 我现在用的方案（`<当前方案>`）这一阶段效果怎么样？影像/指标怎么看？
-2. 自从上次以来我有这些变化（新症状 / 指标趋势 / 新检查），这些需要处理吗？
-3. 当前的副作用 / 不适，是预期内的吗？有什么能缓解的办法，需不需要调整？
-4. 现在的方案是继续维持，还是到了要重新评估的节点？依据是什么？
-5. 下一次评估疗效是什么时候？要做哪些检查？
-6. 在两次复诊之间，出现哪些情况我要提前联系你们、哪些要直接去急诊？
-7. 生活方式 / 饮食 / 运动这块，针对我现在的阶段有什么要注意的？
+1. 目前是否已有合格临床来源明确记录“进展/复发/需要换线”？依据和不确定性是什么？
+2. 如果需要作决定，可讨论的选择、治疗目标、主要获益不确定性、风险和对生活的影响是什么？
+3. 现有病理、影像或分子资料是否仍适用于这个问题？是否需要补充评估由你们决定，理由是什么？
+4. 是否有必要征求正式第二意见或多学科意见？如果没有必要，也请说明原因。
+5. 临床试验是否与这次讨论相关？若相关，研究中心将如何按当前方案正式预筛？
+6. 如果我暂时不决定，还有哪些支持和后续沟通安排？
 
-## 换线决策 (`switch`) — 进展了 / 在讨论换方案
-
-1. 现在判断是疾病进展（`<当前方案>` 之后）吗？是依据影像、指标还是症状？
-2. 进展之后，接下来有哪些可选的方向？分别是基于什么考虑？
-3. 要做这个决定，还需要补哪些信息（重新活检、再次分子检测、新影像）吗？
-4. 我之前的分子检测结果，对下一步选择还适用吗，要不要重测？
-5. 换方案之后，疗效大概多久能评估出来？怎么判断有没有效？
-6. 换方案在副作用 / 对我合并症的影响上，和现在比有什么不同？
-7. 我适不适合考虑临床试验？哪里可以了解正在招募的试验？（找试验本身请走 find-care / 配套试验匹配 skill）
-8. 如果这一步效果不好，再下一步通常会怎么考虑？让我心里有个大致预期。
-9. 这个决定需不需要多学科会诊（MDT/MTB）一起定？
+Never rewrite a documentation gap as “you need this test,” and never prefill the
+clinician's answer.

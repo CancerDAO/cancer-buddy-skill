@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cancerdao.org/schemas/cancer-buddy/readiness.schema.json",
+  "title": "DocumentationCoverageAndSourceReview",
+  "description": "Compatibility filename; not a clinical readiness score.",
+  "type": "object",
+  "required": ["patient_code", "schema_version", "documentation_coverage", "review_flags"],
+  "additionalProperties": false,
+  "properties": {
+    "patient_code": { "type": "string", "pattern": "^PT-[A-F0-9]+(_\\d+)?$" },
+    "schema_version": { "const": "2" },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "documentation_coverage": {
+      "type": "object",
+      "additionalProperties": {
+        "enum": ["present", "not_in_archive", "unknown", "requested_by_clinician", "patient_declined_to_add"]
+      }
+    },
+    "warnings": { "type": "array", "items": { "type": "string" } },
+    "review_flags": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "category", "affected_field", "current_source_values", "issue", "resolution_status"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string" },
+          "category": { "type": "string", "minLength": 1 },
+          "affected_field": { "type": "string", "minLength": 1 },
+          "current_source_values": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["value", "source_ref"],
+              "additionalProperties": false,
+              "properties": {
+                "value": {},
+                "source_ref": { "type": "string" }
+              }
+            }
+          },
+          "issue": { "type": "string" },
+          "resolution_status": {
+            "enum": ["unresolved", "resolved_by_corrected_source", "resolved_by_clinician_attestation", "resolved_administratively"]
+          }
+        }
+      }
+    }
+  }
+}

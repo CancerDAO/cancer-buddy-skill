@@ -1,222 +1,102 @@
 #!/usr/bin/env python3
-"""Deterministic floor for 段D `lab_trends` (stdlib only, ZERO medical judgement).
+"""Backfill case-summary lab rows without clinical grading.
 
-The 段D producer (an LLM subagent) is *supposed* to select which labs to surface as
-trend rows and describe them. But an LLM can leave `lab_trends: []` even when the
-patient has rich lab data — and then the patient-facing summary shows "资料缺失"
-where a trend table belongs. That is a correctness failure, not a style nit.
-
-This helper is the SAFETY NET: **only when `lab_trends` is empty AND `labs.json`
-has panels**, it builds one row per panel straight from the structured data —
-name = analyte, series = the panel's dated values, current_value = the latest,
-status from the latest value's `flag` (or a range compare when flag is absent).
-It is a pure data transform (no "is this lab important?" keyword list) — it simply
-surfaces everything the record already has rather than leaving the section blank.
-
-If the producer already populated `lab_trends`, this is a NO-OP (the LLM's
-condition-aware selection + wording wins). Run it BEFORE compute_sparklines so the
-backfilled rows get their sparkline geometry too.
-
-status_label is localized from a tiny zh/en table; for any other locale it falls
-back to the English word (the LLM path produces a properly localized label — this
-floor only needs to be correct, not eloquent).
-
-SEPARATELY (and UNCONDITIONALLY, even when the producer already populated
-`lab_trends`), this script caps the badge of any TUMOR-MARKER row from
-"severe/严重" down to "high/偏高": chronically-elevated tumor markers (CEA ~10×,
-CA19-9 ~5×) are not an acute red-alert in a maintenance patient. Non-tumor-marker
-acute labs keep "severe". See `cap_tumor_marker_severity` / `_TUMOR_MARKERS`.
-
-CLI:
-    python3 backfill_lab_trends.py --data .case_summary_data.json --labs labs.json [--profile profile.json]
-
-Exit codes:
-    0  — data written (backfilled, or left unchanged if already populated / no panels)
-    2  — bad invocation / unreadable --data
+The transform copies dated values from labs.json. Badge text comes only from the
+reporting laboratory's own report_flag/critical_flag on the latest result. It
+never compares a value with a range, invents H/L, or assigns severity.
 """
 from __future__ import annotations
 
 import argparse
 import json
-import re
 import sys
 from pathlib import Path
 
-_STATUS_LABELS = {
-    "zh": {"normal": "正常", "low": "偏低", "high": "偏高", "abnormal": "异常", "severe": "严重", "": ""},
-    "en": {"normal": "Normal", "low": "Low", "high": "High", "abnormal": "Abnormal", "severe": "Severe", "": ""},
-}
 
-# Tumor markers are CHRONICALLY elevated in a maintenance patient — a context-blind
-# ×ULN compare flags CEA ~10× / CA19-9 ~5× as red "严重/severe" and over-alarms.
-# For these analytes we CAP the badge at "high"/"偏高" (never "severe"): the trend
-# hero + caption carry the "responded-then-rising" clinical meaning, not a red badge.
-# Pinned analyte name set (matched after normalising away case / hyphen / underscore /
-# dot / whitespace, so CA19-9, CA199, CA19_9, CA19.9 all collapse to "ca199").
-_TUMOR_MARKERS = {
-    "cea", "ca199", "ca125", "ca724", "ca153", "ca50", "afp", "nse",
-    "cyfra211", "scc", "psa", "he4", "progrp",
-}
+def _latest(values: list[dict]) -> dict:
+    return sorted(values, key=lambda item: str(item.get("date") or ""))[-1] if values else {}
 
 
-def _norm_analyte(name) -> str:
-    """Normalise an analyte name for tumor-marker matching: lowercase and drop
-    hyphen / underscore / dot / whitespace so CA19-9 == CA199 == CA19_9 == CA19.9."""
-    if not isinstance(name, str):
-        return ""
-    return re.sub(r"[\s\-_.]", "", name).lower()
+def _source_badge(result: dict) -> tuple[str, str]:
+    critical = result.get("critical_flag")
+    report = result.get("report_flag")
+    if critical not in (None, ""):
+        return "critical", str(critical)
+    if report not in (None, ""):
+        return "", str(report)
+    return "", ""
 
 
-def cap_tumor_marker_severity(data: dict, labels: dict) -> int:
-    """Downgrade any TUMOR-MARKER lab_trends row from status_class 'severe' → 'high'
-    (never red). Runs unconditionally over data['lab_trends'] — including rows the
-    LLM producer populated — so the cap applies on every (re-)render, not only the
-    backfill path. Non-tumor-marker acute labs keep 'severe'. Returns rows capped."""
-    capped = 0
-    for row in data.get("lab_trends") or []:
-        if not isinstance(row, dict):
-            continue
-        if row.get("status_class") == "severe" and _norm_analyte(row.get("lab_name")) in _TUMOR_MARKERS:
-            row["status_class"] = "high"
-            row["status_label"] = labels.get("high", row.get("status_label") or "")
-            capped += 1
-    return capped
-
-
-def _to_float(v):
-    if isinstance(v, bool):
-        return None
-    if isinstance(v, (int, float)):
-        return float(v)
-    if isinstance(v, str):
-        m = re.search(r"-?\d+(?:\.\d+)?", v.replace(",", ""))
-        if m:
-            try:
-                return float(m.group(0))
-            except ValueError:
-                return None
-    return None
-
-
-def _status_from_flag(flag):
-    """Map a lab flag to a status_class. Conservative: only the well-known flags."""
-    if not flag or not isinstance(flag, str):
-        return None
-    f = flag.strip().upper()
-    if f in ("HH", "LL", "CRIT", "CRITICAL", "PANIC"):
-        return "severe"
-    if f in ("H", "HIGH", "+"):
-        return "high"
-    if f in ("L", "LOW", "-"):
-        return "low"
-    if f in ("A", "ABN", "ABNORMAL", "*"):
-        return "abnormal"
-    return None
-
-
-def _status_from_range(value, ref_range):
-    """When no flag: compare numeric value to a 'lo-hi' reference range."""
-    fv = _to_float(value)
-    if fv is None or not isinstance(ref_range, str):
-        return ""
-    m = re.match(r"\s*(-?\d+(?:\.\d+)?)\s*[-~–]\s*(-?\d+(?:\.\d+)?)\s*$", ref_range.strip())
-    if m:
-        lo, hi = float(m.group(1)), float(m.group(2))
-        if fv < lo:
-            return "low"
-        if fv > hi:
-            return "high"
-        return "normal"
-    m = re.match(r"\s*[<≤]\s*(-?\d+(?:\.\d+)?)\s*$", ref_range.strip())
-    if m:
-        return "high" if fv > float(m.group(1)) else "normal"
-    m = re.match(r"\s*[>≥]\s*(-?\d+(?:\.\d+)?)\s*$", ref_range.strip())
-    if m:
-        return "low" if fv < float(m.group(1)) else "normal"
-    return ""
-
-
-def _panel_to_row(panel, labels):
+def _panel_to_row(panel: dict) -> dict | None:
     analyte = panel.get("analyte")
     if not analyte:
         return None
-    values = [v for v in (panel.get("values") or []) if isinstance(v, dict)]
-    # sort by date when present (ISO strings sort lexicographically)
-    values.sort(key=lambda v: str(v.get("date") or ""))
-    series = []
-    for v in values:
-        d = v.get("date")
-        val = v.get("value")
-        if d is not None and val is not None:
-            series.append({"t": str(d), "v": val})
-    latest = values[-1] if values else {}
-    current_value = latest.get("value")
-    status_class = _status_from_flag(latest.get("flag"))
-    if status_class is None:
-        status_class = _status_from_range(current_value, panel.get("reference_range"))
+    values = [item for item in (panel.get("values") or []) if isinstance(item, dict)]
+    values.sort(key=lambda item: str(item.get("date") or ""))
+    series = [
+        {"t": str(item["date"]), "v": item["value"]}
+        for item in values
+        if item.get("date") is not None and item.get("value") is not None
+    ]
+    latest = _latest(values)
+    displayed = latest.get("raw_value")
+    if displayed in (None, ""):
+        displayed = latest.get("value")
+    status_class, status_label = _source_badge(latest)
     return {
         "lab_name": str(analyte),
         "series": series,
-        "current_value": "" if current_value is None else str(current_value),
-        "unit": str(panel.get("unit") or ""),
-        "status_class": status_class or "",
-        "status_label": labels.get(status_class or "", ""),
+        "current_value": "" if displayed is None else str(displayed),
+        "unit": "" if latest.get("unit") is None else str(latest.get("unit")),
+        "status_class": status_class,
+        "status_label": status_label,
     }
 
 
-def backfill(data: dict, labs: dict, locale: str) -> int:
-    """Fill data['lab_trends'] from labs['panels'] iff currently empty. Returns
-    the number of rows added (0 = no-op)."""
-    if data.get("lab_trends"):
-        return 0  # producer already populated — respect the LLM's selection
-    panels = labs.get("panels") if isinstance(labs, dict) else None
-    if not panels:
-        return 0
-    labels = _STATUS_LABELS.get((locale or "").split("-")[0].lower(), _STATUS_LABELS["en"])
-    rows = [r for r in (_panel_to_row(p, labels) for p in panels if isinstance(p, dict)) if r]
-    if rows:
-        data["lab_trends"] = rows
-    return len(rows)
+def backfill(data: dict, labs: dict) -> int:
+    panels = [item for item in (labs.get("panels") or []) if isinstance(item, dict)] if isinstance(labs, dict) else []
+    source_rows = [row for row in (_panel_to_row(panel) for panel in panels) if row]
+    by_name = {row["lab_name"]: row for row in source_rows}
+
+    if not data.get("lab_trends"):
+        data["lab_trends"] = source_rows
+        return len(source_rows)
+
+    # Existing display rows may keep their selected series, but badges are
+    # re-grounded to the source result. Unknown rows receive no badge.
+    for row in data.get("lab_trends") or []:
+        if not isinstance(row, dict):
+            continue
+        source = by_name.get(str(row.get("lab_name") or ""))
+        row["status_class"] = source.get("status_class", "") if source else ""
+        row["status_label"] = source.get("status_label", "") if source else ""
+    return 0
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="Deterministically backfill 段D lab_trends from labs.json when the producer left it empty.")
-    ap.add_argument("--data", required=True, help="case_summary_data.json (modified in place unless --out)")
-    ap.add_argument("--labs", required=True, help="labs.json (labs.schema.json, panels[])")
-    ap.add_argument("--profile", help="profile.json (for locale of status labels)")
-    ap.add_argument("--out", help="output path (default: overwrite --data)")
-    args = ap.parse_args()
+    parser = argparse.ArgumentParser(description="Backfill lab trends from source-reported lab results")
+    parser.add_argument("--data", required=True)
+    parser.add_argument("--labs", required=True)
+    parser.add_argument("--profile", help="accepted for backward-compatible CLI use")
+    parser.add_argument("--out")
+    args = parser.parse_args()
 
     try:
         data = json.loads(Path(args.data).read_text(encoding="utf-8"))
-    except Exception as e:
-        print(f"ERROR: cannot read/parse --data: {e}", file=sys.stderr)
-        return 2
-    if not isinstance(data, dict):
-        print("ERROR: --data root must be a JSON object", file=sys.stderr)
-        return 2
-
-    try:
         labs = json.loads(Path(args.labs).read_text(encoding="utf-8"))
-    except Exception:
-        labs = {}
+    except Exception as exc:
+        print(f"ERROR: cannot read input JSON: {exc}", file=sys.stderr)
+        return 2
+    if not isinstance(data, dict) or not isinstance(labs, dict):
+        print("ERROR: input roots must be JSON objects", file=sys.stderr)
+        return 2
 
-    locale = "en"
-    if args.profile:
-        try:
-            locale = json.loads(Path(args.profile).read_text(encoding="utf-8")).get("locale") or "en"
-        except Exception:
-            pass
-
-    n = backfill(data, labs, locale)
-    labels = _STATUS_LABELS.get((locale or "").split("-")[0].lower(), _STATUS_LABELS["en"])
-    capped = cap_tumor_marker_severity(data, labels)
-    out = args.out or args.data
-    Path(out).write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
-    fill_msg = "no-op (already populated / no panels)" if n == 0 else str(n) + " row(s) from labs.json"
-    print(f"lab_trends backfill → {out} ({fill_msg}; tumor-marker severity capped: {capped} row(s))")
+    count = backfill(data, labs)
+    out = Path(args.out or args.data)
+    out.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    print(f"lab_trends source-only backfill -> {out} ({count} row(s) added)")
     return 0
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    raise SystemExit(main())

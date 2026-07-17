@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Dimension 1 — Clinical entities are never translated (P0).
+# Dimension 1 — source clinical strings are preserved; translation is additive.
 #
 # Static, fully automatable. Two assertions:
 #   A. Every patient-visible companion SKILL.md cites both the shared locale
@@ -25,9 +25,11 @@ for skill in "${PATIENT_VISIBLE_SKILLS[@]}"; do
   grep -q 'i18n\.md' "$f"             || fail "$skill: SKILL.md does not cite references/i18n.md"
   grep -q 'safety-guardrails\.md' "$f" || fail "$skill: SKILL.md does not cite references/safety-guardrails.md"
 
-  # The verbatim-clinical promise must be stated, not merely linked.
-  if ! grep -qiE 'verbatim|逐字|never translat|禁译|不翻译|不译' "$f"; then
-    fail "$skill: SKILL.md does not state the verbatim / never-translate clinical-entity rule"
+  # The source-preserving promise must be stated, not merely linked. A blanket
+  # translation ban is not required; patient-language explanation is allowed
+  # when the original remains visible.
+  if ! grep -qiE '保留.*(原文|源|source)|source.*(preserv|remain|retain)|源临床字符串|source string' "$f"; then
+    fail "$skill: SKILL.md does not state the source-preserving clinical-entity rule"
   fi
 done
 

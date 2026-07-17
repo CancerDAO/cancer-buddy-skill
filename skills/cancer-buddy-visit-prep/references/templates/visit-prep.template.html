@@ -1,11 +1,12 @@
 <!--
   ============ i18n LOCALE STRING TABLE (visit-prep scaffold) ============
-  Localize the SCAFFOLD only; keep every clinical entity verbatim (../../../../references/i18n.md §4).
+  Preserve source clinical strings; labeled translations/normalizations may be added beside them (../../../../references/i18n.md §4).
   The renderer (visit-prep-html-prompt.md) reads profile.json.locale and fills the {{i18n.<key>}}
   placeholders below from this table. CSS + DOM structure stay 1:1 across locales — only these string
   VALUES change. <html lang> + {{i18n.html_lang}} also follow locale.
   zh = authoritative gold-standard wording. en = canonical translation. For a locale not listed,
-  generate equivalents in the target language (same meaning, same tone), keep clinical terms verbatim.
+  generate equivalent scaffold strings in the target language. Source clinical terms remain available;
+  translated terms are additive and labeled.
   Add locale columns here; never hardcode a single-language scaffold string.
 
   | key                  | zh                                              | en                                                                  |
@@ -188,7 +189,7 @@ ol.q-list li, ul.q-list li {
 
 <!-- ============ BLOCK 1: 医生速览 ============ -->
 <!-- 来源: profile.json (summary.primary/summary.histology/summary.stage) + molecular.json (variants/msi_mmr/ihc/tmb) + treatment_lines.json 当前线 + labs.json 异常项。
-     直接字段映射,临床实体 verbatim(../../../../references/i18n.md §4)。任一字段 null → 渲染 {{i18n.val_pending}},不捏造。 -->
+     直接字段映射并保留原始临床字符串；译文与原文并列。任一字段 null → 渲染 {{i18n.val_pending}},不捏造。 -->
 <h2>{{i18n.sec_snapshot}}</h2>
 <div class="snapshot-box section-keep">
   <table class="kv-table">
@@ -200,7 +201,7 @@ ol.q-list li, ul.q-list li {
 </div>
 
 <!-- ============ BLOCK 2: 我要问医生的 (核心,subagent 派生) ============ -->
-<!-- 来源: subagent 从 readiness.json.review_flags[] / missing_items.json.missing[] / timeline (进展) 派生 + 叠 question-frameworks.md 的 visit_type 框架。
+<!-- 来源: worker 从来源/忠实度 flags、missing_items.json.document_gaps[]、timeline 事件派生 + 叠 question-frameworks.md 的 visit_type 框架。
      护栏: review_flags 一律呈现为"请医生确认:<X>"待确认问题,绝不裁决成事实(.q-confirm 黄框 + 待确认标签)。不推荐治疗/不解读/不临床判断。详见 visit-prep-html-prompt.md。 -->
 <h2>{{i18n.sec_questions}}</h2>
 
@@ -230,7 +231,7 @@ ol.q-list li, ul.q-list li {
   </ul>
 </div>
 
-<!-- Group C: 来自 timeline 进展 → 下一步。空→占位整组不删 -->
+<!-- Group C: 来自 timeline 已记录事件 → 询问医生下一步。空→占位整组不删 -->
 <div class="q-group section-keep">
   <div class="q-group-title">{{i18n.q_group_next}}</div>
   <ul class="q-list">

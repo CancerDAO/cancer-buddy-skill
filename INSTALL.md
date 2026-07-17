@@ -1,106 +1,40 @@
 # Installation
 
-## Requirements
-
-- Claude Code (latest). Get it from https://claude.ai/code.
-
-That's it. Cancer-buddy is zero-config — all OCR, vision, and reasoning run on Claude's native model capabilities. No Python, no tesseract, no pdftotext required.
-
-## Install via `skills` CLI
-
-Cancer-buddy follows the [vercel-labs/skills](https://github.com/vercel-labs/skills) paradigm — each sub-skill is an independently installable directory under `skills/`.
+## Install all Cancer Buddy skills
 
 ```bash
-# Global (all projects)
-npx skills add CancerDAO/cancer-buddy-skill -g
+npx skills add CancerDAO/cancer-buddy-skill -g --all
+```
 
-# Project-scoped
+Project-local installation:
+
+```bash
+npx skills add CancerDAO/cancer-buddy-skill --all
+```
+
+The package contains the router, ten patient-support companions, and the bundled `web-access` retrieval layer. Restart the host after installation if it caches available skills.
+
+## Selective installation
+
+If you install only `cancer-buddy-find-care`, include `web-access` or provide another supported live-web tool. Without live access, find-care must report that it cannot verify current resources; it must not return a list from model memory.
+
+```bash
 npx skills add CancerDAO/cancer-buddy-skill
-
-# Install only specific sub-skills
-npx skills add CancerDAO/cancer-buddy-skill --skill cancer-buddy cancer-buddy-organize cancer-buddy-find-care
 ```
 
-> **Note**: `cancer-buddy-find-care` requires the bundled `web-access` skill (also under `skills/`) to perform the parallel multi-subagent web research that powers hospital/doctor/trial discovery. Both are auto-installed when you use `--all` or `add CancerDAO/cancer-buddy-skill` without `--skill`. If you cherry-pick `cancer-buddy-find-care`, also include `web-access`.
+Use the installer's selection UI to choose skills. No Cancer Buddy workflow automatically installs another repository or executes `npx` on the user's behalf.
 
-### Web-access prerequisites
+## Optional external tools
 
-`cancer-buddy-find-care` (via `web-access`) uses the user's local Chrome with remote debugging for sites that block static scraping (好大夫在线, 微信公众号, ChiCTR, etc.). One-time setup:
+Clinical-trial matching is not part of this repository. A separately installed tool may help structure protocol criteria, but its output is not proof of eligibility. The research site must review the current protocol, amendments, disease status, labs, medications, timing and source records.
 
-1. **Node.js 22+** (for native WebSocket; lower versions need the `ws` module)
-2. In Chrome's address bar, open `chrome://inspect/#remote-debugging` and check **"Allow remote debugging for this browser instance"** (may need to restart Chrome)
-
-Without this, `find-care` falls back to pure WebSearch/WebFetch — works for some queries, less reliable for ranking-heavy ones.
-
-The CLI auto-detects Claude Code and installs to `~/.claude/skills/` (global) or `.claude/skills/` (project). Restart Claude Code after install.
-
-**Update:**
-```bash
-npx skills update cancer-buddy
-```
-
-**Uninstall:**
-```bash
-npx skills remove cancer-buddy
-```
-
-## Companion skills
-
-Cancer-buddy is companion-scope — it deliberately does NOT do clinical decision-making. Two companion skills cover the clinical/decision tier:
-
-### clinical-trial-matching — auto-fetched on demand
-
-Repo: [CancerDAO/clinical-trial-matching-skill](https://github.com/CancerDAO/clinical-trial-matching-skill) (CancerDAO open source). Does criterion-level CoT gating, R1–R5 hard rules, vs-SoC efficacy, decision synthesizer — built on NCBI TrialGPT.
-
-**You don't install it upfront.** When `cancer-buddy-find-care` produces a shortlist that contains NCT / ChiCTR trials and the user wants criterion-by-criterion matching, find-care:
-1. Checks whether `clinical-trial-matching` is already in `~/.claude/skills/` (or `.claude/skills/`).
-2. If missing, runs `npx skills add CancerDAO/clinical-trial-matching-skill -g --all` (≈3 s) and tells the user it's doing so.
-3. Routes the call.
-
-If you'd rather pre-install (offline machine, slow network, etc.):
-
-```bash
-npx skills add CancerDAO/clinical-trial-matching-skill -g --all
-```
-
-### vmtb-skill — full virtual MTB analysis (open-sourcing soon)
-
-`cancer-buddy-find-care` helps you **find hospitals/doctors that do MTB** — it doesn't run the MTB analysis itself. For the deep committee analysis (pathologist + geneticist + recruiter + oncologist + chair + 5-dimension verifier, 15–20 min), the dedicated tool is `vmtb-skill`. **It's not open-sourced yet — public release is in preparation, follow [@CancerDAO](https://github.com/CancerDAO) for the announcement.**
-
-In the meantime, cancer-buddy auto-detects whether `vmtb-skill` is already installed locally:
-
-- **Installed (internal team members)** → router invokes it directly; no extra steps needed.
-- **Not installed (public users)** → router replies with the "open-sourcing soon" message and offers `find-care` (find an MTB-capable venue), `organize` (prep records for an in-person MTB), or `second-opinion` (cross-border packet).
-
-Internal team members get the install path through CancerDAO's internal onboarding — not documented here.
-
-### Routing summary
-
-- **Where can my MTB happen?** → `cancer-buddy-find-care` (this repo)
-- **Find trial centers / hospitals near me** → `cancer-buddy-find-care` (this repo)
-- **Match me to a specific trial criterion-by-criterion** → `clinical-trial-matching` (auto-fetched by find-care)
-- **Run a virtual MTB on my case** → `vmtb-skill` if installed (internal); otherwise "open-sourcing soon" + the alternatives above
-- **Real clinical MTB decisions** → your treating oncologist + the venue you found above
+Likewise, virtual MTB or other clinical-decision tools are outside the public Cancer Buddy scope. Cancer Buddy may organize records and questions for a qualified treating team; it does not generate a substitute decision report.
 
 ## Verify
 
-In Claude Code, type:
+```bash
+bash tests/eval/run.sh
+for test in tests/unit/*.sh tests/integration/*.sh; do bash "$test"; done
 ```
-抗癌搭子
-```
 
-The meta-skill should respond. If nothing happens:
-
-1. Check the SKILL.md was installed: `ls ~/.claude/skills/cancer-buddy/SKILL.md`
-2. Claude Code version — older versions may not auto-discover skills.
-3. Try the `skills list` command: `npx skills list` — confirms what's installed.
-
-## Data location
-
-`patients/<patient_code>/` is where all records and reports live. `patient_code` is auto-generated by the organizer on first run (e.g. `PT-17CE02BC33`). Root directory resolves in this order:
-
-1. `$CANCER_BUDDY_PATIENTS_DIR` (if set)
-2. `$VMTB_PATIENT_DATA_ROOT` (shared with vmtb-skill)
-3. `$HOME/CancerDAO/patients` (default)
-
-Your `patients/` directory is untouched by uninstall — back it up or move it first if you care about it.
+For help, open an issue at the [CancerDAO repository](https://github.com/CancerDAO/cancer-buddy-skill).

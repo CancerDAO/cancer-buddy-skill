@@ -1,251 +1,212 @@
 #!/usr/bin/env python3
-"""Safe-share export of a finished organize patient_dir (US-011).
+"""Create a purpose-limited export from an organized patient directory.
 
-A patient who wants to hand their organized archive to a doctor / second-opinion
-service / family member needs a copy that ships ZERO raw identity — but the
-organize design deliberately keeps every uploaded original **verbatim** in
-`raw/`, never pixel-redacted (see references/bucket-taxonomy.md §4-§5: the only
-desensitization of the archived data is the text masking in the `.md` sidecars,
-plus the patient-facing 段D HTML coarse-graining — precise age retained for
-clinical-trial matching, but name/DOB/birthplace/occupation masked). The raw
-images still carry the patient's name, IDs, hospital headers, barcodes —
-unredacted by design.
+This helper is not an authorization system and does not prove anonymity. The
+calling host must authenticate the actor, verify authority, obtain the patient's
+scoped confirmation, enforce expiry/revocation, and append its own audit event.
 
-So the safe-share path is **exclusion, not redaction**: we never try to pixel-
-redact `raw/` (lossy, unverifiable, and not what raw/ is for). We ship only the
-text-masked surfaces (buckets' `.md` sidecars + the structured JSONs + the
-coarse-grained HTML) and leave the verbatim originals behind entirely. To make
-that safe we FIRST run the deterministic acceptance gate
-(`validate_structured_outputs.py`) — which includes the PII residue rescan of the
-sidecars AND the delivered-surface scan (INDEX.md / source_inventory.json /
-dotfiles / 病情简要总结.html). If that gate fails, a name/email/path leak could
-ship, so we ABORT and export nothing. Only a clean run is exportable.
-
-What is EXCLUDED from the export (never copied to <dest>):
-  - raw/                      verbatim un-redacted originals — the whole point of
-                              exclusion-not-redaction
-  - .DS_Store                 macOS Finder cruft (any depth)
-  - empty ocr/                Phase-1 staging dir, should already be drained+gone;
-                              an empty leftover is dropped (a non-empty ocr/ means
-                              the run is unfinished — the gate above would already
-                              have flagged stranded sidecars / inventory mismatch)
-  - .case_summary_data.json   hidden 段D render intermediate (build artifact, never
-                              a Q&A source — SKILL.md patient-dir file map)
-  - .rename_plan.json         Phase-2 dotfile: bucketing plan (provenance only)
-  - .phase1_sources.json      Phase-1 dotfile: slice→source map (provenance only)
-  - .identity_denylist.json   the patient-identity deny-list seed — must NEVER ship
-                              (it literally lists identity tokens)
-
-Everything else is copied: the 14 buckets + 99_ quarantine, INDEX.md / AGENTS.md /
-profile.json / readiness.json / the 6+ structured JSONs / timeline.* / case_text.md /
-review_summary.md / review_flags.md / missing_items.json / source_inventory.json /
-update_log.json / 病情简要总结.html (the current root summary, PII-gated).
-(case_summary_versions/ dated snapshots are EXCLUDED — see EXCLUDE_TOPLEVEL: they are
-local-only history and are not re-scanned by the gate, so they never ship.)
+The exporter:
+  * requires an explicit allowlist (`--include`) rather than copying the archive;
+  * refuses `raw/`, build intermediates, identity maps, and version history;
+  * runs the structural acceptance gate before copying;
+  * writes a manifest describing the declared recipient, purpose, expiry,
+    authorization reference, and selected paths.
 
 Usage:
-    python3 scripts/export_share.py <patient_dir> --out <dest_dir>
-
-Exit codes:
-    0  — export written to <dest_dir>
-    1  — acceptance gate failed (nothing exported) OR copy error
-    2  — bad invocation
+  python3 export_share.py PATIENT_DIR --out DEST \
+    --include profile.json --include 04_诊断与分期/病理报告/report.md \
+    --recipient "receiving-center" --purpose "second-opinion" \
+    --expires-at 2026-08-01T00:00:00Z --authorization-ref consent-123
 """
 from __future__ import annotations
 
 import argparse
+import datetime as dt
+import json
 import shutil
 import sys
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-
-# Make the sibling acceptance gate importable (it lives next to us).
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
-# Top-level entries excluded entirely (raw/ vault + hidden render/provenance dotfiles).
-EXCLUDE_TOPLEVEL = {
+FORBIDDEN_TOPLEVEL = {
     "raw",
+    "ocr",
+    "case_summary_versions",
     ".case_summary_data.json",
     ".visit_prep_data.json",
     ".rename_plan.json",
     ".phase1_sources.json",
     ".identity_denylist.json",
-    # Dated immutable patient-facing snapshots accumulate across runs and old ones
-    # are never re-rendered or re-scanned, so a snapshot written before a PII-gate
-    # upgrade could carry PII the current gate would catch. The gate only scans the
-    # CURRENT root 病情简要总结.html, so shipping unscanned snapshots would falsify
-    # the "no PII ships" guarantee. Version history is a LOCAL archival concern —
-    # the export ships only the current, scanned root summary.
-    "case_summary_versions",
+    "alias_map.json",
 }
-
-# Names dropped at ANY depth during the copy.
-EXCLUDE_ANY_DEPTH = {".DS_Store"}
+FORBIDDEN_ANY_DEPTH = {".DS_Store", "_FILENAME_MAPPING.md"}
 
 
 def _run_acceptance_gate(patient_dir: Path) -> bool:
-    """Run validate_structured_outputs.py on patient_dir. Return True iff it passes.
-
-    Prefer importing it as a sibling module (one process, no subprocess cost / PATH
-    surprises); fall back to a subprocess if import is unavailable. Either way the
-    PASS condition is the gate's own exit/return code == 0.
-    """
     try:
-        import validate_structured_outputs as gate  # sibling module
+        import validate_structured_outputs as gate
     except Exception:
         gate = None
 
     if gate is not None and hasattr(gate, "main"):
-        # gate.main() reads sys.argv, so set it for the call and restore after.
         saved_argv = sys.argv
         try:
             sys.argv = ["validate_structured_outputs.py", str(patient_dir)]
-            rc = gate.main()
+            return gate.main() == 0
         finally:
             sys.argv = saved_argv
-        return rc == 0
 
-    # Fallback: run it as a subprocess.
     import subprocess
 
-    proc = subprocess.run(
+    return subprocess.run(
         [sys.executable, str(SCRIPT_DIR / "validate_structured_outputs.py"), str(patient_dir)]
-    )
-    return proc.returncode == 0
+    ).returncode == 0
 
 
-def _is_empty_dir(path: Path) -> bool:
+def _parse_expiry(value: str) -> str:
     try:
-        return path.is_dir() and not any(path.iterdir())
-    except OSError:
-        return False
+        parsed = dt.datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("--expires-at must be ISO-8601") from exc
+    now = dt.datetime.now(dt.timezone.utc)
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=dt.timezone.utc)
+    if parsed <= now:
+        raise argparse.ArgumentTypeError("--expires-at must be in the future")
+    return value
 
 
-def _ignore_factory(included: list[str], excluded: list[str], patient_dir: Path):
-    """shutil.copytree ignore callback: drop EXCLUDE_ANY_DEPTH names + empty ocr/,
-    recording what was kept vs skipped for the summary."""
+def _resolve_includes(patient_dir: Path, requested: list[str]) -> list[tuple[Path, Path]]:
+    selected: list[tuple[Path, Path]] = []
+    seen: set[Path] = set()
+    for raw_rel in requested:
+        rel = Path(raw_rel)
+        if rel.is_absolute() or rel == Path(".") or ".." in rel.parts:
+            raise ValueError(f"unsafe include path: {raw_rel}")
+        if not rel.parts or rel.parts[0] in FORBIDDEN_TOPLEVEL:
+            raise ValueError(f"forbidden export path: {raw_rel}")
+        if any(part in FORBIDDEN_ANY_DEPTH for part in rel.parts):
+            raise ValueError(f"forbidden export path: {raw_rel}")
 
-    def _ignore(src_dir: str, names: list[str]) -> set[str]:
-        src_path = Path(src_dir)
-        skip: set[str] = set()
-        for name in names:
-            child = src_path / name
-            if name in EXCLUDE_ANY_DEPTH:
-                skip.add(name)
-                continue
-            # Top-level raw/ + render/provenance dotfiles: skip DURING copy so the
-            # verbatim un-redacted originals are NEVER written to <dest>, not even
-            # transiently (copytree DOES invoke ignore for the root dir).
-            if src_path == patient_dir and name in EXCLUDE_TOPLEVEL:
-                skip.add(name)
-                excluded.append(name + "/" if child.is_dir() else name)
-                continue
-            # Drop an empty ocr/ staging leftover (only at the patient-dir root).
-            if name == "ocr" and src_path == patient_dir and _is_empty_dir(child):
-                skip.add(name)
-                excluded.append("ocr/ (empty staging leftover)")
-                continue
-        # Record top-level inclusions for the summary (only at the root level).
-        if src_path == patient_dir:
-            for name in sorted(names):
-                if name in skip or name in EXCLUDE_TOPLEVEL:
-                    continue
-                child = src_path / name
-                included.append(name + "/" if child.is_dir() else name)
-        return skip
+        candidate = patient_dir / rel
+        if candidate.is_symlink():
+            raise ValueError(f"symbolic links are not exportable: {raw_rel}")
+        src = candidate.resolve()
+        try:
+            resolved_rel = src.relative_to(patient_dir)
+        except ValueError as exc:
+            raise ValueError(f"include escapes patient directory: {raw_rel}") from exc
+        if not resolved_rel.parts or resolved_rel.parts[0] in FORBIDDEN_TOPLEVEL:
+            raise ValueError(f"include resolves to protected path: {raw_rel}")
+        if not src.exists():
+            raise ValueError(f"include does not exist: {raw_rel}")
+        if not src.is_file():
+            raise ValueError(f"include must name one regular file: {raw_rel}")
+        if src in seen:
+            continue
+        seen.add(src)
+        selected.append((rel, src))
 
-    return _ignore
+    return selected
 
 
-def export_share(patient_dir: Path, dest_dir: Path) -> int:
+def export_share(
+    patient_dir: Path,
+    dest_dir: Path,
+    includes: list[str],
+    *,
+    recipient: str,
+    purpose: str,
+    expires_at: str,
+    authorization_ref: str,
+) -> int:
     if not patient_dir.is_dir():
         print(f"ERROR: {patient_dir} is not a directory", file=sys.stderr)
         return 2
-
-    # (a) FIRST gate — never ship a dir that can leak PII / paths.
-    print(f"[export_share] running acceptance gate on {patient_dir} ...")
-    if not _run_acceptance_gate(patient_dir):
-        print(
-            "ERROR: acceptance gate FAILED — refusing to export (a PII / path leak "
-            "could ship). Fix the gate findings above and re-run.",
-            file=sys.stderr,
-        )
-        return 1
-
     if dest_dir.exists():
-        print(
-            f"ERROR: destination already exists: {dest_dir} — choose a fresh --out path",
-            file=sys.stderr,
-        )
+        print(f"ERROR: destination already exists: {dest_dir}", file=sys.stderr)
+        return 1
+    if dest_dir == patient_dir or dest_dir.is_relative_to(patient_dir):
+        print("ERROR: export destination must be outside the patient directory", file=sys.stderr)
+        return 2
+    if not all(value.strip() for value in (recipient, purpose, authorization_ref)):
+        print("ERROR: recipient, purpose, and authorization-ref must be non-empty", file=sys.stderr)
+        return 2
+
+    try:
+        selected = _resolve_includes(patient_dir, includes)
+    except ValueError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 2
+    if not selected:
+        print("ERROR: at least one permitted --include is required", file=sys.stderr)
+        return 2
+
+    print(f"[export_share] running structural acceptance gate on {patient_dir} ...")
+    if not _run_acceptance_gate(patient_dir):
+        print("ERROR: acceptance gate failed; nothing exported", file=sys.stderr)
         return 1
 
-    # (b) copy, excluding raw/ + render/provenance dotfiles at the top level, and
-    # .DS_Store / empty ocr/ at any depth.
-    included: list[str] = []
-    excluded: list[str] = []
-    ignore = _ignore_factory(included, excluded, patient_dir)
-
-    dest_dir.parent.mkdir(parents=True, exist_ok=True)
     try:
-        # Copy the patient_dir into dest_dir, then prune the excluded top-level
-        # entries. (copytree's ignore can't see top-level names against patient_dir
-        # the same way for the synthetic root, so we prune them explicitly.)
-        shutil.copytree(patient_dir, dest_dir, ignore=ignore, symlinks=False)
-    except Exception as e:
-        print(f"ERROR: copy failed: {e}", file=sys.stderr)
-        # leave no partial export behind
+        dest_dir.mkdir(parents=True, exist_ok=False)
+        for rel, src in selected:
+            dst = dest_dir / rel
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(src, dst)
+
+        manifest = {
+            "schema": "cancer_buddy_purpose_limited_export_v1",
+            "created_at": dt.datetime.now(dt.timezone.utc).isoformat(),
+            "recipient": recipient,
+            "purpose": purpose,
+            "expires_at": expires_at,
+            "authorization_ref": authorization_ref,
+            "included_paths": [rel.as_posix() for rel, _ in selected],
+            "raw_originals_included": False,
+            "notice": (
+                "This is a purpose-limited, explicitly selected export. It may still contain direct "
+                "or indirect identifiers and is not guaranteed de-identified or anonymous. The host "
+                "must enforce authorization, expiry, revocation, and audit."
+            ),
+        }
+        (dest_dir / "_SHARE_MANIFEST.json").write_text(
+            json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+        )
+    except Exception as exc:
+        print(f"ERROR: export failed: {exc}", file=sys.stderr)
         shutil.rmtree(dest_dir, ignore_errors=True)
         return 1
 
-    # Prune the explicit top-level exclusions that may have been copied.
-    for name in sorted(EXCLUDE_TOPLEVEL):
-        target = dest_dir / name
-        if target.is_dir():
-            shutil.rmtree(target, ignore_errors=True)
-            excluded.append(f"{name}/")
-        elif target.exists():
-            try:
-                target.unlink()
-                excluded.append(name)
-            except OSError:
-                pass
-
-    # (c) summary.
-    print(f"\n[export_share] safe-share export written to: {dest_dir}")
-    print(f"  INCLUDED ({len(included)} top-level entries):")
-    for name in included:
-        print(f"    + {name}")
-    print("  EXCLUDED (never shipped):")
-    print("    - raw/ (verbatim un-redacted originals — exclusion, not redaction)")
-    for name in sorted(set(excluded)):
-        if name.rstrip("/") == "raw":
-            continue
-        print(f"    - {name}")
-    print(
-        "    - .case_summary_data.json / .rename_plan.json / .phase1_sources.json / "
-        ".identity_denylist.json (hidden render/provenance/identity dotfiles)"
-    )
-    print("    - .DS_Store (any depth)")
+    print(f"[export_share] purpose-limited export written to: {dest_dir}")
+    for rel, _ in selected:
+        print(f"  + {rel.as_posix()}")
+    print("  - raw/ and protected provenance/build files were not eligible")
     return 0
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(
-        description="Safe-share export of a finished organize patient_dir "
-        "(excludes raw/ + render/provenance dotfiles; aborts if the acceptance "
-        "gate fails so no PII/path leak ships)."
-    )
-    parser.add_argument("patient_dir", help="absolute path to the patient directory")
-    parser.add_argument(
-        "--out", required=True, dest="out", help="destination directory (must not already exist)"
-    )
+    parser = argparse.ArgumentParser(description="Create a purpose-limited patient-record export")
+    parser.add_argument("patient_dir")
+    parser.add_argument("--out", required=True)
+    parser.add_argument("--include", action="append", required=True, help="relative path; repeatable")
+    parser.add_argument("--recipient", required=True)
+    parser.add_argument("--purpose", required=True)
+    parser.add_argument("--expires-at", required=True, type=_parse_expiry)
+    parser.add_argument("--authorization-ref", required=True)
     args = parser.parse_args()
 
-    patient_dir = Path(args.patient_dir).resolve()
-    dest_dir = Path(args.out).resolve()
-    return export_share(patient_dir, dest_dir)
+    return export_share(
+        Path(args.patient_dir).resolve(),
+        Path(args.out).resolve(),
+        args.include,
+        recipient=args.recipient,
+        purpose=args.purpose,
+        expires_at=args.expires_at,
+        authorization_ref=args.authorization_ref,
+    )
 
 
 if __name__ == "__main__":

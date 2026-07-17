@@ -1,66 +1,76 @@
 ---
 name: cancer-buddy-nutrition
-description: "Individualized nutrition plans by cancer type and treatment phase (pre-op / chemo / radio / immuno / recovery). Checks drug-food interactions (ginseng↔anticoagulants, grapefruit↔TKIs, etc). Role-aware: patient-mode gives self-cook menus; caregiver-mode adds shopping lists and a week's prep plan; refuses other-family routing. Triggers on: 吃什么, 忌口, 化疗期饮食, 术后营养, 补剂, 中医饮食, 灵芝, 人参, 蛋白粉."
+description: "Provide symptom-directed nutrition education, food-safety guidance, and pharmacist/dietitian routing for people affected by cancer. Use for questions about eating, treatment-related nutrition symptoms, food/drug interactions, supplements, and culturally familiar meal ideas. Never prescribe nutrient targets or infer interactions from model memory."
 ---
 
 # cancer-buddy-nutrition
 
-What the patient eats affects treatment tolerance, healing, and outcome. This skill generates evidence-based, culturally-aware meal plans tied to current treatment phase and comorbidities.
+Provide low-risk nutrition support and help the user prepare for a registered dietitian, oncology pharmacist,
+or treating-team discussion. Do not generate a clinical nutrition prescription.
 
-## When to use
+## Entry
 
-- User asks about food / diet / forbidden foods / supplements.
-- During transitions: new chemo cycle, post-op, immunotherapy start (some immune-related nutrition differences).
-- User asks about specific supplements (灵芝 / 虫草 / 人参 / 蛋白粉).
-
-## Locale
-
-Per `../../references/i18n.md`: if the caller / host supplies `locale` (the user's explicit product UI language), use it first and write/update `profile.json.locale` when profile state is available. Otherwise read `profile.json.locale` first (this skill always runs after organize, so a value should normally be present); if absent (or no profile yet), detect it from the **primary patient-facing language of the records**, tie-breaking to the **language the user is conversing in**, and write it back to `profile.json.locale` (BCP-47, e.g. `zh` / `en` / `fr`). Reuse the persisted value on every later turn so the whole journey speaks one language. An explicit user override ("answer me in English" / "用中文") always wins and is written back.
-
-Render **every patient/caregiver-visible output in that locale** — the 7-day menu, shopping list, batch-prep plan, interactions-flagged report, supplement assessments, the family-role refusal copy, and any routing/disclaimer prose. **Keep clinical entities verbatim** (drug names, genes/variants, TNM/stage, numbers + units, scale standard names — e.g. `osimertinib`, `奥沙利铂`, `ANC < 1.0`, `EGFR L858R`) per `i18n.md` §4 — mistranslating one is a P0 safety bug. The reference files below carry their scaffold in `zh`; treat them as the **source string table** and render the localized equivalent at output time (§5 of `i18n.md`). For the generative pieces (7-day menu prose, supplement honesty replies, interaction findings) the prompt instruction is: *output all scaffold/narrative prose in `<locale>`; keep every clinical entity verbatim.*
-
-## Preflight
-
-Run [../../references/preflight.md](../../references/preflight.md) — role + disclosure + readiness grade + **review_flags red gate (Step 2.5)** + schema validity. Especially critical here: a 🔴 RED review_flag on `summary.current_regimen` or a line's drug name in `treatment_lines.json` makes the entire meal plan wrong (drug-food interaction table is keyed on actual drugs in use). Real failure case: when `summary.current_regimen` was OCR'd as "瑞戈非尼 + 伊立替康" instead of the actual "雷替曲塞 + 信迪利单抗", the resulting nutrition plan included a TKI low-fat-breakfast medication-timing rule and a SN-38 delayed-diarrhea protocol — both clinically irrelevant, both confidently wrong. Block until human-resolved.
-
-In addition:
-- Require `patients/<patient_code>/profile.json` with `summary.primary` and `summary.current_regimen` populated; if missing, route back to organize.
+1. Resolve role, authorization, locale, and provenance under the root contracts.
+2. Identify the user's actual question and urgent symptoms. Persistent vomiting/diarrhea, inability to keep
+   fluids down, rapid weight loss, dehydration, swallowing obstruction, suspected immune toxicity, or other
+   severe/rapidly worsening symptoms route promptly to the treating team/emergency care.
+3. Use only non-disputed source fields. Patient/caregiver reports remain separate.
 
 ## Workflow
 
-1. Identify treatment phase from `profile.json.summary.current_regimen` + the ordered lines of therapy in `treatment_lines.json`. Phases: pre-op / post-op recovery / active chemo / active radio / active immuno / active targeted / maintenance / post-treatment survivorship.
-2. Query [references/phase-based-plans.md](references/phase-based-plans.md) for the phase-appropriate nutrition rules (protein target, caloric target, hydration, foods to emphasize/avoid).
-3. Cross-check patient's current medications against [references/drug-food-interactions.md](references/drug-food-interactions.md). Critical interactions (TKI ↔ 西柚汁, 华法林 ↔ 大量深色叶菜, 奥沙利铂 ↔ 冷食, 免疫抑制期 ↔ 生食) MUST be flagged.
-4. Generate a 7-day menu per [references/china-dietary-templates.md](references/china-dietary-templates.md) — match to patient's regional preference (北方 / 南方 / 川湘 / 粤) if hinted in `patient_summary.json.patient_location_hint`. Render the menu scaffold (meal labels, section titles, prep notes) in `profile.json.locale`; the `zh` templates are the source string table. For a non-`zh` locale, adapt to dishes the patient can actually source/cook in that culinary context rather than transliterating Chinese dish names, while honoring the same per-phase nutrition rules.
-5. If user asks about a specific supplement, check [references/forbidden-supplement-claims.md](references/forbidden-supplement-claims.md). Respond with an honest evidence assessment (not marketing claims), written in `profile.json.locale`; keep drug/supplement standard names verbatim.
+- Use `phase-based-plans.md` as a symptom/setting framework. Do not auto-prescribe protein, calories,
+  fluid, salt, sugar, fiber, fasting or supplements from treatment phase, albumin, ANC, or model judgment.
+- Use `drug-food-interactions.md` for every medication/food/supplement question. Verify the exact drug,
+  formulation and current regulator label plus an authoritative interaction resource at answer time. If
+  unverified, fail closed and route to an oncology pharmacist.
+- Use `forbidden-supplement-claims.md` for products/diets. Do not provide generic dose, timing, safe-use,
+  anticancer or recurrence-prevention claims.
+- Use `china-dietary-templates.md` for replaceable culturally familiar meal ideas after asking preferences,
+  symptoms, allergies, budget and comorbidities. Portions/targets come only from an individualized plan.
 
 ## Output
 
-Written under `patients/<patient_code>/reports/nutrition/` (filenames are stable ASCII keys; the date in `plan-YYYY-MM-DD.md` follows ISO regardless of locale, but in-document date prose follows the locale's date format). All document **content** is rendered in `profile.json.locale`; clinical entities stay verbatim.
-- `plan-YYYY-MM-DD.md` — current phase + 7-day menu + shopping list (if role=caregiver)
-- `interactions-flagged.md` — drug-food interactions reviewed for this patient's current regimen
-- `supplement-assessments.md` — evidence evaluation for each supplement the user has asked about
+Write optional patient-owned notes under `reports/nutrition/`:
 
-## Role behavior
+- symptom-friendly food ideas and questions for the dietitian;
+- medication/supplement inventory with source and verification status;
+- interaction items with direct label/source URL, version/date and pharmacist-review status;
+- supplement evidence/uncertainty summary.
 
-- **Role = patient**: 7-day self-cook menu, portion sizes for one. "你早餐可以吃..."
-  - *Disclosure*: disclosure_state=suppressed → normal; abstract drug names OK; cancer-type not surfaced.
-- **Role = caregiver**: adds weekly shopping list, batch-prep plan, and "怎么让 Ta 吃得下" — because cancer-induced anorexia is the #1 reason menus fail. 2nd-person: "你这周可以给 X 准备的菜..."
-- **Role = family**: refuse. Emit the localized equivalent (`profile.json.locale`) of: `日常饮食安排由主照护者把握最灵活。如果你想帮忙，可以问 Ta 这周需要补什么食材，你去采购送上门。`
+Do not label output as a prescribed 7-day plan unless a registered dietitian supplied the targets and the
+artifact clearly attributes them.
+
+## Localization
+
+Preserve source drug/product terms. Add validated normalized names and patient-language explanations beside
+them; do not overwrite the source. Localize all scaffold and warnings.
 
 ## Safety
 
-- **Never recommend "anti-cancer foods"** without level A evidence. Foods with marketing claims (灵芝孢子粉、抗癌茶、虫草) → explicitly state, in `profile.json.locale`, the equivalent of "尚无可靠循证支持抗肿瘤疗效" (keep the supplement's standard name verbatim).
-- Drug-food interactions with clinical consequences (bleeding with warfarin + dark leafy greens, TKI AUC shifts with grapefruit) ALWAYS flagged in red.
-- For immunocompromised phases (chemo nadir, post-transplant, high-dose steroids), emphasize food safety (avoid raw, undercooked, unpasteurized) not calorie micromanagement.
-- Recognize that many patients lose 10-20% body weight during treatment — calorie goals are often "eat what you can keep down", not ideal macro ratios.
-- Never tell a patient to stop an evidence-based therapy in favor of a diet (e.g., Gerson protocol).
+- Never tell a patient to start, stop, delay, retime or change a prescription medicine.
+- Never claim a food, herb, vitamin, supplement or diet treats cancer or prevents recurrence without a
+  current, directly applicable primary guideline claim.
+- General food safety focuses on safe temperatures, hand hygiene, adequate cooking and cross-contamination;
+  do not automatically impose a restrictive “neutropenic diet.”
+- Suspected immune-related diarrhea is not routine chemotherapy diarrhea; escalate promptly.
+
+## Role behavior
+
+- **Role = patient**：提供症状导向的一般营养教育，并使用患者本人授权资料。
+- **Role = caregiver**：在有效授权内帮助备餐和整理问题；观察记为 `caregiver_reported`。
+- **Role = family**：无授权时只提供一般食品安全和支持建议，不查看患者记录。
+
+## Disclosure
+
+不得从饮食建议暗示或泄露患者未授权的诊断/分期。患者明确要求自己的信息时，家属 suppression 偏好不能覆盖；能力或代理争议转临床团队。
 
 ## References
 
-- [phase-based-plans.md](references/phase-based-plans.md) — per-phase nutrition rules
-- [drug-food-interactions.md](references/drug-food-interactions.md) — common oncology drug + food combinations to watch
-- [china-dietary-templates.md](references/china-dietary-templates.md) — 北方/南方/川湘/粤 modular templates
-- [forbidden-supplement-claims.md](references/forbidden-supplement-claims.md) — evidence assessment of supplements patients commonly ask about
+- [phase-based-plans.md](references/phase-based-plans.md)
+- [drug-food-interactions.md](references/drug-food-interactions.md)
+- [china-dietary-templates.md](references/china-dietary-templates.md)
+- [forbidden-supplement-claims.md](references/forbidden-supplement-claims.md)
+- [../../references/clinical-content-governance.md](../../references/clinical-content-governance.md)
 - [../../references/safety-guardrails.md](../../references/safety-guardrails.md)
-- [../../references/roles.md](../../references/roles.md)
+- [../../references/i18n.md](../../references/i18n.md)
+- [../../references/disclosure-behavior.md](../../references/disclosure-behavior.md)

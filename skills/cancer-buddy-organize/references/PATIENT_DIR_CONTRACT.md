@@ -2,7 +2,7 @@
 
 # PATIENT_DIR_CONTRACT — the on-disk patient archive (SHARED-1)
 
-This is the **single cross-repo source of truth** for the on-disk patient archive that
+This is the **single cross-repo interface contract** for the on-disk patient archive that
 `cancer-buddy-organize` **PRODUCES** and `vmtb-skill` **CONSUMES** (in skip-organize mode). It is
 narrower and more stable than either repo's internal docs: a consumer that programs against ONLY
 what is written here will not break when either side iterates its private layout. If this file and a
@@ -43,7 +43,7 @@ takes a caller arg. The env-chain above is the shared fallback both honor.)
     │       ├── profile_resolved.json    # consumer-side flat projection (§6)
     │       └── …                        # chair report, evidence graph, delivery/
     └── reports/
-        └── mtb-full/                    # canonical published delivery pack location
+        └── mtb-full/                    # published delivery pack location (not proof of clinical validity)
             └── delivery/                # 8 HTML + 8 PDF + REVIEW_CHECKLIST.md
 ```
 
@@ -59,18 +59,15 @@ Callers **may redirect the root** (env / CLI) but **MUST NOT rename the internal
 
 ## 2. `patient_code` (the per-patient directory name)
 
-- **Value**: caller-supplied OR auto-generated `PT-<hex>` (e.g. `PT-17CE02BC33`) — cancer-buddy
-  auto-derives from `hash(input basename + mtime)`; vMTB auto-derives from a hash when none is passed.
-- **Invariant**: the code MUST be **de-identified and whitespace-free**. A caller code containing a
-  real name (CJK / non-ASCII) or spaces (e.g. `"023 兰芳"`) is **slugified**, never used verbatim —
-  the ASCII-safe alnum tokens are kept, non-ASCII tokens dropped, and a short deterministic hash is
-  appended (→ e.g. `023-a1b2c3d4`); if nothing ASCII-safe survives → `PT-<HEX>`. This guarantees the
-  on-disk path leaks no real name and never word-splits in an unquoted shell command. Cross-ref the
-  canonical de-identifier: vmtb `scripts/utils/patient_code.py`.
-- **Consumer rule**: accept EITHER an auto `PT-` code OR a caller-supplied slug. **Do NOT hard-reject
-  a directory on a `PT-` regex** — a legitimately organized patient may have a caller code like
-  `48C507_CRC_2022` or `023-a1b2c3d4`. The `patient_code` is also declared on the first line of
-  `INDEX.md` as `# patient_code: <code>` and mirrored in `profile.json.patient_code`.
+- **Value**: generated from cryptographically random bytes as `PT-<hex>` (for example
+  synthetic `PT-A1B2C3D4E5`). Never derive it from a filename, path, diagnosis, timestamp, name, medical-record
+  number, or other patient data.
+- **Invariant**: the code is a storage locator, not identity, consent, or authorization. Reject a supplied
+  real-world identifier and generate a new random code; do not preserve recognizable substrings or append
+  a deterministic hash.
+- **Consumer rule**: accept the `PT-<hex>` form declared on the first line of `INDEX.md` and mirrored in
+  `profile.json.patient_code`. A separately protected optional alias must be non-clinical and
+  non-identifying; it never replaces the canonical random locator.
 
 ---
 
@@ -102,7 +99,7 @@ The **pinned typed sub-buckets** per domain — e.g. `04_诊断与分期/{病理
 - **Buckets are lazily created.** A domain dir exists on disk **iff** the archive actually filed a
   record for it. **An absent bucket means "no source was filed for this domain", NOT "scaffold missing"
   or "domain checked and clear"** — never treat an absent `09_手术与操作/` as "no surgery"; the
-  authoritative "expected-but-missing" channel is `missing_items.json`.
+  existing-document inventory channel is `missing_items.json`; absence never means a test is indicated.
 - **`raw/` and `99_无关文件/` are NEVER anchor targets.** `raw/` is the hidden verbatim vault of
   uploaded originals (never pixel-redacted, filename de-identified); `99_无关文件/` is the relevance
   quarantine (`high_confidence/ uncertain/`). Downstream never reads `99_`, and anchors point only at
@@ -121,17 +118,17 @@ One-line purpose each (producer writes all of these; the conditional ones only w
 
 | File | Purpose |
 |---|---|
-| `profile.json` | **Slim canonical first-read snapshot** — identity + `locale` + denormalized `summary` diagnosis + `latest_status`. The stable primary read (see §5). |
-| `patient_summary.json` | Full normalized structured rollup — demographics + diagnosis (icd10/diagnosed_at) + current_status; **authoritative for structured diagnosis fields**. |
-| `molecular.json` | NGS variants + IHC + MSI/MMR + TMB (+ optional germline/pharmacogenomics); **authoritative for molecular**. |
-| `treatment_lines.json` | Ordered lines of therapy; **authoritative for treatment lines**. |
+| `profile.json` | Slim first-read index with provenance/verification state; `patient_code` is not identity authentication. |
+| `patient_summary.json` | Source-preserving rollup; structured fields are not clinically authoritative merely because they are normalized. |
+| `molecular.json` | Source-preserving report, sample, assay, quality and result records; no actionability inference. |
+| `treatment_lines.json` | Chronological treatment episodes; line labels only when clinician-documented. |
 | `labs.json` | Lab panels with serial values. |
 | `comorbidities.json` | Conditions + long-term meds + allergies. |
 | `timeline.json` | Machine-readable mirror of `timeline.md`. |
 | `timeline.md` | Human-readable treatment timeline (every line carries a `[[src:…]]` anchor). |
-| `readiness.json` | MTB readiness — coverage `score`/`grade` (A≥.90 B≥.75 C≥.60 D≥.40 F) + `blocking_gaps[]` + `review_flags[]` (9-check suspicious-value audit). |
-| `source_inventory.json` | One row per content unit: `file_id ↔ source_id ↔ sidecar ↔ raw_path ↔ page_range ↔ modality`. The frontend deep-link map. |
-| `missing_items.json` | Cancer-type checklist diff — the authoritative "expected-but-missing domain" channel. |
+| `readiness.json` | Documentation coverage and source/faithfulness review flags; no A–F clinical readiness grade. |
+| `source_inventory.json` | `source_inventory_v2`: one row per content unit with `file_id ↔ source_id ↔ sidecar ↔ raw_path ↔ page_range ↔ modality`, extraction engine/version/raw-output provenance, bounded LLM role, and high-risk reread status. The frontend deep-link map, not an authorization record. |
+| `missing_items.json` | Compatibility filename for `document_gaps[]`: existing records not found/unknown/requested by a clinician; never a test recommendation. |
 | `update_log.json` | Append-only audit trail of every full / incremental run. |
 | `case_text.md` | Consolidated narrative; every factual sentence anchored via `[[src:<bucket>/<file>.md#L<a>-L<b>]]`. |
 | `INDEX.md` | File manifest; **first line is `# patient_code: <code>`**. |
@@ -139,7 +136,7 @@ One-line purpose each (producer writes all of these; the conditional ones only w
 | `review_summary.md` | 1-page extracted-field spot-check with verbatim source citations (always written). |
 | `review_flags.md` | Human-readable rendering of `readiness.json.review_flags[]` — **conditional** (only when the array is non-empty). |
 | `longitudinal_observations.json` | Parsed time series (wearable / PRO / lab trends) — **conditional** (only when timeseries/trended data exists; absent otherwise). |
-| `病情简要总结.html` | Patient-facing one-page 段D summary (precise age retained for trial matching; name/DOB/birthplace/occupation masked). |
+| `病情简要总结.html` | Purpose-limited patient-facing summary. Include age or other quasi-identifiers only when necessary and authorized; direct identifiers are excluded from the derived surface. |
 
 ---
 
@@ -153,9 +150,10 @@ One-line purpose each (producer writes all of these; the conditional ones only w
 - **Diagnosis is NESTED under `summary`** (v3 shape), NOT flat top-level:
   cancer type = **`summary.primary`**, histology = **`summary.histology`**, stage = **`summary.stage`**.
   (The old flat `primary_cancer` / `histology` / `stage` at top level is a `*_v1`-era shape.)
-- **Authoritative sources by domain**: molecular facts → `molecular.json`; treatment lines →
-  `treatment_lines.json`; structured diagnosis → `patient_summary.json`. `profile.summary` is a
-  **denormalized convenience copy** — cheap to read, but on disagreement the domain file above wins.
+- **Storage locations by domain**: molecular records → `molecular.json`; treatment episodes →
+  `treatment_lines.json`; structured diagnosis records → `patient_summary.json`. These files are
+  authoritative only for archive location/schema, not for clinical correctness. On disagreement, preserve
+  all sources and `disputed` state rather than selecting a winner.
 
 **Consumers MUST:**
 
@@ -166,16 +164,16 @@ One-line purpose each (producer writes all of these; the conditional ones only w
   - `patient_summary` diagnosis may be `.primary` **OR** `.primary_site`;
   - `source_inventory.json` may be `files[]` **OR** `entries[]`.
 - **Never assume bucket names beyond the `NN_` prefix** (§3) — the localized slug is not stable.
-- **Minimum fields for any downstream to run**: `patient_code`, `summary.primary`, `summary.histology`,
-  `summary.stage`. If any are missing → **prompt the user to re-run organize; never crash.** All
-  consumers tolerate missing optional fields by surfacing a prompt, not by throwing.
+- `patient_code` is the only universal locator field and is not authentication. Missing diagnosis fields
+  remain unknown; consumers may continue stable general help but must not generate patient-specific
+  clinical conclusions. All consumers tolerate missing optional fields without throwing.
 
 ---
 
 ## 6. Producer / consumer boundary
 
-- **`cancer-buddy-organize` WRITES everything under `<patient_code>/`** — the canonical file set (§4),
-  the buckets (§3), `raw/`. It is the sole canonical writer of `profile.json` / `readiness.json` /
+- **`cancer-buddy-organize` WRITES everything under `<patient_code>/`** — the archive file set (§4),
+  the buckets (§3), `raw/`. It is the sole storage-contract writer of `profile.json` / `readiness.json` /
   `timeline.*` / the structured JSONs.
 - **`cancerdao-vmtb` in skip-organize mode READS that archive** (probe: `profile.json` AND
   `readiness.json` both exist → treat as pre-organized, do NOT re-run organize, do NOT recompute

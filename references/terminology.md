@@ -1,13 +1,11 @@
 # Terminology Guide
 
-Every medical term surfaced to patients appears as: **the source term verbatim + a plain-language explanation in the patient's locale.** Resolve locale per `references/i18n.md`: host-supplied `locale` first, otherwise `profile.json.locale`, otherwise detection fallback.
-
-The verbatim term is **never translated** (it is a clinical entity — mistranslation is a P0 safety bug, see `safety-guardrails.md` → "Clinical entities are never translated"). Only the plain-language gloss is rendered in the locale.
+Every medical term surfaced to patients appears as: **the source term verbatim + validated normalized term when available + a plain-language explanation in the patient's locale.** Resolve locale per `references/i18n.md`.
 
 ## Format rule
 
 ```
-<source term, verbatim> (<gloss in profile.json.locale>)
+<source term, verbatim> [normalized: <validated term>] (<gloss in profile.json.locale>)
 ```
 
 - `zh` locale gloss:
@@ -44,7 +42,7 @@ Never use in patient-facing output (render the locale equivalent of these intent
 - "推荐" / "I recommend" (use "匹配" / "可以考虑讨论" / "an option to discuss")
   - **Exemption — relaying a human clinician's OWN recommendation verbatim** (e.g. "医生推荐 A，但决定是你的" / "the doctor recommended A — the decision is yours"): allowed. The ban is on *the AI* recommending; faithfully quoting what the treating doctor recommended is reporting, not the AI giving a recommendation. (This is why the disclosure family-scripts legitimately use 医生推荐.)
 - "应该" / "you should" (use "可以" / "一种选项是" / "one option is")
-- "治愈" / "cure" (use "控制" / "长期稳定" / "control" / "long-term stable")
+- Do not ban "治愈" / "cure" categorically. Use it only when a source clinician or current disease-specific evidence supports curative intent; otherwise describe the actual aim (cure, control, symptom relief, or uncertainty) without false reassurance.
 - "最后希望" / "last hope" (emotionally loaded, not informative)
 - "奇迹" / "miracle" (false expectation)
 

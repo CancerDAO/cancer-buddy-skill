@@ -82,7 +82,7 @@ COMMENT_RE = re.compile(r"<!--.*?-->", re.DOTALL)
 
 # Block openers/closers live on HTML-comment lines. We tokenize on them.
 # An opener may carry a free-text human note after the name, separated by ':' —
-# e.g. `<!-- LOOP lesions: 每个部位一行 -->` or `<!-- LOOP path_items: 每条一行,末条不加 <br> -->`.
+# e.g. `<!-- LOOP lesions: 每个部位一行 -->`.
 # That tail is template scaffolding for human readers and is ignored. The tail can
 # itself contain '>' (e.g. a literal `<br>`), so it is matched non-greedily up to
 # the comment terminator `-->`, constrained to one line ([^\n]) so a malformed

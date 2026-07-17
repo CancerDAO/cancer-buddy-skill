@@ -16,7 +16,7 @@ cancer-buddy-organize 把一位癌症患者的原始病历（HEIC/jpg/pdf/docx/x
 
 1. **数值保真**：肿瘤标志物列错位（CEA 真值 25.30↑ 被记成隔壁 CY211 的 4.68 并标记为正常，伪造"缓解"信号并污染纵向趋势）；肾功能（肌酐 135.5↑、尿酸 656↑）在 OCR 散乱后于落库阶段丢失。
 2. **同档案冲突缺裁决与标注**：手术日期在同一档案两份 sidecar 冲突（`1月2日` vs `1月12日`），错值 `2023-01-02` 传播到 9 个 IHC 日期 + 治疗线 + 时间轴 + 患者可见 HTML。
-3. **去标识跨 surface 失效**：真名 `王国洪`、上传者邮箱 `452858265@qq.com`、家属标识 `yosean 父亲` 泄漏进 `INDEX.md` / `source_inventory.json`（`original_path`）/ dotfiles。
+3. **去标识跨 surface 失效**：合成姓名 `张测试`、合成上传者邮箱 `uploader@example.com`、合成家属标识 `测试家属甲` 泄漏进 `INDEX.md` / `source_inventory.json`（`original_path`）/ dotfiles。
 
 ### 实现基线（决定每个 story 是"扩展/验证"而非"重建"）
 
@@ -53,11 +53,11 @@ cancer-buddy-organize 把一位癌症患者的原始病历（HEIC/jpg/pdf/docx/x
 **Acceptance Criteria:**
 - [ ] **扩展扫描入口（非替换）**：`validate_structured_outputs.py` 调 `pii_rescan` 时新增扫描 `INDEX.md`、`source_inventory.json`、`.rename_plan.json`、`.phase1_sources.json`、`update_log.json`、`病情简要总结.html`；`scan_sidecar` 增 `scan_header=True` 模式用于这些非 sidecar 文件（保留 `NN_` sidecar 仅扫正文的既有行为）
 - [ ] **文件名/路径片段检测**：对 `original_path`/`bucket_path`/路径串 basename 做 PII 检测（中文姓名、邮箱、`<人名>-<报告名>` 模式）；`raw_path` 已相对仍扫 basename
-- [ ] **身份 deny-list（解决 bootstrap）**：`patient_summary.name` 已被 null，故种子取自 Phase-1 mask 前捕获的原始姓名 + 源目录/文件名出现的家属标识（`yosean 父亲`）+ 上传账号（`*@qq.com`），跨所有 surface 确定性查杀
-- [ ] `PT-78FBCE6E0F` 复现夹具：必扫出 `王国洪`（INDEX/source_inventory/dotfiles）、`452858265@qq.com`、`yosean 父亲`
+- [ ] **身份 deny-list（解决 bootstrap）**：`patient_summary.name` 已被 null，故种子取自 Phase-1 mask 前捕获的原始姓名 + 源目录/文件名出现的家属标识（`测试家属甲`）+ 合成上传账号（`uploader@example.com`），跨所有 surface 确定性查杀
+- [ ] `PT-A1B2C3D4E5` 合成复现夹具：必扫出 `张测试`（INDEX/source_inventory/dotfiles）、`uploader@example.com`、`测试家属甲`
 - [ ] 退出码 1 → `validate_structured_outputs.py` 整体 FAIL（PII 零容忍）
 - [ ] 既有"仅扫 sidecar 正文、不碰临床日期/检验值/药名/TNM/分子标记"反锚定行为不回归
-- [ ] 单测：含名夹具 FAIL、纯净夹具（`PT-6969D8D0A8`）PASS
+- [ ] 单测：含名夹具 FAIL、纯净合成夹具（`PT-B1C2D3E4F5`）PASS
 
 #### US-002: 数值完整性确定性门（flag / 参考区间 / 丢值）
 **Description:** 作为审查者，我要在 `validate_structured_outputs.py` 增加**确定性、无医学判断**的数值不变量。
@@ -67,7 +67,7 @@ cancer-buddy-organize 把一位癌症患者的原始病历（HEIC/jpg/pdf/docx/x
 - [ ] **block (a)**：labs.json 值落在 `reference_range` 外却 `flag=null` → block（命中 CEA 4.68 标记正常）
 - [ ] **block (b)**：被 `source_refs` 引用的 sidecar 表格有带异常标记的数值行而 JSON 对应 panel 缺该值 → block（命中肌酐 135.5↑ / 尿酸 656↑ 丢失）
 - [ ] **列错位启发式**：同行"项目↔值↔单位"在 JSON 错配 → WARN 并触发 US-003 语义复核
-- [ ] 单测：`PT-78FBCE6E0F` 夹具，CEA 4.68 与缺失肾功能两处均 block
+- [ ] 单测：`PT-A1B2C3D4E5` 合成夹具，CEA 4.68 与缺失肾功能两处均 block
 
 #### US-003: 抽取忠实度复核 sub-skill（Phase 2.5）+ 结果接入渲染
 **Description:** 作为患者，我要每个结构化数值经一次"回看原 sidecar"语义复核，且复核结果真正阻断坏值进入患者可见层。
@@ -76,7 +76,7 @@ cancer-buddy-organize 把一位癌症患者的原始病历（HEIC/jpg/pdf/docx/x
 - [ ] **【load-bearing，置顶】结果接入渲染**：CRITICAL verdict 必须传到段D 数据（`.case_summary_data.json`）/ `render_html_template.py`，使坏值在 `病情简要总结.html` 被抑制；附 top-down 走查 AC（user→json→sidecar→raw→HTML 连通），防"计算但断连"死代码
 - [ ] 新增 `references/organizer-prompt-phase2_5-faithfulness.md`：对每个 labs/molecular/treatment 数值，给 JSON 条目 + 其 `source_refs` sidecar 片段，判"忠实/不忠实/无法判定"并给证据
 - [ ] 由主流程 dispatch（Agent / sub-skill），**不**主线程内联硬编码；输出结构化 verdict；"不忠实"→ `review_flags.md` 记 **CRITICAL**
-- [ ] `PT-78FBCE6E0F` 夹具：CEA 列错位与肾功能丢值被标 CRITICAL 且在 HTML 被抑制
+- [ ] `PT-A1B2C3D4E5` 合成夹具：CEA 列错位与肾功能丢值被标 CRITICAL 且在 HTML 被抑制
 - [ ] **成本可控**：按 sidecar 批量复核而非逐值起 agent；记录每次运行的 agent 数/token 量
 
 #### US-004: 同档案冲突的来源优先级裁决 + 患者可见标注
@@ -86,7 +86,7 @@ cancer-buddy-organize 把一位癌症患者的原始病历（HEIC/jpg/pdf/docx/x
 - [ ] **先校验**本例（手术日 `1月2日` vs `1月12日`）确实触发既有 `cross_doc_contradiction`（synthesis Step 3 #2，:475）；若漏触发则修检测覆盖
 - [ ] 新增**来源优先级裁决规则**写入 `organizer-prompt-phase2-synthesis.md` Step 3：原始报告 > 病理/诊断证明 > 病程/入院记录转述；同级取信息更完整者
 - [ ] 被裁决值在 `case_text.md` / `病情简要总结.html` 附"存在来源差异，已按 X 裁决"标注；既有红 flag 保留
-- [ ] `PT-6969D8D0A8` 夹具：触发冲突 flag，且 `2023-01-02` 不再静默写入 timeline/molecular/HTML
+- [ ] `PT-B1C2D3E4F5` 合成夹具：触发冲突 flag，且 `2023-01-02` 不再静默写入 timeline/molecular/HTML
 
 #### US-005: 数值表 OCR 结构保真（行列对齐 + 分块置信 + 重读）
 **Description:** 作为下游一切数据的源头，我要 Phase-1 OCR 对检验/医嘱表保持行列对齐（CEA 列错位的上游根因）。
@@ -103,14 +103,14 @@ cancer-buddy-organize 把一位癌症患者的原始病历（HEIC/jpg/pdf/docx/x
 **Acceptance Criteria:**
 - [ ] labs 趋势进入 `case_text.md` / `review_summary.md` / HTML 时自动附 OCR caveat
 - [ ] `review_summary.md` 的"需复核"段含 lab-OCR 对齐类条目（不止"缺原始报告"类）
-- [ ] `PT-6969D8D0A8` 夹具：CEA/CA19-9/VEGF/肌酐 趋势叙事旁出现 OCR caveat
+- [ ] `PT-B1C2D3E4F5` 合成夹具：CEA/CA19-9/VEGF/肌酐 趋势叙事旁出现 OCR caveat
 
 #### US-007: 散乱 OCR 人名的确定性兜底
 **Description:** 语义脱敏已存在（phase1-ocr §2.4），仅补 OCR 打散后漏网的确定性人名检测。
 
 **Acceptance Criteria:**
 - [ ] `pii_rescan.py` 新增"中文人名 + 医嘱/报告上下文（主诊/经治/审核/报告医师/护士/申请医生）"检测，命中 B 6 文件的 `荆碧聪` 等散乱签名
-- [ ] `PT-6969D8D0A8` 残留的单处 `刘俊宝`（尿液分析）被捕获
+- [ ] `PT-B1C2D3E4F5` 合成夹具残留的单处 `李样本`（尿液分析）被捕获
 
 #### US-008: 验证 AGENTS.md 运行期填充
 **Description:** 6.4KB 模板（`agents-md.template.md`）+ `SKILL.md` Step 13 填充已存在；Output A 的 330B 是运行期产物，非代码缺陷。
@@ -122,7 +122,7 @@ cancer-buddy-organize 把一位癌症患者的原始病历（HEIC/jpg/pdf/docx/x
 #### US-009: 空桶策略（根因在 setup mkdir）
 **Acceptance Criteria:**
 - [ ] 修 `SKILL.md:99`（`mkdir -p` 全 14 桶 = 10 个空脚手架桶来源）：**不预建空临床桶**，或在 `INDEX.md` 对每个保留空桶注"该桶为空：源材料未提供原始 X 报告"；同步 `bucket-taxonomy.md`
-- [ ] `PT-6969D8D0A8`：空 `09_手术与操作` 与"已行切除"叙事不再矛盾无注解
+- [ ] `PT-B1C2D3E4F5` 合成夹具：空 `09_手术与操作` 与"已行切除"叙事不再矛盾无注解
 
 #### US-010: 去标识一致性 + 数字模式
 **Description:** 跨患者串号检测已存在（synthesis :484-512），补同类字段一致处理与数字型标识。
@@ -182,9 +182,9 @@ cancer-buddy-organize 把一位癌症患者的原始病历（HEIC/jpg/pdf/docx/x
 **Description:** 本 story 是整份 PRD 的证明义务：当前 HEAD 仅在无名 HEIC 上被验证过。
 
 **Acceptance Criteria:**
-- [ ] 用当前 HEAD 喂**含名输入**（`王国洪-*.pdf` + ≥1 个 docx/xlsx/zip），先**实证复现** INDEX/source_inventory/dotfiles 的 `王国洪`/邮箱/yosean 泄漏（修复前），确认非 HEIC 格式完整摄入（否则记摄入回归补 US）
+- [ ] 用当前 HEAD 喂**合成含名输入**（`张测试-*.pdf` + ≥1 个 docx/xlsx/zip），先**实证复现** INDEX/source_inventory/dotfiles 的合成姓名/邮箱/家属标识泄漏（修复前），确认非 HEIC 格式完整摄入（否则记摄入回归补 US）
 - [ ] 修复后重跑过全部 P0 门：PII 门泄漏归零、数值门拦 CEA/肾功能、冲突门报手术日
-- [ ] 黄金回归 **≥2 患者、≥2 癌种**：夹具一 = `PT-78FBCE6E0F`（结直肠癌）；夹具二 = 从现有 17 份 `patients/` 档案选一**非结直肠癌**样本（候选 `PT-17CE02BC33` / `PT-2685BF971D` / `PT-48C5070065` / `PT-8D9D41FCFE` / `PT-9A576D14D8` / `PT-B7981F5800` / `PT-C3F78EBB84` / `PT-EE62321353` / `PT-RIAZ-R-001`，癌种待 1 行核实后选定），附验证矩阵
+- [ ] 黄金回归 **≥2 个完全合成患者、≥2 癌种**：夹具一 = `PT-A1B2C3D4E5`（合成结直肠癌）；夹具二 = `PT-B1C2D3E4F5`（合成非结直肠癌），附验证矩阵；不得从真实患者档案复制标识符或罕见组合。
 - [ ] 一条命令复跑全部门并出红绿（接入 `validate_structured_outputs.py`）
 
 ---
@@ -242,14 +242,14 @@ cancer-buddy-organize 把一位癌症患者的原始病历（HEIC/jpg/pdf/docx/x
   - `references/schemas/`：`molecular`（evidence_tier :26、tmb.unit :68）、`treatment_lines`（line minimum:0 :20）、`labs`（flag :32）、`patient_summary`（status 拆分 :47-70）、`source_inventory`（patient_dir :11、raw_path 相对 :24）→ US-012/013/014/016
   - `references/templates/agents-md.template.md`（6.4KB，已富）+ `SKILL.md` Step 13（:183-200）→ US-008；`SKILL.md:99`（mkdir 14 桶）→ US-009
   - 新增 `references/organizer-prompt-phase2_5-faithfulness.md`（US-003）
-- **回归夹具**：`PT-6969D8D0A8`（手术日冲突、空手术桶、标本号不一致、OCR caveat 缺失）+ `PT-78FBCE6E0F`（CEA 列错位、肾功能丢失、王国洪/邮箱/yosean 泄漏、散乱签名未脱敏、TMB 单位臆造）作为门的负向测试夹具。`line:0` 不入缺陷清单（schema 合法）。
+- **回归夹具**：`PT-B1C2D3E4F5`（手术日冲突、空手术桶、标本号不一致、OCR caveat 缺失）+ `PT-A1B2C3D4E5`（CEA 列错位、肾功能丢失、合成姓名/邮箱/家属标识泄漏、散乱签名未脱敏、TMB 单位臆造）作为门的完全合成负向测试夹具。`line:0` 不入缺陷清单（schema 合法）。
 - **SKILL.md / 文档同步**：新增门/阶段时 SKILL.md 仅加操作化指令（重 LLM 步骤明确要求 sub-skill/Agent）；每个 PR 同步更新 README/CHANGELOG/SKILL.md。
 
 ---
 
 ## 8. Success Metrics
 
-- **M1**：两份回归夹具经扩展验收门 PII 残留 = **0**（`王国洪`/`452858265@qq.com`/`yosean 父亲`/`刘俊宝` 全归零）。
+- **M1**：两份合成回归夹具经扩展验收门 PII 残留 = **0**（`张测试`/`uploader@example.com`/`测试家属甲`/`李样本` 全归零）。
 - **M2**：CEA 列错位、肌酐/尿酸丢失在数值门 + 忠实度门 **100% 被拦截**，不进 `labs.json`/`longitudinal_observations.json`/HTML。
 - **M3**：手术日冲突 100% 产 review_flag；患者可见层无未标注被裁决值；`2023-01-02` 不再出现。
 - **M4**：当前 HEAD 在**含名 + 全格式**输入上：修复前**实证复现**跨 surface 泄漏，修复后归零；非 HEIC 0 丢档，P0 门全触发。

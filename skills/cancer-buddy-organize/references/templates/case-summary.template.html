@@ -1,12 +1,12 @@
 <!--
   ============ i18n LOCALE STRING TABLE (段D scaffold) ============
-  Localize the SCAFFOLD only; keep every clinical entity verbatim (i18n.md §4).
+  Preserve source clinical strings. Labeled translations/normalizations may be added beside them (i18n.md §4).
   The renderer (case-summary-html-prompt.md) reads profile.json.locale and fills the
   {{i18n.<key>}} placeholders below from this table. CSS + DOM structure stay 1:1 across
   locales — only these string VALUES change. <html lang> + {{i18n.html_lang}} also follow locale.
   zh = authoritative gold-standard wording. en = canonical translation. For a locale not
-  listed, generate equivalents in the target language (same meaning, same tone), keep clinical
-  terms verbatim. Add locale columns here; never hardcode a single-language scaffold string.
+  listed, generate equivalent scaffold strings in the target language. Source clinical terms stay
+  available; any translated term is additive and labeled. Add locale columns here.
 
   | key                  | zh                                          | en                                                        |
   |----------------------|---------------------------------------------|-----------------------------------------------------------|
@@ -25,7 +25,6 @@
   | sec_molecular        | 核心分子检测                                 | Key Molecular Testing                                     |
   | sec_labs             | 实验室指标                                   | Laboratory Values                                         |
   | sec_treatment        | 治疗史                                       | Treatment History                                         |
-  | sec_path             | 当前治疗路径                                 | Current Treatment Path                                    |
   | sec_caveats          | 数据说明                                     | Data Notes                                                |
   | delta_title          | 自上次总结的变化                             | Changes since last summary                                |
   | delta_vs             | 对比                                         | vs                                                        |
@@ -34,7 +33,6 @@
   | val_male             | 男                                          | Male                                                      |
   | val_female           | 女                                          | Female                                                    |
   | val_pending          | 待主诊医生补充 / 资料缺失                     | To be supplemented by attending physician / data missing  |
-  | val_ecog_inferred    | （推断，待主诊医生正式签署）                   | (inferred, pending formal sign-off by attending physician) |
   | val_to_start         | 待启动                                       | Not yet started                                           |
   | footer_doc           | 病情简要总结                                 | Case Summary                                              |
   ================================================================
@@ -282,7 +280,7 @@ table.kv td.k {
 .status-badge.low { background: #fdf3e2; color: #b7791f; }
 .status-badge.high { background: #fdf3e2; color: #b7791f; }
 .status-badge.abnormal { background: #fdeeee; color: #c0392b; }
-.status-badge.severe { background: #fbe0e0; color: #a02020; }
+.status-badge.critical { background: #fbe0e0; color: #a02020; }
 /* ===== 治疗史 (timeline) ===== */
 .timeline { margin: 0; }
 .tl-item {
@@ -384,7 +382,7 @@ table.kv td.k {
 <!-- END RENDER_IF -->
 
 <!-- ============ SECTION 1: 患者标识 ============ -->
-<!-- 来源: profile.json / patient_summary.json。脱敏:性别+精确年龄(临床试验匹配需要),不落真名/真生日(DOB)/国籍/出生地/职业。null 字段渲染"待主诊医生补充 / 资料缺失"。 -->
+<!-- 来源: profile.json / patient_summary.json。只放本摘要所需的最小身份信息；不落真名/真生日(DOB)/国籍/出生地/职业。null 字段渲染"待主诊医生补充 / 资料缺失"。 -->
 <div class="card">
 <h2>{{i18n.sec_identity}}</h2>
 <div class="id-grid">
@@ -407,14 +405,14 @@ table.kv td.k {
 </div>
 
 <!-- ============ SECTION 2: 病情概要(叙事) ============ -->
-<!-- 来源: subagent 语义生成,基于 patient_summary.json + timeline.json。3-5 句客观叙事:诊断+确诊时间→已用治疗线及转归→当前处境/下一步计划。不捏造,不给治疗建议。 -->
+<!-- 来源: worker 基于 patient_summary.json + timeline.json 生成 3-5 句来源型叙事；不推断治疗线、转归、当前状态或下一步计划。 -->
 <div class="card">
 <h2>{{i18n.sec_summary}}</h2>
 <p class="summary-text">{{case_summary_narrative}}</p>
 </div>
 
 <!-- ============ SECTION 3: 关键趋势 (0..N featured charts) ============ -->
-<!-- 来源: trend_charts[] (compute_sparklines.py 逐图注入 svg_points/svg_area_d/dots/marker_x/marker_x_left/marker_date/idx/direction)。张数由 subagent 按临床判断决定(主治医生最想看什么);series 逐字取自 longitudinal_observations.json,值绝不由 LLM 造。空数组 → 占位不删段(保 <h2> 计数)。响应式网格:1 张铺满(头版大图),多张自动并排(小多图)。 -->
+<!-- 来源: trend_charts[] (compute_sparklines.py 注入几何)。选择仅按用户问题/数据可用性，不代表临床重要性；series 取自 longitudinal_observations.json。时间对齐不表示疗效或因果。 -->
 <div class="card">
 <h2>{{i18n.sec_trend}}</h2>
 <!-- RENDER_IF trend_charts -->
@@ -487,7 +485,7 @@ table.kv td.k {
 </div>
 
 <!-- ============ SECTION 5: 核心分子检测 ============ -->
-<!-- 来源: molecular.json (variants / msi_mmr / ihc / tmb / 组织病理)。逐行映射。无分子数据则整段渲染"待主诊医生补充 / 资料缺失"。 -->
+<!-- 来源: molecular.json (reports / variants / separate MSI / MMR / IHC / TMB results)。冲突报告并列，不合并裁决。 -->
 <div class="card">
 <h2>{{i18n.sec_molecular}}</h2>
 <table class="kv">
@@ -505,7 +503,7 @@ table.kv td.k {
 </div>
 
 <!-- ============ SECTION 6: 实验室指标 (趋势行) ============ -->
-<!-- 来源: lab_trends (compute_sparklines.py 注入 svg_points/direction/point_count)。每行 = 名称 + sparkline + 当前值 + 状态徽章。series 逐字取自 longitudinal_observations.json/labs.json。status_class ∈ {normal,low,high,abnormal,severe}。无化验则占位整段不删。 -->
+<!-- 来源: lab_trends (compute_sparklines.py 注入 svg_points/direction/point_count)。每行 = 名称 + sparkline + 当前值 + 原报告状态徽章。series 逐字取自 longitudinal_observations.json/labs.json。status_class ∈ {normal,low,high,abnormal,critical}，只映射检验机构原始 flag，不做通用阈值分级。 -->
 <div class="card">
 <h2>{{i18n.sec_labs}}（{{labs_period}}）</h2>
 <div class="lab-trend">
@@ -556,22 +554,8 @@ table.kv td.k {
 </div>
 </div>
 
-<!-- ============ SECTION 8: 当前治疗路径 ============ -->
-<!-- 来源: treatment_lines.json 当前线 + profile.json。逐条 LOOP。无当前路径则整段渲染"待主诊医生补充 / 资料缺失"。 -->
-<div class="card">
-<h2>{{i18n.sec_path}}</h2>
-<div class="path-box">
-  <!-- LOOP path_items: 每条一行,末条不加 <br> -->
-  <span class="path-label">{{path_label}}</span>{{path_content}}<br>
-  <!-- END LOOP -->
-  <!-- RENDER_IF_NOT path_items: 无当前路径数据时占位整段不删 -->
-  {{i18n.val_pending}}
-  <!-- END RENDER_IF -->
-</div>
-</div>
-
 <!-- ============ 数据说明 (caveats) — 脚注,非 section,无 <h2>(不改骨架计数) ============ -->
-<!-- 来源: Step-3c 来源裁决 + Phase-2.5 忠实度。仅在 caveats 非空时渲染该脚注;脚手架本地化,临床实体 verbatim。复用 footer class。 -->
+<!-- 来源: source-faithfulness review。仅在 caveats 非空时渲染；源字符串保留，派生翻译带标签。 -->
 <!-- RENDER_IF caveats -->
 <div class="footer">
   <strong>{{i18n.sec_caveats}}：</strong>

@@ -26,10 +26,10 @@ What it asserts (all derived from the template at runtime, nothing patient-speci
                              (Locale-independent deterministic patterns only —
                              never a name allow/deny list; zh∪en∪locale-agnostic
                              union runs unconditionally.)
-  5. (removed) precise age — now ALLOWED (clinical-trial matching + 就诊场景 need
-                             the exact age; age is not sensitive PII). DOB still
-                             barred via the birth_date PII pattern. Aligned with
-                             validate_case_summary_html.py.
+  5. CONTEXTUAL MINIMIZATION — age and other quasi-identifiers have no reliable
+                             universal regex rule. This form validator does not
+                             declare them safe; the producer must include them
+                             only when necessary and authorized.
   6. SKELETON present       — the template's fixed, patient-independent scaffold is
                              intact: header div, footer div, snapshot-box div, and
                              at least the snapshot + questions + bring <h2> sections.
@@ -77,11 +77,10 @@ PII_PATTERNS = [
     ("phone_us", re.compile(r"(?<!\d)\(?\d{3}\)?[-.\s]\d{3}[-.\s]\d{4}(?!\d)")),
     ("birth_date", re.compile(r"(?:出生|生于|出生日期|date of birth|DOB|born|birth\s*date)\D{0,6}\d{4}\D?\d{1,2}\D?\d{1,2}", re.IGNORECASE)),
 ]
-# Precise age is intentionally NOT guarded — the visit-prep HTML retains the exact
-# age (clinical-trial matching + 就诊场景 need it; age is not sensitive PII). DOB is
-# still barred by the birth_date pattern in PII_PATTERNS above. Kept identical to
-# validate_case_summary_html.py (which dropped the same _AGE_RE guard). Do NOT
-# re-add an exact-age guard here without doing the same to the case-summary sibling.
+# Age and quasi-identifiers require contextual minimization and combination-risk
+# review. A shape regex cannot decide whether age is necessary or identifying, so
+# this validator neither requires nor categorically permits it. DOB retains a
+# high-precision shape guard; semantic review covers the wider context.
 
 
 def extract_style(text: str) -> str | None:
@@ -169,10 +168,8 @@ def main() -> int:
         if m:
             errors.append(f"possible PII leak [{name}]: {m.group(0)!r}")
 
-    # 5. precise age is ALLOWED (clinical-trial matching + 就诊场景 need the exact
-    #    age; age is not sensitive PII). DOB stays barred via the birth_date PII
-    #    pattern above. Aligned with validate_case_summary_html.py, which dropped the
-    #    same guard — the two siblings are kept identical, now both age-permissive.
+    # 5. Context-dependent age/quasi-identifier minimization is enforced by the
+    #    producer's authorization + semantic review, not by a universal regex.
 
     # 6. SKELETON present -----------------------------------------------------
     for cls, label in (

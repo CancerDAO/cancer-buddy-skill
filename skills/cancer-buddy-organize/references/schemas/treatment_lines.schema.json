@@ -1,35 +1,37 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://cancerdao.org/schemas/cancer-buddy/treatment_lines.schema.json",
-  "title": "TreatmentLines",
-  "description": "Ordered lines of therapy. Each line is the regimen used until next progression / switch.",
+  "title": "TreatmentEpisodes",
+  "description": "Source-reported treatment episodes. Line numbers are copied only when explicitly documented.",
   "type": "object",
-  "required": ["patient_code", "schema_version", "lines"],
+  "required": ["patient_code", "schema_version", "episodes"],
   "additionalProperties": false,
   "properties": {
     "patient_code": { "type": "string", "pattern": "^PT-[A-F0-9]+(_\\d+)?$" },
-    "schema_version": { "const": "1" },
+    "schema_version": { "const": "2" },
     "generated_at": { "type": "string", "format": "date-time" },
-    "lines": {
+    "episodes": {
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["line", "regimen"],
+        "required": ["episode_id", "sequence_index", "regimen", "source_refs", "provenance_layer", "verification_status"],
         "additionalProperties": false,
         "properties": {
-          "line": { "type": "integer", "minimum": 0, "description": "0 = neoadjuvant/perioperative, 1+ = sequential lines for advanced disease." },
-          "regimen": { "type": "string", "description": "Verbatim regimen as written on discharge / order sheet." },
-          "intent": { "type": ["string", "null"], "enum": ["adjuvant", "neoadjuvant", "perioperative", "palliative", "maintenance", "definitive", "consolidation", null] },
+          "episode_id": { "type": "string" },
+          "sequence_index": { "type": "integer", "minimum": 0, "description": "Chronological ordering only; not a clinical line number." },
+          "documented_line_label": { "type": ["string", "null"], "description": "Verbatim line wording only if a clinician source states it." },
+          "phase_or_intent_source": { "type": ["string", "null"], "description": "Verbatim adjuvant/neoadjuvant/maintenance/consolidation/etc. wording; no inference." },
+          "regimen": { "type": "string" },
           "started_at": { "type": ["string", "null"], "format": "date" },
           "ended_at": { "type": ["string", "null"], "format": "date" },
-          "best_response": { "type": ["string", "null"], "enum": ["CR", "PR", "SD", "PD", "NE", null], "description": "RECIST 响应类别。仅当来源报告/医生逐字写出该响应码或'部分缓解/完全缓解/疾病稳定/进展'时才填(须挂 source_refs)。来源只有描述性影像(病灶缩小/减轻/增大)且无医生判读时留 null——绝不从描述性发现自行合成。见 references/safety-guardrails.md → Efficacy/response is a clinician's judgment (P0)。" },
-          "reason_for_change": { "type": ["string", "null"] },
-          "source_refs": {
-            "type": "array",
-            "items": { "type": "string", "pattern": "^(([0-9]{2}_[^\\s/]+(/[^\\s/]+)*\\.md(#L\\d+(-L\\d+)?|#[A-Za-z0-9_-]+)?)|(conversation:\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})?))$" }
-          }
+          "clinician_reported_response": { "type": ["string", "null"], "description": "Copied from clinician source; never calculated." },
+          "reason_for_change_source": { "type": ["string", "null"] },
+          "provenance_layer": { "enum": ["source_reported", "patient_reported", "caregiver_reported", "system_normalized"] },
+          "verification_status": { "enum": ["unverified", "clinician_verified", "disputed"] },
+          "source_refs": { "$ref": "#/$defs/source_refs" }
         }
       }
     }
-  }
+  },
+  "$defs": { "source_refs": { "type": "array", "minItems": 1, "items": { "type": "string" } } }
 }

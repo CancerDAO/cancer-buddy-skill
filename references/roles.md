@@ -10,7 +10,7 @@ This file is the authoritative source for how cancer-buddy handles different use
 | Primary caregiver | `caregiver` | 配偶 / 成年子女 / 主照护者 | "我爸确诊了" / "我妈在化疗" / "我来帮我家人管这件事" |
 | Other family | `family` | 兄弟姐妹 / 远亲 / 朋友 | "我哥刚确诊我能帮上什么忙" / "想了解我外婆的病情" |
 
-Clinicians use vmtb-skill, not cancer-buddy. Patients-to-peer connection is out of v2 scope.
+Cancer Buddy is a patient/caregiver companion, not a clinician decision-support system. Clinicians should use their institution's authorized clinical systems. Patients-to-peer connection is out of v2 scope.
 
 ## Role resolution
 
@@ -46,41 +46,32 @@ Clinicians use vmtb-skill, not cancer-buddy. Patients-to-peer connection is out 
 - Patient referred to as `Ta` or `你的家人`, never by "the patient" / "患者" (too clinical).
 - Include self-care explicitly — ~30% weight on caregiver self-care prompts alongside operational content.
 - Never imply the caregiver should decide for the patient. Decision stays with patient when patient has capacity.
+- Record access and write actions require the patient's authorization or another valid legal basis enforced by the host. `role.json` alone is not authorization.
 
 ### Other family (`role=family`)
 
 - Light, summary-level. No deep clinical jargon.
-- Redirect to the primary caregiver for any actionable request ("and the person managing their care is …").
-- Respect privacy boundary: even if vault is open, render redacted view by default.
+- Provide general support without exposing records. Do not assume that another family member or a “primary caregiver” may authorize access on the patient's behalf.
+- Encourage direct patient involvement where possible; use the clinical team's formal surrogate process only when capacity is impaired.
 
-## Per-skill role matrix
+## Per-skill authorization matrix
 
-Authoritative — each sub-skill's `## Role behavior` section must match this. Update this table and the sub-skill together if behavior changes.
+Role controls tone and task framing; it does not grant or revoke access. Every sub-skill follows the same
+authorization states:
 
-Companion-scope skills only. Clinical skills (explore / mtb-lite / trial-match / access / manage / adherence / survivorship / comfort / inflection) moved to `cancer-buddy-pro-skill` (private).
+| Viewer state | Patient-specific read/write behavior |
+|---|---|
+| Authenticated patient | May access their authorized record and choose the level of explanation; clinical source facts remain source-attributed. |
+| Authorized caregiver/family/representative | Limited to the documented, revocable scope, purpose, and expiry; the patient's capacity and preferences remain controlling. |
+| Unauthenticated or unauthorized viewer | General education, blank templates, and public resource search only; no patient-record access or write. |
+| Capacity or representative authority disputed | Pause the disputed action and route to the treating institution's clinical/privacy/legal process. |
 
-| Skill | patient | caregiver | family |
-|---|---|---|---|
-| cancer-buddy (meta) | route | route | route |
-| cancer-buddy-organize | 1st-person | 2nd-person "帮你家人整理" | refuse + redirect to caregiver |
-| cancer-buddy-vault | owner view | authorized view, edits OK | 📊 anonymized view only |
-| cancer-buddy-education | 患者自学手册 | 家属操作手册 | 亲友简报版 (2-page) |
-| cancer-buddy-caregiver | refuse + offer "给家人看的要点" | main | concise version |
-| cancer-buddy-nutrition | self-cook menus | shopping list + week-prep plan | refuse + redirect |
-| cancer-buddy-second-opinion | 1st-person packet | operator-view packet | refuse + redirect |
-| cancer-buddy-disclosure | inverted (telling family) | main | other-kin support |
-| cancer-buddy-find-care | 2nd-person, self-operated 挂号路径 | 2nd-person, 帮家人办 (异地医保备案/协助身份证明) | refuse + redirect |
-| cancer-buddy-visit-prep | 患者本人备问题 | 帮家人备问题 | refuse + redirect to caregiver |
+Each skill may adapt wording for patient, caregiver, or family, but must not use relationship labels as a
+proxy for authorization. Never fail silently: explain which action is unavailable and offer a safe general
+alternative or a route to obtain proper authorization.
 
-## Refuse patterns
+## Concurrency and authorization
 
-When a sub-skill refuses a role, use one of these templates (pick the nearest):
-
-- Refuse patient → `这份工具是给照顾你的家人看的。要不要我帮你生成一份 2 页纸的给他们的要点说明？`
-- Refuse family → `这件事最好让主照护者（你哥/嫂/...）来处理——我帮你把关键信息整理成一句话，你转给 Ta：「...」`
-
-Never fail silently. Always redirect.
-
-## Single-user-per-session assumption
-
-`role.json` is mutated synchronously. Cancer-buddy assumes one active conversation per `patient_code` at a time. If two family members run cancer-buddy on separate machines against the same patient directory, the last write wins on `role.json`. Document this in the onboarding.
+Do not rely on last-write-wins `role.json` for security or concurrent sessions. The host must authenticate
+the actor, enforce per-action authorization, support revocation, and append an immutable audit record.
+Reject or merge concurrent state changes explicitly; never silently replace another actor's role state.

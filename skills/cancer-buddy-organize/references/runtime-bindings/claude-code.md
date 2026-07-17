@@ -7,48 +7,60 @@
 | 接缝 | 契约要求(不变) | Claude Code 填法 |
 |---|---|---|
 | 编排 | 所有 sidecar 在 Phase2 前就绪 | `Agent` 并行扇出 Phase1 LLM ingestion,单 `Agent` 做 Phase2 reduce |
-| LLM 输入源 | sidecar 正文由 LLM 输出,纯 OCR/parser 不是临床正文或 PII 判断来源 | worker 内 `Read` 读取图片/渲染页/文件 payload,由模型写文本脱敏 MD(原件逐字存 `raw/`,不做图像打码) |
+| 抽取输入源 | 确定性抽取保留原始字符层；LLM 只做版面/候选纠错/语义辅助 | OCR/parser 输出、引擎版本和 source span 均保留；高风险字段独立复读，LLM 改动不得覆盖原始层 |
 | 格式适配 | 只把源文件转成 LLM-readable input | `sips` 转 HEIC,可用工具渲染 PDF/展开 DOCX/表格 payload;adapter 只做 provenance |
 | 确认门 | 未确认不写正式字段/不可逆删除 | inline diff card 同会话往返 |
 | 存储 | canonical 输出集 | agent 写本地 `patient_dir`;原始件逐字保存进 `raw/` vault |
 
 ## 1. 编排
 
-- SKILL.md Step 2 按目录/文件数切片;Step 3 并发 Phase1 LLM Markdown Ingestion Workers;Step 4 continuation loop;Step 5 单 Phase2 worker reduce。
-- Phase1 只写 `<patient_dir>/ocr/` text-masked MD sidecars + `<patient_dir>/raw/` 逐字保存的原始件 vault。它不写 INDEX/timeline/profile 等全局产物。
+- SKILL.md Step 2 按目录/文件数切片；Step 3 并发 Phase 1 来源保真 ingestion workers（原生/确定性抽取优先，LLM 仅辅助）；Step 4 continuation loop；Step 5 单 Phase 2 worker reduce。
+- Phase1 写 `<patient_dir>/ocr/` 的来源保真 sidecars、抽取 provenance 和
+  `<patient_dir>/raw/` 中的受控原件。它不写 INDEX/timeline/profile 等全局产物。
 - 切片大小是 Claude Code 图像上下文预算,不是契约。其它 host 可顺序运行。
 
-## 2. LLM 输入源
+## 2. 来源保真抽取
 
-- sidecar 正文必须由 Claude/driver LLM 读取 adapted input 后写出(文本脱敏 MD: inline `[PII_MASKED]` + `## PII` trailer)。
-- 图片/扫描件: `Read` 视觉。PDF/DOCX/表格/文本: 可先转成模型可读输入,但最终 Markdown 正文、PII 判断 (inline `[PII_MASKED]` + `## PII` trailer)、表格转写仍由 LLM 输出。
-- 纯 OCR/parser 字符流不能直接写 sidecar 临床正文,也不能替代 LLM 做 PII 判断。它们只能做格式适配或机械文件处理。
+- 图片/扫描件优先运行适用的确定性 OCR/表格/条码工具；born-digital 文件优先读取其原生
+  文本/表格层。保存引擎、版本、原始输出、source span 和文件 hash。
+- LLM 可重建版面、提出候选纠错、做语义标注和 PII 语义复扫，但 `raw_text` 与
+  `proposed_text` 分层保存，不能让 LLM 输出成为唯一字符真值。
+- 药名、剂量、频次、日期、实验室值/单位/参考范围、分期、变异/VAF 和标识字段执行第二次
+  独立读取；不一致标 `needs_human_review`，不得进入 settled-fact surface。
+- PII 同时使用语义复扫与确定性 shape 兜底；任何一层不可用时，共享/交付门 fail closed。
 - sidecar 头部字段集: SOURCE / READ_MODE / ADAPTER / ADAPTER_PROVENANCE / CONFIDENCE / FILE_ID (stable source_id, rename-survivable) / optional MODALITY / ORIGINAL。
 
 ## 3. 格式适配
 
 - HEIC/HEIF: `sips` 生成临时 JPG/PNG 给 `Read`;原始 HEIC 仍逐字保存到 `raw/`,sidecar `ORIGINAL`/`raw_path` 指向 `raw/` 下的逐字原件,临时图只写入 `ADAPTER_PROVENANCE`。
-- PDF: 可渲染页或准备文件上下文给 LLM。渲染页不是证据源。
-- DOCX/表格/文本: 可展开为 LLM-readable payload。payload 不是临床正文来源。
+- PDF: born-digital 文本层或 OCR 输出保留为字符来源；渲染页可供版面复核。
+- DOCX/表格/文本: 原生文本/单元格是字符来源，LLM-readable payload 是辅助视图。
 - 不支持/损坏文件: Phase1 产 stub sidecar + `[INGESTION_BLOCKED]`,不能静默跳过。
 
 ## 4. 确认门
 
 - Claude Code 用 inline review_summary/review_flags/profile card/段E disposition 让用户当场确认。
 - 沉默/推迟/随便/关闭 = no-confirm。关键字段矛盾必须并列展示,不静默覆盖。
-- 高置信非医疗文件 no-confirm 可删除;borderline 永不自动删除。
+- 任何文件 no-confirm 都不删除；疑似非医疗文件隔离预览，逐项显式确认后才删除。
 
 ## 5. 存储
 
 - Phase2 写 canonical `patient_dir`: 14 clinical domains, co-located text-masked MD, `source_inventory.json`(每条 content unit 带 `raw_path` deep-link + `file_id` + `page_range`), structured JSON, HTML 等。
-- `raw/` keeps every uploaded original's BYTES verbatim (never byte-altered, never pixel-redacted, never deleted); the on-disk FILENAME is DE-IDENTIFIED by Phase 1 (identity token stripped; if the whole basename is the identity, fall back to <source_id>.<ext>) so a patient-named upload (e.g. 王国洪-报告.pdf) never leaks into a scanned/shared surface. The verbatim original filename is preserved ONLY in raw/_FILENAME_MAPPING.md (inside raw/, excluded from export, never a delivered/scanned surface).
+- Organization preserves uploaded bytes in access-controlled `raw/` and uses a de-identified on-disk filename.
+  It does not silently overwrite, transform, or delete the original. Retention/deletion is enforced by the
+  host's authenticated policy, not by the organizer. The original upload name remains protected and is
+  excluded from derived exports.
 - `病情简要总结.html` 在文本脱敏 MD/JSON 后生成。
 - sidecar `ORIGINAL`/`raw_path` 指向 `raw/` 下的逐字原件(de-identified filename)。
 
 ## 6. 不变量
 
-- Acceptance gate = run validate_structured_outputs.py; its currently-implemented check set is authoritative. It runs: structured JSON schema + anchors; PII rescan **Layer 2** (deterministic shape floor — id/phone/email/path/account/deny-list) of sidecars AND delivered surfaces; gate_numeric_integrity (flag↔reference_range + dropped-abnormal); source_inventory completeness (every content unit has a de-identified raw_path + text-masked sidecar); case-summary HTML shape. The run must also complete Phase 2.5 extraction-faithfulness (no unresolved CRITICAL) AND the **PII Layer-1 semantic agent scan** (references/pii-rescan-prompt.md, dispatched by the orchestrator — catches label/semantic categories the shape floor can't), and any shareable copy must go through export_share.py (excludes raw/, gated by this script).
+- Acceptance gate = run `validate_structured_outputs.py`. It checks schemas, anchors, source-shape integrity,
+  inventory completeness, deterministic PII shapes, and HTML form. It does not decide whether a value is
+  clinically normal or important. The run also requires Phase 2.5 source-faithfulness review and the PII
+  semantic scan. A share action additionally requires viewer authentication, explicit scope/purpose/recipient/
+  expiry, data minimization, and an export that excludes `raw/`.
 - The text-masked sidecar body is the primary downstream plaintext boundary; ADDITIONALLY the delivered surfaces (INDEX.md / source_inventory.json / update_log.json / dotfiles / 病情简要总结.html) + the synthesized surfaces (case_text.md / profile.json / …) are scanned by the **two-layer PII gate** — Layer 1 semantic agent scan (pii-rescan-prompt.md, generalizes to name/birthplace/occupation/…) + Layer 2 pii_rescan.py shape floor. De-identification therefore covers the sidecar body AND every delivered/synthesized surface。(Phase2/段D 不读明文原文件。)
-- 临床实体 verbatim,不翻译/规范化/平滑。
+- 来源临床字符串保持不变；翻译/规范化只能作为带标签的派生字段，不能覆盖来源。
 - `source_inventory.json` 覆盖每个输入源,每条 content unit 带 `raw_path` + 文本脱敏 sidecar。
-- LLM 可生成 MD/JSON/HTML 前置数据 (含 sidecar 正文 inline `[PII_MASKED]` + `## PII` trailer);确定性 HTML 渲染、PII rescan 由脚本执行。
+- LLM 可生成带来源跨度的候选结构、叙述和 HTML 前置数据，但不得覆盖 native/OCR 原始字符层；确定性 HTML 渲染和 PII shape rescan 由脚本执行。

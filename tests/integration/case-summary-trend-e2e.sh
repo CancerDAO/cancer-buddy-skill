@@ -24,7 +24,7 @@ ok() { pass=$((pass+1)); }
 no() { echo "FAIL: $1" >&2; fail=$((fail+1)); }
 
 # shared locale scaffold (patient-independent)
-I18N='{"html_lang":"zh-CN","doc_title":"病情简要总结","disclaimer":"仅用于临床交流参考，不替代主诊医生的判断","report_date_label":"报告日期","sec_identity":"患者标识","lbl_sex_age":"性别 / 年龄","lbl_hwbmi":"身高 / 体重 / BMI","lbl_ecog":"ECOG 体能评分","sec_summary":"病情概要","sec_stage":"分期 (TNM)","sec_trend":"关键趋势","sec_lesions":"主要病灶分布","sec_molecular":"核心分子检测","sec_labs":"实验室指标","sec_treatment":"治疗史","sec_path":"当前治疗路径","sec_caveats":"数据说明","delta_title":"自上次总结的变化","delta_vs":"对比","delta_none":"与上次总结相比，关键指标无变化","trend_none":"暂无足够时间点数据，补充随访化验后自动生成趋势","val_male":"男","val_female":"女","val_pending":"待主诊医生补充 / 资料缺失","val_ecog_inferred":"（推断，待主诊医生正式签署）","val_to_start":"待启动","footer_doc":"病情简要总结"}'
+I18N='{"html_lang":"zh-CN","doc_title":"病情简要总结","disclaimer":"来源型资料摘要，不作诊断、疗效或治疗判断","report_date_label":"报告日期","sec_identity":"患者标识","lbl_sex_age":"性别 / 年龄","lbl_hwbmi":"身高 / 体重 / BMI","lbl_ecog":"ECOG（仅医生原文）","sec_summary":"资料概要","sec_stage":"报告中的分期字符串","sec_trend":"数值记录","sec_lesions":"影像报告描述","sec_molecular":"分子报告原文","sec_labs":"实验室报告结果","sec_treatment":"治疗记录","sec_path":"治疗路径（本工具不生成）","sec_caveats":"数据说明","delta_title":"自上次摘要的数据变化","delta_vs":"对比","delta_none":"与上次摘要相比，已展示字段无变化","trend_none":"暂无两次可比的来源数据","val_male":"男","val_female":"女","val_pending":"资料中未找到","val_to_start":"来源未写明","footer_doc":"病情简要总结"}'
 
 run_case() {  # $1=name $2=data.json $3=longitudinal(or "") $4=labs.json(or "") $5=prev(or "")
   local name="$1" data="$2" long="$3" labs="$4" prev="$5"
@@ -36,6 +36,19 @@ run_case() {  # $1=name $2=data.json $3=longitudinal(or "") $4=labs.json(or "") 
   local la=""; [ -n "$long" ] && la="--longitudinal $long"
   local lb=""; [ -n "$labs" ] && lb="--labs $labs"
   python3 "$SPARK" --data "$d/.case_summary_data.json" $la $lb >/dev/null 2>"$d/spark.err" || { no "$name: sparklines failed: $(cat "$d/spark.err")"; return; }
+  python3 - "$ORG" "$d/.case_summary_data.json" <<'PY' 2>"$d/schema.err" || { no "$name: render-data schema failed: $(cat "$d/schema.err")"; return; }
+import importlib
+import json
+import pathlib
+import sys
+sys.path.insert(0, str(pathlib.Path(sys.argv[1]) / "scripts"))
+v = importlib.import_module("validate_structured_outputs")
+data = json.loads(pathlib.Path(sys.argv[2]).read_text(encoding="utf-8"))
+errors = []
+v.validate_doc_schema(".case_summary_data.json", data, "case_summary_data.schema.json", errors)
+if errors:
+    raise SystemExit("\n".join(errors))
+PY
   python3 "$RENDER" --template "$TMPL" --data "$d/.case_summary_data.json" --out "$d/summary.html" >/dev/null 2>&1 || { no "$name: render failed"; return; }
   python3 "$VALIDATE" --html "$d/summary.html" --template "$TMPL" >/dev/null 2>"$d/val.err" || { no "$name: validate failed: $(cat "$d/val.err")"; return; }
   ok
@@ -45,18 +58,17 @@ run_case() {  # $1=name $2=data.json $3=longitudinal(or "") $4=labs.json(or "") 
 # ---- Case A: CRC, hero + marker + delta ----
 cat > "$tmp/A.json" <<EOF
 {"i18n":$I18N,"fallbacks":{"__default__":"资料缺失"},
- "one_line_condition":"结直肠癌 IV 期 · KRAS G12D · 肝转移 · 二线治疗中","report_date":"2026-06-28",
+ "one_line_condition":"报告原文：结直肠癌 IV 期 · KRAS G12D · 肝转移","report_date":"2026-06-28",
  "sex":"女","age":"52 岁","height_weight_bmi":"160 cm / 55 kg / 21.5","ecog":"1",
- "case_summary_narrative":"患者 2025 年 10 月确诊结直肠癌伴多发肝转移，KRAS G12D 突变。一线 XELOX 后进展，2026 年 2 月改二线 FOLFIRI 联合贝伐珠单抗，CEA 持续下降，最近复查提示部分缓解。",
+ "case_summary_narrative":"病历记录 2025 年 10 月诊断结直肠癌，分子报告载 KRAS G12D。治疗记录载 XELOX，2026 年 2 月后记录 FOLFIRI 联合贝伐珠单抗。CEA 三次记录为 8.2、4.3、2.1 ng/mL；本摘要不据此判断疗效。",
  "labs_period":"2025-11 至 2026-06",
- "trend_charts":[{"metric":"CEA","unit":"ng/mL","series":[{"t":"2025-11-03","v":8.2},{"t":"2026-02-10","v":4.3},{"t":"2026-06-20","v":2.1}],"treatment_markers":[{"t":"2026-02-01","label":"二线 FOLFIRI"}],"interpretation":"肿瘤标志物 CEA 自二线以来整体下降，提示治疗反应较好。"}],
- "lab_trends":[{"lab_name":"CEA","series":[{"t":"2025-11-03","v":8.2},{"t":"2026-02-10","v":4.3},{"t":"2026-06-20","v":2.1}],"current_value":"2.1","unit":"ng/mL","status_class":"normal","status_label":"正常"},
-   {"lab_name":"HGB","series":[{"t":"2026-06-20","v":104}],"current_value":"104","unit":"g/L","status_class":"low","status_label":"偏低"}],
+ "trend_charts":[{"metric":"CEA","unit":"ng/mL","series":[{"t":"2025-11-03","v":8.2},{"t":"2026-02-10","v":4.3},{"t":"2026-06-20","v":2.1}],"treatment_markers":[{"t":"2026-02-01","label":"治疗记录：FOLFIRI"}],"interpretation":null}],
+ "lab_trends":[{"lab_name":"CEA","series":[{"t":"2025-11-03","v":8.2},{"t":"2026-02-10","v":4.3},{"t":"2026-06-20","v":2.1}],"current_value":"2.1","unit":"ng/mL","status_class":"","status_label":"报告未标注"},
+   {"lab_name":"HGB","series":[{"t":"2026-06-20","v":104}],"current_value":"104","unit":"g/L","status_class":"","status_label":"报告原文：L"}],
  "lesions":[{"lesion_site":"原发灶","lesion_detail":"乙状结肠占位约 3.2 cm"},{"lesion_site":"肝转移","lesion_detail":"肝右叶多发结节"}],
  "molecular_rows":[{"molecular_label":"驱动突变","molecular_value":"KRAS G12D (VAF 32%)"},{"molecular_label":"免疫表型","molecular_value":"MSS / pMMR"}],
- "treatment_lines":[{"line_label":"一线","line_marker_class":"","line_date_range":"2025-10 → 2026-01","line_badge_class":"pd","line_badge_text":"进展","line_regimen":"XELOX","line_note":"SD 后进展"},
-   {"line_label":"二线","line_marker_class":"","line_date_range":"2026-02 → 至今","line_badge_class":"","line_badge_text":"进行中","line_regimen":"FOLFIRI + 贝伐珠单抗","line_note":"CEA 下降，PR"}],
- "path_items":[{"path_label":"当前较可能的路径：","path_content":"继续二线，每 2 周期评估"}],
+ "treatment_lines":[{"line_label":"治疗记录 1","line_marker_class":"","line_date_range":"2025-10 → 2026-01","line_badge_class":"","line_badge_text":null,"line_regimen":"XELOX","line_note":"来源未记录标准化疗效分类"},
+   {"line_label":"治疗记录 2","line_marker_class":"","line_date_range":"2026-02 → 至今","line_badge_class":"","line_badge_text":null,"line_regimen":"FOLFIRI + 贝伐珠单抗","line_note":"来源未记录标准化疗效分类"}],
  "caveats":[{"caveat_text":"化验趋势数值来自照片 OCR，请以检验原件核对"}]}
 EOF
 cat > "$tmp/A_prev.json" <<EOF
@@ -85,17 +97,16 @@ fi
 # ---- Case B: NSCLC, first-ever (no prev → no delta), single-pt lab ----
 cat > "$tmp/B.json" <<EOF
 {"i18n":$I18N,"fallbacks":{"__default__":"资料缺失"},
- "one_line_condition":"非小细胞肺癌 IV 期 · EGFR 19del · 一线奥希替尼","report_date":"2026-06-28",
+ "one_line_condition":"报告原文：非小细胞肺癌 IV 期 · EGFR 19del；治疗记录：奥希替尼","report_date":"2026-06-28",
  "sex":"男","age":"61 岁","height_weight_bmi":"172 cm / 68 kg / 23.0","ecog":"1",
- "case_summary_narrative":"患者确诊 EGFR 19del 非小细胞肺癌，一线奥希替尼治疗，标志物下降。",
+ "case_summary_narrative":"病历记录非小细胞肺癌与 EGFR 19del，治疗记录载奥希替尼。CYFRA21-1 两次记录为 6.4 与 3.1 ng/mL；本摘要不据此判断疗效。",
  "labs_period":"2026-03 至 2026-06",
- "trend_charts":[{"metric":"CYFRA21-1","unit":"ng/mL","series":[{"t":"2026-03-01","v":6.4},{"t":"2026-06-10","v":3.1}],"treatment_markers":[{"t":"2026-03-05","label":"奥希替尼"}],"interpretation":"CYFRA21-1 下降，提示治疗有效。"}],
- "lab_trends":[{"lab_name":"CYFRA21-1","series":[{"t":"2026-03-01","v":6.4},{"t":"2026-06-10","v":3.1}],"current_value":"3.1","unit":"ng/mL","status_class":"high","status_label":"偏高"},
-   {"lab_name":"NSE","series":[{"t":"2026-06-10","v":14}],"current_value":"14","unit":"ng/mL","status_class":"normal","status_label":"正常"}],
+ "trend_charts":[{"metric":"CYFRA21-1","unit":"ng/mL","series":[{"t":"2026-03-01","v":6.4},{"t":"2026-06-10","v":3.1}],"treatment_markers":[{"t":"2026-03-05","label":"治疗记录：奥希替尼"}],"interpretation":null}],
+ "lab_trends":[{"lab_name":"CYFRA21-1","series":[{"t":"2026-03-01","v":6.4},{"t":"2026-06-10","v":3.1}],"current_value":"3.1","unit":"ng/mL","status_class":"","status_label":"报告原文：H"},
+   {"lab_name":"NSE","series":[{"t":"2026-06-10","v":14}],"current_value":"14","unit":"ng/mL","status_class":"","status_label":"报告未标注"}],
  "lesions":[{"lesion_site":"原发灶","lesion_detail":"右上肺占位"}],
  "molecular_rows":[{"molecular_label":"驱动突变","molecular_value":"EGFR 19del"}],
- "treatment_lines":[{"line_label":"一线","line_marker_class":"","line_date_range":"2026-03 → 至今","line_badge_class":"","line_badge_text":"进行中","line_regimen":"奥希替尼","line_note":"标志物下降"}],
- "path_items":[{"path_label":"当前较可能的路径：","path_content":"继续一线奥希替尼"}],
+ "treatment_lines":[{"line_label":"治疗记录 1","line_marker_class":"","line_date_range":"2026-03 → 至今","line_badge_class":"","line_badge_text":null,"line_regimen":"奥希替尼","line_note":"来源未记录标准化疗效分类"}],
  "caveats":[]}
 EOF
 # NSE is intentionally ONLY in labs.json (panels[]) — not in longitudinal — so the
@@ -124,12 +135,12 @@ cat > "$tmp/C.json" <<EOF
  "case_summary_narrative":"新诊断胃癌，尚在完善检查。",
  "labs_period":"资料缺失",
  "trend_charts":[],"lab_trends":[],
- "lesions":[],"molecular_rows":[],"treatment_lines":[],"path_items":[],"caveats":[]}
+ "lesions":[],"molecular_rows":[],"treatment_lines":[],"caveats":[]}
 EOF
 htmlC=$(run_case C "$tmp/C.json" "" "" "") || true
 if [ -n "${htmlC:-}" ] && [ -f "${htmlC:-/nope}" ]; then
   grep -q 'class="trend-none"' "$htmlC" && ok || no "C: no-trend → placeholder shown"
-  [ "$(grep -c '<h2>' "$htmlC")" = "9" ] && ok || no "C: all 9 section <h2> still render even with no data"
+  [ "$(grep -c '<h2>' "$htmlC")" = "8" ] && ok || no "C: all 8 section <h2> still render even with no data"
   grep -q '<polyline' "$htmlC" && no "C: no chart should render with empty trend_charts + empty lab_trends" || ok
 fi
 
@@ -139,10 +150,10 @@ cat > "$tmp/D.json" <<EOF
  "one_line_condition":"卵巢高级别浆液性癌 · 复发","report_date":"2026-06-28",
  "sex":"女","age":"58 岁","height_weight_bmi":"-","ecog":"1","case_summary_narrative":"复发，双标志物随访。","labs_period":"2025-2026",
  "trend_charts":[
-   {"metric":"CA125","unit":"U/mL","series":[{"t":"2025-12-01","v":420},{"t":"2026-03-01","v":180},{"t":"2026-06-01","v":66}],"treatment_markers":[{"t":"2025-12-15","label":"二线 PLD"}],"interpretation":"CA125 显著下降。"},
-   {"metric":"HE4","unit":"pmol/L","series":[{"t":"2025-12-01","v":320},{"t":"2026-06-01","v":140}],"treatment_markers":[],"interpretation":"HE4 下降。"}],
- "lab_trends":[{"lab_name":"CA125","series":[{"t":"2025-12-01","v":420},{"t":"2026-06-01","v":66}],"current_value":"66","unit":"U/mL","status_class":"high","status_label":"偏高"}],
- "lesions":[],"molecular_rows":[],"treatment_lines":[],"path_items":[],"caveats":[]}
+   {"metric":"CA125","unit":"U/mL","series":[{"t":"2025-12-01","v":420},{"t":"2026-03-01","v":180},{"t":"2026-06-01","v":66}],"treatment_markers":[{"t":"2025-12-15","label":"治疗记录：PLD"}],"interpretation":null},
+   {"metric":"HE4","unit":"pmol/L","series":[{"t":"2025-12-01","v":320},{"t":"2026-06-01","v":140}],"treatment_markers":[],"interpretation":null}],
+ "lab_trends":[{"lab_name":"CA125","series":[{"t":"2025-12-01","v":420},{"t":"2026-06-01","v":66}],"current_value":"66","unit":"U/mL","status_class":"","status_label":"报告原文：H"}],
+ "lesions":[],"molecular_rows":[],"treatment_lines":[],"caveats":[]}
 EOF
 cat > "$tmp/D_long.json" <<EOF
 {"schema_version":"longitudinal_observations_v1","patient_code":"PT-D","observations":[
@@ -166,12 +177,12 @@ cat > "$tmp/E.json" <<EOF
  "one_line_condition":"卵巢高级别浆液性癌 · 铂耐药复发 · 多指标随访","report_date":"2026-06-28",
  "sex":"女","age":"60 岁","height_weight_bmi":"158 cm / 52 kg / 20.8","ecog":"1","case_summary_narrative":"铂耐药复发，四项指标并行随访以判读治疗反应与肿瘤负荷。","labs_period":"2025-2026",
  "trend_charts":[
-   {"metric":"CA-125","unit":"U/mL","series":[{"t":"2025-11-01","v":880},{"t":"2026-02-01","v":410},{"t":"2026-06-01","v":150}],"treatment_markers":[{"t":"2025-11-15","label":"三线 拓扑替康"}],"interpretation":"CA-125 整体下降。"},
-   {"metric":"HE4","unit":"pmol/L","series":[{"t":"2025-11-01","v":520},{"t":"2026-06-01","v":210}],"treatment_markers":[],"interpretation":"HE4 下降。"},
-   {"metric":"CEA","unit":"ng/mL","series":[{"t":"2025-11-01","v":9.1},{"t":"2026-06-01","v":5.4}],"treatment_markers":[],"interpretation":"CEA 缓慢下降。"},
-   {"metric":"LDH","unit":"U/L","series":[{"t":"2025-11-01","v":420},{"t":"2026-02-01","v":300},{"t":"2026-06-01","v":250}],"treatment_markers":[],"interpretation":"LDH 回落，提示肿瘤负荷下降。"}],
- "lab_trends":[{"lab_name":"CA-125","series":[{"t":"2025-11-01","v":880},{"t":"2026-06-01","v":150}],"current_value":"150","unit":"U/mL","status_class":"high","status_label":"偏高"}],
- "lesions":[],"molecular_rows":[],"treatment_lines":[],"path_items":[],"caveats":[]}
+   {"metric":"CA-125","unit":"U/mL","series":[{"t":"2025-11-01","v":880},{"t":"2026-02-01","v":410},{"t":"2026-06-01","v":150}],"treatment_markers":[{"t":"2025-11-15","label":"治疗记录：拓扑替康"}],"interpretation":null},
+   {"metric":"HE4","unit":"pmol/L","series":[{"t":"2025-11-01","v":520},{"t":"2026-06-01","v":210}],"treatment_markers":[],"interpretation":null},
+   {"metric":"CEA","unit":"ng/mL","series":[{"t":"2025-11-01","v":9.1},{"t":"2026-06-01","v":5.4}],"treatment_markers":[],"interpretation":null},
+   {"metric":"LDH","unit":"U/L","series":[{"t":"2025-11-01","v":420},{"t":"2026-02-01","v":300},{"t":"2026-06-01","v":250}],"treatment_markers":[],"interpretation":null}],
+ "lab_trends":[{"lab_name":"CA-125","series":[{"t":"2025-11-01","v":880},{"t":"2026-06-01","v":150}],"current_value":"150","unit":"U/mL","status_class":"","status_label":"报告原文：H"}],
+ "lesions":[],"molecular_rows":[],"treatment_lines":[],"caveats":[]}
 EOF
 cat > "$tmp/E_long.json" <<EOF
 {"schema_version":"longitudinal_observations_v1","patient_code":"PT-E","observations":[

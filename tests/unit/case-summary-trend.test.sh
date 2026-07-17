@@ -38,7 +38,7 @@ EOF
 cat > "$tmp/d1.json" <<'EOF'
 {"trend_charts":[{"metric":"CEA","unit":"ng/mL",
   "series":[{"t":"2025-11-03","v":8.2},{"t":"2026-02-10","v":4.3},{"t":"2026-06-20","v":2.1}],
-  "treatment_markers":[{"t":"2026-02-01","label":"二线 FOLFOX"}],
+  "treatment_markers":[{"t":"2026-02-01","label":"FOLFOX episode"}],
   "interpretation":"下降"}],
  "lab_trends":[
   {"lab_name":"SCC","series":[{"t":"2026-01-01","v":2.4},{"t":"2026-06-20","v":1.81}],"current_value":"1.81"},
@@ -97,7 +97,7 @@ grep -q "99.9" "$tmp/g3.err" && ok || no "3: gate should name the fabricated val
 python3 "$SPARK" --data "$tmp/d3.json" --out "$tmp/o3.json" >/dev/null 2>&1 && ok || no "3: no-gate mode ignores integrity"
 # a point backed ONLY by the real labs.json panels[] shape (not in longitudinal) → accepted
 cat > "$tmp/labs_real.json" <<'EOF'
-{"schema_version":"labs_v1","panels":[{"analyte":"ALB","unit":"g/L","reference_range":"40-55","values":[{"date":"2026-06-20","value":38,"flag":"L"}]}]}
+{"patient_code":"PT-A1","schema_version":"2","panels":[{"analyte":"ALB","values":[{"date":"2026-06-20","value":38,"raw_value":"38","unit":"g/L","reference_range":"40-55","report_flag":"L","critical_flag":null,"provenance_layer":"source_reported","verification_status":"unverified","source_refs":["07_labs/a.md"]}]}]}
 EOF
 cat > "$tmp/d3b.json" <<'EOF'
 {"trend_charts":[],"lab_trends":[{"lab_name":"ALB","series":[{"t":"2026-06-20","v":38}],"current_value":"38"}]}
@@ -108,15 +108,15 @@ rc=0; python3 "$SPARK" --data "$tmp/d3b.json" --labs "$tmp/longitudinal.json" >/
 [ "$rc" = "3" ] && ok || no "3: ALB absent from source → should exit 3 (got $rc)"
 
 # ---------------------------------------------------------------------------
-# 4. version_delta: lab moves + new treatment line + ECOG; and first-ever → null
+# 4. version_delta: arithmetic/source changes only; first-ever → null
 # ---------------------------------------------------------------------------
 cat > "$tmp/prev.json" <<'EOF'
 {"report_date":"2026-05-12","lab_trends":[{"lab_name":"SCC","current_value":"2.4"},{"lab_name":"HGB","current_value":"120"}],
- "treatment_lines":[{"line_label":"一线","line_regimen":"XELOX"}],"ecog":"1"}
+ "treatment_lines":[{"line_label":"Treatment episode","line_regimen":"XELOX"}],"ecog":"1"}
 EOF
 cat > "$tmp/cur.json" <<'EOF'
 {"report_date":"2026-06-28","lab_trends":[{"lab_name":"SCC","current_value":"1.81"},{"lab_name":"HGB","current_value":"104"}],
- "treatment_lines":[{"line_label":"一线","line_regimen":"XELOX"},{"line_label":"二线","line_regimen":"FOLFIRI"}],"ecog":"0"}
+ "treatment_lines":[{"line_label":"Treatment episode","line_regimen":"XELOX"},{"line_label":"New documented episode","line_regimen":"FOLFIRI"}],"ecog":"0"}
 EOF
 python3 "$DELTA" --data "$tmp/cur.json" --prev "$tmp/prev.json" --out "$tmp/cd.json" >/dev/null 2>&1 && ok || no "4: delta exit 0"
 [ "$(pv "$tmp/cd.json" "d['version_delta']['prev_date']")" = "2026-05-12" ] && ok || no "4: prev_date carried"
@@ -138,10 +138,10 @@ python3 "$DELTA" --data "$tmp/cur.json" --out "$tmp/cn.json" >/dev/null 2>&1 && 
 # ---------------------------------------------------------------------------
 BACKFILL="$ORG/scripts/backfill_lab_trends.py"
 cat > "$tmp/bf_labs.json" <<'EOF'
-{"schema_version":"labs_v1","panels":[
- {"analyte":"CEA","unit":"ng/ml","reference_range":"0-5.0","values":[{"date":"2025-01-20","value":11.78,"flag":"H"},{"date":"2026-06-02","value":550,"flag":"H"}]},
- {"analyte":"CA19-9","unit":"U/ml","reference_range":"0-27","values":[{"date":"2026-06-02","value":"<2.00","flag":null}]},
- {"analyte":"ALB","unit":"g/L","reference_range":"40-55","values":[{"date":"2026-06-02","value":38,"flag":null}]}]}
+{"patient_code":"PT-A1","schema_version":"2","panels":[
+ {"analyte":"CEA","values":[{"date":"2025-01-20","value":11.78,"raw_value":"11.78","unit":"ng/ml","reference_range":"0-5.0","report_flag":"H","critical_flag":null,"provenance_layer":"source_reported","verification_status":"unverified","source_refs":["07_labs/a.md"]},{"date":"2026-06-02","value":550,"raw_value":"550","unit":"ng/ml","reference_range":"0-5.0","report_flag":"H","critical_flag":null,"provenance_layer":"source_reported","verification_status":"unverified","source_refs":["07_labs/b.md"]}]},
+ {"analyte":"CA19-9","values":[{"date":"2026-06-02","value":"<2.00","raw_value":"<2.00","unit":"U/ml","reference_range":"0-27","report_flag":null,"critical_flag":null,"provenance_layer":"source_reported","verification_status":"unverified","source_refs":["07_labs/c.md"]}]},
+ {"analyte":"ALB","values":[{"date":"2026-06-02","value":38,"raw_value":"38","unit":"g/L","reference_range":"40-55","report_flag":null,"critical_flag":null,"provenance_layer":"source_reported","verification_status":"unverified","source_refs":["07_labs/d.md"]}]}]}
 EOF
 cat > "$tmp/bf_profile.json" <<'EOF'
 {"locale":"zh"}
@@ -150,9 +150,9 @@ EOF
 echo '{"lab_trends":[]}' > "$tmp/bf_empty.json"
 python3 "$BACKFILL" --data "$tmp/bf_empty.json" --labs "$tmp/bf_labs.json" --profile "$tmp/bf_profile.json" >/dev/null 2>&1 && ok || no "5: backfill exit 0"
 [ "$(pv "$tmp/bf_empty.json" "len(d['lab_trends'])")" = "3" ] && ok || no "5: 3 rows backfilled from panels"
-[ "$(pv "$tmp/bf_empty.json" "d['lab_trends'][0]['status_class']")" = "high" ] && ok || no "5: CEA flag=H → status high"
-[ "$(pv "$tmp/bf_empty.json" "d['lab_trends'][0]['status_label']")" = "偏高" ] && ok || no "5: zh label 偏高"
-[ "$(pv "$tmp/bf_empty.json" "d['lab_trends'][2]['status_class']")" = "low" ] && ok || no "5: ALB 38 in 40-55 → range compare low"
+[ "$(pv "$tmp/bf_empty.json" "d['lab_trends'][0]['status_class']")" = "" ] && ok || no "5: no computed severity class from report flag"
+[ "$(pv "$tmp/bf_empty.json" "d['lab_trends'][0]['status_label']")" = "H" ] && ok || no "5: source report flag preserved"
+[ "$(pv "$tmp/bf_empty.json" "d['lab_trends'][2]['status_class']")" = "" ] && ok || no "5: no reference-range comparison"
 [ "$(pv "$tmp/bf_empty.json" "d['lab_trends'][1]['current_value']")" = "<2.00" ] && ok || no "5: string value '<2.00' preserved verbatim"
 # already-populated lab_trends → NO-OP (LLM selection respected)
 echo '{"lab_trends":[{"lab_name":"KEEP","current_value":"1"}]}' > "$tmp/bf_full.json"

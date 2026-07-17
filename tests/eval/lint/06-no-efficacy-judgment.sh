@@ -16,10 +16,9 @@
 # "did a generated report self-assess efficacy" is a runtime property → LLM-judge
 # scenarios. Static assertions:
 #   A. safety-guardrails.md carries the no-efficacy-self-assessment P0 rule.
-#   B. organize Phase-2 synthesis prompt has the verbatim-only response rule
-#      (best_response/response null when the source only has descriptive imaging).
+#   B. organize Phase-2 synthesis prompt has the source-only response rule.
 #   C. Phase-2.5 faithfulness worker covers response labels, not just numbers.
-#   D. treatment_lines schema documents best_response as source-stated-only.
+#   D. treatment episode schema documents clinician_reported_response as source-only.
 #   E. case-summary + education prompts forbid the RECIST-definition gloss.
 set -euo pipefail
 source "$(dirname "$0")/_common.sh"
@@ -44,32 +43,32 @@ fi
 # B. Phase-2 synthesis: verbatim-only response, null when only descriptive imaging.
 [[ -f "$SYN" ]] || fail "phase2-synthesis prompt not found"
 if [[ -f "$SYN" ]]; then
-  grep -qiE 'best_response|latest_status\.response|响应类别' "$SYN" \
+  grep -qiE 'CR/PR/SD/PD|疗效|response' "$SYN" \
     || fail "phase2-synthesis: response verbatim-only rule absent"
-  grep -qiE '绝不.*(合成|转写)|verbatim-only.*response|描述性影像' "$SYN" \
+  grep -qiE '不从影像.*生成|不得.*影像.*推断|描述性影像' "$SYN" \
     || fail "phase2-synthesis: does not forbid synthesizing a response from descriptive imaging"
 fi
 
 # C. Phase-2.5 faithfulness covers response labels (not only numeric).
 [[ -f "$F25" ]] || fail "phase2.5 faithfulness prompt not found"
 if [[ -f "$F25" ]]; then
-  grep -qiE 'best_response|response.*label|响应.*label|synthesized response' "$F25" \
+  grep -qiE '疗效原文|response.*source|疗效.*来源' "$F25" \
     || fail "phase2.5: faithfulness check does not cover response/efficacy labels"
 fi
 
 # D. treatment_lines schema documents best_response as source-stated-only.
 [[ -f "$TLS" ]] || fail "treatment_lines.schema.json not found"
 if [[ -f "$TLS" ]]; then
-  grep -qiE '逐字|source-stated|绝不.*合成|clinician' "$TLS" \
-    || fail "treatment_lines schema: best_response lacks source-stated-only description"
+  grep -qiE 'clinician-reported|never calculated|source-reported' "$TLS" \
+    || fail "treatment_lines schema: clinician_reported_response lacks source-only description"
 fi
 
 # E. case-summary + education forbid the RECIST-definition gloss.
 [[ -f "$CS" ]] || fail "case-summary-html-prompt.md not found"
-[[ -f "$CS" ]] && { grep -qiE '疗效红线|缩小超过 30%|定义式' "$CS" \
+[[ -f "$CS" ]] && { grep -qiE '不得从影像.*推断|不.*RECIST|疗效.*只.*来源' "$CS" \
   || fail "case-summary: RECIST-definition-gloss ban absent"; }
 [[ -f "$HB" ]] || fail "handbook-template.md not found"
-[[ -f "$HB" ]] && { grep -qiE '疗效红线|不自行判疗效|缩小超过 30%' "$HB" \
+[[ -f "$HB" ]] && { grep -qiE '不合成.*疗效|不.*疗效|个体.*结论' "$HB" \
   || fail "handbook: no-efficacy-self-assessment note absent"; }
 
 summarize "no-efficacy-judgment"

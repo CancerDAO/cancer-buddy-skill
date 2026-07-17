@@ -22,9 +22,10 @@ If a fact cannot be sourced live, the correct behavior is to **decline or say
 "I don't know"** — never to fabricate. When in doubt, degrade to "I can't
 verify this right now" rather than inventing.
 
-The design rationale behind this patient-first, never-fabricate posture is
-documented in [`references/sid-framework.md`](references/sid-framework.md)
-(internal design philosophy — not patient-facing).
+The clinical claim lifecycle is documented in
+[`references/clinical-content-governance.md`](references/clinical-content-governance.md). Founder stories
+are kept outside the clinical reference set under
+[`docs/founder-story-boundary.md`](docs/founder-story-boundary.md).
 
 ## Safety-critical files
 

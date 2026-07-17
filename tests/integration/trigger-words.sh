@@ -3,8 +3,8 @@
 # This is structural — it does not actually invoke Claude, only greps the SKILL.md files.
 #
 # After the v4 scope pivot, clinical triggers (MTB / 试验 / 扩展准入 / 缓和 / 副作用 /
-# 换线 / 长期副作用 / 漏服 etc.) are intentionally NOT in the public skill —
-# they live in cancer-buddy-pro-skill. The meta-skill explicitly declines those asks.
+# 换线 / 长期副作用 / 漏服 etc.) do not authorize patient-specific clinical
+# decisions. The meta-skill explicitly routes those decisions to the treating team.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"

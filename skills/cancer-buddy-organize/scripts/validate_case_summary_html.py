@@ -18,9 +18,9 @@ Checks:
       international(E.164) phone, and no PII label (zh 姓名/住院号/门诊号/病案号/检验号/
       报告号/床号/身份证/电话 OR en patient name/MRN/patient id/SSN/phone/...) followed
       by an un-masked value. Runs an unconditional zh∪en∪locale-agnostic union.
-  (e) (removed) Precise age is now ALLOWED — clinical-trial matching needs the
-      exact age. DOB / birthplace / occupation stay barred upstream (producer +
-      pii_rescan), not in this shape gate.
+  (e) Contextual minimization — age and other quasi-identifiers cannot be deemed
+      safe by a universal regex. The producer/authorization/semantic review decides
+      necessity and combination risk; this form gate does not.
   (f) Skeleton present — .header + .footer + an <h2> for every template section
       (the template always renders every section, even when empty).
   (g) Provenance — the render_html_template.py `template_sha256:` comment is
@@ -122,12 +122,9 @@ _SSN_RE = re.compile(r"(?<!\d)\d{3}-\d{2}-\d{4}(?!\d)")
 _INTL_PHONE_RE = re.compile(r"(?<![\w+])\+\d[\d\s().-]{6,}\d")
 _US_PHONE_RE = re.compile(r"(?<!\d)\(?\d{3}\)?[-.\s]\d{3}[-.\s]\d{4}(?!\d)")
 
-# (e) precise age is intentionally NOT guarded here anymore — the case summary now
-#     retains the exact age (clinical-trial matching needs it). DOB / birthplace /
-#     occupation remain barred, enforced upstream at the producer + pii_rescan.
-#     The sibling validate_visit_prep_html.py dropped the same guard in the same
-#     change, so the two remain ALIGNED (both age-permissive, DOB still barred). Do
-#     NOT re-add an exact-age guard to either without doing the same to the other.
+# (e) Age and other quasi-identifiers require contextual minimization and
+#     combination-risk review. A form regex cannot decide necessity or authorization;
+#     the producer and semantic PII gate enforce that policy.
 
 # (g) provenance comment emitted by render_html_template.py
 _PROVENANCE_RE = re.compile(r"template_sha256:\s*([0-9a-f]{64})", re.IGNORECASE)
@@ -267,10 +264,8 @@ def check(html: str, template: str, errors: list[str]) -> str | None:
     if _US_PHONE_RE.search(scan):
         errors.append("(d) PII: US phone-number pattern present")
 
-    # (e) precise age is now ALLOWED — clinical-trial matching needs the exact age.
-    # Only DOB/birthplace/occupation stay barred, and those are enforced upstream
-    # (case-summary-html-prompt.md producer rules + pii_rescan PII scan), not here.
-    # The former \d{1,3}岁 / "<n> years old" guard was removed intentionally.
+    # (e) Context-dependent age/quasi-identifier minimization is enforced by the
+    # producer's authorization and semantic review, not by a universal regex.
 
     # (h) print-safe / no-JS floor — scan the RAW html (not comment-stripped: a
     # forbidden tag hidden in a comment is still suspicious, but the template's

@@ -3,7 +3,7 @@
 # completeness floor in validate_structured_outputs.py.
 #   - gate_bucket_taxonomy: pinned NN_ domain + typed sub-bucket slugs (bucket_taxonomy.json)
 #   - gate_ngs_completeness: NGS source present but molecular.json arrays empty → WARN
-# Uses synthetic fixtures reproducing patient 023's real classifier drift
+# Uses fully synthetic fixtures reproducing classifier drift
 # (deterministic, no LLM) so the assertions are stable.
 set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -44,7 +44,7 @@ PY
 }
 
 # ===========================================================================
-# 1. DRIFT fixture — reproduce patient 023's echoed source-folder names.
+# 1. DRIFT fixture — reproduce echoed source-folder names.
 #    Every one of these 4 dirs must be named as a violation.
 # ===========================================================================
 d="$tmp/drift"
@@ -121,7 +121,7 @@ echo "----- ngs floor (PGx empty) output -----"
 echo "$out"
 echo "----------------------------------------"
 echo "$out" | grep -q 'ngs_completeness' && ok || no "NGS floor should WARN when PGx empty"
-echo "$out" | grep -q 'pharmacogenomics' && ok || no "NGS floor should name the empty pharmacogenomics field"
+echo "$out" | grep -q 'pharmacogenomics' && ok || no "molecular coverage warning should name the empty source field"
 
 # floor is WARN-only: the full entrypoint must NOT fail solely on an empty PGx
 # array (add the artifacts it needs so the OTHER gates pass, isolating the floor).
@@ -134,8 +134,8 @@ cat > "$w/molecular.json" <<'EOF'
   "variants":[{"gene":"EGFR","variant":"p.L858R"}], "germline":[], "pharmacogenomics":[] }
 EOF
 cat > "$w/source_inventory.json" <<'EOF'
-{ "schema":"source_inventory_v1","patient_dir":"patients/PT-NGS02","files":[
-  {"source_id":"s1","raw_path":"raw/h/IMG.pdf","sidecar_path":"06_分子与组学/NGS报告/rep.md","bucket_path":"06_分子与组学/NGS报告"} ]}
+{ "schema":"source_inventory_v2","patient_dir":"patients/PT-NGS02","files":[
+  {"file_id":"f1","source_id":"s1","original_path":"IMG.pdf","raw_path":"raw/h/IMG.pdf","page_range":null,"sidecar_path":"06_分子与组学/NGS报告/rep.md","bucket_path":"06_分子与组学/NGS报告","modality":"text","read_mode":"deterministic_ocr","extractor_provenance":{"engine":"fixture","version":"1","raw_output_ref":"raw/h/IMG.txt","llm_role":"review"},"high_risk_review_status":"passed_independent_reread","adapter":"pdf_pages","persist":true} ]}
 EOF
 python3 "$VAL" "$w" >/dev/null 2>"$tmp/warn.err" && rc=0 || rc=$?
 # it may still exit 1 for other reasons, but the NGS floor line must be a WARN, not an ERROR

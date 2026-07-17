@@ -154,7 +154,7 @@ slug (see `../../../references/i18n.md §6`). The `zh` slug is the on-disk folde
 
 ### 1.1b Empty-bucket policy (lazy creation — never pre-scaffold an empty domain)
 
-**A clinical bucket is created on disk only when a sidecar is actually filed into it** (Phase 2 `mkdir -p <bucket>` immediately before writing each sidecar; setup creates **only `ocr/` + `raw/`**, never the 14 domains up front — see `SKILL.md` Step 2). The reason is a patient-safety one: **an empty folder must not imply "no such record exists".** A pre-created empty `09_手术与操作/` reads to a human (and to a downstream skill scanning the tree) as "no surgery" — which is a silent, dangerous lie when the discharge summary states a resection was performed but the operative note simply wasn't among the uploaded files. With lazy creation, an absent `09_手术与操作/` truthfully means **"no surgery document was filed"**, and the authoritative channel for "a record is expected for this domain but missing" is `missing_items.json` (cancer-type checklist diff), **not** an empty folder.
+**A clinical bucket is created on disk only when a sidecar is actually filed into it** (Phase 2 `mkdir -p <bucket>` immediately before writing each sidecar; setup creates **only `ocr/` + `raw/`**, never the 14 domains up front — see `SKILL.md` Step 2). The reason is a patient-safety one: **an empty folder must not imply "no such record exists".** A pre-created empty `09_手术与操作/` reads to a human (and to a downstream skill scanning the tree) as "no surgery" — which is a silent, dangerous lie when the discharge summary states a resection was performed but the operative note simply wasn't among the uploaded files. With lazy creation, an absent `09_手术与操作/` truthfully means **"no surgery document was filed"**. Known/requested existing-document gaps belong in `missing_items.json`; they are inventory facts, not evidence that a test or procedure is clinically indicated.
 
 If a host binding insists on pre-creating buckets, it MUST, at the end of the run, for every bucket left empty, **either remove it OR annotate it in `INDEX.md`** as `该桶为空：源材料未提供原始X`（X = that domain, e.g. 手术记录）— an empty folder may never sit silently in the tree implying the record exists or that its domain was checked and found clear. The lazy-create path above is the default because it makes this invariant hold structurally.
 
@@ -162,7 +162,7 @@ If a host binding insists on pre-creating buckets, it MUST, at the end of the ru
 
 | key | `zh` slug | `en` slug | visible? | anchored? | role |
 |---|---|---|---|---|---|
-| `raw/` | `raw` | `raw` | **no (HIDDEN)** | never | **un-redacted vault of every uploaded original**, one copy per upload, stored at `raw/<original_subdir>/<de-identified-basename>`. raw/ keeps every uploaded original's BYTES verbatim (never byte-altered, never pixel-redacted, never deleted); the on-disk FILENAME is DE-IDENTIFIED by Phase 1 (identity token stripped; if the whole basename is the identity, fall back to `<source_id>.<ext>`) so a patient-named upload (e.g. 王国洪-报告.pdf) never leaks into a scanned/shared surface. The verbatim original filename is preserved ONLY in raw/_FILENAME_MAPPING.md (inside raw/, excluded from export, never a delivered/scanned surface). The original sub-folder structure is preserved; the `file_id`↔`raw_path` link lives in `source_inventory.json`. The frontend deep-links a sidecar back to its original here (see §4). **Never pixel-redacted** (image-level 段B redaction is removed — see §5). |
+| `raw/` | `raw` | `raw` | **no (HIDDEN)** | never | Access-controlled uploaded originals stored under de-identified filenames. Organization preserves bytes and never silently overwrites, transforms, or deletes them; host lifecycle policy governs retention/deletion. Original filenames remain protected provenance and are excluded from derived exports. Authorized viewers may follow `source_inventory.json.raw_path`; the path is not an anchor or access token. |
 | `99_` | `99_无关文件` | `99_unrelated` | **no (quarantine)** | never | `high_confidence/ uncertain/` relevance quarantine, outside the clinical scheme. |
 
 `raw/` and `99_` are **never patient-visible scaffold** and **never anchor targets** (anchors point
@@ -203,9 +203,9 @@ ingest-parser dispatch.
 
 | `modality` | meaning | example | ingest path |
 |---|---|---|---|
-| `text` | prose / OCR'd document | discharge summary, pathology narrative | LLM Markdown ingestion (§ phase1) |
-| `image` | imaging / scan, stub-summarized | CT series, IHC slide photo | LLM vision stub |
-| `structured` | tabular numeric report | CBC panel, biochemistry sheet | LLM table → Markdown table |
+| `text` | native prose or OCR'd document | discharge summary, pathology narrative | native/deterministic text + source spans; LLM-assisted layout/review |
+| `image` | imaging / scan | CT series, IHC slide photo | metadata/report archival; no diagnostic image interpretation |
+| `structured` | tabular numeric report | CBC panel, biochemistry sheet | native table/deterministic extraction + independent high-risk-field reread |
 | `omics_raw` | parseable omics payload | VCF / annotated TSV / expression-methylation matrix | omics ingest adapter (§ ingest-adapters) |
 | `timeseries` | longitudinal stream | wearable export, glucose log, PRO diary | timeseries ingest adapter → `longitudinal_observations[]` |
 | `binary_other` | unsupported/opaque binary | BAM / FASTQ / DICOM raw / proprietary export | stub + `[INGESTION_BLOCKED]`, never silently dropped |
@@ -227,7 +227,7 @@ is still filed (domain `10_随访与监测/可穿戴导出` or `/PRO自报`) and
 ```
 longitudinal_observations[] := {
   obs_type: "vital|lab|symptom|pro|adherence|activity",
-  metric:   "<name, verbatim>",        # e.g. "HbA1c", "resting_hr", "ECOG"
+  metric:   "<name, verbatim>",        # e.g. "HbA1c", "resting_hr"; ECOG only when clinician-reported
   value:    <number|string>,
   unit:     "<unit, verbatim>",
   timestamp:"<ISO8601>",
@@ -236,18 +236,15 @@ longitudinal_observations[] := {
 }
 ```
 
-This is the substrate for **单时间点 → 多时间点 → 纵向曲线 → 治疗反应轨迹**. `profile.json` keeps a
+This is the substrate for **单时间点 → 多时间点 → 中性纵向观察曲线**，不是疗效或进展轨迹。`profile.json` keeps a
 `latest_status` snapshot AND points consumers at `longitudinal_observations.json` for the trajectory.
 
 ## 4. Source ↔ sidecar mapping (frontend deep-link)
 
-Every uploaded original lives once under `raw/`, preserving its original sub-folder structure
-(`raw/<original_subdir>/<de-identified-basename>`). raw/ keeps every uploaded original's BYTES verbatim
-(never byte-altered, never pixel-redacted, never deleted); the on-disk FILENAME is DE-IDENTIFIED by
-Phase 1 (identity token stripped; if the whole basename is the identity, fall back to
-`<source_id>.<ext>`) so a patient-named upload (e.g. 王国洪-报告.pdf) never leaks into a scanned/shared
-surface. The verbatim original filename is preserved ONLY in raw/_FILENAME_MAPPING.md (inside raw/,
-excluded from export, never a delivered/scanned surface). Every clinical `.md` sidecar is one **content unit**
+Every uploaded original lives once under access-controlled `raw/` under a de-identified filename.
+Organization preserves bytes and never silently overwrites, transforms, or deletes them; retention and
+authorized deletion are host-governed. The original upload name is protected provenance and is excluded
+from derived exports. Every clinical `.md` sidecar is one **content unit**
 (one document type extracted from a source). The 1:1 code is `file_id`; the link between a sidecar and
 its original is carried in `source_inventory.json` (one row per content unit) and surfaced in `INDEX.md`:
 
@@ -269,17 +266,18 @@ content unit := {
 
 ## 5. Redaction policy (image-level 段B removed)
 
-- **Originals in `raw/` are kept verbatim and are never pixel-redacted.** The image-level redaction job
-  (段B: `redaction_manifest`/`redaction_status`/`source_redaction_status` + `run_redaction_job.py` +
-  `redaction-job.md`) is **removed** — there is no redact-then-delete of originals.
+- **The organizer does not mutate original bytes.** This archive-integrity rule does not authorize access,
+  sharing, or indefinite retention. A purpose-limited export excludes `raw/`; if original images must be
+  transferred, a separate authorized workflow assesses image pixels, headers, metadata, necessity, and
+  residual re-identification risk.
 - **Sidecar text PII masking stays.** Phase 1 still masks PII in the `.md` sidecar body
   (`phase1-ocr.md §2.4`) and `pii_rescan.py` still rescans the text — the sidecar remains the
   downstream-only read source with no plaintext PII, so structured JSONs and patient-facing answers
   stay de-identified.
 - **段E (unrelated-file deletion) is unchanged** — high-confidence non-medical files are still
-  auto-deleted on no-confirm; that privacy floor is independent of 段B.
-- Net: the patient keeps every original as uploaded (frontend can show it), while downstream artifacts
-  built from the text sidecars remain desensitized.
+  deleted only after explicit item-specific confirmation; silence always holds the file.
+- Net: authorized users can audit derived text against the supplied file, while downstream artifacts use
+  source-attributed sidecars and separate PII/minimization gates.
 
 ## 6. Clean replacement — no backward compatibility
 

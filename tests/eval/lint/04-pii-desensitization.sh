@@ -3,19 +3,16 @@
 #
 # Static, mostly automatable. organize is the single ingest point for raw
 # records, so the text-masking contract has to be visible in its SKILL.md.
-# Uploaded originals are kept verbatim in raw/ (never pixel-redacted, never
-# deleted); the only desensitization is the sidecar TEXT masking — that is what
-# this dimension guards.
+# Original integrity, PII masking, contextual minimization, and authorization are
+# separate controls. No clean scan is treated as proof of anonymity.
 #
 # Static assertions:
 #   A. organize/SKILL.md states the text-masked-MD-sidecar invariant: the MD
 #      sidecar is the downstream-only read source and carries no plaintext PII;
 #      text masking masks PII only, never clinical characters (anti-anchoring).
-#   B. source_inventory schema carries the raw_path deep-link to the verbatim
-#      original in raw/, and the image/source-redaction status subsystem
-#      (redaction_manifest / source_redaction_status / run_redaction_job) does
-#      NOT re-enter the skill (originals are never pixel-redacted).
-#   C. vault declares PII stripping / de-identification on share.
+#   B. source_inventory carries a protected raw_path and extraction provenance.
+#   C. sharing requires authentication, scoped confirmation, minimization and
+#      residual-risk language; it never promises anonymity.
 #
 # What this CANNOT prove: that a sidecar was semantically fully masked. That
 # requires a residue rescan on fixtures and/or an LLM judge
@@ -40,10 +37,11 @@ if [[ -f "$ORG_MD" ]]; then
     || fail "organize: does not state text masking masks PII only (anti-anchoring, clinical chars intact)"
 fi
 
-# B. source_inventory deep-links to the verbatim raw/ original; the source-redaction
-#    subsystem must NOT re-enter the skill (originals are kept verbatim, never pixel-redacted).
+# B. source inventory deep-link is protected and source extraction is auditable.
 grep -q 'raw_path' "$ORG/references/schemas/source_inventory.schema.json" \
-  || fail "organize: source_inventory schema missing raw_path deep-link to the verbatim original"
+  || fail "organize: source_inventory schema missing protected raw_path"
+grep -q 'extractor_provenance' "$ORG/references/schemas/source_inventory.schema.json" \
+  || fail "organize: source_inventory schema missing extraction provenance"
 for gone in \
   "$ORG/references/schemas/redaction_manifest.schema.json" \
   "$ORG/references/schemas/redaction_status.schema.json" \
@@ -53,25 +51,15 @@ for gone in \
   [[ -e "$gone" ]] && fail "organize: removed source-redaction artifact re-appeared: $gone"
 done
 
-# B2. old OCR redactor dependency must not re-enter active organize docs/scripts/tests.
-old_redactor_pattern='Paddle''OCR|paddle''ocr|redact_''ocr|mtb-''ocr|OCR ''venv|paddle''ocr_''image'
-grep -RInE "$old_redactor_pattern" \
-  "$ORG" "$REPO_ROOT/tests/eval" >/tmp/cb-old-redactor-refs.raw.$$ || true
-grep -vF "$0" /tmp/cb-old-redactor-refs.raw.$$ >/tmp/cb-old-redactor-refs.$$ || true
-rm -f /tmp/cb-old-redactor-refs.raw.$$
-if [[ -s /tmp/cb-old-redactor-refs.$$ ]]; then
-  cat /tmp/cb-old-redactor-refs.$$ >&2
-  rm -f /tmp/cb-old-redactor-refs.$$
-  fail "organize: old OCR redactor dependency/reference present"
-else
-  rm -f /tmp/cb-old-redactor-refs.$$
-fi
-
-# C. vault de-identification on share.
+# C. vault sharing authorization, minimization, and residual-risk boundary.
 [[ -f "$VAULT" ]] || fail "cancer-buddy-vault/SKILL.md not found"
 if [[ -f "$VAULT" ]]; then
   grep -qiE 'de-identif|anonymiz|PII strip|strip.*PII|脱敏|去标识' "$VAULT" \
     || fail "vault: no de-identification/PII-stripping on share"
+  grep -qiE 'recipient|接收方' "$VAULT" && grep -qiE 'scope|范围' "$VAULT" \
+    || fail "vault: share confirmation lacks recipient/scope"
+  grep -qiE '再识别|re-identif|不.*匿名|not.*anonymous' "$VAULT" \
+    || fail "vault: residual re-identification risk boundary missing"
 fi
 
 summarize "pii-desensitization"

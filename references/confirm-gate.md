@@ -17,26 +17,23 @@ This gate governs any companion run that would write a *formal* artifact or *irr
 
 ## The gate (universal)
 
-1. **Unconfirmed input never touches a formal field.** `profile.json`, `timeline.md`, `timeline.json`, `case_text.md`, `readiness.json`, and the structured JSONs are not written from a candidate the user has not explicitly confirmed. The diff card + explicit confirmation is the only thing that opens the write.
-2. **Silence / deferral / "随便" / closing the chat = no-confirm** for *write* candidates → write nothing for that candidate. (The one exception where silence triggers an *action* is the irreversible-delete sub-rule below, and only on its high-confidence branch.)
-3. **Never fabricate a precise value the user did not give.** If a candidate is genuinely ambiguous on a critical field (stage / molecular driver / line of therapy), ask one clarifying question *in the card* rather than guessing.
-4. **Critical-field changes are never a fait accompli.** A change to stage / molecular driver / line of therapy must be explicitly confirmed — never presented as already done.
-5. **Never silently overwrite a contradicting value.** When a candidate conflicts with an existing record-sourced value, surface *both* in the card and let the user decide; do not overwrite the record value without explicit confirmation.
-6. **Detecting / classifying candidates is an LLM judgment task** — read each input in context (against the existing `profile.json` / `timeline.md` / bucket sidecars); do **not** run a hardcoded keyword list or a Python same-name/same-date comparator. Hand the judgment to a subagent / the LLM.
-7. **`profile.json.alias` is sticky** — no gated run rewrites it. No gated run rewrites `case_text.md` / `readiness.json` / the structured JSONs beyond the specific confirmed field/row.
+1. **Unconfirmed input never touches a formal field.** `profile.json`, `timeline.md`, `timeline.json`, `case_text.md`, `readiness.json`, and the structured JSONs are not written from a candidate the user has not explicitly confirmed.
+2. **Confirmation controls archiving, not clinical truth.** A confirmed patient or caregiver statement is stored as `patient_reported`/`caregiver_reported` with speaker, timestamp, and conversation anchor. It never overwrites or becomes equivalent to `source_reported` or `clinician_verified`.
+3. **Silence / deferral / "随便" / closing the chat = no-confirm** for writes and deletions → take no irreversible action.
+4. **Never fabricate a precise value the user did not give.** If a candidate is genuinely ambiguous on a critical field (stage / molecular driver / line of therapy), ask one clarifying question *in the card* rather than guessing.
+5. **Critical-field changes are never a fait accompli.** Stage, ECOG, molecular results, laboratory values, treatment line, or response may enter the clinician/source layer only from a source document or authorized clinician attestation.
+6. **Never resolve a clinical conflict by user choice.** Preserve both values, their provenance, and `status: disputed`. Only an amended source document or authorized clinician attestation may resolve the canonical clinical field.
+7. **Candidate classification is contextual and auditable.** Deterministic filename/date/hash comparisons may supply evidence, but no keyword or same-name/same-date rule may silently adjudicate a clinical conflict or overwrite a record. Preserve the basis for the proposed relation and show it in the diff card.
+8. **`profile.json.alias` is optional and user-controlled** — a clinical extraction never generates or rewrites
+   it. It must remain non-clinical and non-identifying. No gated run rewrites `case_text.md` /
+   `readiness.json` / the structured JSONs beyond the specific confirmed field/row.
 
-## Irreversible-delete sub-rule (load-bearing asymmetry)
+## Irreversible-delete sub-rule
 
-When the gated decision is not "write a field" but "delete a file we don't archive," confirmation is asymmetric by confidence. This asymmetry is load-bearing — flattening it either keeps junk forever or deletes real records:
-
-- **High-confidence non-medical, no-confirm ⇒ delete.** A file confidently judged non-medical (风景照 / 自拍 / 餐食 / 无关聊天截图 / 广告 / 纯生活收据 / 误拍…) is isolated, never archived, and **deleted on silence/deferral/no-claim**. Silence ⇒ delete is *by design* (privacy floor: we do not retain a patient's raw unrelated files), not a bug.
-- **Borderline (`relevance_uncertain`), no-confirm ⇒ hold, never auto-delete.** A file that *might* be a real medical record is **held** until the user *explicitly* says 删/留. Silence does **NOT** delete it. Deleting something that might be a real medical record is the worse error, so the borderline batch is the explicit exception to "silence resolves."
-
-The calibration bar between the two: the high-confidence (auto-deletable) class is "I would bet money this has no clinical value." Anything short of that bar is borderline, because the high-confidence bucket is the one silence deletes and that deletion is irreversible.
-
-The user MUST be told *before* any deletion that we do not keep raw unrelated files and that silence ⇒ delete (the mandatory disposition-notice sentence, defined verbatim per-locale in 段E). The full red-line lives in [`safety-guardrails.md`](safety-guardrails.md) (段E carve-out); 段E's `relevance-gate.md` is the operational logic. This sub-rule is the shared statement of the asymmetry both cite.
-
-> Note: archive-don't-delete actions (段C/upload-reconciliation supersede → `_superseded_<ts>/`, conflict → coexist) are **not** deletions and introduce no auto-delete. The only auto-delete in the whole gate is the high-confidence non-medical branch above.
+No file is deleted on model confidence or user silence. Quarantine suspected non-medical files and show an
+item-specific preview. Delete only after explicit confirmation that explains irreversibility. Medical,
+medication, symptom, wound, device, billing, and borderline files default to hold. Superseded clinical
+records remain archived with version and provenance.
 
 ## Diff card presentation (universal)
 
@@ -46,11 +43,11 @@ Every gated decision is presented as one compact, plain-language diff card befor
 - Quote the user's own words (conversation) or give a checkable basis (检查名 / 日期 / 机构 / 矛盾字段) as the `依据` / `evidence`.
 - Mark `low`-confidence candidates plainly and offer a correction / opt-out action ("改一下" / "先不写" / "先忽略") so the user can fix a value rather than accept a guess.
 - Never render a critical-field change, or a "已替换/已删除", as already done.
-- Conflicts present **both** facts side by side, flagged ⚠️, and never as a settled overwrite.
+- Conflicts present **both** facts side by side, flagged ⚠️, with source layer and resolution status; the card cannot offer a patient action that promotes one value to clinician-verified truth.
 
 **Rendering is runtime-neutral:** both an **inline diff card** (the Claude Code binding — user resolves it in the same turn) and **confirm-as-product** (a headless host emits the same candidate data as an artifact for its own UI to ask the user about after the fact, then re-feeds the decision) are compliant. The gate contract is unchanged either way — the items above (current→proposed, checkable basis, low-confidence opt-out, never-a-fait-accompli, conflicts side by side) and the irreversible-delete asymmetry hold identically regardless of who renders the card. See [`../skills/cancer-buddy-organize/references/organize-contract.md`](../skills/cancer-buddy-organize/references/organize-contract.md) §3 / §6「确认门」seam.
 
-**Locale (i18n):** the diff card is patient-facing scaffold → render the whole card in the locale resolved per [`i18n.md`](i18n.md) (host `locale` first, otherwise `profile.json.locale`, otherwise detection fallback + persist). The `zh` wording in each caller's doc is the source string table; render the localized equivalent at output time (`i18n.md` §5). **Clinical entities inside the card stay verbatim** — drug names, gene symbols, variants, TNM/stage strings, numbers + units — per [`safety-guardrails.md`](safety-guardrails.md) "Clinical entities are never translated (P0)" and `i18n.md` §4. On-disk bucket slugs in the card follow the localized slug actually on disk (`i18n.md` §6). The privacy-floor sentence in the delete path is mandatory in **every** locale with no softening.
+**Locale (i18n):** render the diff card in the resolved locale. Keep the source clinical string visible; any normalization or translation is additive, labeled and reviewable under [`i18n.md`](i18n.md) §4. On-disk bucket slugs follow the actual stored path. The privacy-floor sentence in the delete path is mandatory in every locale.
 
 ## Provenance — record every gated action in `update_log.json`
 
@@ -59,7 +56,7 @@ Every gated run appends one entry to `update_log.json` so confirmed writes and i
 - `run_mode` — the caller's mode (`conversation_incremental` | `upload_reconciliation` | `full` | …).
 - `ts` — ISO-8601 of the triggering turn / upload.
 - `triggered_by` — `actor_role`.
-- the gated outcomes — confirmed field(s) / row(s) written, candidates deferred, and (for the delete sub-rule) the `relevance` block whose `auto_deleted[]` array is the **irreversible-action ledger** (every entry was a high-confidence non-medical file deleted on no-claim), plus `held_uncertain[]` carrying borderline files forward still flagged.
+- the gated outcomes — confirmed field(s) / row(s) written with provenance layer, candidates deferred, explicitly confirmed deletions in an irreversible-action ledger, and quarantined files carried forward.
 
 Each caller's doc specifies the exact field set for its `run_mode`; the requirement here is that **no gated write or delete happens without a matching `update_log.json` entry**. Provenance on the written field itself uses the source-appropriate anchor (conversation anchor for 段C, file anchor for a file-sourced write — see each caller's doc and [`../skills/cancer-buddy-organize/references/schemas/anchor-contract.md`](../skills/cancer-buddy-organize/references/schemas/anchor-contract.md)).
 

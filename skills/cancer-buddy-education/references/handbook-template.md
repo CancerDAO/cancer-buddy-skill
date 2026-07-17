@@ -1,22 +1,16 @@
-# Patient Education Handbook Template
+# 患者教育手册模板
 
-## Phase 8: Patient Education
+仅渲染已通过 `guideline-lookup.md` 和 `clinical-content-governance.md` 的内容。
 
-Generate patient-friendly educational materials from clinical data.
+1. **资料范围**：使用了哪些来源、截止日期和未核实字段。
+2. **已确认事实**：逐条附原始资料锚点；不合成分期、疗效或预后。
+3. **术语解释**：保留原文、验证后的标准化术语和患者语言解释。
+4. **一般教育**：明确适用人群与来源，不把群体规律写成个人结论。
+5. **待核对问题**：来源冲突、过期或缺失内容，以及应由谁核对。
+6. **就医问题清单**：围绕目标、选择、风险、监测和支持照护。
+7. **急症计划**：只展示主诊团队书面计划或全局急症路由。
+8. **版本信息**：生成时间、来源访问日期、claim 过期状态和工具版本。
 
-> **Locale**: resolve locale per `../../../references/i18n.md` (host `locale` first, otherwise `profile.json.locale`, otherwise detection fallback + persist). Render every section title, label, and narrative below in that locale; keep clinical entities (drug names, genes/variants, TNM/stage, numbers + units, biomarker labels) verbatim. The section names listed here are the `zh` rendering — output the same meaning in the patient's locale.
+若上游没有合格来源，省略临床断言并显示“当前未能核实”，不得用空白模板诱导模型补写。
 
-1. Take vMTB report or Patient Profile as input
-2. Select relevant chapters based on patient's condition and comorbidities
-3. Generate Markdown handbook (all scaffold/narrative prose in `locale`, clinical entities verbatim) with:
-   - Quick reference card (emergency info, key contacts)
-   - My Health Summary (plain language)
-   - Drug details with side effect management
-   - Daily living guide
-   - Follow-up schedule
-   - Cost/insurance navigation
-   - FAQ
-4. Include Mermaid diagrams for disease mechanisms and treatment decision trees — node labels and explanations in `locale`, clinical entities verbatim
-
-> **疗效红线（P0，见 `../../../references/safety-guardrails.md` → Efficacy/response is a clinician's judgment）**：手册**绝不自行判疗效**。"效果怎么样 / 治疗反应"这类行**只能**复述来源/医生逐字写出的响应类别（CR/PR/SD/PD，带引用），来源没写就写"档案里没有医生的疗效评价"。**禁止**把影像描述("病灶缩小")转成"部分缓解/PR"，**禁止**加 RECIST 定义式注解（"病灶缩小超过 30%"是定义,不是这个患者的实测数据）。肿瘤标志物可如实呈现升降趋势,但不得据此说"治疗有效/好转"。
-5. Output filename: localize the `患者教育手册` descriptor per `locale`, keep `{patient_code}` and `{date}` (ISO `YYYY-MM-DD`) verbatim. zh → `{patient_code}_{date}_患者教育手册.md`; en → `{patient_code}_{date}_patient_education_handbook.md`; other locales → the locale's rendering of "patient education handbook" as a lowercase ASCII-safe slug.
+页脚：`本手册用于理解资料和准备沟通，不替代主诊医生的判断；不要据此自行改变检查或治疗。`

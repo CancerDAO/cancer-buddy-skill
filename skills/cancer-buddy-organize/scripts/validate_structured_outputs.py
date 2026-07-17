@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 """Total acceptance gate for a finished organize run.
 
-This script is the single deterministic门 the orchestrator runs after Phase 2 (and
+This script is the single deterministic form gate the orchestrator runs after Phase 2 (and
 after 段D HTML generation) to decide "is this patient_dir actually done?". It does
 NOT make any medical or content judgement — every check here is a *form/безопасность*
 invariant that is fixed regardless of which patient was processed. The LLM still
 owns ingestion / narrative / classification; this gate only verifies the deterministic
-products line up.
+products line up. Native/deterministic extraction and independent human/second-read review remain upstream
+requirements; an LLM is not treated as the sole character source.
 
 Gate sections (each contributes to one aggregated exit code):
 
@@ -35,17 +36,16 @@ Gate sections (each contributes to one aggregated exit code):
       签名/检验号…) over the same surfaces. This script enforces only Layer 2; the
       orchestrator enforces Layer 1 separately. Text-only; no OCR/image dependency.
 
-  [2b] Numeric integrity (gate_numeric_integrity) — deterministic, no medical
-      judgement: labs flag ↔ reference_range consistency (an out-of-range value
-      with flag=null is blocked) + dropped-abnormal (a cited sidecar abnormal row
-      whose value is absent from labs.json is blocked). Semantic faithfulness
-      (column-shift etc.) is the separate Phase-2.5 faithfulness sub-skill's job.
+  [2b] Lab source-shape integrity — deterministic, no medical judgement:
+      verifies that every extracted result keeps its own date, unit, reference
+      range, report flag, provenance and source refs. It never calculates an
+      abnormal flag or compares a patient value with a clinical threshold.
 
   [3] Source inventory:
       source_inventory.json MUST exist and every content unit must have a
       text-masked MD sidecar plus a raw_path back to its verbatim original in raw/.
-      Originals in raw/ are kept verbatim and are never pixel-redacted — there is no
-      image-level source-redaction gate (the former segment B is removed). Sources
+      Organization preserves source bytes under host access control; retention and
+      sharing are governed separately. There is no image-level source-redaction gate. Sources
       cited by formal outputs must be persist:true with a co-located .md sidecar
       in its bucket (the original itself lives once in raw/, never copied into a bucket).
 
@@ -57,11 +57,10 @@ Gate sections (each contributes to one aggregated exit code):
       off-taxonomy domain) are collected as violations and FAIL, each printed
       with the pinned slug expected for its NN prefix.
 
-  [3c] NGS completeness floor (gate_ngs_completeness, CB-P0-2) — deterministic
-      WARN (never a hard FAIL, so a report legitimately lacking a germline/PGx
-      chapter is not false-blocked): if an NGS source exists but molecular.json's
-      variants / germline / pharmacogenomics arrays are empty, warn that the
-      report may have been collapsed to its front-page P/LP summary.
+  [3c] Molecular-report transcription coverage — deterministic WARN only. Empty
+      structured sections prompt comparison with the report's own table of
+      contents; the gate does not assume a report should contain germline, PGx,
+      VUS, or any particular gene.
 
   [4] Case-summary HTML shape (validate_case_summary_html.py):
       If 病情简要总结.html exists, it must pass the shape+provenance invariants
@@ -95,8 +94,10 @@ CASE_SUMMARY_TEMPLATE = REPO_ROOT / "references" / "templates" / "case-summary.t
 # The renderer (SKILL.md Step 12 `--out`) writes this exact name, so this gate's
 # literal stays in lock-step with the producer — do not localize one without the other.
 CASE_SUMMARY_HTML_NAME = "病情简要总结.html"
+CASE_SUMMARY_DATA_NAME = ".case_summary_data.json"
 SOURCE_INVENTORY_NAME = "source_inventory.json"
 FORMAL_MARKDOWN_FILES = ("timeline.md", "case_text.md", "review_summary.md", "review_flags.md")
+_MTIME_EPS = 1e-9
 
 # Make sibling gate modules importable (pii_rescan / validate_case_summary_html).
 if str(SCRIPT_DIR) not in sys.path:
@@ -115,6 +116,7 @@ STRUCTURED_FILES = {
     # is schema-validated like every other structured output.
     "longitudinal_observations.json": "longitudinal_observations.schema.json",
     "missing_items.json": "missing_items.schema.json",
+    "readiness.json": "readiness.schema.json",
 }
 
 ANCHOR_RE = re.compile(
@@ -291,45 +293,9 @@ def gate_pii_rescan(patient_dir: Path, errors: list) -> None:
 
 
 # --------------------------------------------------------------------------- #
-# [2b] numeric integrity (US-002) — deterministic, NO medical judgement
-#
-# This gate makes ZERO clinical decisions: it never invents a threshold, never
-# carries a disease/drug keyword table. It only checks two FORM invariants that
-# are true regardless of patient:
-#   (a) flag ↔ reference_range consistency: a numeric lab value that sits outside
-#       its OWN stated reference_range must carry the matching H/L flag. An
-#       out-of-range value with flag=null is "an abnormal value silently marked
-#       normal" — the column-shift / mis-extraction failure mode (a falsely
-#       reassuring tumor-marker downtrend). Block.
-#   (b) dropped-abnormal: a cited sidecar table row that carries an abnormal
-#       marker (↑/↓/H/L) for an analyte symbol that labs.json tracks, whose
-#       number is absent from that panel's values[], is a dropped abnormal value.
-#       Conservative (exact uppercase analyte-symbol match) to avoid false blocks
-#       on garbled OCR; semantic coverage is the US-003 faithfulness sub-skill's job.
+# [2b] lab source-shape integrity — deterministic, NO medical judgement
 # --------------------------------------------------------------------------- #
-_RANGE_BAND = re.compile(r"^\s*([0-9]+(?:\.[0-9]+)?)\s*[-–—~～]\s*([0-9]+(?:\.[0-9]+)?)\s*$")
-_RANGE_LE = re.compile(r"^\s*[<≤]\s*([0-9]+(?:\.[0-9]+)?)\s*$")
-_RANGE_GE = re.compile(r"^\s*[>≥]\s*([0-9]+(?:\.[0-9]+)?)\s*$")
-_EPS = 1e-9
-
-
-def _parse_range(rng):
-    """Return (low, high) floats (or None for an open side); None if unparseable."""
-    if not isinstance(rng, str):
-        return None
-    m = _RANGE_BAND.match(rng)
-    if m:
-        return (float(m.group(1)), float(m.group(2)))
-    m = _RANGE_LE.match(rng)
-    if m:
-        return (None, float(m.group(1)))
-    m = _RANGE_GE.match(rng)
-    if m:
-        return (float(m.group(1)), None)
-    return None
-
-
-def gate_numeric_integrity(patient_dir: Path, errors: list) -> None:
+def gate_lab_source_shape(patient_dir: Path, errors: list) -> None:
     labs_path = patient_dir / "labs.json"
     if not labs_path.is_file():
         return
@@ -341,85 +307,34 @@ def gate_numeric_integrity(patient_dir: Path, errors: list) -> None:
     if not isinstance(panels, list):
         return
 
-    # (a) flag ↔ reference_range
     for panel in panels:
         if not isinstance(panel, dict):
             continue
         analyte = panel.get("analyte", "<?>")
-        band = _parse_range(panel.get("reference_range"))
-        if not band:
-            continue
-        low, high = band
         for v in panel.get("values", []) or []:
             if not isinstance(v, dict):
                 continue
-            val = v.get("value")
-            if not isinstance(val, (int, float)):
-                continue  # string/null values carry no numeric invariant
-            flag = v.get("flag")
             date = v.get("date", "?")
-            if high is not None and val > high + _EPS and flag not in ("H", "HH"):
+            required = ("unit", "reference_range", "report_flag", "critical_flag", "provenance_layer", "verification_status", "source_refs")
+            missing = [key for key in required if key not in v]
+            if missing:
                 errors.append(
-                    f"numeric_integrity: labs '{analyte}' {date} value {val} > reference "
-                    f"high {high} but flag={flag!r} (abnormal value silently marked normal)"
-                )
-            if low is not None and val < low - _EPS and flag not in ("L", "LL"):
-                errors.append(
-                    f"numeric_integrity: labs '{analyte}' {date} value {val} < reference "
-                    f"low {low} but flag={flag!r} (abnormal value silently marked normal)"
+                    f"lab_source_shape: labs '{analyte}' {date} missing source-preserving key(s): "
+                    + ", ".join(missing)
                 )
 
-    # (b) dropped-abnormal (conservative) — scan each cited sidecar for abnormal
-    # rows whose analyte symbol labs.json tracks but whose number is missing.
-    symbol_re = re.compile(r"\b([A-Z][A-Z0-9]{1,8}(?:-[0-9]{1,3})?)\b")
-    abnormal_marker = re.compile(r"[↑↓]|\bH\b|\bL\b|\bHH\b|\bLL\b")
-    num_re = re.compile(r"(?<![\d.])([0-9]+(?:\.[0-9]+)?)(?![\d.])")
-    # index: symbol -> set of numeric values present in labs.json for that symbol
-    present: dict[str, set[float]] = {}
-    cited: set[str] = set()
-    for panel in panels:
-        if not isinstance(panel, dict):
-            continue
-        for sym in symbol_re.findall((panel.get("analyte") or "").upper()):
-            present.setdefault(sym, set())
-            for v in panel.get("values", []) or []:
-                if isinstance(v, dict) and isinstance(v.get("value"), (int, float)):
-                    present[sym].add(float(v["value"]))
-                for r in (v.get("source_refs") or []) if isinstance(v, dict) else []:
-                    rel = _anchor_sidecar_path(r)
-                    if rel:
-                        cited.add(rel)
-    if not present:
-        return
-    for rel in sorted(cited):
-        sc = patient_dir / rel
-        if not sc.is_file():
-            continue
-        try:
-            for ln, line in enumerate(sc.read_text(encoding="utf-8", errors="replace").splitlines(), 1):
-                if not abnormal_marker.search(line):
-                    continue
-                syms = [s for s in symbol_re.findall(line) if s in present]
-                if not syms:
-                    continue
-                nums = [float(x) for x in num_re.findall(line)]
-                for sym in syms:
-                    missing = [n for n in nums if n not in present[sym] and n > 0]
-                    # require the number to look like a result (not a tiny index/row id)
-                    missing = [n for n in missing if n >= 1.0]
-                    if missing:
-                        errors.append(
-                            f"numeric_integrity: dropped-abnormal — sidecar {rel} L{ln} shows "
-                            f"abnormal '{sym}' with value(s) {missing} absent from labs.json "
-                            f"panel for {sym}"
-                        )
-                        break
-        except Exception:
-            continue
+
+def gate_numeric_integrity(patient_dir: Path, errors: list) -> None:
+    """Compatibility wrapper; performs source-shape checks only.
+
+    No threshold comparison, abnormality/severity calculation, or clinical
+    interpretation occurs here.
+    """
+    gate_lab_source_shape(patient_dir, errors)
 
 
 # --------------------------------------------------------------------------- #
-# [3] source inventory (raw/ deep-link; originals kept verbatim)
+# [3] source inventory (protected original deep-link + extraction provenance)
 # --------------------------------------------------------------------------- #
 def _read_json_file(patient_dir: Path, fname: str, errors: list):
     path = patient_dir / fname
@@ -514,7 +429,7 @@ def gate_source_inventory(patient_dir: Path, errors: list) -> None:
             errors.append(f"{SOURCE_INVENTORY_NAME}: files[{i}] missing stable source_id/id")
             continue
 
-        # raw_path must deep-link back to the verbatim original under raw/.
+        # raw_path is a protected relative pointer, not an authorization token.
         raw = entry.get("raw_path")
         if not isinstance(raw, str) or not raw.startswith("raw/"):
             errors.append(f"{SOURCE_INVENTORY_NAME}: {sid}: raw_path must point under raw/")
@@ -564,7 +479,7 @@ def gate_source_inventory(patient_dir: Path, errors: list) -> None:
 # [3b] bucket-taxonomy enforcement (CB-P0-1) — deterministic, NO medical
 # judgement. The Phase-2 classifier is instructed to re-file every source onto
 # the pinned v3 taxonomy (bucket-taxonomy.md §1.1 / §1.1a) and to NEVER echo an
-# incoming source-folder name. Real runs still drifted (patient 023 echoed
+# incoming source-folder name. A synthetic regression fixture reproduces the drift (echoed
 # `06_分子与组学/基因检测`, `11_不良反应`, `13_其他专科检查`,
 # `04_诊断与分期/影像报告`). This gate closes that at mkdir time: every
 # top-level `NN_` domain dir and every typed sub-bucket one level down MUST be a
@@ -672,16 +587,10 @@ def gate_bucket_taxonomy(patient_dir: Path, errors: list) -> None:
 
 
 # --------------------------------------------------------------------------- #
-# [3c] NGS completeness floor (CB-P0-2) — deterministic WARN, NO medical
-# judgement. NGS/genomic PDFs were being summarized down to their front-page
-# P/LP list, dropping the full somatic variant table, the germline VUS section,
-# and the pharmacogenomics chapter (DPYD/UGT1A1/…). If an NGS source exists
-# (a sidecar under 06_分子与组学/NGS报告 or an NGS entry in source_inventory.json)
-# but molecular.json's variants / germline / pharmacogenomics arrays are empty,
-# that is the "collapsed to the summary" failure mode. This is a WARN (not a
-# hard FAIL) because a report can legitimately lack a germline or PGx chapter —
-# a FAIL would false-block those archives. WARNs are printed but do not change
-# the exit code.
+# [3c] Molecular-report transcription coverage — deterministic WARN, NO medical
+# judgement. Empty arrays are compared with the source report's own sections;
+# this gate does not assert that any report should contain germline, PGx, VUS, or
+# a particular gene. WARNs do not change the exit code.
 # --------------------------------------------------------------------------- #
 def _has_ngs_source(patient_dir: Path) -> bool:
     # (a) an NGS sidecar filed under the pinned NGS sub-bucket (zh or en form).
@@ -734,9 +643,8 @@ def gate_ngs_completeness(patient_dir: Path, warnings: list) -> None:
         warnings.append(
             "ngs_completeness: an NGS source is present but molecular.json "
             f"{'/'.join(empty)} {'is' if len(empty) == 1 else 'are'} empty — verify the "
-            "full variant table (one row/variant + VAF), the germline section (INCLUDING "
-            "VUS), and the pharmacogenomics chapter (DPYD/UGT1A1/…) were transcribed, not "
-            "collapsed to the report's front-page P/LP summary"
+            "source report's own section/table inventory. Empty arrays are valid when those "
+            "sections are absent; if present, transcribe every source row without actionability inference"
         )
 
 
@@ -765,7 +673,7 @@ def gate_update_log_freshness(patient_dir: Path, warnings: list) -> None:
         update_log_mtime = update_log.stat().st_mtime
     except OSError:
         return
-    if profile_mtime > update_log_mtime + _EPS:
+    if profile_mtime > update_log_mtime + _MTIME_EPS:
         warnings.append(
             "update_log_freshness: profile.json edited outside the organize flow "
             "— no changelog entry; re-run organize or append an update_log entry."
@@ -776,6 +684,20 @@ def gate_update_log_freshness(patient_dir: Path, warnings: list) -> None:
 # [4] case-summary HTML shape + provenance
 # --------------------------------------------------------------------------- #
 def gate_case_summary_html(patient_dir: Path, errors: list) -> None:
+    data_path = patient_dir / CASE_SUMMARY_DATA_NAME
+    if data_path.is_file():
+        try:
+            render_data = json.loads(data_path.read_text(encoding="utf-8"))
+        except Exception as exc:
+            errors.append(f"{CASE_SUMMARY_DATA_NAME}: not parseable JSON: {exc}")
+        else:
+            validate_doc_schema(
+                CASE_SUMMARY_DATA_NAME,
+                render_data,
+                "case_summary_data.schema.json",
+                errors,
+            )
+
     html_path = patient_dir / CASE_SUMMARY_HTML_NAME
     if not html_path.is_file():
         return  # 段D HTML not generated yet — not an error here
@@ -819,7 +741,7 @@ def main() -> int:
     warnings: list[str] = []
     gate_structured(patient_dir, errors)
     gate_pii_rescan(patient_dir, errors)
-    gate_numeric_integrity(patient_dir, errors)
+    gate_lab_source_shape(patient_dir, errors)
     gate_bucket_taxonomy(patient_dir, errors)
     gate_source_inventory(patient_dir, errors)
     gate_case_summary_html(patient_dir, errors)

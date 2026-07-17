@@ -1,147 +1,94 @@
-# visit-prep — HTML assembly prompt
+# visit-prep — HTML assembly contract
 
-This skill **only assembles existing data and organizes questions** — it never recommends treatment, never interprets a result, never makes a clinical judgment, never ranks treatment options. See `../../../references/safety-guardrails.md`.
+只装配已有资料并生成“问医生的问题”。不解释结果、不作临床判断、不推荐或排序治疗。
 
-## ⛔ Red lines — how the HTML gets built
+## 1. Deterministic rendering
 
-1. **The LLM produces exactly one artifact: `.visit_prep_data.json`** — a flat JSON data object (the field contract in §3–§6 below). **The LLM never writes, edits, or hand-assembles any HTML.**
-2. **The HTML is produced only by the deterministic renderer**, never by the model:
-   ```
-   python3 ../cancer-buddy-organize/scripts/render_html_template.py \
-       --template references/templates/visit-prep.template.html \
-       --data <patient_dir>/.visit_prep_data.json \
-       --out  <patient_dir>/就诊准备包.html
-   ```
-   (`render_html_template.py` lives in the **cancer-buddy-organize** skill — `skills/cancer-buddy-organize/scripts/render_html_template.py` — and is a generic, zero-medical-logic template engine shared across cancer-buddy HTML artifacts. Stdlib only; runs in any Claude Code / codex / sandbox host.)
-3. **The render is not done until `validate_visit_prep_html.py` passes** (exit 0) — see §9. A pack that has not passed the validator is **not** a finished pack.
-4. **Hand-writing, hand-patching, or post-editing the rendered HTML is forbidden.** If something is wrong, fix `.visit_prep_data.json` or the template and re-render — never touch the output HTML by hand.
+LLM 只写 `<patient_dir>/.visit_prep_data.json`，不得写或修改 HTML。随后运行：
 
-These red lines exist so the pixel-exact patient-facing template is never deformed by free-text generation, and so over-fitting to one patient (e.g. silently dropping a section a patient happens not to have) is structurally impossible: the renderer renders 0..N of whatever the data carries; the template's `RENDER_IF_NOT` placeholders keep every block visible.
+```bash
+python3 ../cancer-buddy-organize/scripts/render_html_template.py \
+  --template references/templates/visit-prep.template.html \
+  --data <patient_dir>/.visit_prep_data.json \
+  --out <patient_dir>/就诊准备包.html
+python3 scripts/validate_visit_prep_html.py <patient_dir>/就诊准备包.html
+```
 
-## 0. Read-only, de-identified sources
+校验未通过即未完成。修 JSON 或模板后重渲染，不能手改产物。
 
-Read these from `patients/<pid>/` (all already produced by organize; read-only — visit-prep writes no formal field, touches no confirm-gate):
+## 2. Read-only inputs
 
-- `profile.json` — `locale`, `summary.primary`, `summary.histology`, `summary.stage`, `summary.current_regimen`, `source_refs` (drivers now in `molecular.json`, demographics in `patient_summary.json.demographics`).
-- `readiness.json` — `review_flags[]` (each: `field_path`, `current_value`, `issue`, `suggested_value`, `severity`, `user_confirmed`), `blocking_gaps[]`.
-- `molecular.json` — `variants[]`, `ihc[]`, `msi_mmr`, `tmb`.
-- `treatment_lines.json` — `lines[]` (`line`, `regimen`, `intent`, `started_at`, `ended_at`, `best_response`, `reason_for_change`).
-- `labs.json` — `panels[]` (`analyte`, `unit`, `reference_range`, `values[]` with `date`/`value`/`flag`).
-- `timeline.json` (or `timeline.md`) — `events[]` (`date`, `category`, `title`, `detail`).
-- `missing_items.json` — `missing[]` (`item`, `priority`, `reason`, `category`).
+从已脱敏档案按需读取：
 
-Never read `raw/` or any non-de-identified source. If a file is absent, treat its fields as missing (render the locale `val_pending` string) — do not fabricate.
+- `patient_summary.json`：诊断、临床来源记录的分期/ECOG/当前状态；
+- `molecular.json`：`reports[]`、`variants[]`、`ihc[]`、`msi_results[]`、`mmr_results[]`、`tmb_results[]`；
+- `treatment_lines.json`：`episodes[]`；
+- `labs.json`：`panels[].values[]`，每个结果自带单位、参考范围和报告标记；
+- `timeline.json`：带来源层级的事件；
+- `missing_items.json`：`document_gaps[]`，仅表示现有档案中缺少文件；
+- `readiness.json`：documentation coverage 与未解决的来源/忠实度 flags（如存在）。
 
-## Shape of `.visit_prep_data.json`
+不得读取 `raw/`。缺失字段显示本地化的“资料缺失”，不得猜测。
 
-A flat JSON object. The renderer's grammar is: `{{i18n.<k>}}` → `data.i18n.<k>`; `{{scalar}}` → `data.<scalar>`; `<!-- LOOP arr -->…<!-- END LOOP -->` repeats once per element of `data.arr` (an **array of objects**, each item field resolved as `{{field}}`); `<!-- RENDER_IF k -->` / `<!-- RENDER_IF_NOT k -->` render their span when `data.k` is truthy / falsy.
+## 3. Data shape
 
-```jsonc
+```json
 {
-  "i18n": { "html_lang": "...", "doc_title": "...", /* every key from the template's locale string table for this locale */ },
-  "fallbacks": { "__default__": "<i18n.val_pending string>" },  // any null scalar → this placeholder
-  "one_line_condition": "...", "visit_type_label": "...", "report_date": "YYYY-MM-DD",
-  "is_followup": true,                                         // Block 4 gate (see §2)
-  "snapshot_diagnosis": "...", "snapshot_molecular": "...", "snapshot_current_line": "...", "snapshot_key_labs": "...",
-  "confirm_questions":   [ { "text": "..." }, … ],            // 0..N — array of {text}
-  "supplement_questions":[ { "text": "..." }, … ],
-  "next_questions":      [ { "text": "..." }, … ],
-  "framework_questions": [ { "text": "..." }, … ],
-  "bring_originals":     [ { "text": "..." }, … ],
-  "bring_for_questions": [ { "text": "..." }, … ],
-  "change_symptoms":     [ { "text": "..." }, … ],            // followup only; [] when none
-  "change_lab_trends":   [ { "text": "..." }, … ],
-  "change_new_tests":    [ { "text": "..." }, … ]
+  "i18n": {},
+  "fallbacks": {"__default__": "资料缺失"},
+  "one_line_condition": null,
+  "visit_type_label": "复诊",
+  "report_date": "YYYY-MM-DD",
+  "is_followup": true,
+  "snapshot_diagnosis": null,
+  "snapshot_molecular": null,
+  "snapshot_current_line": null,
+  "snapshot_key_labs": null,
+  "confirm_questions": [],
+  "supplement_questions": [],
+  "next_questions": [],
+  "framework_questions": [],
+  "bring_originals": [],
+  "bring_for_questions": [],
+  "change_symptoms": [],
+  "change_lab_trends": [],
+  "change_new_tests": []
 }
 ```
 
-Every loop array is `0..N` — emit one `{text}` object per real item, **no padding, no trimming**. An empty array is fine: the template's `RENDER_IF_NOT` placeholder keeps the section visible with the `val_pending` (or `val_none_flagged`) line. Never invent an item to fill a section.
+所有数组项均为 `{"text":"..."}`；只写真实来源支持的条目，不为版面填充内容。
 
-## 1. Locale → the `i18n` object
+## 4. Direct mapping rules
 
-Resolve locale per `../../../references/i18n.md`: caller-supplied `locale` first, otherwise `profile.json.locale`, otherwise detect from the records' primary patient-facing language and write it back to `profile.json.locale`.
+- `one_line_condition` / `snapshot_diagnosis`：仅拼接 `patient_summary.diagnosis` 中有来源的原文；不重算分期。
+- `snapshot_molecular`：逐项复制报告原文；不同报告或 MSI/MMR 冲突并列，不能合并裁决。
+- `snapshot_current_line`：使用当前 `episode` 或 `patient_summary.current_status.regimen`。`sequence_index` 只代表时间顺序，不能转成一线/二线；`documented_line_label` 仅在原报告明确写出时使用。
+- `snapshot_key_labs`：显示最近报告值、日期、单位、该次报告的参考范围及 `report_flag`/`critical_flag`。不自行判定高低或严重程度。
+- ECOG、response、reason for change 只能在来源明确记载时复制，不能从活动能力、影像文本或时间线推断。
 
-Build `data.i18n` from the template's locale string table for that `locale` — one key per `{{i18n.<key>}}` the template uses (incl. `html_lang`). For a locale not in the table, generate equivalents in the target language — same meaning, same tone. **Keep every clinical entity verbatim** regardless of locale (drug names, genes/variants, TNM/stage, RECIST codes, numbers + units, biomarker labels) — `../../../references/i18n.md` §4; mistranslating one is a P0 safety bug (`../../../references/safety-guardrails.md`).
+保留原始临床字符串；如为患者提供翻译，原文与译文并列并标明译文状态。
 
-## 2. visit_type
+## 5. Questions only
 
-`visit_type` ∈ {`first` 初诊, `followup` 复诊, `switch` 换线决策}. If the caller passed it, use it. If not detectable from context, ask the user one short question and wait. Set `data.visit_type_label` to the matching locale string (`vt_first` / `vt_followup` / `vt_switch`). Set **`data.is_followup = true` only when `visit_type == followup`** (else `false`) — Block 4 (上次→这次变化) renders only when `is_followup` is truthy.
+将以下内容改写成给主诊医生的问题，不能先替医生回答：
 
-## 3. Block 1 — 医生速览 (direct field mapping, clinical entities verbatim)
+- `confirm_questions`：每个未解决的来源冲突/忠实度 flag 一个问题，包含当前记录和来源；不提供模型建议值，不因患者确认而改写临床事实。
+- `supplement_questions`：只问“是否需要把这份**已有文件**补入档案”；`document_gaps` 不能改写成“应补做某检查”。只有当医疗记录明确载有医生请求时，才可询问该请求的后续安排。
+- `next_questions`：基于最近事件询问复查安排、症状处置和医生计划；不得把模型推断的“进展/换线”当事实。
+- `framework_questions`：使用 [question-frameworks.md](question-frameworks.md) 的框架，个体化内容只来自有来源字段。
 
-Map structured fields straight into the snapshot, verbatim — no interpretation:
+出现实验室报告的 critical flag、报告明确要求紧急处理，或用户描述急性危险症状时，先按 `../../../references/safety-guardrails.md` 的紧急路径处理，不等待就诊准备包。
 
-| placeholder | source |
-|---|---|
-| `{{one_line_condition}}` | one-sentence condition line from `profile.json` (`summary.primary` + `summary.histology` + `summary.stage` + headline driver), e.g. `非小细胞肺癌 腺癌 IIIA (cT3N2M0)，EGFR L858R`. |
-| `{{snapshot_diagnosis}}` | `summary.primary` / `summary.histology` / `summary.stage` joined verbatim. |
-| `{{snapshot_molecular}}` | from `molecular.json`: variants (`gene` + `variant`), `msi_mmr.status`, key `ihc[]`, `tmb` — verbatim, comma-joined. **IHC markers use the pathology notation `marker（value）`** (zh full-width `（）`, other locales `(...)`) so `{"marker":"HER2","value":"0"}` → `HER2（0）`, never bare `HER2 0` (same rule as `case-summary-html-prompt.md` §核心分子检测 — avoids the `EGFR 2+ HER2 0` ambiguity). |
-| `{{snapshot_current_line}}` | current line from `treatment_lines.json` (latest line with no `ended_at`, or `profile.summary.current_regimen`): `regimen` + clinical **intent** label (`intent` → 新辅助/术后辅助/围手术期/姑息治疗/维持治疗/根治), verbatim. **Do NOT emit an auto "一线/二线" ordinal from the `line` integer** (same rule as case-summary — perioperative therapy is itself first-line, so ordinals are clinically inaccurate); verbatim-copy a documented line wording only if the record states one. |
-| `{{snapshot_key_labs}}` | from `labs.json`: latest value of each panel whose newest value has `flag` ∈ {H, L, HH, LL}, as `analyte value unit (date)` verbatim. |
+## 6. Changes since last visit
 
-Any source field null/absent → set that scalar to `null` (the renderer substitutes `fallbacks.__default__` = the locale `val_pending` string). Never fabricate a value.
+仅复诊显示。按日期列出：
 
-## 4. Block 2 — 我要问医生的 (subagent-derived; do NOT hardcode a keyword list)
+- 新增的来源报告症状；
+- 同一 analyte 的两个报告值、各自单位/参考范围/标记；单位或方法不同则并列，不计算变化；
+- 新收到的影像、病理、分子或化验报告。
 
-This is the core block and is **LLM-derived by a subagent**, not a hardcoded keyword/phrase table. Dispatch a subagent with the four source arrays + the patient's `visit_type` and the question scaffolds in `question-frameworks.md`. The subagent returns four question groups, which become `data.confirm_questions` / `supplement_questions` / `next_questions` / `framework_questions` — each an **array of `{ "text": "<question>" }` objects** (0..N, one per real source item; empty array if none).
+只描述记录变化，不判断“好转/恶化/进展/应换药”。
 
-Subagent instructions:
+## 7. Locale, provenance, privacy
 
-> You are drafting questions a cancer patient will ask their own doctor. You produce **questions only** — never an answer, never a recommendation, never a treatment ranking, never a clinical interpretation. Output all prose in `<locale>`; keep every clinical entity verbatim (drug names / genes / variants / TNM / numbers+units). Return JSON with four arrays, each element `{ "text": "<one question>" }`.
->
-> **`confirm_questions`** — one per `readiness.json.review_flags[]` entry (regardless of `severity` / `user_confirmed`). Each is phrased strictly as a **request for the doctor to confirm**, never as an assertion of fact: "请医生确认：我的档案里 `<field_path>` 记的是 `<current_value>`，这个对吗？" If `suggested_value` exists, you may add "（系统提示可能应是 `<suggested_value>`，请医生核对）" — still framed as a question, the flag is **not** resolved here. If `review_flags[]` is empty, return an empty array (the template renders the `val_none_flagged` line).
->
-> **`supplement_questions`** — one per `missing_items.json.missing[]` entry: "能不能补做/补齐 `<item>`？" append "（`<reason>`）" when `reason` present. Ask whether it can be added — never assert it is required.
->
-> **`next_questions`** — derive from the most recent `timeline.json` events / `treatment_lines[].best_response` / `reason_for_change`: questions about what happens next, e.g. after a progression event "下一步的检查/复查节奏是怎样的？接下来有哪些方向可以讨论？". Patient-facing, **not** clinical advice — you ask the doctor what the options are, you do not state them.
->
-> **`framework_questions`** — take the `<visit_type>` scaffold from `question-frameworks.md` and lightly personalize each skeleton question by slotting in this patient's verbatim fields (cancer type, current regimen, driver). Do **not** invent new clinical content beyond the scaffold; keep them as questions to the doctor.
-
-The renderer maps these arrays to template loops: `confirm_questions` → Group A (each wrapped with the `q-confirm-tag` 待确认 tag inside the `.q-confirm` yellow box — these are **待医生确认项, never facts**); `supplement_questions` → Group B; `next_questions` → Group C; `framework_questions` → Group D. You only emit the data arrays; the template + renderer place them.
-
-## 5. Block 3 — 带什么
-
-From `missing_items.json` + archive state (`profile.json.source_refs` / which buckets hold originals). Both are arrays of `{ "text": "..." }`:
-
-- `bring_originals` — the originals worth physically bringing: pathology原件, imaging 光盘/胶片, NGS/基因报告原件, 出院/诊断证明. Infer presence from `source_refs` and bucket coverage; if none inferable, leave the array empty (the template's `RENDER_IF_NOT` shows the `val_pending` line). List **what to bring** only — never interpret the content.
-- `bring_for_questions` — for each Block-2 question, the record that backs it (e.g. a `confirm` question about `stage` → bring the original pathology / diagnosis certificate; a `supplement` question about a missing scan → bring prior imaging for comparison).
-
-## 6. Block 4 — 上次 → 这次的变化 (followup only)
-
-Populated only when `visit_type == followup` (and `data.is_followup = true`; otherwise leave these arrays empty / `is_followup = false` and the whole block does not render). From `timeline.json` + `labs.json`, list **factual changes since the previous consult event** — no interpretation of whether a trend is good or bad. Each is an array of `{ "text": "..." }`:
-
-- `change_symptoms` — new symptom/complaint events in `timeline` after the last `consult` event.
-- `change_lab_trends` — panels with ≥2 values spanning the interval, each `text` as `analyte v1 → v2 unit (date1 → date2)`, numbers + units verbatim. State the trend, do not judge it.
-- `change_new_tests` — `imaging` / `molecular_test` / `lab` events dated after the last consult.
-
-Each empty sub-block → its array is `[]`; the template's `RENDER_IF_NOT` shows the `val_pending` line so the sub-block still renders.
-
-## 7. Guardrails (hard lines — `../../../references/safety-guardrails.md`)
-
-- `review_flags` are always presented as **待医生确认项 (questions to confirm)**, never adjudicated into facts. They live in the yellow `.q-confirm` box with the 待确认 tag.
-- **No treatment recommendation, no result interpretation, no clinical judgment, no treatment-option ranking.** visit-prep only assembles existing data + organizes questions.
-- **Never fabricate.** Any null/absent field → the locale `val_pending` string.
-- **Read-only on de-identified sources.** No formal-field writes, no confirm-gate, never read `raw/`.
-- **Clinical entities verbatim**, scaffold localized to `profile.json.locale` (`../../../references/i18n.md` §4).
-
-## 8. Output — render via script, never by hand
-
-1. Write `.visit_prep_data.json` (the §-shape object above) to `patients/<pid>/.visit_prep_data.json`.
-2. Render with the generic engine (do **not** hand-write HTML — see the Red lines at the top):
-   ```
-   python3 ../cancer-buddy-organize/scripts/render_html_template.py \
-       --template references/templates/visit-prep.template.html \
-       --data  patients/<pid>/.visit_prep_data.json \
-       --out   patients/<pid>/就诊准备包.html
-   ```
-   The renderer exits non-zero if any `{{…}}` placeholder survives (a data-contract gap) — fix the JSON, never the HTML, and re-render.
-
-## 9. Validator gate — the pack is not done until this passes
-
-Run the form-invariant validator; **exit 0 is the definition of "rendered HTML done":**
-
-```
-python3 scripts/validate_visit_prep_html.py patients/<pid>/就诊准备包.html
-```
-
-It asserts only *form* invariants fixed by the template (style byte-identical to the template, every class ⊆ the template's classes, no residual `{{…}}` / `LOOP` / `RENDER_IF` markers, no PII — DOB still barred, but **precise age is allowed** (clinical-trial matching + 就诊场景 need it), skeleton present) — it makes **no content-existence assertions**, so a patient with zero labs / zero review-flags / zero changes still passes. If it fails, fix `.visit_prep_data.json` or the template and re-render + re-validate. A pack that has not passed this validator is not a finished pack.
+遵循 `../../../references/i18n.md`、`../../../references/roles.md` 和 `../../../references/clinical-content-governance.md`。患者版可以翻译，但必须保留原文；所有数据项保留来源、日期、版本和 `source_reported | patient_reported | caregiver_reported | system_normalized` 层级。输出使用最小必要信息，不包含无关身份信息。

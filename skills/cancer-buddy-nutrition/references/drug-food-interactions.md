@@ -1,46 +1,56 @@
-# 药物-食物相互作用 — workflow
+# 药物、食物与补充剂相互作用工作流
 
-> **Trust your clinical pharmacology training data**, do NOT consult a hardcoded interaction table here.
+不得使用模型记忆或静态通用表判断相互作用，也不得因“未查到”而声称没有相互作用。
 
-> **Locale**: the `zh` patient-facing strings below (the 🟡 uncertainty line, the last-resort note) are the **source string table** — render the localized equivalent in `profile.json.locale` at output time per `../../../references/i18n.md` §5. Drug names, supplement names and the `[INTERACTION_UNCERTAIN: <drug>]` sidecar key stay verbatim across locales.
+## 输入清单
 
-This file used to contain a hardcoded ~30-row drug-food interaction table. It was deleted because:
+分别列出并保留来源：
 
-1. The model already knows the standard oncology drug-food interactions (TKI ↔ 西柚 / 华法林 ↔ 维 K 食物 / 奥沙利铂 ↔ 冷食 / 5-FU + capecitabine ↔ 柚子 / methotrexate ↔ 酒精 / etc.) from training data
-2. A hardcoded table is always behind FDA/NMPA approvals — the patient's actual `summary.current_regimen` may not be in the table
-3. A consistent-but-incomplete table creates false confidence: agent checks the table, finds no match, concludes "no interactions" — when in fact the table just didn't list this drug
+- 当前及近期处方药（通用名、商品名、剂型、给药途径、频次）；
+- 非处方药；
+- 维生素、矿物质、蛋白/营养补充剂；
+- 草药、中成药、茶饮和特殊饮食；
+- 酒精、葡萄柚等可能相关食物暴露。
 
-What this skill DOES require, structurally:
+患者/照护者口述与正式处方分层保存。无法确认是否仍在使用时标 `status: unknown`。
 
-## Workflow
+## 逐药实时核验
 
-1. From `profile.json.summary.current_regimen` + ordered lines of therapy in `treatment_lines.json` + any patient-volunteered supplements, **enumerate every active drug, every recent (< 1 month) drug, and every supplement**.
-2. For each drug, use your training knowledge to identify **known clinically meaningful food/supplement interactions**. Cover at minimum: CYP3A4 substrates (TKIs, anti-emetics, statins) + CYP-modulating foods (西柚 / 杨桃 / 圣约翰草 / 大蒜补剂 / 银杏 / 人参), warfarin + vitamin K balance, MAOI + tyramine, methotrexate + alcohol / NSAIDs / PPI, oxaliplatin + cold exposure (acute neuropathy), nadir-period food safety (raw / unpasteurized / 生腌).
-3. For each interaction surfaced, classify: 🔴 must-avoid (clinically dangerous) / 🟡 caution (timing or quantity matters) / 🟢 informational.
-4. Write all findings to `patients/<patient_code>/reports/nutrition/interactions-flagged.md`.
-5. Any 🔴 interaction MUST be highlighted at the top of the patient menu in red.
+对每一种药：
 
-## Uncertainty escape hatch
+1. 查当前法域监管机构批准的完整说明书；记录直接 URL、版本/日期和访问日期。
+2. 查医院认可或权威的相互作用资源；记录资源名称和时间。
+3. 只报告明确针对该药、剂型和给药方式的食物/补充剂信息。
+4. 区分药物—食物、药物—补充剂、药物—药物和副作用管理；不要把冷敏感、NSAID/PPI 相互作用或食品安全混成“药食相互作用”。
+5. 复制来源给出的临床动作，不自行发明“错开两小时”“少量安全”或严重度颜色。
 
-When you encounter a drug whose interaction profile you genuinely don't know with confidence (rare drug / new approval / regional generic):
-- Do NOT make up plausible-sounding interactions
-- Write `[INTERACTION_UNCERTAIN: <drug>]` in the sidecar
-- Add to `interactions-flagged.md` as a 🟡 yellow flag with text: "<drug> 的食物相互作用我不确定,建议向药剂师/主诊医生确认"
+## 失败关闭
 
-When you are certain there are NO meaningful interactions (e.g., supportive-care drugs like 维生素 D, 钙片, 益生菌):
-- Note in sidecar: "no clinically meaningful food interactions per training data"
-- Move on without forced 🟡 flag
+如果标签、相互作用资源或具体产品成分无法确认：
 
-## TCM / Chinese herbal — be more cautious
+```text
+未确认：<药物/产品> 与 <食物/补充剂> 的相互作用。
+原因：<缺少当前说明书/产品成分不明/来源冲突>。
+下一步：在服用前向肿瘤药师或主诊团队核对。
+```
 
-TCM herbal medications have more variable evidence than Western pharmacology, and "I don't know" is the correct answer more often. Use `[INTERACTION_UNCERTAIN]` liberally for: 圣约翰草 (this one is well-known: CYP3A4/P-gp inducer, lowers many drug levels), 大黄, 人参 (anti-platelet, BP), 灵芝, 黄芪, 冬虫夏草 / 百令胶囊, 复方草药汤药. List them all in the sidecar; flag the ones whose interaction with the patient's specific regimen you are not sure about.
+不要默认 vitamin D、钙、益生菌、蛋白粉或任何草药“没有临床意义的相互作用”。
 
-## Project convention (workflow rules, not clinical facts)
+## 输出字段
 
-- Output path: `patients/<patient_code>/reports/nutrition/interactions-flagged.md`
-- Severity colors: 🔴 / 🟡 / 🟢 (override schema: see `../../../references/preflight.md` §Step 2.5)
-- Patient menu top-of-page: any 🔴 interaction must be the first thing the patient sees
+```yaml
+drug_source_name: 原文
+normalized_drug: 已验证通用名或 null
+coexposure: 食物/补充剂/药物
+interaction_status: confirmed|possible|not_found_in_checked_sources|unconfirmed
+clinical_action: 来源原文的动作或 null
+source_url: 直接原始来源
+source_version: 版本/日期
+accessed_at: YYYY-MM-DD
+pharmacist_review: pending|required|completed
+```
 
-## Last resort
+任何潜在重大相互作用都应提示尽快联系肿瘤药师/主诊团队；skill 不指示患者自行停药、改剂量或改服药时间。
 
-When uncertain, tell the patient to ask their oncologist or pharmacist. Do NOT recommend Google.
+基线来源：NCI Cancer Therapy Interactions With Foods and Dietary Supplements：
+https://www.cancer.gov/about-cancer/treatment/cam/hp/dietary-interactions-pdq

@@ -1,32 +1,34 @@
-# Disclosure Behavior Matrix
+# Disclosure and viewer authorization
 
-When `patients/<patient_code>/profile.json.disclosure_state = "suppressed"` and the current session role is `patient`, every sub-skill must apply the behavior below. This is the authoritative table; each affected sub-skill's `## Role behavior` section must match.
+`profile.disclosure_state` records a communication preference/history. It is not an access-control token,
+a capacity determination, a legal exception, or authority for a family member to decide what a capable
+adult patient may know.
 
-Clinical sub-skills (mtb-lite / trial-match / explore / access / comfort / adherence / survivorship / manage / inflection) moved to `cancer-buddy-pro-skill` (private). Their disclosure behavior is maintained there.
+## Core rules
 
-## Matrix (companion-scope skills only)
+1. Verify the current viewer and authorization scope before showing patient-specific information.
+2. A capable patient's explicit request for their own information is not overridden by a family preference
+   or family-set `suppressed` flag. Family members cannot override that request.
+3. An unauthorized caregiver, family member or friend receives only general information; relationship alone
+   does not authorize record access.
+4. Avoid accidental disclosure when the patient did not ask for the information. Ask what they want to know
+   and offer clinician-supported discussion without lying or fabricating an explanation.
+5. When capacity, legal-representative status, a legally valid restriction or immediate communication safety
+   is uncertain, pause the disputed disclosure and route to the treating institution's clinical, privacy,
+   ethics or legal process. The model does not decide capacity or interpret the legal exception.
+6. Every disclosure/share event records viewer, authorization basis, scope, purpose, timestamp and source.
 
-| Skill | suppressed + patient behavior |
+## Behavior by task
+
+| Task | Behavior |
 |---|---|
-| cancer-buddy (meta) | route (no change) |
-| cancer-buddy-organize | normal — patient running organize implies awareness; warn if profile.disclosure_state="suppressed" that entering this workflow will likely break suppression |
-| cancer-buddy-vault | redacted view — diagnosis fields masked, treatment_history entries shown with drug names but no cancer-type label. Patient can export but export is redacted. |
-| cancer-buddy-education | refuse patient-version handbook. Offer "一般健康与治疗期生活建议" as non-diagnostic alternative. |
-| cancer-buddy-caregiver | N/A — patient never routes here |
-| cancer-buddy-nutrition | normal — nutrition discussed abstractly ("你现在吃 X 药，饮食注意这些"). Drug name OK; cancer-type not surfaced. |
-| cancer-buddy-second-opinion | refuse — operator-only skill |
-| cancer-buddy-disclosure | main workflow — this is exactly the case it handles |
-| cancer-buddy-find-care | normal — but the SHORTLIST avoids rendering 晚期/IV/进展后 wording, using clinically-neutral language (the act of seeking a center implies awareness; no new diagnosis is surfaced) |
-| cancer-buddy-visit-prep | normal — assembles questions from the de-identified archive; the snapshot avoids surfacing 晚期/IV/进展后 staging wording to the patient, no new diagnosis disclosure |
+| Organize / visit prep / education / nutrition | Use only content authorized for the viewer. Warn before unexpectedly surfacing diagnosis details; honor a patient's explicit request for their own information. |
+| Vault / export / second-opinion packet | Require host authentication plus explicit recipient, scope, purpose and expiry. A disclosure flag neither grants family access nor blocks the patient's own access. |
+| Find care / case literature | Public general searches may proceed without patient records. Patient-specific filters require authorization. |
+| Disclosure support | Record the patient's information preference and prepare clinician-supported communication; do not sustain deception or model-determine incapacity. |
 
-## Refuse/redirect template
+Suggested wording when the patient has not yet asked for details:
 
-Where the table says "refuse", use this pattern:
+> 这部分可能涉及你还没有和医疗团队完整讨论的信息。你希望现在了解多少？如果你想知道，我可以把原始资料和要问主诊医生的问题整理清楚。
 
-> 这部分内容你的家人/医生可能还没和你详细讨论。我先不在这里展开 — 你想和我聊聊你对自己的身体状况了解到哪一步吗？如果你想知道更多，可以一起看 `cancer-buddy-disclosure` 怎么和家人谈。
-
-Never fail silently. Never leak suppressed diagnosis information.
-
-## When the matrix updates
-
-Any new sub-skill added later MUST declare its suppressed-patient behavior in `## Role behavior` AND update this file. `tests/integration/disclosure-gate.sh` enforces both the declaration and consistency with this file.
+Never fail silently, deceive the patient, or expose patient-specific information to an unauthorized viewer.

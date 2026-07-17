@@ -1,282 +1,86 @@
-# Data Vault — N=1 Patient Data Schema & Sharing Protocol
+# Patient Data Vault Governance
 
-## Locale
+This reference defines minimum product behavior; it is not a legal opinion or a complete security design.
+Apply the current law, deployment jurisdiction, actor, data type, purpose, recipient, and transfer method.
 
-This protocol is governed by [../../../references/i18n.md](../../../references/i18n.md). Resolve `locale` from host-supplied `locale` first, otherwise `profile.json.locale`, otherwise detection fallback + persist, before producing any patient-visible output.
+## 1. Data classification
 
-- **JSON keys and enum values stay verbatim** (`recipient_type`, `access_type`, `"view"`, `"anonymized"`, level ids `private`/`authorized`/`anonymized`/`public`) — they are machine keys, not patient-facing prose.
-- **Human-readable values and prose are rendered in `locale`**: the `purpose` free-text, sharing-level *descriptions*, data-quality reminders, revocation confirmations, and breach notifications. Render fixed labels (level names, notice headings) as a `locale → string` lookup; run generative prose (case report, reminders) via a prompt instruction "Output scaffold/narrative prose in `<locale>`; keep clinical entities verbatim per `i18n.md` §4."
-- **Clinical entities stay verbatim in every locale** — diagnosis names, drug regimens, gene/variant strings, TNM/stage, numbers + units, biomarker labels are never translated, transliterated, or normalized (P0 medical-safety bug). The example strings below (e.g. "Profile is 72% complete. Missing: PD-L1 status…") show `en`; render the scaffold in the active `locale` while keeping the clinical tokens (`PD-L1`, `RNA-seq`) verbatim.
+Treat identifiable health records, genomics, pathology, images, treatment history, disclosure preferences,
+and family relationships as highly sensitive. A pseudonym, hashed identifier, masked text, or removed name
+does not guarantee anonymity or prevent re-identification. Never promise “impossible to re-identify.”
 
-## Sharing-Scope View (logical, NOT the on-disk layout)
+Keep these layers distinct:
 
-⚠️ The tree below is a **logical sharing-scope view** — the set of category names vault uses for `scope` / `data_scope` values in `sharing-settings.json` and `audit-log` entries. These are **not directories on disk**; vault does not create them.
+- raw originals: encrypted, access-controlled, immutable/versioned;
+- derived sidecars: provenance-linked and minimized;
+- patient-facing artifacts: minimum necessary content;
+- analytics/research exports: separately authorized, assessed, and de-identified to the applicable standard.
 
-The **real on-disk archive** is the one `cancer-buddy-organize` produces at `patients/<patient_code>/` — the **14 clinical-domain buckets** `01_身份与基础信息/ … 14_患者自管补充/` (scheme_version 3), plus `raw/` (verbatim originals), `99_无关文件/`, and the structured JSONs (`profile.json`, `patient_summary.json`, `treatment_lines.json`, `molecular.json`, `comorbidities.json`, …). Authoritative on-disk layout: [../../cancer-buddy-organize/references/bucket-taxonomy.md](../../cancer-buddy-organize/references/bucket-taxonomy.md) and [../../../references/patient-profile-schema.md](../../../references/patient-profile-schema.md).
+## 2. Access and authorization
 
-```
-# Logical sharing-scope categories (each maps to on-disk buckets — see table below)
-profile                 # Patient Profile Card (on-disk: profile.json — cancer_buddy_profile_v3)
-timeline                # All events chronologically
-diagnostics             # genomics / imaging / pathology / blood
-treatments              # Per-line treatment records + response assessment
-monitoring              # Longitudinal tracking (MRD, markers, imaging series)
-notes                   # Doctor visit notes, Q&A records, second opinions
-sharing-settings.json   # Access control configuration (vault-produced)
-```
+- Authenticate the actor; `patient_code` and `role.json` are not credentials.
+- Enforce least privilege, purpose limitation, time-bounded caregiver authorization, and revocation.
+- Log read, export, share, correction, deletion, and authorization events in a tamper-evident audit trail.
+- Do not assume a spouse, adult child, or “primary caregiver” has access authority.
+- Concurrent edits require conflict handling; do not use silent last-write-wins for clinical or permission data.
 
-### Sharing-scope → on-disk bucket mapping
+## 3. Integrity and provenance
 
-| Sharing scope | Spans on-disk buckets (from `cancer-buddy-organize`) |
-|---|---|
-| `profile` | `profile.json` (+ structured `patient_summary.json` / `molecular.json` / `treatment_lines.json` / `comorbidities.json`) |
-| `timeline` | derived across buckets (chronological roll-up; no single bucket) |
-| `diagnostics` | `04_诊断与分期/` (pathology), `05_影像/` (imaging), `06_分子与组学/` (genomics), `07_检验/` (blood/labs) |
-| `diagnostics/genomics` | `06_分子与组学/` (NGS, WES-WGS, transcriptome, IHC, germline) |
-| `diagnostics/imaging` | `05_影像/` (CT/MRI/PET-CT/ultrasound/nuclear) |
-| `diagnostics/pathology` | `04_诊断与分期/` (pathology, diagnosis certificate, staging) |
-| `diagnostics/blood` | `07_检验/` (CBC, biochemistry, tumor markers, coagulation) |
-| `treatments` | `08_治疗/` (chemo/radiation/immuno/targeted/…), `09_手术与操作/` (surgery & procedures) |
-| `monitoring` | `10_随访与监测/` (follow-up, wearable export, PRO, home monitoring) |
-| `notes` | `03_病程与叙事文书/` (admission/discharge/progress/outpatient notes), `11_会诊与转诊/` (MDT, consult, referral, second opinions) |
+- Preserve source files and cryptographic hashes according to the retention policy.
+- Store `source_reported`, `patient_reported`, `caregiver_reported`, and `system_normalized` separately.
+- Corrections create a new version; they do not erase the original or remap its anchor.
+- Conflicting clinical values remain `disputed` until an amended source or authorized clinician attestation.
+- Test backup restoration, key rotation, access revocation, and audit-log completeness.
 
-## profile.json (canonical shape — vault does NOT define its own)
+## 4. Retention and deletion
 
-Vault **does not define a competing `profile.json` schema**. It reads the canonical `profile.json` written by `cancer-buddy-organize`, which is the slim **`cancer_buddy_profile_v3`** snapshot — top-level `schema` / `patient_code` / `alias` / `locale` / `generated_at` / `privacy` / `anthropometrics` / `summary{one_line_condition, primary, histology, stage, metastasis_sites, current_regimen}` / `latest_status{regimen, response, ecog, as_of, source_refs}` / `source_refs`.
+Define retention by data class, purpose, consent/legal basis, clinical need, contract, and law. Do not claim
+that PIPL requires every access log to be kept for three years. PIPL Article 56 specifies at least three
+years for personal-information protection impact-assessment reports and processing records; other
+records may have different requirements.
 
-`profile.json` carries **none** of the old flat `demographics` / `diagnosis` / `molecular_features` / `treatment_history` / `comorbidities` / `ecog_status` fields. Those live in the structured JSONs alongside it:
+No uploaded file is deleted on model confidence or user silence. Show an item-specific preview and obtain
+explicit confirmation for irreversible deletion, subject to legal/clinical retention obligations. Record
+the action and outcome.
 
-| Need | Read this file |
-|---|---|
-| identity / locale / one-line condition / current status | `profile.json` (`cancer_buddy_profile_v3`) |
-| demographics + diagnosis (icd10, diagnosed_at, confidence, staging) | `patient_summary.json` |
-| lines of therapy | `treatment_lines.json` |
-| drivers / variants / biomarkers | `molecular.json` |
-| comorbidities | `comorbidities.json` |
+## 5. Incident response
 
-Authoritative profile contract: [../../../references/patient-profile-schema.md](../../../references/patient-profile-schema.md).
+Maintain detection, containment, investigation, evidence preservation, risk assessment, notification,
+recovery, and post-incident review procedures. Do not encode a universal “72-hour PIPL notification”
+rule. PIPL Article 57 requires immediate remedial measures and notification to the responsible authority
+and individuals, subject to its stated conditions; other jurisdictions may impose different clocks.
 
-### vault_export.json (vault-produced aggregate)
+## 6. Cross-border and human genetic resources
 
-When a share / export needs a single aggregated object (e.g. a de-identified bundle for an authorized recipient), vault emits **`vault_export.json`** — a vault-produced aggregate, **not** the on-disk `profile.json`. It is assembled from the canonical sources above (and scoped/de-identified per the active `sharing-settings.json` rule), so its shape is determined by the requested `scope`, not by any fixed profile schema. It must never be named `profile.json` and never re-introduce the retired flat `version: "1.0"` shape.
+Do not state that all genomic data must remain in China. Before any transfer or remote access, determine:
 
-## timeline.json (organize-produced; vault is a read-only consumer)
+- controller/processor and domestic/foreign recipient status;
+- purpose, legal basis, consent, data minimization, and PIPL cross-border mechanism;
+- whether the information is human genetic resource information under the current HGR rules;
+- whether international cooperation approval/filing, prior report, backup, or security review applies;
+- cybersecurity, data-security, export-control, ethics, and institutional requirements.
 
-Vault does **not** define this schema — the authority is [`../../cancer-buddy-organize/references/schemas/timeline.schema.json`](../../cancer-buddy-organize/references/schemas/timeline.schema.json) (and `../../../references/patient-profile-schema.md`). The canonical on-disk shape vault reads / shares is `cancer_buddy_profile_v3`-era:
+The 2023 HGR implementing rules distinguish human gene/genome information from general clinical,
+imaging, protein, and metabolite data and apply different routes by activity and recipient. Route every
+real transfer to qualified privacy/HGR counsel and the participating institutions; fail closed until the
+required determination is documented.
 
-```json
-{
-  "patient_code": "PT-48C5070065",
-  "schema_version": "1",
-  "events": [
-    {
-      "date": "2024-01-15",
-      "category": "diagnosis",
-      "title": "Biopsy confirmed osteosarcoma",
-      "detail": "Core needle biopsy, conventional osteoblastic subtype",
-      "hospital": "中山六院",
-      "source_refs": ["04_诊断与分期/病理报告/2024-01-15_病理报告_中山六院.md#L4-L8"]
-    },
-    {
-      "date": "2024-02-01",
-      "category": "chemo",
-      "title": "MAP regimen initiated",
-      "detail": "Neoadjuvant chemotherapy, cycle 1",
-      "hospital": "中山六院",
-      "source_refs": ["08_治疗/化疗/2024-02-01_化疗_中山六院.md#L1-L6"]
-    }
-  ]
-}
-```
+## 7. Patient-facing promises
 
-**Event `category` enum** (from the schema): `diagnosis`, `surgery`, `chemo`, `radio`, `immuno`, `targeted`, `molecular_test`, `imaging`, `lab`, `hospitalization`, `consult`, `other`. Citations are per-event `source_refs[]` (NN_ bucket-relative `.md` anchors). The retired flat `version` / `patient_id` / per-event `type` / `outcome` / `description` / `documents[]` shape must **never** be re-introduced (per the prohibition above) — it would fail `timeline.schema.json` (`additionalProperties:false`) and the `validate_structured_outputs.py` gate.
+Allowed: describe actual encryption, access control, retention, deletion, sharing, and incident processes
+that the deployed host has implemented and verified.
 
-## sharing-settings.json
+Forbidden: “fully anonymous,” “cannot be re-identified,” “never leaves China,” “always deleted,” “HIPAA/
+PIPL compliant,” or a breach deadline unless deployment-specific evidence and current legal review support
+the exact claim.
 
-```json
-{
-  "default_level": "private",
-  "sharing_rules": [
-    {
-      "recipient_type": "doctor",
-      "recipient_id": "dr-zhang-ruijin",
-      "level": "authorized",
-      "scope": ["profile", "diagnostics", "treatments", "timeline"],
-      "expires": "2025-06-01"
-    },
-    {
-      "recipient_type": "researcher",
-      "recipient_id": "study-nct12345",
-      "level": "anonymized",
-      "scope": ["diagnostics/genomics", "treatments"],
-      "expires": null
-    }
-  ],
-  "ai_consent": {
-    "federated_learning": false,
-    "anonymized_analysis": true
-  }
-}
-```
+## 8. Official sources
 
-## Data Sharing Levels
+- PRC Personal Information Protection Law:
+  https://www.npc.gov.cn/npc/c2/c30834/202108/t20210820_313088.html
+- PRC Regulation on the Administration of Human Genetic Resources:
+  https://www.nhc.gov.cn/bgt/gwywj2/201906/7f057bf005b44d87894e6764e73d557a.shtml
+- MOST 2023 Implementing Rules:
+  https://www.most.gov.cn/xxgk/xinxifenlei/fdzdgknr/fgzc/bmgz/202306/t20230601_186416.html
 
-The level **id** (`private` / `authorized` / `anonymized` / `public`) and icon are stable across locales; the **name / description / use-case** columns are rendered from a `locale → string` lookup (the table below is the `en` rendering).
-
-| Level id | Icon | Description (localize) | Use Case (localize) |
-|---|---|---|---|
-| private | 🔒 | Only patient + designated caregiver | Default. All data starts here. |
-| authorized | 🔑 | Specific doctors/researchers by invitation | Second opinions, clinical trial screening, MDT consultation |
-| anonymized | 📊 | De-identified data for federated learning | AI model improvement, population-level insights, no re-identification possible |
-| public | 🌐 | Fully open (like a public patient data portal) | Patient advocacy, advancing research, radical transparency |
-
-## Data Quality Scoring
-
-Compute completeness percentage per category:
-
-| Category | Required Fields | Scoring |
-|---|---|---|
-| Demographics | age, sex, diagnosis, stage, date | Each field = 20% |
-| Molecular | gene panel OR WES, TMB, MSI, PD-L1 | Each = 25% |
-| Treatment history | all lines with dates, response, reason stopped | Each complete line = equal share of 100% |
-| Imaging | baseline + most recent | Baseline = 50%, latest = 50% |
-| Timeline | >10 events covering diagnosis through current | <5 events = 30%, 5-10 = 60%, >10 = 100% |
-
-Generate missing-data reminders in `locale`, keeping the clinical field names verbatim. `en`: "Profile is 72% complete. Missing: PD-L1 status, RNA-seq results, most recent imaging report." — render the scaffold ("Profile is N% complete. Missing: …") in the active `locale`, but keep `PD-L1`, `RNA-seq`, and any other clinical token verbatim.
-
-## Privacy Compliance
-
-### 《个人信息保护法》(PIPL)
-- Explicit consent required before any data collection or sharing
-- Patient can view, correct, and delete their data at any time
-- Data processor must document legal basis for processing
-- Cross-border transfer requires security assessment or standard contractual clauses
-
-### 《人类遗传资源管理条例》
-- **Genomic data must stay in China** — no cross-border transfer without 科技部 approval
-- This affects: WES, WGS, RNA-seq, single-cell, germline data
-- Anonymized aggregate statistics may be exportable
-- Foreign entities cannot directly collect Chinese genetic resources
-
-### Patient Rights
-- Revoke any sharing authorization at any time → immediate effect
-- Request complete data deletion (except legally required medical records)
-- Receive copy of all data in portable format (JSON export)
-- Be informed of any data breach within 72 hours
-
-## Access Audit Log
-
-Every data access event must be logged for compliance and patient transparency.
-
-### Schema: audit-log entry
-
-```json
-{
-  "log_id": "audit-20240601-001",
-  "recipient_id": "dr-zhang-ruijin",
-  "recipient_type": "doctor",
-  "data_scope": ["diagnostics/genomics/wes-report.json", "profile.json"],
-  "access_time": "2024-06-01T14:30:00+08:00",
-  "access_type": "view",
-  "purpose": "Second opinion consultation for treatment line 3",
-  "ip_address": "10.0.x.x",
-  "session_duration_seconds": 1200,
-  "data_exported": false
-}
-```
-
-**Fields:**
-| Field | Required | Description |
-|---|---|---|
-| `log_id` | Yes | Unique identifier for each access event |
-| `recipient_id` | Yes | Who accessed the data (doctor ID, researcher ID, system ID) |
-| `recipient_type` | Yes | `doctor`, `researcher`, `system`, `patient`, `caregiver` |
-| `data_scope` | Yes | Array of paths/categories accessed |
-| `access_time` | Yes | ISO 8601 timestamp with timezone |
-| `access_type` | Yes | `view`, `download`, `export`, `api_query` |
-| `purpose` | Yes | Free-text reason for access (required by PIPL) |
-| `ip_address` | No | Network origin of access |
-| `session_duration_seconds` | No | How long the data was accessed |
-| `data_exported` | Yes | Whether data was downloaded/exported outside the system |
-
-**Retention:** Audit logs must be retained for minimum 3 years per PIPL requirements.
-
----
-
-## Revocation Process
-
-When a patient revokes data sharing authorization:
-
-### Genetic / Genomic Data (highest sensitivity)
-- **Timeline:** Immediate revocation — access must be terminated within minutes, not hours
-- **Scope:** All genomic data (WES, WGS, RNA-seq, panel results, ctDNA, single-cell, germline)
-- **Actions:**
-  1. Disable recipient's access tokens immediately
-  2. Send deletion confirmation request to recipient
-  3. Confirm to patient that access has been revoked (with timestamp)
-  4. Log revocation event in audit log
-  5. If data was exported, send formal deletion request to recipient with 48h compliance deadline
-
-### Other Medical Data (non-genetic)
-- **Timeline:** 24-hour notice period — recipient is notified that access will be revoked in 24 hours
-- **Scope:** Treatment records, imaging, lab results, clinical notes
-- **Actions:**
-  1. Notify recipient of pending revocation (24h countdown)
-  2. Revoke access after 24h (or immediately if patient requests urgent revocation)
-  3. Confirm to patient that access has been revoked (with timestamp)
-  4. Log revocation event in audit log
-
-### Confirmation to Patient
-Every revocation must generate a confirmation record sent to the patient, with its prose rendered in `locale` (recipient ids, data-scope paths, and any clinical entity stay verbatim), containing:
-- Recipient whose access was revoked
-- Data scope that was revoked
-- Timestamp of revocation
-- Whether any data export occurred during the sharing period (from audit log)
-- Next steps if data was previously exported
-
----
-
-## Data Breach Protocol
-
-Per PIPL (《个人信息保护法》) requirements:
-
-### 72-Hour Notification Rule
-
-Upon discovery of a data breach involving patient data:
-
-**Hour 0–4: Containment**
-1. Identify and isolate the breach vector
-2. Revoke compromised access credentials
-3. Preserve forensic evidence (logs, access records)
-4. Assess scope: which patients, what data types, what volume
-
-**Hour 4–24: Assessment**
-1. Determine whether genetic/genomic data was involved (triggers heightened protocol under 《人类遗传资源管理条例》)
-2. Classify severity: low (metadata only), medium (medical records), high (genomic + identifiable data)
-3. Prepare notification content
-
-**Hour 24–72: Notification**
-1. Notify affected patients (notification prose rendered in each patient's `locale`; authority names and clinical entities verbatim) with:
-   - What data was compromised
-   - When the breach occurred and was discovered
-   - What remediation steps have been taken
-   - What the patient should do (e.g., monitor for misuse, update passwords)
-   - Contact information for questions
-2. Report to relevant authorities:
-   - 网信办 (Cyberspace Administration) for personal data breaches
-   - 科技部 (Ministry of Science and Technology) if genetic resource data was involved
-   - Public security if criminal activity suspected
-
-**Post-Breach Remediation:**
-- Conduct root cause analysis
-- Implement technical fixes to prevent recurrence
-- Update security protocols
-- Provide affected patients with ongoing monitoring if genetic data was exposed
-- Document entire incident for compliance records (retain indefinitely)
-
-### Patient Rights During Breach
-- Right to know exactly what data was compromised
-- Right to request immediate deletion of remaining data
-- Right to revoke all sharing authorizations
-- Right to receive updates on investigation progress
-- Right to seek compensation for damages per PIPL Article 69
+Last legal-source check: 2026-07-17. Re-verify at use time.

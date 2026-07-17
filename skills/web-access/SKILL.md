@@ -1,13 +1,13 @@
 ---
 name: web-access
 license: MIT
-github: https://github.com/eze-is/web-access
 description:
   所有联网操作必须通过此 skill 处理，包括：搜索、网页抓取、登录后操作、网络交互等。
   触发场景：用户要求搜索信息、查看网页内容、访问需要登录的网站、操作网页界面、抓取社交媒体内容（小红书、微博、推特等）、读取动态渲染页面、以及任何需要真实浏览器环境的网络任务。
 metadata:
   author: 一泽Eze
   version: "2.5.0"
+  github: https://github.com/eze-is/web-access
 ---
 
 # web-access Skill
@@ -45,6 +45,15 @@ node "${CLAUDE_SKILL_DIR}/scripts/check-deps.mjs"
 **④ 完成判断** — 对照定义的任务成功标准，确认任务完成后才停止，但也不要过度操作，不为了"完整"而浪费代价。
 
 ## 联网工具选择
+
+### Cancer Buddy 临床检索覆盖规则
+
+若调用来自 Cancer Buddy 或涉及患者临床/法律/机构/试验信息，使用严格只读模式：调用方
+提供官方域名 allowlist；不访问用户历史、已有 tab、登录页面或内部系统；不上传患者文件，
+不提交表单或执行状态变更；不把敏感内容交给 Jina 等第三方转换服务。每项版本敏感断言保存
+官方 URL、标题、版本/日期和访问日期。找不到可访问的一手来源时 fail closed，不以模型记忆、
+搜索摘要或医院营销页补写。ClinicalTrials/ChiCTR 字段匹配不等于入组资格，机构服务页面不
+等于质量排名。
 
 - **确保信息的真实性，一手信息优于二手信息**：搜索引擎和聚合平台是信息发现入口。当多次搜索尝试后没有质的改进时，升级到更根本的获取方式：定位一手来源（官网、官方平台、原始页面）。
 
