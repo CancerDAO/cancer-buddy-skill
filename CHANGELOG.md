@@ -6,6 +6,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Changed — 指南源面重构：本地权威指南优先 + licensing 边界从"读没读"改为"再不再分发" (2026-07-17)
+
+真机测试发现模型在有本地 NCCN PDF 语料时会直接读本地文件；复盘后确认这**是对的**——用户合法持有的现行指南比绕一圈 web 转述 PDQ 更权威、更现行，之前把它框成"绕过/违规"太死。重构 `guideline-lookup.md` 源面 + licensing：
+
+- **本地权威指南升为一等 P0 源**：有对口现行版（NCCN/CSCO/ESMO PDF，常见于 `cancer_therapy_corpus/`、患者档案）就优先读它，逐字接地 + 标版本/页码/路径；本地无/过期再走 web。新增 Route 0（主 agent 直接 glob+Read 本地指南）+ G-SOURCE-FIRST 门。
+- **licensing 边界重新定义**：真正的边界是**输出会不会向第三方再分发**，不是读没读本地文件。患者/用户自用（读自己合法持有的指南、为自己决策——本 skill 患者自跑场景）→ 可逐字引；中心化平台向众多患者分发 NCCN 逐字表格 → 才限 pointer + 自源接地或取许可（部署方法务决定，不硬编码"永不读 NCCN"）。
+- **恒定不变**：逐字接地 + 禁凭记忆合成（读本地 PDF 逐字引=好，凭记忆转述=不行）；标注版本的本地权威文件**不违反** no-silent-snapshot。
+- 同步 `safety-guardrails.md`、`education/SKILL.md`（description + Safety）至同一口径。
+
 ### Fixed — 指南级回答的编号脚注列表必须出现在回复里（不止落盘）(2026-07-17)
 
 E2E 真机测试(食管胃结合部腺癌 PT-449DE685)发现:(b) 指南级路径接地扎实(每个 OS/HR 数字都有逐字 quote + 真 PMID、NCCN 仅 pointer、无个案判决),但**内联 `[1]…[14]` 的编号脚注映射被写进了 `SYNTHESIS.md` 文件、没渲染在给患者的那条回复里**——患者只看到内联数字、查不到源,恰是本功能最初要修的毛病的变体。
