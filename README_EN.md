@@ -1,6 +1,6 @@
 # Cancer Buddy
 
-Cancer Buddy is a non-clinical navigation skill for people affected by cancer and authorized caregivers. It organizes records, explains stable concepts, prepares visit questions, discovers public resources, and builds source-traceable packets. It does not diagnose, restage, infer ECOG/response/progression/prognosis, or choose treatment.
+Cancer Buddy is a non-clinical navigation skill for people affected by cancer and authorized caregivers. It organizes records, explains stable concepts, looks up and explains — with sources — what current authoritative guidelines / standard care generally say, prepares visit questions, discovers public resources, and builds source-traceable packets. It does not diagnose, restage, infer ECOG/response/progression/prognosis, or choose treatment for you personally.
 
 ## Modules
 

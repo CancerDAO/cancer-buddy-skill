@@ -6,6 +6,24 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Changed — 放宽后的口径一致性整改：消除跨文件残留矛盾 (2026-07-17)
+
+三个独立第三方 subagent 并行审全仓（SKILL.md 层 / 顶层 references / 子 references+README），去重后
+1 P0 + 4 P1 + 7 P2 全部修复，红线仍严格切在“一般 vs 个案”：
+
+- **P0** `clinical-content-governance.md`：§1「每条版本敏感 claim 必须具名人工复审」+§0「冲突取更严」
+  原本会把放宽（answer-time 带源转述指南）整个废掉。新增 scope 豁免——**忠实、带源、非个案化地
+  转述指南/标签自身已陈述的一般推荐属 §2 answer-time 核验，不触发 §1 全生命周期与具名人工复审**；
+  §1 lifecycle 与 stricter-wins 仅约束产品**自己合成/断言**的 claim 及一切个案判决。
+- **P1**：`terminology.md` 禁“推荐”豁免扩到“忠实署名转述指南推荐”；`education/SKILL.md` 删“FAQ/癌种模块
+  只提供提问框架”改为“一般指南答案走 guideline-lookup 实时核验带引用”；`find-care/SKILL.md`「不解释
+  分子结果」收窄为「不做个案临床判读（一般概念转 education）」；`web-access/SKILL.md` 顶部前置 Cancer
+  Buddy 临床检索**严格只读**铁律（禁上传患者文件/表单/状态变更）。
+- **P2**：`safety-guardrails.md` (a) 预后一般规律改为与 (b) 对称的正向授权；入口补预后/严重度一般教育
+  豁免；`education` description 补“可给带源方案/线次名称”；入口路由 visit-prep「questions only」改为准确
+  范围；`disclosure-behavior.md` 区分“一般教育无需授权 / 仅个案细节受限”；`preflight.md` 区分“缺个案资料
+  仍可条件式教育”与“查源失败降概念层”；README/README_EN 首句对齐“查指南”能力（保留全部免责）。
+
 ### Changed — 放宽指南级闸门：入口继承 §Conditional education (2026-07-17)
 
 修一个“上紧下松”的自相矛盾：`safety-guardrails.md` 早已有 §Conditional education（放开一般规律、

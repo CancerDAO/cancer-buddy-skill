@@ -25,8 +25,10 @@ See `disclosure-behavior.md`.
 
 ## 3. Documentation coverage
 
-- Missing `readiness.json`: offer record organization, but continue stable general education or question
-  preparation.
+- Missing `readiness.json`: offer record organization, but continue general / conditional education
+  (answer-time sourced) or question preparation. Missing case data limits only individual-case
+  conclusions, not general education. (Source-lookup *failure* is the separate case that falls back to
+  concept-only with no regimen/line names — see `safety-guardrails.md` §Live external lookup.)
 - `documentation_coverage` describes whether an existing document is present, absent from the archive or
   unknown. It is not a probability, grade, diagnostic confidence, quality score or permission to act.
 - `missing_items.json` is an existing-document inventory. Never turn an inventory gap into a recommendation

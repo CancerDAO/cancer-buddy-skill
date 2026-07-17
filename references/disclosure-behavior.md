@@ -22,7 +22,7 @@ adult patient may know.
 
 | Task | Behavior |
 |---|---|
-| Organize / visit prep / education / nutrition | Use only content authorized for the viewer. Warn before unexpectedly surfacing diagnosis details; honor a patient's explicit request for their own information. |
+| Organize / visit prep / patient-specific education / nutrition | Use only content authorized for the viewer. Warn before unexpectedly surfacing diagnosis details; honor a patient's explicit request for their own information. **General, non-individualized education (including sourced guideline relay) needs no viewer authorization — only patient-specific details do.** |
 | Vault / export / second-opinion packet | Require host authentication plus explicit recipient, scope, purpose and expiry. A disclosure flag neither grants family access nor blocks the patient's own access. |
 | Find care / case literature | Public general searches may proceed without patient records. Patient-specific filters require authorization. |
 | Disclosure support | Record the patient's information preference and prepare clinician-supported communication; do not sustain deception or model-determine incapacity. |

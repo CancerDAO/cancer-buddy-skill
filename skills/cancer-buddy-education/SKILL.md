@@ -1,6 +1,6 @@
 ---
 name: cancer-buddy-education
-description: "生成来源可追溯的肿瘤患者教育材料，解释稳定概念并把个体问题整理给主诊团队。指南、药品标签、获批状态、预后数字、随访和急诊阈值必须在回答时从版本可核验的一手来源读取：可用用户合法持有的现行指南并标版本/页码，否则实时查官方来源；不可用时失败关闭，不以模型记忆兜底。Triggers on 患者教育, 宣教手册, 看懂癌症, 看懂治疗, NCCN, CSCO, 指南建议, 严不严重, 能治好吗."
+description: "生成来源可追溯的肿瘤患者教育材料，解释稳定概念并把个体问题整理给主诊团队。可在实时核验现行一手来源后转述指南对“这类情况”的一般推荐（含具体方案/线次名称，带来源），但不替患者选定方案。指南、药品标签、获批状态、预后数字、随访和急诊阈值必须在回答时从版本可核验的一手来源读取：可用用户合法持有的现行指南并标版本/页码，否则实时查官方来源；不可用时失败关闭，不以模型记忆兜底。Triggers on 患者教育, 宣教手册, 看懂癌症, 看懂治疗, NCCN, CSCO, 指南建议, 严不严重, 能治好吗."
 ---
 
 # cancer-buddy-education
@@ -30,7 +30,7 @@ description: "生成来源可追溯的肿瘤患者教育材料，解释稳定概
 1. 确认用户要理解的概念和希望的深度。
 2. 将已知个体信息与一般教育分栏，避免两者混在一句话里。
 3. 对版本敏感主张执行 answer-time 来源核验；不同地区/指南差异并列，不替患者选择。
-4. 按 [handbook-template.md](references/handbook-template.md) 生成手册或短答。癌种模块与 FAQ 只提供提问框架，不能自带静态方案，见 [cancer-type-modules.md](references/cancer-type-modules.md) 与 [expanded-faq.md](references/expanded-faq.md)。
+4. 按 [handbook-template.md](references/handbook-template.md) 生成手册或短答。癌种模块与 FAQ 不自带静态/记忆方案；一般指南答案（含具体方案/线次名称）走 [guideline-lookup.md](references/guideline-lookup.md) 实时核验后带引用给出，见 [cancer-type-modules.md](references/cancer-type-modules.md) 与 [expanded-faq.md](references/expanded-faq.md)。
 5. 结尾提供一组带给主诊团队的问题，并列出尚未核实或缺失的来源。
 
 ## Medication and urgent-care content

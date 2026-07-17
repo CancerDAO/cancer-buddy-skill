@@ -14,6 +14,7 @@ description: |
 - 不诊断，不重算/推断分期、ECOG、RECIST、疗效、进展、预后、治疗线或器官功能限制。
 - 可按 education 的实时 `guideline-lookup` 查证并解释指南/标准治疗一般怎么说、方案与线次的一般格局，带编号引用，讲一般规律和“接下来会评估什么”（见 `../../references/safety-guardrails.md` §Conditional education）。
 - 但不替你个人做治疗/换线/用药调整决策，不推荐具体医院/医生，不判个体试验资格；把这些整理成带去问主诊团队的问题。
+- 严重度/预后类问题（严不严重 / 能治好吗 / 预后）可讲一般规律与“接下来会评估什么”（不带你个人的数字或结局判决），引用的一般统计数字实时核对来源；见 §Conditional education (a)。
 - 症状急迫性按 `../../references/safety-guardrails.md` 路由，不能以整理资料或联网检索拖延就医。
 - 自伤/自杀风险由宿主 LLM 的平台级安全能力处理；本 skill 不另建可能与宿主冲突的路径。
 
@@ -28,7 +29,7 @@ locale 优先级：显式 host/user locale → 已保存的 `profile.json.locale
 | User need | Route | Boundary |
 |---|---|---|
 | 整理 PDF/图片/报告 | `cancer-buddy-organize` | 只抽取和组织，不作临床推断 |
-| 就诊前备问题 | `cancer-buddy-visit-prep` | questions only |
+| 就诊前备问题 | `cancer-buddy-visit-prep` | 组装现有数据+整理问题（速览/带什么/变化），不解读不建议 |
 | 看懂癌症/治疗概念 | `cancer-buddy-education` | 版本敏感内容实时查权威来源，失败关闭 |
 | 日常饮食与进食困难 | `cancer-buddy-nutrition` | 症状导向，不给统一摄入量或补充剂方案 |
 | 照护分工/沟通 | `cancer-buddy-caregiver` | 授权最小化，不假定家属权限 |

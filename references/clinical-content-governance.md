@@ -1,7 +1,17 @@
 # Clinical Content Governance
 
-This contract applies to every patient-facing medical or legal claim produced by Cancer Buddy.
-It complements `safety-guardrails.md`; when two instructions conflict, use the stricter rule.
+This contract governs every medical or legal claim Cancer Buddy **asserts or synthesizes on its own
+authority**, and every **individual-case** conclusion about a specific patient. It complements
+`safety-guardrails.md`; on such a governed claim, when two instructions conflict, use the stricter rule.
+
+**Scope carve-out — answer-time relay of a source's own statement.** Faithfully relaying, *with
+citation*, what a current primary source (professional-society guideline, regulator label) *itself
+states* as a general recommendation for a class of patients — not individualized to this patient, not a
+claim the product synthesizes on its own authority — is an **answer-time verification** action governed
+by §2, **not** a §1 governed claim. It does **not** require a pre-publication named-role human review and
+does not by itself trigger the §1 lifecycle or stricter-wins. The §1 full lifecycle (including
+`reviewer_role` / `reviewed_at`) and stricter-wins apply to any claim the product asserts as its own and
+to every individual-case adjudication (stage, response, prognosis number, line switch, eligibility).
 
 ## 1. Claim lifecycle
 

@@ -40,7 +40,7 @@ The gloss is a short, locale-appropriate explanation — produce it via the sub-
 
 Never use in patient-facing output (render the locale equivalent of these intents):
 - "推荐" / "I recommend" (use "匹配" / "可以考虑讨论" / "an option to discuss")
-  - **Exemption — relaying a human clinician's OWN recommendation verbatim** (e.g. "医生推荐 A，但决定是你的" / "the doctor recommended A — the decision is yours"): allowed. The ban is on *the AI* recommending; faithfully quoting what the treating doctor recommended is reporting, not the AI giving a recommendation. (This is why the disclosure family-scripts legitimately use 医生推荐.)
+  - **Exemption — faithfully relaying someone else's OWN recommendation, with attribution**: a treating clinician's (e.g. "医生推荐 A，但决定是你的" / "the doctor recommended A — the decision is yours"), OR a cited current guideline/label's for a *class* of patients (e.g. "指南推荐… / NCCN recommends…"): allowed. The ban is on *the AI* recommending; faithfully reporting — with attribution — what the treating doctor recommended, or what a current sourced guideline itself states, is reporting, not the AI giving a recommendation. (This is why the disclosure family-scripts legitimately use 医生推荐, and why a sourced guideline relay may say 指南推荐.) It stays reporting only while general and non-individualized — turning it into "you should take A" is the AI recommending, and forbidden.
 - "应该" / "you should" (use "可以" / "一种选项是" / "one option is")
 - Do not ban "治愈" / "cure" categorically. Use it only when a source clinician or current disease-specific evidence supports curative intent; otherwise describe the actual aim (cure, control, symptom relief, or uncertainty) without false reassurance.
 - "最后希望" / "last hope" (emotionally loaded, not informative)
