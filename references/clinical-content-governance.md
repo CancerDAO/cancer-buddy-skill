@@ -63,8 +63,12 @@ memory, and bundled snapshots are never sufficient for a current clinical or leg
 Answer-time verification is mandatory for drug labels, treatment regimens or line of therapy, approvals,
 reimbursement, trial status, center services, guideline recommendations, prognostic estimates,
 interactions, and law. An authorized, legitimately held local primary source counts only when its
-publisher, title, version/date and relevant page are verifiable; otherwise use the current official online
-source. Source failure is a normal outcome: fail closed and mark the item `unconfirmed` rather than
+publisher, title, version/date and relevant page are verifiable — an opt-in local guideline pack
+(`CANCER_BUDDY_GUIDELINES` + `index.json` manifest; see the education skill's `guideline-lookup.md`
+§1.5) is one such source, confined to that directory and never a home/patient-dir scan; otherwise use the
+current official online source. Whatever live tool the host has (installed `web-access`, native
+WebSearch/WebFetch, or any relevant installed MCP) may perform the lookup — use-if-present, never a hard
+dependency. Source failure is a normal outcome: fail closed and mark the item `unconfirmed` rather than
 filling the gap from memory.
 
 ## 3. Patient-specific boundaries

@@ -6,6 +6,19 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Added — 检索能力显式化 + 可选本地指南库 (2026-07-17)
+
+- **A · capability-agnostic 检索**：`guideline-lookup.md` §1、`find-care/references/data-sources.md`、
+  governance §2 显式写明 answer-time 检索使用宿主**当前可用的任意联网/数据能力**（已装 `web-access`、
+  宿主 WebSearch/WebFetch、或任何相关已装 MCP）——**use-if-present，不硬依赖任何特定工具/MCP**，
+  都不可用则 fail-closed。不在 skill 里写死或绑定任何 MCP。
+- **B · 可选本地指南库**（`guideline-lookup.md` §1.5，默认关闭）：环境变量 `CANCER_BUDDY_GUIDELINES`
+  指向用户掌控、合法持有的指南目录 + `index.json` 清单（publisher/title/version/date/jurisdiction/
+  cancer_types/license）。answer-time 顺序：本地清单可核验条目 → 联网官方源 → fail-closed。无清单
+  条目或版本不清/过期的文件不作当前来源。隐私硬边界：只读该目录内文件、拒符号链接越界/`..` 穿越、
+  绝不扫主目录/患者目录、只读不写、患者输出不露主机绝对路径。附 `guideline-pack.example.json` 模板。
+  未配置时行为与之前完全一致。
+
 ### Changed — 放宽后的口径一致性整改：消除跨文件残留矛盾 (2026-07-17)
 
 三个独立第三方 subagent 并行审全仓（SKILL.md 层 / 顶层 references / 子 references+README），去重后

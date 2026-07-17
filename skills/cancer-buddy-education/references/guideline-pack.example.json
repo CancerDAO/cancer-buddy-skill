@@ -1,0 +1,25 @@
+{
+  "_note": "示例：把此文件复制为 <CANCER_BUDDY_GUIDELINES>/index.json 并按你合法持有的指南逐条登记。仅供 answer-time 本地一手来源核验；无对应条目或版本不清/过期的文件不会被当作当前来源（回退联网）。file 为该目录内相对路径，绝不指向目录外。",
+  "guidelines": [
+    {
+      "file": "nccn/nsclc-2026.v3.pdf",
+      "publisher": "NCCN",
+      "title": "NCCN Clinical Practice Guidelines in Oncology — Non-Small Cell Lung Cancer",
+      "version": "2026.v3",
+      "date": "2026-05-01",
+      "jurisdiction": "US",
+      "cancer_types": ["NSCLC", "lung", "肺癌"],
+      "license": "individually-licensed owned copy; no redistribution; cite version+page only"
+    },
+    {
+      "file": "csco/crc-2026.pdf",
+      "publisher": "CSCO",
+      "title": "CSCO 结直肠癌诊疗指南",
+      "version": "2026",
+      "date": "2026-04-01",
+      "jurisdiction": "CN",
+      "cancer_types": ["CRC", "colorectal", "结直肠癌"],
+      "license": "owned copy; no redistribution"
+    }
+  ]
+}
