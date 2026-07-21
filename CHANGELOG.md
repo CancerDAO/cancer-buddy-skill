@@ -6,6 +6,25 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Changed — 对症支持用药：把闸门从"整块甩墙"重画到"一般 vs 个案"两轴 (2026-07-21)
+
+用户反馈"胃反酸想吐有什么药干预吗"被回避、既不敢报药名也不带 reference，而通用助手能给带源的
+OTC/PPI 一般处理。根因：`cancer-buddy/SKILL.md` 把「症状用药」整块塞进个案拒答桶
+（与虚拟 MTB/换线/试验资格并列），违反 `safety-guardrails.md` §Conditional education (b) ——
+对症支持的**一般用药教育**本属放开轴、应带源转述含药名的一般推荐。
+
+- **`cancer-buddy/SKILL.md`**：路由表新增「对症/支持治疗一般用药 → cancer-buddy-education」行；把
+  第 42 段拆成两轴——一般对症用药教育（反酸/恶心/便秘/发热/疼痛的常用/OTC 药物类别、指南一般处理）
+  路由 education、带编号引用给一般格局，只有"在我这个具体方案/在用药下我该加/调哪种药"的个案决定收口
+  主诊团队；并要求**简短对话式答复**含版本敏感断言时也必须内联出示编号来源，不得因"只是短答"省略。
+- **`cancer-buddy-education/SKILL.md`** Medication 段：新增"对症支持一般用药教育（放开轴）"条目，
+  answer-time 核验一手源后带源给一般药物类别，叠加**肿瘤特有护栏**（症状可能是 CINV 等治疗副作用；
+  PPI/止吐/抗酸药与某些口服 TKI/靶向药相互作用需药师核；化疗期发热按团队阈值当急症）。
+- **`expanded-faq.md`**：新增"对症支持与自我照护用药"结构化模板（共情+鉴别 → 带源一般处理 →
+  肿瘤护栏 → red-flag 收口），并重申无相互作用结论须实时核验、禁模型记忆兜底。
+
+红线未松：对本人的分期/疗效/预后/换线/个体剂量判决仍收紧；放开的只是"一般规律、带源、条件式"教育。
+
 ### Added — 检索能力显式化 + 可选本地指南库 (2026-07-17)
 
 - **A · capability-agnostic 检索**：`guideline-lookup.md` §1、`find-care/references/data-sources.md`、
