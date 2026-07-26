@@ -684,7 +684,20 @@ def recipe_trend(spec):
     legend = ["● 参考区间内", "○ 参考区间外（琥珀描边）"] if ref else []
     if any(p["critical"] for p in pts):
         legend.append("● 源报告标注危急值")
-    return svg, note, legend, caveats, f"{metric}{_u(unit)}"
+    span_txt = f"{_date_label(pts[0]['t'])} 至 {_date_label(pts[-1]['t'])}"
+    pill = f"{len(pts)} 次检测 · {span_txt}"
+    # Aside carries what to do with the chart, not what it means — the questions
+    # are the deliverable a patient can actually use in the consulting room.
+    asks = [f"这段时间的 {metric} 变化，跟同期影像对得上吗？"]
+    if any(c.startswith("第") and "方法" in c for c in caveats):
+        asks.append("中间换过检测方法，前后的数值还能直接比吗？")
+    if any("空档" in c or "空档" in note for c in caveats) or "空档" in note:
+        asks.append("中间有一段时间没查，需要补一次吗？")
+    if not ref:
+        asks.append("这个指标的参考范围是多少？该看哪个标准？")
+    asks.append("接下来多久复查一次合适？")
+    aside = {"title": "可以问医生", "items": asks[:4]}
+    return svg, note, legend, caveats, f"{metric}{_u(unit)}", pill, aside
 
 
 # ── C3 · treatment swimlane ──────────────────────────────────────────────────
@@ -729,10 +742,17 @@ def recipe_swimlane(spec):
         if r["intent"]:
             svg.text(x2 + 6, y + lane_h / 2 + 3, str(r["intent"])[:6],
                      size=FS_BODY, fill=MUTED_DEEP)
-    # time rail — one tick per episode boundary, labels de-collided by month
+    # calendar floor — the countable unit here is time, and "how many months was
+    # I on this regimen" is a question patients actually ask
     yb = top + lane_h * len(rows_data) + 6
+    grid, unit_name = time_unit_grid(min(all_o), max(all_o))
+    for g in grid:
+        gx = tax.x(g)
+        if 96.0 <= gx <= FIG_W - FIG_PAD:
+            svg.line(gx, yb - 5.0, gx, yb, stroke=LADDER[2], width=0.8)
     tick_xs = [tax.x(o) for o in sorted(set(all_o))]
-    svg.rail(96.0, FIG_W - FIG_PAD, yb, ticks=tick_xs)
+    svg.rail(96.0, FIG_W - FIG_PAD, yb, ticks=tick_xs, tick_h=5.0)
+    n_units = sum(1 for g in grid if 96.0 <= tax.x(g) <= FIG_W - FIG_PAD)
     import datetime as _dt
     labelled = []
     for o in sorted(set(all_o)):
@@ -744,9 +764,18 @@ def recipe_swimlane(spec):
         svg.text(x, yb + 11, lbl, size=FS_AXIS, fill=MUTED, anchor="middle")
 
     note = (f"{len(rows_data)} 段治疗记录，按源报告的开始与结束日期排布"
-            f"{'；虚线尾表示记录中未写结束日期' if any(r['open'] for r in rows_data) else ''}。")
+            f"{'；虚线尾表示记录中未写结束日期' if any(r['open'] for r in rows_data) else ''}。"
+            f" 底部每格 = 1{unit_name}，条形横跨几格就是持续了几{unit_name}。")
     caveats = ["时间对齐不表示疗效或因果。各段的划分与命名取自源病历记录。"]
-    return svg, note, [], caveats, "治疗阶段"
+    import datetime as _d2
+    span = f"{_date_label(_d2.date.fromordinal(min(all_o)).isoformat())} 至 " \
+           f"{_date_label(_d2.date.fromordinal(max(all_o)).isoformat())}"
+    pill = f"{len(rows_data)} 段治疗 · {span}"
+    aside = {"title": "可以问医生", "items": [
+        "这几段治疗的划分和名称，跟病历记录一致吗？",
+        "记录里没写结束日期的那段，实际用到什么时候？",
+        "中间的间隔是计划中的休息，还是有别的原因？"]}
+    return svg, note, [f"每格 = 1{unit_name}"], caveats, "治疗阶段", pill, aside
 
 
 # ── C4 · lab panel reference bars ────────────────────────────────────────────
@@ -799,7 +828,13 @@ def recipe_panel(spec):
     if n_ref < len(rows):
         caveats.append(f"其中 {len(rows) - n_ref} 项本次报告未提供可解析的参考区间，"
                        f"未画区间带；不同实验室与方法的区间不同，不能套用通用值。")
-    return svg, note, ["淡紫带 = 参考区间", "○ 琥珀描边 = 区间外"], caveats, "检验项目"
+    pill = f"{len(rows)} 个项目" + (f" · {spec['report_date']}" if spec.get("report_date") else "")
+    aside = {"title": "可以问医生", "items": [
+        "这几项里哪些是这次要重点看的？",
+        "有几项没给参考区间，正常范围是多少？",
+        "偏离范围的这几项，需要复查还是处理？"]}
+    return (svg, note, ["淡紫带 = 参考区间", "○ 琥珀描边 = 区间外"], caveats,
+            "检验项目", pill, aside)
 
 
 # ── C6 · event timeline ──────────────────────────────────────────────────────
@@ -819,7 +854,12 @@ def recipe_timeline(spec):
     tax = xs_probe
     svg = Svg(FIG_W, h, label="病程事件时间轴")
     xs = [tax.x(p["o"]) for p in pts]
-    svg.rail(FIG_PAD, FIG_W - FIG_PAD, axis_y, ticks=xs, tick_h=3.0)
+    grid, unit_name = time_unit_grid(pts[0]["o"], pts[-1]["o"])
+    for g in grid:
+        gx = tax.x(g)
+        if FIG_PAD <= gx <= FIG_W - FIG_PAD:
+            svg.line(gx, axis_y, gx, axis_y + 4.5, stroke=LADDER[2], width=0.8)
+    svg.rail(FIG_PAD, FIG_W - FIG_PAD, axis_y, ticks=xs, tick_h=4.5)
     for p, x, r in zip(pts, xs, rows_probe):
         ly = axis_y - 12 - r * 15
         svg.line(x, ly + 3, x, axis_y, stroke=LADDER[3], width=0.6, dash="2 2")
@@ -838,8 +878,13 @@ def recipe_timeline(spec):
             continue          # month already on the axis — repeating it is noise
         seen_labels.add(lbl)
         svg.text(x, axis_y + 11 + dr * 10, lbl, size=FS_AXIS, fill=MUTED, anchor="middle")
-    note = f"{len(pts)} 个事件，按源记录日期排布，横轴按真实时间间隔。"
-    return svg, note, [], ["事件的先后顺序不表示因果关系。"], "病程事件"
+    note = (f"{len(pts)} 个事件，按源记录日期排布，横轴按真实时间间隔。"
+            f" 底部每格 = 1{unit_name}，事件之间隔了几格就是隔了几{unit_name}。")
+    pill = f"{len(pts)} 个事件 · {_date_label(pts[0]['t'])} 至 {_date_label(pts[-1]['t'])}"
+    aside = {"title": "可以问医生", "items": [
+        "这条时间线上有没有漏掉的重要事件？",
+        "两次事件之间间隔比较久的那段，当时是什么情况？"]}
+    return svg, note, [f"每格 = 1{unit_name}"], ["事件的先后顺序不表示因果关系。"], "病程事件", pill, aside
 
 
 # ── C7 · variant VAF rows ────────────────────────────────────────────────────
@@ -875,7 +920,12 @@ def recipe_vaf(spec):
             f"数值取自分子检测报告。")
     caveats = ["VAF 高低不代表临床重要性，也不表示可用药与否；"
                "变异的解读由主诊团队与分子病理结合报告全文判断。"]
-    return svg, note, ["每格 10%"], caveats, "变异 VAF"
+    pill = f"{len(rows)} 个变异 · 分子检测报告"
+    aside = {"title": "可以问医生", "items": [
+        "这几个变异里，哪些目前有对应的药或临床试验？",
+        "VAF 的高低对用药选择有影响吗？",
+        "这份报告需要再做别的检测来补充吗？"]}
+    return svg, note, ["每格 10%"], caveats, "变异 VAF", pill, aside
 
 
 # ── C8 · documentation coverage gauge ────────────────────────────────────────
@@ -908,7 +958,14 @@ def recipe_coverage(spec):
             svg.text(x2 + 5, y + 3, str(it.get("have", "—")), size=FS_BODY, fill=MUTED)
     note = f"{len(items)} 类资料的收集情况（每格 = 1 份文件）。"
     caveats = ["完整度只统计已上传的文件数量，不评价资料的临床充分性。"]
-    return svg, note, [], caveats, "资料完整度"
+    done = sum(1 for it in items
+               if to_float(it.get("have")) and to_float(it.get("need"))
+               and to_float(it.get("have")) >= to_float(it.get("need")))
+    pill = f"{len(items)} 类资料 · {done} 类已齐"
+    aside = {"title": "下一步", "items": [
+        "缺的文件多数能在原就诊医院复印或线上调取",
+        "补齐后重新整理一次，图和总结都会更完整"]}
+    return svg, note, [], caveats, "资料完整度", pill, aside
 
 
 # ── C9 · two-timepoint dumbbell ──────────────────────────────────────────────
@@ -959,7 +1016,11 @@ def recipe_dumbbell(spec):
             f"每行按该行自身的最大值缩放，位置表示占该行最大值的比例。")
     caveats = ["各行的单位与量纲不同，行与行之间的线段长度不可互相比较，只看每行自身的方向与数值。",
                "两个时点之间发生的其他情况未在图中体现，数值变化的原因需由主诊团队判断。"]
-    return svg, note, [], caveats, "两时点对照"
+    pill = f"{len(rows)} 个项目 · {spec.get('t1_label','时点 1')} vs {spec.get('t2_label','时点 2')}"
+    aside = {"title": "可以问医生", "items": [
+        "这两个时点之间，哪些变化是需要关注的？",
+        "有没有必要把其中某几项单独再查一次？"]}
+    return svg, note, [], caveats, "两时点对照", pill, aside
 
 
 # ── C10 · medication colonnade ───────────────────────────────────────────────
@@ -993,7 +1054,12 @@ def recipe_medications(spec):
         y += gap
     note = f"{len(meds)} 项用药记录，按源病历中的类别归组（每个点 = 一条记录）。"
     caveats = ["清单为源病历的转录，不代表当前仍在使用，也不含相互作用评估。"]
-    return svg, note, [], caveats, "用药清单"
+    pill = f"{len(meds)} 项用药 · {len(order)} 类"
+    aside = {"title": "可以问医生", "items": [
+        "这份清单跟我现在实际在吃的一致吗？",
+        "这些药之间、以及和抗肿瘤治疗之间有没有需要注意的相互作用？",
+        "有哪些是可以停的？"]}
+    return svg, note, [], caveats, "用药清单", pill, aside
 
 
 # ── 库外图型示例 · 用药重叠密度 ─────────────────────────────────────────────
@@ -1082,7 +1148,11 @@ def recipe_med_overlap(spec):
     caveats = ["同时在用只统计记录中的用药区间重叠，不代表相互作用、不良反应或用药合理性；"
                "相互作用评估请交由主诊团队或临床药师。",
                "记录中未写结束日期的用药以虚线尾表示，不代表已停用。"]
-    return svg, note, [f"阶梯 = 同时在用药物数（0–{peak}）"], caveats, "用药重叠"
+    pill = f"{len(rows)} 种用药 · 最多同时 {peak} 种"
+    aside = {"title": "可以问医生", "items": [
+        "同时吃这几种药，有没有需要注意的相互作用？",
+        "其中哪些是短期用、哪些要长期吃？"]}
+    return svg, note, [f"阶梯 = 同时在用药物数（0–{peak}）"], caveats, "用药重叠", pill, aside
 
 
 class Eligibility(Exception):
@@ -1241,7 +1311,10 @@ def run_channel_b(args) -> int:
               f"primitives — see SKILL.md §generalisation.", file=sys.stderr)
         return 2
     try:
-        svg, note, legend, caveats, subject = recipe(spec)
+        out = recipe(spec)
+        svg, note, legend, caveats, subject = out[:5]
+        pill = out[5] if len(out) > 5 else ""
+        aside = out[6] if len(out) > 6 else None
     except Eligibility as e:
         print(f"NOT ELIGIBLE: {e}", file=sys.stderr)
         return 5
@@ -1257,7 +1330,7 @@ def run_channel_b(args) -> int:
         return 4
 
     src = args.source or "数据来源：本人上传的检验/病历报告，数值逐条转录，未做换算或推断。"
-    html = page(title, note, svg.markup(), legend, src, caveats)
+    html = page(title, note, svg.markup(), legend, src, caveats, pill=pill, aside=aside)
     out = Path(args.out_html)
     out.write_text(html, encoding="utf-8")
     print(f"chart → {out} ({len(html)} bytes, recipe={args.chart})")

@@ -49,7 +49,9 @@ AMBER_BG = "#fdf3e2"
 CRIT = "#c0392b"         # ONLY for values the SOURCE REPORT flagged critical
 CRIT_BG = "#fdeeee"
 CARD = "#ffffff"
-CARD_ALT = "#fcfaff"
+CARD_ALT = "#faf8fd"     # page ground: a warm tint of the brand purple, not a
+                         # neutral paper grey — a grey ground turns the lavender
+                         # ladder muddy
 RULE = "#ece4fb"         # hairline rules / furniture
 BAND = "#f4ecff"         # reference-range band fill
 
@@ -584,26 +586,47 @@ class Svg:
 # ─────────────────────────────────────────────────────────────────────────────
 PAGE_CSS = f"""
 *{{box-sizing:border-box}}
-body{{margin:0;padding:16pt;background:{CARD_ALT};color:{INK};
-     font-family:{FONT_STACK};font-size:{FS_BODY}pt;line-height:1.5}}
-.card{{background:{CARD};border-radius:6pt;padding:14pt 16pt 12pt;
-      max-width:520pt;margin:0 auto}}
-h1{{font-size:{FS_TITLE}pt;font-weight:700;margin:0 0 3pt;line-height:1.4}}
-.sub{{font-size:{FS_BODY}pt;color:{MUTED_DEEP};margin:0 0 10pt;line-height:1.5}}
-.fig{{margin:0 0 8pt}}
+body{{margin:0;padding:20pt 16pt;background:{CARD_ALT};color:{INK};
+     font-family:{FONT_STACK};font-size:{FS_BODY}pt;line-height:1.55}}
+.card{{background:{CARD};border-radius:8pt;padding:22pt 26pt 18pt;
+      max-width:540pt;margin:0 auto}}
+/* Meta pill. lieflat puts the CHART TYPE here; a patient does not care that it
+   is a line chart. The slot is prime real estate, so it carries what they do
+   care about: how many readings, over what stretch of their life. */
+.pill{{display:inline-block;font-size:{FS_BODY}pt;color:{PRIMARY};
+      background:{LADDER[0]};border:0.6pt solid {LADDER[2]};
+      border-radius:20pt;padding:2.5pt 9pt;margin:0 0 9pt}}
+h1{{font-size:{FS_TITLE}pt;font-weight:700;margin:0 0 5pt;line-height:1.45}}
+.sub{{font-size:{FS_BODY}pt;color:{MUTED_DEEP};margin:0 0 16pt;line-height:1.6;
+     max-width:430pt}}
+.fig{{margin:0 0 10pt}}
 .fig svg{{max-width:100%;height:auto;display:block}}
-.legend{{font-size:{FS_BODY}pt;color:{MUTED_DEEP};margin:6pt 0 0;
-        display:flex;flex-wrap:wrap;gap:4pt 12pt}}
-.src{{font-size:{FS_BODY}pt;color:{MUTED};margin-top:9pt;padding-top:7pt;
-     border-top:0.6pt solid {RULE};letter-spacing:0.02em}}
+.legend{{font-size:{FS_BODY}pt;color:{MUTED_DEEP};margin:8pt 0 0;
+        display:flex;flex-wrap:wrap;gap:5pt 14pt}}
+/* No all-caps + letter-spacing here: that is an English editorial device and
+   this line is Chinese, where it only hurts legibility. */
+.src{{font-size:{FS_BODY}pt;color:{MUTED};margin-top:14pt;padding-top:9pt;
+     border-top:0.6pt solid {RULE}}}
 .note{{font-size:{FS_BODY}pt;color:{MUTED_DEEP};background:{AMBER_BG};
-      border-left:2pt solid {AMBER};padding:6pt 8pt;margin:8pt 0 0;border-radius:3pt}}
-@media print{{body{{background:{CARD};padding:0}}.card{{max-width:none}}}}
+      border-left:2pt solid {AMBER};padding:8pt 10pt;margin:10pt 0 0;
+      border-radius:4pt;line-height:1.6}}
+/* The aside sits BELOW the figure, not beside it. A side column looks better on
+   screen, but A4's printable width is ~538pt and the figure alone is 460pt —
+   putting them side by side squeezes the chart until the value labels collide
+   again. These charts exist to be printed and handed to a clinician, so the
+   figure keeps full width and the questions go underneath in columns. */
+.aside{{font-size:{FS_BODY}pt;color:{MUTED_DEEP};line-height:1.65;
+       margin-top:12pt;padding-top:10pt;border-top:0.6pt solid {RULE}}}
+.aside b{{color:{INK};font-weight:600;display:block;margin-bottom:6pt}}
+.aside ul{{margin:0;padding-left:14pt;columns:2;column-gap:24pt}}
+.aside li{{margin-bottom:5pt;break-inside:avoid}}
+@media (max-width:520pt){{.aside ul{{columns:1}}}}
+@media print{{body{{background:{CARD};padding:0}}.card{{max-width:none;padding:14pt 0}}}}
 """
 
 
 def page(title: str, reading_note: str, figure_markup: str, legend_items,
-         source_line: str, caveats=None) -> str:
+         source_line: str, caveats=None, pill: str = "", aside=None) -> str:
     """Wrap a figure into a self-contained, printable, zero-dependency HTML file.
 
     Card anatomy (four parts, always all four):
@@ -621,15 +644,21 @@ def page(title: str, reading_note: str, figure_markup: str, legend_items,
                   + "".join(f"<span>{esc(x)}</span>" for x in legend_items)
                   + "</div>")
     notes = "".join(f'<div class="note">{esc(c)}</div>' for c in (caveats or []))
+    pill_html = f'<div class="pill">{esc(pill)}</div>' if pill else ""
+    fig = f'<div class="fig">{figure_markup}</div>'
+    aside_html = ""
+    if aside:
+        items = "".join(f"<li>{esc(x)}</li>" for x in aside.get("items", []))
+        aside_html = (f'<div class="aside"><b>{esc(aside.get("title", ""))}</b>'
+                      f"<ul>{items}</ul></div>")
     return (
         "<!doctype html>\n"
         '<html lang="zh-CN"><head><meta charset="utf-8"/>'
         '<meta name="viewport" content="width=device-width,initial-scale=1"/>'
         f"<title>{esc(title)}</title><style>{PAGE_CSS}</style></head><body>"
-        f'<div class="card"><h1>{esc(title)}</h1>'
+        f'<div class="card">{pill_html}<h1>{esc(title)}</h1>'
         f'<div class="sub">{esc(reading_note)}</div>'
-        f'<div class="fig">{figure_markup}</div>'
-        f"{legend}{notes}"
+        f"{fig}{legend}{notes}{aside_html}"
         f'<div class="src">{esc(source_line)}</div>'
         "</div></body></html>\n"
     )
