@@ -4,3 +4,7 @@ docs/superpowers/
 # Python bytecode
 __pycache__/
 *.pyc
+
+# 测试用例文档只留本地,不上传(见 ~/cancer-buddy-testplans/)
+TESTPLAN*.md
+docs/TESTPLAN*
