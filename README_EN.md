@@ -16,6 +16,7 @@ Cancer Buddy is a non-clinical navigation skill for people affected by cancer an
 | `cancer-buddy-case-precedent` | Case-report retrieval | Complete outcomes and differences; no similarity score, treatment direction, or prognosis |
 | `cancer-buddy-second-opinion` | Source summary, index, questions, and send checklist | Live logistics verification; no automatic transmission |
 | `cancer-buddy-vault` | Local inventory, permissions, export, and audit workflow | Host authentication required; patient code is not authorization |
+| `cancer-buddy-charts` | Printable static charts of the patient's own labs, treatment, molecular and coverage data | Renders only values already in the source report; no trend interpretation, no response/prognosis verdict; no data means no chart |
 
 The repository also includes the `cancer-buddy` router and the `web-access` retrieval layer.
 

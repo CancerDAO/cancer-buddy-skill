@@ -16,6 +16,7 @@
 | `cancer-buddy-case-precedent` | 检索病例报告 | 展示全部结局和差异，不算相似度、不生成治疗方向或预后 |
 | `cancer-buddy-second-opinion` | 来源型摘要、索引、转诊问题和发送清单 | 联系/邮寄要求每次从目标机构实时核验，skill 不自动外发 |
 | `cancer-buddy-vault` | 本地清单、授权、导出和审计流程 | 依赖宿主鉴权；`patient_code` 不是密码或授权凭据 |
+| `cancer-buddy-charts` | 把检验、治疗、分子与资料数据画成可打印可转发的静态图表 | 只呈现源报告已有的数值；不解读趋势含义、不判断疗效或病情；无数据不画 |
 
 另含总入口 `cancer-buddy` 与联网底层 `web-access`。
 

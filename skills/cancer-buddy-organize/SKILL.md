@@ -218,11 +218,21 @@ This skill follows the shared locale contract in [`../../references/i18n.md`](..
     python3 scripts/backfill_lab_trends.py \
       --data "<patient_dir>/.case_summary_data.json" --labs "<patient_dir>/labs.json" --profile "<patient_dir>/profile.json"
 
-    # (2) 富化 —— 注入内联 SVG 趋势坐标 + 反造假门(画出的每个点必须在纵向库/labs 里查得到,否则 exit 3)
+    # (2) 富化 —— 注入内联 SVG 趋势坐标 + 参考区间带 + 反造假门
+    #     (画出的每个点必须在纵向库/labs 里查得到,否则 exit 3)
     long_arg=""; [ -f "<patient_dir>/longitudinal_observations.json" ] && long_arg="--longitudinal <patient_dir>/longitudinal_observations.json"
-    python3 scripts/compute_sparklines.py \
+    python3 ../cancer-buddy-charts/scripts/render_chart.py \
       --data "<patient_dir>/.case_summary_data.json" $long_arg --labs "<patient_dir>/labs.json"
     # ↑ exit 3 = 有 series 点在源库查无 → 修数据(改回 verbatim 原值或删点)再重跑,绝不绕过
+    # ↑ exit 4 = reading_note/title 里出现疗效或病情判决词 → 改写成读图指引(说明这张图怎么看、
+    #            数据能不能比),不是删掉图。规则见 cancer-buddy-charts/SKILL.md §标题怎么写
+    #
+    # render_chart.py 是 compute_sparklines.py 的向后兼容替代:既有字段逐字节相同,
+    # 新增 has_band/band_y/band_h/reference_range_text(参考区间带)与 dots[].stroke/fill(语义色)。
+    # trend_charts[].reference_range 只填该次报告自带的区间,禁止套用通用参考值;填不出就留空,
+    # 模板会明说"未提供可解析的参考区间"。
+    # 若 cancer-buddy-charts 未随本 skill 一同安装,退回 scripts/compute_sparklines.py
+    # (功能等价,但没有参考区间带与语义色)。
 
     # (3) 渲染
     python3 scripts/render_html_template.py \
@@ -436,6 +446,27 @@ Authoritative matrix in `../../references/roles.md`. For this skill:
 - **Role = family**: if the viewer is authorized for this task, operate only within that documented scope;
   otherwise provide a blank organization checklist without reading/writing patient records. Relationship
   labels alone neither grant nor deny authorization.
+
+
+## Charting an indicator the user asked about
+
+When the user asks about a **specific named lab value or observation** (CEA, 白蛋白, 体重…),
+check `<patient_dir>/longitudinal_observations.json` for that analyte BEFORE answering in prose:
+
+- **≥2 comparable points** → answer in text **and attach a chart**:
+  `python3 ../cancer-buddy-charts/scripts/render_chart.py --chart trend --from-longitudinal <patient_dir>/longitudinal_observations.json --metric <analyte> --out-html <patient_dir>/charts/<analyte>_趋势.html`
+- **fewer than 2, or not comparable** → answer in text and **say why there is no chart**
+  (exit-5 message is quotable verbatim). "只有一次记录" tells the patient a second test
+  would show a trend — that is useful, silence is not.
+
+A single value handed over in prose ("你最新的 CEA 是 8.1") invites the patient to panic at
+one isolated number; the full series with its reference band, method changes and gaps is
+closer to the truth. The chart REDUCES misreading here — that is why it is allowed.
+
+**Bounds (G-CHART-7).** Chart only the analyte the user named. Never volunteer a second
+indicator — deciding which marker is worth watching is exactly the cancer-type marker table
+that was withdrawn. A general question ("我的化验单怎么样") does not trigger this. One chart
+per turn. See `../cancer-buddy-charts/references/chart-eligibility.md` §7–8.
 
 ## References
 

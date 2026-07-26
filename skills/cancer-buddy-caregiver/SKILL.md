@@ -38,6 +38,27 @@ description: "为癌症患者的照护者提供非临床的陪诊准备、家庭
 
 能作决定的患者明确要求自己的信息时，家属偏好不能阻止。照护者只能看到授权范围内的信息；不协助长期欺骗或伪造说明。
 
+
+## Charting an indicator the user asked about
+
+When the user asks about a **specific named lab value or observation** (CEA, 白蛋白, 体重…),
+check `<patient_dir>/longitudinal_observations.json` for that analyte BEFORE answering in prose:
+
+- **≥2 comparable points** → answer in text **and attach a chart**:
+  `python3 ../cancer-buddy-charts/scripts/render_chart.py --chart trend --from-longitudinal <patient_dir>/longitudinal_observations.json --metric <analyte> --out-html <patient_dir>/charts/<analyte>_趋势.html`
+- **fewer than 2, or not comparable** → answer in text and **say why there is no chart**
+  (exit-5 message is quotable verbatim). "只有一次记录" tells the patient a second test
+  would show a trend — that is useful, silence is not.
+
+A single value handed over in prose ("你最新的 CEA 是 8.1") invites the patient to panic at
+one isolated number; the full series with its reference band, method changes and gaps is
+closer to the truth. The chart REDUCES misreading here — that is why it is allowed.
+
+**Bounds (G-CHART-7).** Chart only the analyte the user named. Never volunteer a second
+indicator — deciding which marker is worth watching is exactly the cancer-type marker table
+that was withdrawn. A general question ("我的化验单怎么样") does not trigger this. One chart
+per turn. See `../cancer-buddy-charts/references/chart-eligibility.md` §7–8.
+
 ## References
 
 - [chemo-companion-checklist.md](references/chemo-companion-checklist.md)

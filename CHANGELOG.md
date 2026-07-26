@@ -6,6 +6,68 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Added — `cancer-buddy-charts`：临床可视化 subskill (2026-07-26)
+
+原命题是"cancer-buddy 画不出好看的图表"。**实测不成立**——`cancer-buddy-organize` 早有一条确定性
+图表管线（`compute_sparklines.py` 394 行 + `validate_case_summary_html.py` 453 行 +
+`cancer-trend-markers.md` 32 行资格门）。真实瓶颈是**图型词汇表只有 2 个**（hero 折线、spark 迷你
+折线），而 organize 产出 8 类数据形状，其中 6 类无图可用。缺的不是绘图能力，是图型库。
+
+设计法典参考 `larashero3-dotcom/lieflat-charts`（PolyForm Noncommercial 1.0.0）。**代码零引入**：
+该许可证禁止 sublicense，与本仓 MIT 冲突；且换主题色要替掉整个 Mono 灰阶编码体系、满足 print-safe
+要替掉运行时 `createElementNS`、临床语义要重写选型逻辑——改完本就不剩原始代码，法务约束与工程最优
+解在此重合。取其设计规则（不断轴、面积 sqrt、卡片四件套、密度靠"家具"而非数据、库外图型翻译流程），
+代码 100% 自写。48 张图里临床可用不足 1/4。
+
+**新增**
+- `skills/cancer-buddy-charts/` — SKILL.md + 3 份 references + 3 个 stdlib 脚本
+- 两层架构：`chart_core.py` 几何原语（轴/参考区间带/标签避让/家具/token）+ `render_chart.py`
+  图型配方。**清单外的图是新配方，不是新引擎**——这是泛化能力的来源，而非一张 8 图查表
+- 8 个配方：`trend`（+参考区间带）`swimlane` `panel` `timeline` `vaf` `coverage` `dumbbell`
+  `medications`
+- `validate_chart_svg.py` — 对抗式验证器 9 项（print-safe / 零外链 / 8pt 地板 / 色板锁定 /
+  红色克制 / 无绿色 / 卡片四件套 / 判决词地板 / XML 良构）
+- 路径 C **主动识别**：用户问某个具体指标时，回答前先查该指标点数，≥2 个可比点自动附图，
+  不足则说明原因。落地到全部 11 个子技能 + 主 router
+
+**变更**
+- `render_chart.py --data` 是 `compute_sparklines.py` 的向后兼容替代，既有字段**逐字节相同**
+  （E2E 断言），新增 `has_band` / `band_y` / `band_h` / `reference_range_text` 与
+  `dots[].stroke/fill`
+- `case_summary_data.schema.json` — 新增上述字段 + `reference_range` + `reading_note`
+- `case-summary.template.html` — 参考区间带（画在 area 之上的虚线框，实心带会被 area 完全遮住）；
+  marker badge 字号 9.5→11.5（原值在 ~260pt 容器里约 6.8pt，低于 8pt 地板）；
+  **趋势方向箭头停用**（向下箭头对患者天然读作"好转"，是无权给出的判断）；
+  `{{interpretation}}` → `{{reading_note}}`
+- `cancer-buddy-organize/SKILL.md` Step 12 改调 `render_chart.py`
+
+**三层标题规则**（本次最实质的设计决策）。`interpretation` 字段此前 schema 为 `const: null`
+——caption 被整个关掉了。合规但没用。改为标题写**读图指引**：不写结论，也不复读图上已有的数字，
+而是回答"这张图该怎么看、数据能不能信"——「CA19-9 四次测量 · 第 3 次起检测方法变更，前后不可
+直接比较」。这是患者自己看不出、却决定图表可信度的信息，也把图从"给患者看的"变成"患者带去问医生
+的工具"。判决词黑名单只作用于 **authored text**（`--title`、spec caption、LLM 填写的字段），
+不作用于确定性代码生成的免责注记（正则读不出否定语境，会误杀 G-CHART-5 要求的
+"时间对齐不表示疗效或因果"），也不作用于病历转录的临床名词（"缓解"在"诱导缓解方案"里是方案名）。
+
+**临床保真**
+- 参考区间只用该次报告自带值，**禁止套用通用参考值**；性别/年龄分段等歧义区间一律拒绝解析而非猜测
+- `method_or_device` 变化 → 序列断开分段，接缝虚线
+- 检测限读数（`<5.0`）用空心方块 + 方向短须绘制，不当作 5.0 的实测值（伪精度＝捏造的近亲）
+- 红色仅用于源报告自身标注的危急值；超区间用琥珀描边不填充（满屏标红对患者是真实伤害）
+- 跨量纲对照图每行独立缩放并声明行间不可比（共轴会把 68 kg 和 132 g/L 放到同一尺度）
+
+**边界**：只画用户问的那一个指标，严禁主动扩展——那正是 `CHANGELOG.md:165` 记录的、后来被整体
+撤回的"全 69 NCCN 癌种 → 疗效监测标志物"对照表。拒绝清单：RECIST 瀑布图、针对本人的生存曲线、
+风险评分仪表盘、断轴柱状图、无数据示意图、地图类。
+
+**未实现**：靶病灶径线之和（`lesions[]` 只有自由文本影像描述，无结构化径线与日期，无数据基础；
+且距 RECIST 判读仅一步，单开 PRD）。
+
+**测试**：`tests/unit/charts-primitives.test.sh`（参考区间/状态/检测限解析）、
+`tests/integration/charts-e2e.sh`（2 患者 × 2 癌种 × 8 配方 + 5 项 gate 负向 + 8 项注入拦截 +
+向后兼容逐字节断言，27 项）。
+
+
 ### Changed — 对症支持用药：把闸门从"整块甩墙"重画到"一般 vs 个案"两轴 (2026-07-21)
 
 用户反馈"胃反酸想吐有什么药干预吗"被回避、既不敢报药名也不带 reference，而通用助手能给带源的

@@ -131,6 +131,12 @@
             }
           },
           "interpretation": { "const": null, "description": "Interpretation is intentionally disabled." },
+          "reading_note": { "type": ["string", "null"], "description": "READING GUIDE — how to read this chart and whether the series is comparable (method changes, unit changes, data gaps, what the band is). Describes the DATA, never the disease. Must not state or imply response, progression, prognosis or any RECIST category; render_chart.py fails closed (exit 4) on verdict phrasing in authored text. Distinct from `interpretation`, which stays disabled." },
+          "reference_range": { "type": ["string", "null"], "description": "Reference range VERBATIM from THIS report for this analyte (e.g. '0-37', '<25'). Report-specific only — never a textbook or general value, because ranges differ by laboratory and method. Ambiguous forms (sex- or age-split) are left null rather than guessed. Absent/unparseable → no band is drawn and the summary says so explicitly, because a missing band and a band you happen to sit inside look identical otherwise." },
+          "reference_range_text": { "type": "string", "description": "Injected by render_chart.py: the reference range as displayed. Empty when none was supplied." },
+          "has_band": { "type": "string", "description": "Injected by render_chart.py: '1' when a reference band was computed, '' otherwise. Drives RENDER_IF in the template." },
+          "band_y": { "type": "string", "description": "Injected by render_chart.py: y of the reference band top edge, same viewBox as svg_points. '' when no band." },
+          "band_h": { "type": "string", "description": "Injected by render_chart.py: height of the reference band. '' when no band." },
           "point_count": { "type": "integer", "minimum": 0 },
           "direction": { "enum": ["up", "down", "flat", "single"] },
           "first_value": { "type": "string" },
@@ -143,7 +149,7 @@
               "type": "object",
               "required": ["cx", "cy"],
               "additionalProperties": false,
-              "properties": { "cx": { "type": "string" }, "cy": { "type": "string" } }
+              "properties": { "cx": { "type": "string" }, "cy": { "type": "string" }, "stroke": { "type": "string", "description": "Injected: marker stroke from the CancerDAO token table. Amber outline = outside THIS report's reference range; critical red ONLY when the source report itself flagged the value." }, "fill": { "type": "string", "description": "Injected: marker fill. Out-of-range points are outlined, never filled red — a screenful of red is a high-intensity anxiety signal, and being outside a reference interval is usually not clinically meaningful." } }
             }
           }
         }
