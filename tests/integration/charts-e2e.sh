@@ -89,6 +89,21 @@ onclick="x()"
 javascript:alert(1)
 INJ
 
+# ── generalisation: a recipe outside the original catalogue ─────────────────
+# Proves SKILL.md §清单外的图 is a real path, not an aspiration: med-overlap was
+# built after the catalogue was frozen, from chart_core primitives only, and it
+# passes the identical gate set (G-CHART-8).
+echo '{"medications":[{"name":"吉西他滨","start":"2026-01-20","end":"2026-03-15"},{"name":"白蛋白紫杉醇","start":"2026-01-20","end":"2026-02-28"},{"name":"二甲双胍","start":"2026-01-20","end":null}]}' > ovl.json
+r "库外配方 med-overlap 产出" 0 python3 "$N/render_chart.py" --chart med-overlap --spec ovl.json --out-html ovl.html
+r "库外配方 过同一套 gate" 0 python3 "$N/validate_chart_svg.py" ovl.html
+# open-ended entry must span the window, not collapse to a one-day course
+r "库外配方 未写结束日期不塌成零宽" 0 python3 - <<'PYX'
+import re, sys
+h = open("ovl.html").read()
+widths = [float(m) for m in re.findall(r'<rect x="[\d.]+" y="[\d.]+" width="([\d.]+)"', h)]
+sys.exit(0 if widths and min(widths) > 5 else 1)
+PYX
+
 # ── backwards compatibility with compute_sparklines.py ──────────────────────
 cat > case.json <<'EOF'
 {"trend_charts":[{"metric":"CEA","unit":"ng/mL","series":[{"t":"2026-01-05","v":12.4},{"t":"2026-02-11","v":8.1},{"t":"2026-05-20","v":15.7}],

@@ -935,6 +935,95 @@ def recipe_medications(spec):
     return svg, note, [], caveats, "用药清单"
 
 
+# ── 库外图型示例 · 用药重叠密度 ─────────────────────────────────────────────
+# NOT in the original catalogue. Added by following SKILL.md §清单外的图:
+#   1. ontology — x = calendar time, step height = how many drugs were in use
+#      simultaneously on that day, lane bars = which drug covers which span.
+#      Every channel maps to a counted fact from the record; nothing is inferred.
+#   2. nearest clinical relative — `swimlane` (interval data on a time axis);
+#      its lane layout and open-ended-tail convention are reused verbatim.
+#   3. assembled from primitives only — TimeAxis / stack_rows / Svg.rail /
+#      truncate / the token table. No new colour, no new font size.
+#   4. passes the same gates as every catalogue recipe (G-CHART-8).
+# It exists to prove the generalisation path is real rather than aspirational.
+def recipe_med_overlap(spec):
+    meds = [m for m in (spec.get("medications") or []) if isinstance(m, dict)]
+    rows = []
+    for m in meds:
+        o1, o2 = to_ordinal(m.get("start")), to_ordinal(m.get("end"))
+        if o1 is None:
+            continue
+        rows.append({"o1": o1, "o2": o2, "open": o2 is None,
+                     "name": m.get("name") or ""})
+    if not rows:
+        raise Eligibility("没有带可解析开始日期的用药记录。")
+    rows.sort(key=lambda r: r["o1"])
+    lo = min(r["o1"] for r in rows)
+    # An open-ended entry runs to the end of the charted window, not to its own
+    # start day. Collapsing it to zero width would render "still taking this" as
+    # a one-day course — the opposite of what the record says.
+    hi = max([r["o2"] for r in rows if r["o2"] is not None] or [lo])
+    for r in rows:
+        if r["o2"] is None:
+            r["o2"] = hi
+    # step series: concurrent count per day boundary (counted, not modelled)
+    edges = sorted({r["o1"] for r in rows} | {r["o2"] for r in rows})
+    counts = [(e, sum(1 for r in rows if r["o1"] <= e <= r["o2"])) for e in edges]
+    peak = max(c for _, c in counts)
+
+    lane_h, top = 15.0, 24.0
+    step_h = 74.0
+    h = top + step_h + 10 + lane_h * len(rows) + 30.0
+    tax = TimeAxis([lo, hi], FIG_W, 96.0)
+    vax = ValueAxis([0, peak], step_h, 12.0, include_zero=True)
+    svg = Svg(FIG_W, h, label="同时在用的药物数量与各药覆盖区间")
+
+    # furniture: one horizontal rung per drug count, so the step is countable
+    for k in range(0, peak + 1):
+        y = top + vax.y(k)
+        svg.line(96.0, y, FIG_W - FIG_PAD, y, stroke=RULE, width=0.5)
+        svg.text(92.0, y + 3, str(k), size=FS_AXIS, fill=MUTED, anchor="end")
+    svg.text(92.0, top - 6, "同时在用", size=FS_AXIS, fill=MUTED_DEEP, anchor="end")
+
+    pts = []
+    for (e, c) in counts:
+        x = tax.x(e)
+        if pts:
+            pts.append((x, pts[-1][1]))   # hold previous level → true step, no ramp
+        pts.append((x, top + vax.y(c)))
+    svg.polyline(pts, stroke=PRIMARY_HI, width=1.6)
+
+    lane_top = top + step_h + 10
+    for i, r in enumerate(rows):
+        y = lane_top + i * lane_h
+        shown, full = truncate(r["name"], 12)
+        svg.text(6, y + 3, shown, size=FS_BODY, fill=INK, weight=600,
+                 title=full if full != shown else None)
+        x1, x2 = tax.x(r["o1"]), tax.x(r["o2"])
+        svg.rect(x1, y - 3.5, max(2.0, x2 - x1), 7, fill=LADDER[min(4, 1 + i % 3)], rx=1.5)
+        if r["open"]:
+            svg.line(x2, y, x2 + 10, y, stroke=PRIMARY, width=1.0, dash="2 2")
+    import datetime as _dt
+    yb = lane_top + lane_h * len(rows) + 6
+    svg.rail(96.0, FIG_W - FIG_PAD, yb, ticks=[tax.x(e) for e in edges])
+    labelled, seen = [], set()
+    for e in edges:
+        x = tax.x(e)
+        lbl = _date_label(_dt.date.fromordinal(e).isoformat())
+        if lbl in seen or any(abs(x - px) < 34.0 for px in labelled):
+            continue
+        seen.add(lbl)
+        labelled.append(x)
+        svg.text(x, yb + 11, lbl, size=FS_AXIS, fill=MUTED, anchor="middle")
+
+    note = (f"{len(rows)} 种用药的覆盖区间，以及每一天同时在用的药物数量"
+            f"（阶梯线，最高 {peak} 种）。日期与起止取自源病历记录。")
+    caveats = ["同时在用只统计记录中的用药区间重叠，不代表相互作用、不良反应或用药合理性；"
+               "相互作用评估请交由主诊团队或临床药师。",
+               "记录中未写结束日期的用药以虚线尾表示，不代表已停用。"]
+    return svg, note, [f"阶梯 = 同时在用药物数（0–{peak}）"], caveats, "用药重叠"
+
+
 class Eligibility(Exception):
     """Raised when data does not qualify for the requested chart. The message is
     shown to the patient verbatim: saying WHY there is no chart ('目前只有一次
@@ -950,6 +1039,7 @@ RECIPES = {
     "coverage": recipe_coverage,      # C8
     "dumbbell": recipe_dumbbell,      # C9
     "medications": recipe_medications,  # C10
+    "med-overlap": recipe_med_overlap,  # 库外示例(见函数上方注释)
 }
 
 
