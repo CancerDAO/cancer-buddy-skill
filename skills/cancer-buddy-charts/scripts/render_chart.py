@@ -45,7 +45,7 @@ from chart_core import (  # noqa: E402
     PRIMARY_HI, RULE, FS_AXIS, FS_BODY, FS_TITLE, FS_VALUE,
     Svg, TimeAxis, ValueAxis, esc, fmt, page, parse_reference_range,
     LabelPlacer, censoring, point_colour, range_status, row_y, stack_rows,
-    text_width, to_float, to_ordinal, truncate,
+    text_width, time_unit_grid, to_float, to_ordinal, truncate,
 )
 
 # Fixed viewBoxes for channel A — the template's <svg viewBox> MUST match.
@@ -555,7 +555,29 @@ def recipe_trend(spec):
         for val, yy in edge:
             svg.line(FIG_PAD, yy, FIG_W - FIG_PAD, yy, stroke=LADDER[3], width=0.6, dash="3 3")
             svg.text(FIG_W - FIG_PAD + 2, yy + 3, _num(val), size=FS_AXIS, fill=MUTED)
-    svg.rail(FIG_PAD, FIG_W - FIG_PAD, h - 20.0, ticks=[tax.x(p["o"]) for p in pts])
+    # Hairline floor: one vertical thread per measurement, dropped from the point
+    # to the baseline. A filled area would imply the value was tracked
+    # continuously; threads say what is actually true — the value is known at
+    # these instants and nowhere else, and the blank stretches are visibly blank.
+    # It also gives sparse clinical series (3–15 points) the density they need to
+    # not look impoverished, without inventing a single datum.
+    base_y = h - 20.0
+    grid, unit_name = time_unit_grid(min(p["o"] for p in pts), max(p["o"] for p in pts))
+    tested = {p["o"] for p in pts}
+    # one post per calendar unit; the posts WITHOUT a reading are the point.
+    # A long line across an empty stretch hides the emptiness — a row of bare
+    # posts counts it out, and the patient can see how long they went untested.
+    for g in grid:
+        gx = tax.x(g)
+        if FIG_PAD - 1 <= gx <= FIG_W - FIG_PAD + 1:
+            svg.line(gx, base_y - 6.0, gx, base_y, stroke=LADDER[2], width=0.8)
+    # threads rise from the floor to each reading, so a measured unit is visibly
+    # taller than an empty one
+    for p in pts:
+        px = tax.x(p["o"])
+        svg.line(px, vax.y(p["v"]) + 3, px, base_y, stroke=LADDER[3], width=0.9)
+    svg.rail(FIG_PAD, FIG_W - FIG_PAD, base_y, ticks=[tax.x(p["o"]) for p in pts], tick_h=3.5)
+    n_units = sum(1 for g in grid if FIG_PAD - 1 <= tax.x(g) <= FIG_W - FIG_PAD + 1)
 
     # split the polyline wherever the method changes: connecting across a method
     # change would assert comparability we do not have
@@ -641,6 +663,9 @@ def recipe_trend(spec):
         svg.text(lx, h - 9, _date_label(p["t"]), size=FS_AXIS, fill=MUTED, anchor="middle")
 
     note, caveats = reading_note(pts, unit, ref, spec.get("reference_source"))
+    if n_units > len(pts):
+        note += (f" 底部每格 = 1{unit_name}：共 {n_units}{unit_name}，"
+                 f"只有 {len(pts)} 格有检测记录，其余是空的。")
     if gaps_drawn:
         longest = max(gaps_drawn)
         caveats.append(f"图中虚线段表示这期间档案里没有该指标的记录（最长一段约 "

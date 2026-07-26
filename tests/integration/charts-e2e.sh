@@ -128,6 +128,21 @@ r "长空档画虚线" 0 python3 -c "
 import sys; h=open('dense.html').read()
 sys.exit(0 if 'stroke-dasharray=\"5 4\"' in h and '虚线段' in h else 1)"
 
+# ── countable calendar grid: empty units must be visible, never filled in ───
+r "日历格网出现" 0 python3 -c "
+import sys; h=open('dense.html').read()
+sys.exit(0 if '每格 = 1' in h and '其余是空的' in h else 1)"
+# the grid must have MORE posts than there are readings — that is the whole point
+r "空格多于检测次数" 0 python3 - <<'PYX'
+import re, sys
+h = open("dense.html").read()
+m = re.search(r"共 (\d+)个月，只有 (\d+) 格有检测记录", h)
+if not m:
+    print("grid caption missing", file=sys.stderr); sys.exit(1)
+units, tested = int(m.group(1)), int(m.group(2))
+sys.exit(0 if units > tested and tested == 12 else 1)
+PYX
+
 # ── --from-labs: no hand-written numbers needed for a lab series ────────────
 cat > labs.json <<'EOF'
 {"patient_code":"T003","schema_version":"2","panels":[

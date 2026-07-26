@@ -287,6 +287,46 @@ class TimeAxis:
         return None  # computed by the recipe, which holds the ordered points
 
 
+def time_unit_grid(lo_ord: int, hi_ord: int, target=(18, 60)):
+    """Split a span into countable calendar units. Returns (ordinals, unit_name).
+
+    The Lupi lesson that transfers to clinical data is that density must come
+    from a HONEST countable unit, not from decoration and never from invented
+    points. Follow-up series are sparse (3–15 readings), so the countable unit
+    is not the reading — it is the calendar. Twenty-nine months in which only
+    twelve had a test is a true statement, and drawing all twenty-nine makes the
+    sixteen empty ones visible instead of hiding them inside a long line.
+
+    Picks the finest unit whose count lands in `target`, so a 3-week span reads
+    in days and a 10-year span reads in quarters.
+    """
+    import datetime as _dt
+    span = max(1, hi_ord - lo_ord)
+    lo_d, hi_d = _dt.date.fromordinal(lo_ord), _dt.date.fromordinal(hi_ord)
+
+    def days(step):
+        return [lo_ord + i * step for i in range(span // step + 1)]
+
+    def months(step):
+        out, y, m = [], lo_d.year, lo_d.month
+        while (y, m) <= (hi_d.year, hi_d.month):
+            out.append(_dt.date(y, m, 1).toordinal())
+            m += step
+            while m > 12:
+                m -= 12
+                y += 1
+        return out
+
+    for gen, name in ((lambda: days(1), "天"), (lambda: days(7), "周"),
+                      (lambda: months(1), "个月"), (lambda: months(3), "个季度"),
+                      (lambda: months(12), "年")):
+        got = gen()
+        if target[0] <= len(got) <= target[1]:
+            return got, name
+    # nothing landed in range: fall back to the coarsest that is not absurd
+    return (months(12) if span > 3650 else months(3)), ("年" if span > 3650 else "个季度")
+
+
 class ValueAxis:
     """Value → y pixels. SVG y grows downward, so a higher value sits higher.
 
