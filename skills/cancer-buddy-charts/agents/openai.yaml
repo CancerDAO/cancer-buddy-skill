@@ -1,0 +1,4 @@
+interface:
+  display_name: "检验指标图表"
+  short_description: "把病历里的检验、治疗与分子数据画成可打印、可带去门诊的图表"
+  default_prompt: "Use $cancer-buddy-charts to chart an indicator from my organized records — show the readings I actually have, with the report's own reference range, and tell me what to watch for when reading it."
