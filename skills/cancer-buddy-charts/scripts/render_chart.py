@@ -44,8 +44,8 @@ from chart_core import (  # noqa: E402
     AMBER, BAND, CARD, CRIT, INK, LADDER, MUTED, MUTED_DEEP, PRIMARY,
     PRIMARY_HI, RULE, FS_AXIS, FS_BODY, FS_TITLE, FS_VALUE,
     Svg, TimeAxis, ValueAxis, esc, fmt, page, parse_reference_range,
-    censoring, point_colour, range_status, row_y, stack_rows, to_float,
-    to_ordinal, truncate,
+    LabelPlacer, censoring, point_colour, range_status, row_y, stack_rows,
+    text_width, to_float, to_ordinal, truncate,
 )
 
 # Fixed viewBoxes for channel A — the template's <svg viewBox> MUST match.
@@ -525,6 +525,7 @@ def recipe_trend(spec):
     tax = TimeAxis([p["o"] for p in pts], FIG_W, FIG_PAD)
     vax = ValueAxis([p["v"] for p in pts], h, 22.0, ref=ref)
     svg = Svg(FIG_W, h, label=f"{metric} 随时间的测量值")
+    dropped, gaps_drawn = [], []
 
     # furniture first — the band and rails live under the data
     band_squashed = False
@@ -566,9 +567,22 @@ def recipe_trend(spec):
         else:
             cur.append(b)
     segs.append(cur)
+    # A long silence must not be drawn as a solid line. A 1.4-year gap rendered
+    # as a straight segment reads as "it declined steadily through here", when in
+    # fact nothing is known about that stretch — same class of error as joining
+    # across a method change. Draw those spans dashed and name them in the note.
+    ords_all = [p["o"] for p in pts]
+    steps = [b - a for a, b in zip(ords_all, ords_all[1:])]
+    med = sorted(steps)[len(steps) // 2] if steps else 0
+    gap_min = max(120, med * 3) if med else 120
     for seg in segs:
-        svg.polyline([(tax.x(p["o"]), vax.y(p["v"])) for p in seg],
-                     stroke=PRIMARY_HI, width=1.8)
+        for a, b in zip(seg, seg[1:]):
+            wide = (b["o"] - a["o"]) >= gap_min
+            svg.polyline([(tax.x(a["o"]), vax.y(a["v"])), (tax.x(b["o"]), vax.y(b["v"]))],
+                         stroke=PRIMARY_HI, width=1.8,
+                         dash="5 4" if wide else None)
+            if wide:
+                gaps_drawn.append(b["o"] - a["o"])
     for a, b in zip(segs, segs[1:]):
         svg.line(tax.x(a[-1]["o"]), vax.y(a[-1]["v"]),
                  tax.x(b[0]["o"]), vax.y(b[0]["v"]),
@@ -576,8 +590,13 @@ def recipe_trend(spec):
 
     # data points, coloured by range status (amber outline = out of range)
     label_x = [tax.x(p["o"]) for p in pts]
-    rows = stack_rows(label_x, 34.0, 0.0, 1.0)
-    for p, lx, r in zip(pts, label_x, rows):
+    placer = LabelPlacer()
+    placer.reserve(0, h - 22, FIG_W, h)          # keep labels off the date axis
+    for _v, _y in (edge if ref else []):
+        # only the band's own tick label, not the whole right-hand column —
+        # reserving the column silently swallowed the last point's value
+        placer.reserve(FIG_W - FIG_PAD, _y - 5, FIG_W, _y + 5)
+    for p, lx in zip(pts, label_x):
         st = range_status(p["v"], ref)
         stroke, fill = point_colour(st, p["critical"])
         y = vax.y(p["v"])
@@ -594,8 +613,16 @@ def recipe_trend(spec):
             svg.circle(lx, y, 2.8, fill=(CARD if fill == "none" else fill),
                        stroke=stroke, width=1.6,
                        title=f'{p["raw"]}{_u(unit)} @ {p["t"]}')
-        svg.text(lx, y - 6 - r * 9, f'{p["raw"]}', size=FS_VALUE, fill=INK,
-                 anchor="middle", weight=700)
+        ly = placer.place(lx, y, p["raw"], FS_VALUE, gap=6.0)
+        if ly is None:
+            # No clear slot: drop the label rather than print it on top of a
+            # neighbour. The value stays reachable in the point's <title>, and
+            # the reading note reports how many were dropped — an unreadable
+            # smear of digits is worse than an honest omission.
+            dropped.append(p)
+        else:
+            svg.text(lx, ly, f'{p["raw"]}', size=FS_VALUE, fill=INK,
+                     anchor="middle", weight=700)
     # Date labels get their own pass. Two follow-ups a fortnight apart inside a
     # 1.8-year span land on the same pixel and print as "20226-06-07"; the axis
     # only needs enough dates to orient the reader, so drop the ones that would
@@ -614,6 +641,15 @@ def recipe_trend(spec):
         svg.text(lx, h - 9, _date_label(p["t"]), size=FS_AXIS, fill=MUTED, anchor="middle")
 
     note, caveats = reading_note(pts, unit, ref, spec.get("reference_source"))
+    if gaps_drawn:
+        longest = max(gaps_drawn)
+        caveats.append(f"图中虚线段表示这期间档案里没有该指标的记录（最长一段约 "
+                       f"{_humanise_days(longest)}），线只是把两端的点连起来，"
+                       f"不代表这段时间的真实变化。")
+    if dropped:
+        caveats.append(f"有 {len(dropped)} 个点的数值因为时间靠得太近，标在图上会互相压住，"
+                       f"已省略数字标签（点仍在图上，把鼠标停在点上可看到具体数值）。"
+                       f"完整数值见下方或原报告。")
     if band_squashed:
         lo, hi = ref
         rng = (f"{_num(lo)}–{_num(hi)}" if lo is not None and hi is not None
@@ -1084,11 +1120,77 @@ def spec_from_longitudinal(path, metric):
     }
 
 
+def spec_from_labs(path, metric):
+    """Build a trend spec from labs.json panels[] for ONE analyte.
+
+    Exists so nobody has to hand-write a spec (or a one-off converter) to chart a
+    lab series. `--spec` bypasses the source-backed check, so every hand-typed
+    number is an opportunity for a typo that no gate will catch; reading the
+    panel directly keeps the values verbatim from the record.
+
+    Matching is exact first, then a case-insensitive substring, because record
+    analyte names carry their Chinese gloss ("CEA 癌胚抗原") while people ask for
+    "CEA".
+    """
+    doc = json.loads(Path(path).read_text(encoding="utf-8"))
+    panels = [p for p in doc.get("panels", []) if isinstance(p, dict)]
+    want = str(metric).strip().lower()
+    hit = next((p for p in panels if str(p.get("analyte", "")).strip().lower() == want), None)
+    if hit is None:
+        cands = [p for p in panels
+                 if want in str(p.get("analyte", "")).lower()
+                 or want in str(p.get("normalized_analyte", "")).lower()]
+        if len(cands) == 1:
+            hit = cands[0]
+        elif len(cands) > 1:
+            names = "、".join(str(c.get("analyte")) for c in cands)
+            raise Eligibility(f"{metric!r} 匹配到多个项目：{names}。请用完整名称。")
+    if hit is None:
+        names = sorted({str(p.get("analyte")) for p in panels if p.get("analyte")})
+        raise Eligibility(f"记录里没有找到项目 {metric!r}。"
+                          f"现有项目：{'、'.join(names[:14]) or '（无）'}")
+    vals = [v for v in (hit.get("values") or []) if isinstance(v, dict)
+            and v.get("value") is not None]
+    series, units, refs = [], [], []
+    for v in vals:
+        t = v.get("collected_at") or v.get("date") or v.get("reported_at") or v.get("timestamp")
+        flag = str(v.get("flag") or v.get("abnormal_flag") or "").strip()
+        series.append({
+            "t": t, "v": v.get("value"), "unit": v.get("unit"),
+            "method": v.get("method") or v.get("method_or_device"),
+            "reference_range": v.get("reference_range"),
+            "critical": flag in ("↑↑", "↓↓", "HH", "LL", "危急"),
+        })
+        if v.get("unit"):
+            units.append(v["unit"])
+        if v.get("reference_range"):
+            refs.append(v["reference_range"])
+    return {
+        "metric": hit.get("analyte"),
+        "unit": units[-1] if units else "",
+        "series": series,
+        "reference_range": refs[-1] if refs else None,
+        "reference_source": "本次报告" if refs else None,
+    }
+
+
 # ═════════════════════════════════════════════════════════════════════════════
 # Drivers
 # ═════════════════════════════════════════════════════════════════════════════
 def run_channel_b(args) -> int:
-    if args.from_longitudinal:
+    if args.from_labs:
+        if not args.metric:
+            print("ERROR: --from-labs requires --metric", file=sys.stderr)
+            return 2
+        try:
+            spec = spec_from_labs(args.from_labs, args.metric)
+        except Eligibility as e:
+            print(f"NOT ELIGIBLE: {e}", file=sys.stderr)
+            return 5
+        except Exception as e:
+            print(f"ERROR: cannot read --from-labs: {e}", file=sys.stderr)
+            return 2
+    elif args.from_longitudinal:
         if not args.metric:
             print("ERROR: --from-longitudinal requires --metric", file=sys.stderr)
             return 2
@@ -1189,13 +1291,16 @@ def main() -> int:
     ap.add_argument("--spec", help="channel B: chart spec JSON")
     ap.add_argument("--from-longitudinal", dest="from_longitudinal",
                     help="channel B: build a trend spec from longitudinal_observations.json")
+    ap.add_argument("--from-labs", dest="from_labs",
+                    help="channel B: build a trend spec from labs.json panels[] "
+                         "(use this instead of hand-writing --spec for lab series)")
     ap.add_argument("--metric", help="channel B: analyte name for --from-longitudinal")
     ap.add_argument("--out-html", dest="out_html", help="channel B: output HTML path")
     ap.add_argument("--title", help="channel B: reading-guide title (must pass the verdict gate)")
     ap.add_argument("--source", help="channel B: source line")
     args = ap.parse_args()
 
-    if args.chart or args.out_html or args.spec or args.from_longitudinal:
+    if args.chart or args.out_html or args.spec or args.from_longitudinal or args.from_labs:
         if not args.out_html:
             print("ERROR: channel B requires --out-html", file=sys.stderr)
             return 2

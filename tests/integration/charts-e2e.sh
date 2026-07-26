@@ -89,6 +89,59 @@ onclick="x()"
 javascript:alert(1)
 INJ
 
+# ── label collision: values must never overprint each other ─────────────────
+# 12 points inside a 2.4-year span with a dense tail is the shape that produced
+# "29.25.3" on a real archive. Assert every value label got a slot, or was
+# honestly dropped and reported — never silently overlapped.
+cat > dense.json <<'EOF'
+{"schema_version":"1.0","patient_code":"T003","observations":[
+ {"metric":"CEA","value":73.3,"unit":"ng/ml","timestamp":"2022-08-02","reference_range":"0-5"},
+ {"metric":"CEA","value":51.16,"unit":"ng/ml","timestamp":"2022-09-19","reference_range":"0-5"},
+ {"metric":"CEA","value":6.86,"unit":"ng/ml","timestamp":"2024-01-30","reference_range":"0-5"},
+ {"metric":"CEA","value":9.28,"unit":"ng/ml","timestamp":"2024-02-21","reference_range":"0-5"},
+ {"metric":"CEA","value":12.5,"unit":"ng/ml","timestamp":"2024-05-07","reference_range":"0-5"},
+ {"metric":"CEA","value":21.53,"unit":"ng/ml","timestamp":"2024-06-03","reference_range":"0-5"},
+ {"metric":"CEA","value":24.5,"unit":"ng/ml","timestamp":"2024-07-03","reference_range":"0-5"},
+ {"metric":"CEA","value":29.9,"unit":"ng/ml","timestamp":"2024-08-08","reference_range":"0-5"},
+ {"metric":"CEA","value":25.3,"unit":"ng/ml","timestamp":"2024-09-05","reference_range":"0-5"},
+ {"metric":"CEA","value":34.1,"unit":"ng/ml","timestamp":"2024-10-14","reference_range":"0-5"},
+ {"metric":"CEA","value":28.3,"unit":"ng/ml","timestamp":"2024-12-09","reference_range":"0-5"},
+ {"metric":"CEA","value":19.4,"unit":"ng/ml","timestamp":"2025-01-06","reference_range":"0-5"}]}
+EOF
+r "密集序列出图" 0 python3 "$N/render_chart.py" --chart trend --from-longitudinal dense.json --metric CEA --out-html dense.html
+r "数值标签零重叠" 0 python3 - <<'PYX'
+import re, sys
+h = open("dense.html").read()
+labels = [(float(x), float(y), t) for x, y, t in
+          re.findall(r'<text x="([\d.]+)" y="([\d.]+)" font-size="10.0"[^>]*>([\d.]+)</text>', h)]
+if len(labels) < 10:
+    print(f"only {len(labels)} value labels placed", file=sys.stderr); sys.exit(1)
+def w(t): return sum(10.0 if ord(c) > 0x2E80 else 5.5 for c in t)
+for i, (x1, y1, t1) in enumerate(labels):
+    for x2, y2, t2 in labels[i+1:]:
+        if abs(y1 - y2) < 11.0 and abs(x1 - x2) < (w(t1) + w(t2)) / 2:
+            print(f"overlap: {t1!r} and {t2!r}", file=sys.stderr); sys.exit(1)
+sys.exit(0)
+PYX
+# a 1.4-year silence must not be drawn as a solid line
+r "长空档画虚线" 0 python3 -c "
+import sys; h=open('dense.html').read()
+sys.exit(0 if 'stroke-dasharray=\"5 4\"' in h and '虚线段' in h else 1)"
+
+# ── --from-labs: no hand-written numbers needed for a lab series ────────────
+cat > labs.json <<'EOF'
+{"patient_code":"T003","schema_version":"2","panels":[
+ {"analyte":"CEA 癌胚抗原","normalized_analyte":"CEA","values":[
+   {"value":6.86,"unit":"ng/ml","collected_at":"2024-01-30","reference_range":"0-5"},
+   {"value":9.28,"unit":"ng/ml","collected_at":"2024-02-21","reference_range":"0-5"},
+   {"value":12.5,"unit":"ng/ml","collected_at":"2024-05-07","reference_range":"0-5"}]},
+ {"analyte":"肌酐 CRE","values":[{"value":70,"unit":"umol/L","collected_at":"2025-05-14"}]},
+ {"analyte":"尿肌酐","values":[{"value":8.1,"unit":"mmol/L","collected_at":"2025-05-14"}]}]}
+EOF
+r "--from-labs 部分匹配" 0 python3 "$N/render_chart.py" --chart trend --from-labs labs.json --metric CEA --out-html fl.html
+r "--from-labs 歧义时报错不猜" 5 python3 "$N/render_chart.py" --chart trend --from-labs labs.json --metric 肌酐 --out-html x.html
+r "--from-labs 项目不存在" 5 python3 "$N/render_chart.py" --chart trend --from-labs labs.json --metric PSA --out-html x.html
+
 # ── generalisation: a recipe outside the original catalogue ─────────────────
 # Proves SKILL.md §清单外的图 is a real path, not an aspiration: med-overlap was
 # built after the catalogue was frozen, from chart_core primitives only, and it

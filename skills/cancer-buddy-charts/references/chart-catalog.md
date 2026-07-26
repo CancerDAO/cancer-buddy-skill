@@ -4,11 +4,14 @@
 
 ## trend · 单指标随访趋势 + 参考区间带
 
-最常用。可直接从 organize 产物生成，不必手写 spec：
+最常用。直接从 organize 产物生成，不必手写 spec：
 
 ```bash
+--chart trend --from-labs labs.json --metric CEA                       # 检验库(多数指标在这)
 --chart trend --from-longitudinal longitudinal_observations.json --metric CEA
 ```
+
+`--from-labs` 的指标名支持部分匹配（`CEA` 命中 `CEA 癌胚抗原`）；匹配到多个时报错并列出候选，不猜。
 
 手写 spec：
 

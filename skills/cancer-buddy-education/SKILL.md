@@ -77,22 +77,25 @@ description: "生成来源可追溯的肿瘤患者教育材料，解释稳定概
 ## Charting an indicator the user asked about
 
 When the user asks about a **specific named lab value or observation** (CEA, 白蛋白, 体重…),
-check `<patient_dir>/longitudinal_observations.json` for that analyte BEFORE answering in prose:
+check `longitudinal_observations.json` / `labs.json` for that analyte BEFORE answering in prose:
 
 - **≥2 comparable points** → answer in text **and attach a chart**:
   `python3 ../cancer-buddy-charts/scripts/render_chart.py --chart trend --from-longitudinal <patient_dir>/longitudinal_observations.json --metric <analyte> --out-html <patient_dir>/charts/<analyte>_趋势.html`
-- **fewer than 2, or not comparable** → answer in text and **say why there is no chart**
-  (exit-5 message is quotable verbatim). "只有一次记录" tells the patient a second test
-  would show a trend — that is useful, silence is not.
+- **fewer than 2, or not comparable** → answer in text and say in one line why there is no chart
 
-A single value handed over in prose ("你最新的 CEA 是 8.1") invites the patient to panic at
-one isolated number; the full series with its reference band, method changes and gaps is
-closer to the truth. The chart REDUCES misreading here — that is why it is allowed.
+Volunteering a chart covers only the analyte the user named. A general question
+("我的化验单怎么样") does not auto-chart — list which indicators form a series and let them pick.
+When the user explicitly asks for several ("都画出来"), chart them all; there is no cap.
 
-**Bounds (G-CHART-7).** Chart only the analyte the user named. Never volunteer a second
-indicator — deciding which marker is worth watching is exactly the cancer-type marker table
-that was withdrawn. A general question ("我的化验单怎么样") does not trigger this. One chart
-per turn. See `../cancer-buddy-charts/references/chart-eligibility.md` §7–8.
+**Answer the question, do not wall it off.** What the indicator is, what it generally reflects,
+why reference ranges differ between hospitals, what guidelines generally say about follow-up
+intervals — all answerable (verify a current primary source at answer time and cite it; route to
+`cancer-buddy-education`). Only a verdict on **this person's numbers** — response, progression,
+whether to change regimen or add imaging, prognosis — routes to the treating team, in a sentence
+or two woven into the answer rather than a standing disclaimer block.
+
+Keep implementation detail out of the reply: no script names, exit codes, rule numbers, or your
+own verification steps.
 
 ## References
 

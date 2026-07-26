@@ -362,6 +362,68 @@ def row_y(row: int, row0: float, row_dy: float) -> float:
     return row0 + row * row_dy
 
 
+def text_width(s, size: float) -> float:
+    """Estimate rendered width. CJK glyphs are full-width, ASCII roughly 0.55em.
+
+    An estimate is enough because it only has to be conservative: over-estimating
+    pushes labels slightly further apart, which is harmless, while
+    under-estimating lets them overlap, which is not.
+    """
+    w = 0.0
+    for ch in str(s):
+        w += size if ord(ch) > 0x2E80 else size * 0.55
+    return w
+
+
+class LabelPlacer:
+    """2-D collision avoidance for point labels.
+
+    Row-stacking (`stack_rows`) only works when every label shares one baseline —
+    axis ticks, marker badges. For values printed above their own data point it
+    fails silently: each label starts from a DIFFERENT y, so shifting one by a
+    row offset does not necessarily separate it from its neighbour, and two
+    points at similar heights collide no matter which "row" they were assigned.
+    That is how "29.9" and "25.3" printed as "29.25.3".
+
+    So place labels as rectangles in absolute coordinates: walk left to right,
+    and lift a label until it clears everything already placed. Lifting (never
+    shrinking) is deliberate — the 8pt floor exists for readers who will print
+    this and read it with reading glasses.
+    """
+
+    def __init__(self, pad: float = 1.5, step: float = 2.0, max_lift: int = 14):
+        self.boxes = []
+        self.pad = pad
+        self.step = step
+        self.max_lift = max_lift
+
+    def place(self, cx: float, y_anchor: float, text, size: float,
+              gap: float = 6.0, upward: bool = True):
+        """Return the baseline y for a label centred on cx above/below y_anchor.
+
+        Returns None when it cannot be placed within max_lift attempts — the
+        caller should then drop the label rather than draw it on top of another.
+        """
+        w = text_width(text, size) + self.pad * 2
+        h = size * 1.15
+        x1, x2 = cx - w / 2, cx + w / 2
+        top = (y_anchor - gap - h) if upward else (y_anchor + gap)
+        for _ in range(self.max_lift):
+            box = (x1, top, x2, top + h)
+            if not any(self._hit(box, b) for b in self.boxes):
+                self.boxes.append(box)
+                return top + h * 0.82          # baseline inside the box
+            top += -(h + self.step) if upward else (h + self.step)
+        return None
+
+    def reserve(self, x1: float, y1: float, x2: float, y2: float):
+        """Block out an area labels must not enter (axis strip, legend, band)."""
+        self.boxes.append((x1, y1, x2, y2))
+
+    def _hit(self, a, b) -> bool:
+        return not (a[2] <= b[0] or a[0] >= b[2] or a[3] <= b[1] or a[1] >= b[3])
+
+
 def truncate(text, max_chars: int):
     """Truncate a long label, returning (shown, full). The caller MUST emit the
     full string in a <title> so nothing is lost — CJK regimen names and analyte
