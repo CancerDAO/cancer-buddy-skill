@@ -79,6 +79,7 @@ def template_sha256(template_text: str) -> str:
 # ----- marker patterns -------------------------------------------------------
 PLACEHOLDER_RE = re.compile(r"\{\{\s*([A-Za-z0-9_.\-]+)\s*\}\}")
 COMMENT_RE = re.compile(r"<!--.*?-->", re.DOTALL)
+CLASS_ATTR_RE = re.compile(r"(\bclass\s*=\s*)([\"'])(.*?)(\2)", re.IGNORECASE | re.DOTALL)
 
 # Block openers/closers live on HTML-comment lines. We tokenize on them.
 # An opener may carry a free-text human note after the name, separated by ':' —
@@ -110,7 +111,7 @@ def lookup(scope, key: str):
     return cur
 
 
-def resolve_placeholder(key: str, local, root) -> str:
+def resolve_placeholder(key: str, local, root, *, allow_fallback: bool = True) -> str:
     """Resolve {{key}} → escaped string. Tries local element, then root.
 
     Missing/null → fallbacks[key] → fallbacks.__default__ → "".
@@ -131,14 +132,11 @@ def resolve_placeholder(key: str, local, root) -> str:
     if isinstance(val, str) and val == "":
         return ""
 
-    # Class-attribute placeholders (key ends in "_class": lab_class /
-    # line_marker_class / line_badge_class) carry a CSS class, never prose. A
-    # missing/null value means "no extra class" and MUST render "" — never the
-    # "资料缺失" fallback, which would leak into class="lab-item 资料缺失" and make
-    # validate_case_summary_html reject the whole HTML (used-class ⊄ template),
-    # fail-closing the entire patient summary. Belt to the producer-prompt's
-    # suspenders (which tells the 段D worker to set these to "" explicitly).
-    if key.endswith("_class") and (val is _MISSING or val is None):
+    # CSS class attributes are structural: a missing value means no extra class,
+    # never patient-facing fallback prose. substitute_placeholders disables
+    # fallback for every placeholder inside class="...", including keys such as
+    # `direction` which do not follow an optional `_class` naming convention.
+    if not allow_fallback and (val is _MISSING or val is None):
         return ""
 
     if val is _MISSING or val is None:
@@ -161,6 +159,16 @@ def resolve_placeholder(key: str, local, root) -> str:
 
 
 def substitute_placeholders(text: str, local, root) -> str:
+    # Resolve class attributes first with visible fallback prose disabled. The
+    # generic pass then handles text and other attributes normally.
+    def _class_attr(m: re.Match) -> str:
+        value = PLACEHOLDER_RE.sub(
+            lambda p: resolve_placeholder(p.group(1), local, root, allow_fallback=False),
+            m.group(3),
+        )
+        return m.group(1) + m.group(2) + value + m.group(4)
+
+    text = CLASS_ATTR_RE.sub(_class_attr, text)
     return PLACEHOLDER_RE.sub(lambda m: resolve_placeholder(m.group(1), local, root), text)
 
 
