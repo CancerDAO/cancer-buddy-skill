@@ -57,7 +57,7 @@ description: "生成来源可追溯的肿瘤患者教育材料，解释稳定概
 
 每个产物还必须：
 
-- 在正文直接显示连续、无缺口的编号脚注；每条脚注标 `〔档案〕`、`〔本地指南〕`、`〔联网〕` 或 `〔文献〕`，并与对应原子主张一一关联；
+- 在正文直接显示连续、无缺口的编号脚注；每条脚注标 `〔档案〕`、`〔资料库〕`、`〔联网〕` 或 `〔文献〕`，并与对应原子主张一一关联；
 - 对本地指南标发布者、标题、版本/日期、页码和受控来源引用；不得在患者输出中泄露主机绝对路径；
 - 对联网来源标直接 URL 和访问日期；
 - 尊重版权与部署场景的再分发限制，不将付费指南表格默认打包给第三方；
@@ -108,3 +108,6 @@ own verification steps.
 - [safety-guardrails.md](../../references/safety-guardrails.md)
 - [i18n.md](../../references/i18n.md)
 - [disclosure-behavior.md](../../references/disclosure-behavior.md)
+- [../../references/citation-format.md](../../references/citation-format.md)
+- [../../references/evidence-trust-tiers.md](../../references/evidence-trust-tiers.md)
+- [../../references/reference-library.md](../../references/reference-library.md)

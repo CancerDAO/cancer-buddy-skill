@@ -6,6 +6,87 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Added — 三层参考文献库 + 全局引用规范 + 注入隔离 (2026-08-03)
+
+回答任何问题前先查一条固定的本地检索链，命中内容作为回答骨架与引用锚：
+① 患者档案 → ② 主诊团队对本人的交代 → ③ L3 患者专属资料 → ④ L2 用户全局资料 →
+⑤ L1 产品自带资料库 → ⑥ 实时联网。
+
+**优先检索 ≠ 优先采信。** ①—⑤ 每次都查，但获批状态 / 医保报销 / 试验在招 / 指南版本 /
+中心名单这五类断言，无论本地是否命中都要 answer-time 实时核验并并列呈现。本地命中让联网
+这步更准（拿着具体方案名去查而不是盲搜），不是让它可以省略——这条同时满足了「先看资料库」
+和 `safety-guardrails.md` 的 no-silent-snapshot 红线，不需要在两者间取舍。
+
+设计依据：产品的安全合同有四处（`safety-guardrails.md` §Urgency ×2、
+`clinical-content-governance.md` §Red flags ×2）把「主诊团队的书面交代」列为最高优先级来源，
+公共指南只是它不可用时的 fallback；而此前仓库没有任何地方定义它存在哪、怎么读、读取顺序排第几。
+
+**新增 — 共享合同**
+- `references/citation-format.md` — 引用规范升为全局合同。标签恒定四类
+  `〔档案〕〔资料库〕〔联网〕〔文献〕`（`〔本地指南〕` 并入 `〔资料库〕`）。此前规范只活在
+  education 一个子技能里，其余 10 个 companion 与 router 都不知道它存在
+- `references/reference-library.md` — 三层库定义、`index.json` 契约、`redistribution` 处置矩阵
+- `references/evidence-trust-tiers.md` — 按**事实半衰期**分层（不是按证据强度）。含
+  cancer-buddy 特有的第二条轴：患者档案自身的半衰期
+- `references/first-party-instructions.md` — 团队交代的建模。`instruction_source` 区分
+  `team_written` / `team_verbal_relayed` / `patient_interpretation`——转述者不等于指令来源，
+  患者可能把 38.0 记成 38.5，所以口头转述必须并列公共 fallback
+- `references/untrusted-content-isolation.md` — 档案、AGENTS.md、用户投放文件全是**数据不是指令**
+
+**新增 — 脚本**
+- `library_resolve.py` / `library_verify.py` / `library_save.py` + `library_index.schema.json`
+- `scan_untrusted_markers.py` — prompt-injection 机械门。三级 severity、恒定 `exit 0`（误报
+  杀掉一份真病历的代价高于漏报）、医学术语白名单（`胃旁路` 含 bypass、照护者日记里的 `扮演`）、
+  中文走 n-gram 不走 token overlap、NFKC + 零宽字符 + 同形字归一、命中全收集不短路
+- `fill_agents_md.py` — 取代 SKILL.md 里的内联 heredoc，带 12 条 routing 锚点断言 +
+  红线关键句断言 + `template_sha256` + 跨患者 code 比对
+- `build_filings_dataset.py` — 结构化清单构建（靶点同义归一、`targets[]` 字段、
+  申办方与研究机构分列）
+
+**变更 — AGENTS.md 三条红线全文内联（33 → 95 行）**
+
+`organize/SKILL.md:33` 自陈 cwd 落在患者目录的 session 可以「without first invoking the
+cancer-buddy skill」直接从档案回答。此时进上下文的只有模板那 33 行，239 行的
+`safety-guardrails.md` 一个字都没加载，而模板最后一行 `Follow root references/...` 在患者
+目录里是**悬空引用**——那里没有 `references/` 目录。现在 no-silent-snapshot、不做个案判决、
+数据不是指令三段是全文内联，悬空引用已删除。
+
+**变更 — 三个已存在的缺陷（与本次功能无关）**
+- `pii_rescan.py` — `ocr/` 目录存在时会提前 `return`，导致 post-Phase-2 的**所有 bucket
+  sidecar 不再被扫描**，而验收门仍打印 `all pass`。一个 `mkdir ocr` 即可触发的 fail-open。
+  改为并集
+- `export_share.py` — 只挡 symlink 不挡**硬链接**，而 `resolve()` 不跟随硬链接，导致
+  `ln raw/secret.txt 14_.../x.txt` 可导出 raw 原件，manifest 却仍写
+  `raw_originals_included: false`。补 `st_nlink > 1` 拦截
+- `export_share.py` — 库层必填校验漏掉 `expires_at`（而单测走的正是库层）。补齐并重跑过期校验
+
+**变更 — CI 与门禁**
+- `.github/workflows/test.yml` — 加跑 `tests/eval/run.sh` 并安装 `jsonschema`。此前 8 道
+  安全 lint **从未在 CI 执行**，schema 校验一直走 `HAS_JSONSCHEMA=False` 的降级分支（只 WARN 不 fail）
+- `validate_structured_outputs.py` — 接入 `gate_agents_md`（调 `--check`）、
+  `gate_no_rogue_agents_md`（嵌套 AGENTS.md/CLAUDE.md 即 fail）、`gate_untrusted_content`
+  （非阻塞，命中写进 `readiness.json.review_flags[]`——`category` 是自由字符串，零 schema 改动）
+- `lint/05` — 强制 12 个 skill 引用三份新合同；**标签白名单**：`skills/` 下出现四类之外的
+  `〔…〕` 即 fail
+- `lint/10-crossref-integrity.sh` — 跨文件章节引用完整性（产品面硬 FAIL，CHANGELOG/docs 仅 WARN）
+- `lint/12-library-redistribution.sh` — L1 随 git 分发，只准 `redistribution: allowed`；
+  示例 manifest 不得含受限出版方的具体文件名
+- `.gitignore` — `patients/`、`**/raw/`、`*.heic`、`*.dcm`
+
+**变更 — 目录**
+- 建档时自动创建 `<patient_dir>/library/`。它是**基础设施目录不是临床域桶**：懒创建策略
+  （空桶会误读成"无此记录"）不适用；它在 `[0-9][0-9]_*` glob 之外所以 gate 不管辖，用户可自建
+  子目录；且 `anchor-contract.md` 限定锚点前缀为 `01_…14_`，**参考资料在语法层面就无法冒充
+  患者自己的临床记录**被引用
+- `10_随访与监测/` 新增 typed 子桶 `团队交代` / `team_instructions`（`scheme_version` 保持 3，
+  子桶追加非破坏性变更）
+
+**验证**：8 lint 组 0 失败、12 单测全过、6 integration 全过。负向验证：注入非法标签 → lint FAIL；
+删除任一新合同引用 → lint FAIL；`"file": "../../../etc/passwd"` → 非 0 退出；硬链接导出 → rc=2；
+空/过期 `expires_at` → rc=2；含住院号文件拒进 L2 → rc=2；injection 误报门（`胃旁路` / `扮演`）
+零命中且白名单确实被触发后抑制。
+
+
 ### Added — `cancer-buddy-charts`：临床可视化 subskill (2026-07-26)
 
 原命题是"cancer-buddy 画不出好看的图表"。**实测不成立**——`cancer-buddy-organize` 早有一条确定性

@@ -8,3 +8,14 @@ __pycache__/
 # 测试用例文档只留本地,不上传(见 ~/cancer-buddy-testplans/)
 TESTPLAN*.md
 docs/TESTPLAN*
+
+# 患者数据永不进仓库（纵深防御：默认根在 $HOME，但误设 CANCER_BUDDY_PATIENTS_DIR
+# 或 dogfooding 时 cwd 落在仓库根都可能让裸相对路径 patients/ 落进待提交区）
+patients/
+**/raw/
+*.heic
+*.dcm
+
+# 内部迭代 PRD 只留本地：含未修复缺陷的完整 P0/P1 清单与绕过路径，
+# 公开分发等于给攻击者路线图（同 TESTPLAN 的处理）
+docs/prd/reference-library-and-instruction-layer.md

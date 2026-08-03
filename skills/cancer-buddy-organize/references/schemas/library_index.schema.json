@@ -1,0 +1,127 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cancerdao.org/schemas/library_index.schema.json",
+  "title": "Reference library index",
+  "description": "Manifest for one reference-library layer (L1 skill-bundled, L2 user global, L3 patient-specific). The manifest is the sole authority: a file present in the directory but absent from `entries` is not a source. `trust_tier` is assigned by layer position and MUST NOT appear here.",
+  "type": "object",
+  "required": ["entries"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "generated_at": {
+      "type": "string",
+      "description": "ISO-8601 timestamp written by a build script, when the index is machine-generated."
+    },
+    "generated_by": {
+      "type": "string",
+      "description": "Script or process that wrote this index."
+    },
+    "entries": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/entry" }
+    }
+  },
+  "$defs": {
+    "entry": {
+      "type": "object",
+      "required": [
+        "file",
+        "title",
+        "publisher",
+        "version",
+        "date",
+        "retrieved_at",
+        "lang",
+        "redistribution",
+        "patient_scope"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "file": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Path relative to the library root. Absolute paths, `..` segments and symlinks are rejected by library_resolve.py.",
+          "pattern": "^(?!/)(?!.*(^|/)\\.\\.(/|$)).+$"
+        },
+        "title": { "type": "string", "minLength": 1 },
+        "publisher": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Issuing body as printed on the document. Self-declared; it never raises trust_tier."
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Edition/version/batch string. Missing or placeholder values invalidate the entry."
+        },
+        "date": {
+          "type": "string",
+          "minLength": 4,
+          "description": "Publication date of this version (ISO-8601 date or year)."
+        },
+        "retrieved_at": {
+          "type": "string",
+          "minLength": 4,
+          "description": "Date the user obtained the file. Deliberately separate from `date`."
+        },
+        "lang": {
+          "type": "string",
+          "minLength": 2,
+          "description": "BCP-47-ish language tag, matched against profile.json locale during retrieval."
+        },
+        "redistribution": {
+          "enum": ["allowed", "restricted", "unknown"],
+          "description": "Governs export eligibility. Only `allowed` may leave the machine; L1 accepts `allowed` only."
+        },
+        "patient_scope": {
+          "enum": ["general", "patient_specific"],
+          "description": "L2 accepts `general` only; anything patient-identifying belongs in L3."
+        },
+        "expires_at": {
+          "type": "string",
+          "description": "Optional explicit expiry. Past dates invalidate the entry."
+        },
+        "jurisdiction": { "type": "string" },
+        "cancer_types": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "license": { "type": "string" },
+        "notes": { "type": "string" },
+        "pages": { "type": "string" },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "source_url": {
+          "type": "string",
+          "description": "Dataset entries: official page the data was compiled from."
+        },
+        "as_of": {
+          "type": "string",
+          "description": "Dataset entries: data cut-off date."
+        },
+        "latest_batch": {
+          "type": "string",
+          "description": "Dataset entries: newest batch/release included in this snapshot."
+        },
+        "record_count": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Dataset entries: number of records in the file."
+        },
+        "update_cadence": {
+          "type": "string",
+          "description": "Dataset entries: declared refresh half-life. Required by the L1 maintenance contract."
+        },
+        "build_script": {
+          "type": "string",
+          "description": "Dataset entries: script that regenerates the file. L1 datasets without an update path are not admitted."
+        }
+      }
+    }
+  }
+}

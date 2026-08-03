@@ -24,7 +24,27 @@ for skill in "${PATIENT_VISIBLE_SKILLS[@]}"; do
   [[ -f "$f" ]] || { fail "$skill: SKILL.md not found"; continue; }
   grep -q 'safety-guardrails\.md' "$f" || fail "$skill: missing safety-guardrails.md citation"
   grep -q 'i18n\.md'              "$f" || fail "$skill: missing i18n.md citation"
+  grep -q 'citation-format\.md'   "$f" || fail "$skill: missing citation-format.md citation"
+  # The retrieval chain and its trust tiers are global output conventions: a skill
+  # that answers from local material without them would silently treat a
+  # user-dropped file as if it carried the same weight as the hospital's own report.
+  grep -q 'evidence-trust-tiers\.md' "$f" || fail "$skill: missing evidence-trust-tiers.md citation"
+  grep -q 'reference-library\.md'    "$f" || fail "$skill: missing reference-library.md citation"
 done
+
+# A2. the meta router must cite the shared citation contract too — labels are a
+# global output convention, not an education-only convention.
+grep -q 'citation-format\.md' "$SKILLS_DIR/cancer-buddy/SKILL.md" \
+  || fail "cancer-buddy (router): missing citation-format.md citation"
+
+# A3. only the four canonical source labels may appear anywhere in skills/.
+# Guards against a sub-skill inventing its own label (the drift that left
+# 〔本地指南〕 and a proposed 〔资料库〕 meaning the same thing).
+while IFS= read -r bad; do
+  [[ -z "$bad" ]] && continue
+  fail "non-canonical source label $bad — only 〔档案〕〔资料库〕〔联网〕〔文献〕 are allowed"
+done < <(grep -rhoE '〔[^〕]+〕' "$SKILLS_DIR" 2>/dev/null \
+          | grep -vE '^〔(档案|资料库|联网|文献)〕$' | sort -u)
 
 # B. confirm-gate cited by the data-writing skill.
 CONFIRM_GATE_SKILLS=( cancer-buddy-organize )
@@ -37,7 +57,9 @@ for skill in "${CONFIRM_GATE_SKILLS[@]}"; do
 done
 
 # C. no dangling shared-doc references.
-for doc in safety-guardrails i18n confirm-gate disclosure-behavior roles terminology; do
+for doc in safety-guardrails i18n confirm-gate disclosure-behavior roles terminology \
+           citation-format evidence-trust-tiers reference-library first-party-instructions \
+           untrusted-content-isolation; do
   [[ -f "$REFS_DIR/$doc.md" ]] || fail "references/$doc.md is cited by skills but missing on disk"
 done
 

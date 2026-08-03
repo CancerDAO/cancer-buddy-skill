@@ -71,6 +71,18 @@ WebSearch/WebFetch, or any relevant installed MCP) may perform the lookup — us
 dependency. Source failure is a normal outcome: fail closed and mark the item `unconfirmed` rather than
 filling the gap from memory.
 
+This section says which claims must be verified at answer time. It does not say which ones need not
+be — so a literal reading forces either re-verifying everything or verifying nothing.
+`evidence-trust-tiers.md` supplies the missing axis: claims are tiered by the **half-life of the fact**,
+not by the strength of the evidence. Stable concepts, mechanisms and disease definitions (tier S) may be
+answered from a cited source without a fresh lookup; the five volatile categories above — approvals,
+reimbursement, trial recruitment, guideline version, centre lists (tier V) — are always live, whatever
+the local material says. The local reference library (`reference-library.md`) sits *before* the network
+in the retrieval order and supplies scaffolding, terminology and citation anchors; it never substitutes
+for a tier-V lookup, and its trust level is decided by **where the file sits**, never by what the file
+claims about itself. The opt-in guideline pack named above is one layer of that library (L2), not a
+separate mechanism.
+
 ## 3. Patient-specific boundaries
 
 - Do not diagnose, stage, score ECOG, classify response, estimate prognosis, select treatment,

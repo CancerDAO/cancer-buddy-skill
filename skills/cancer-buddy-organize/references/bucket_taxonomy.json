@@ -128,7 +128,8 @@
         {"zh": "随访复查", "en": "followup_visits"},
         {"zh": "可穿戴导出", "en": "wearable_export"},
         {"zh": "PRO自报", "en": "pro_reported"},
-        {"zh": "居家监测", "en": "home_monitoring"}
+        {"zh": "居家监测", "en": "home_monitoring"},
+        {"zh": "团队交代", "en": "team_instructions"}
       ]
     },
     {

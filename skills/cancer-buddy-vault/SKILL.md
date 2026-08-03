@@ -73,3 +73,6 @@ or two woven into the answer rather than a standing disclaimer block.
 
 Keep implementation detail out of the reply: no script names, exit codes, rule numbers, or your
 own verification steps.
+- [../../references/citation-format.md](../../references/citation-format.md)
+- [../../references/evidence-trust-tiers.md](../../references/evidence-trust-tiers.md)
+- [../../references/reference-library.md](../../references/reference-library.md)

@@ -122,8 +122,17 @@ This skill follows the shared locale contract in [`../../references/i18n.md`](..
    real-world identifier rather than preserving it. The code is not authentication and must not be derived
    from a name, path, diagnosis or timestamp. Resolve `patient_data_root` from
    `$CANCER_BUDDY_PATIENTS_DIR` → `$VMTB_PATIENT_DATA_ROOT` → `$HOME/CancerDAO/patients`. Compute
-   `patient_dir = <patient_data_root>/<patient_code>` and `mkdir -p` **only `ocr/` + `raw/`** at setup.
+   `patient_dir = <patient_data_root>/<patient_code>` and `mkdir -p` **only `ocr/` + `raw/` + `library/`**
+   at setup, and seed `library/index.json` as `{"entries": []}`.
    **Do NOT pre-create the 14 clinical buckets.**
+
+   `library/` is **infrastructure, not a clinical bucket** — the lazy-creation rule (§1.1b: an empty
+   bucket would falsely imply "no such record exists") does not apply to it. An empty `library/` means
+   "no reference material filed yet", which is true and carries no clinical implication. It also sits
+   outside the `[0-9][0-9]_*` glob, so `gate_bucket_taxonomy` never inspects it and a user may create
+   their own subfolders inside without failing the acceptance gate. Anchors under `library/` are
+   **not** valid `source_refs` targets (`anchor-contract.md` restricts those to `01_…14_` prefixes) —
+   reference material therefore cannot be cited as if it were this patient's own clinical record.
 
 3. **Dispatch Phase 1 source-fidelity ingestion workers (parallel)** — each worker follows
    `organizer-prompt-phase1-ocr.md`: deterministic/native character extraction first, preservation of raw
@@ -271,17 +280,22 @@ This skill follows the shared locale contract in [`../../references/i18n.md`](..
     Only **two placeholders** are injected, **copied verbatim from `profile.json` (no LLM synthesis)**: `{{patient_code}}` ← `profile.json.patient_code`; `{{one_line_condition}}` ← `profile.json.summary.one_line_condition` (`资料缺失` when null). Claude Code reference binding:
 
     ```bash
-    python3 - "<patient_dir>" references/templates/agents-md.template.md <<'PY'
-    import json, pathlib, sys
-    pdir, tpl = pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2])
-    d = json.loads((pdir / "profile.json").read_text())
-    olc = (d.get("summary") or {}).get("one_line_condition") or "资料缺失"
-    out = tpl.read_text().replace("{{patient_code}}", d["patient_code"]).replace("{{one_line_condition}}", olc)
-    (pdir / "AGENTS.md").write_text(out)
-    PY
+    python3 scripts/fill_agents_md.py "<patient_dir>"      # writes <patient_dir>/AGENTS.md
+    python3 scripts/fill_agents_md.py "<patient_dir>" --check   # re-verify without writing
     ```
 
-    **VERIFY, don't re-author**: after writing, the run must confirm the written `AGENTS.md` is the **fully-filled template** (the rich routing table + drill-down rule + citation floor are present and the two placeholders resolved to real values, not left as `{{patient_code}}`/`{{one_line_condition}}` or a bare stub) — if a stub was produced, re-fill from `references/templates/agents-md.template.md`. Never author a new template; the template is already rich and is the only source.
+    **VERIFY, don't re-author — and the verification is now mechanical.** The previous inline heredoc
+    wrote the file but left "is it a stub?" to the orchestrator's own diligence, which is exactly how a
+    stub can ship (see `tasks/prd-organize-fidelity-safety-hardening.md` — "若产出桩，定位并修 bug" was
+    filed as a real observed defect). `fill_agents_md.py` fails non-zero when: a `{{placeholder}}`
+    survives; the output is shorter than the real template; the first line's `patient_code` disagrees
+    with `profile.json` (this doubles as a cross-patient mixup check); any of the 12 routing-table
+    anchors is missing; any of the inlined red-line sentences is missing; or the `template_sha256`
+    provenance comment disagrees with the template actually on disk. It also single-lines and length-caps
+    `one_line_condition` before injection, so a sentence extracted from a source document cannot open a
+    new markdown section inside `AGENTS.md`.
+
+    Never author a new template; the template is the only source, and the script is the only filler.
 
     The full citation **rendering** spec (角标 + 末尾脚注 format) stays in [`../cancer-buddy/SKILL.md`](../cancer-buddy/SKILL.md)「来源引用」节 — single, patient-agnostic source of truth. AGENTS.md carries only the **self-contained floor** (cite via the fact's own `source_refs[]`, never fabricate a hospital name), so the floor holds even in a bare session where no skill is loaded; the skill, when invoked, adds the richer rendering on top (defense-in-depth, floor vs ceiling). Idempotent — a later `incremental` / `upload_reconciliation` run re-fills it from the current `profile.json` (it holds no user-curated content, so overwrite is safe). A pre-existing archive that lacks `AGENTS.md` (built before this feature) is backfilled the same way — see `../cancer-buddy/SKILL.md` 档案读取协议. Runtime-neutral: any host writes the same `AGENTS.md` from the same two `profile.json` fields; non-CC hosts may use their own templating.
 
@@ -500,3 +514,6 @@ own verification steps.
 - [../../references/terminology.md](../../references/terminology.md) — 中英 + 通俗解释 format
 - [../../references/safety-guardrails.md](../../references/safety-guardrails.md)
 - [../../references/disclosure-behavior.md](../../references/disclosure-behavior.md)
+- [../../references/citation-format.md](../../references/citation-format.md)
+- [../../references/evidence-trust-tiers.md](../../references/evidence-trust-tiers.md)
+- [../../references/reference-library.md](../../references/reference-library.md)

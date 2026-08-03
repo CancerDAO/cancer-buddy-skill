@@ -94,6 +94,13 @@ def _resolve_includes(patient_dir: Path, requested: list[str]) -> list[tuple[Pat
         candidate = patient_dir / rel
         if candidate.is_symlink():
             raise ValueError(f"symbolic links are not exportable: {raw_rel}")
+        # A HARD link is not a symlink and resolve() does not follow it, so the
+        # realpath boundary check below cannot see it. Without this,
+        # `ln raw/secret.txt 14_.../x.txt` exports a raw original while the
+        # manifest still claims raw_originals_included=false — the one real
+        # mechanical gate making a promise it did not keep.
+        if candidate.is_file() and candidate.stat().st_nlink > 1:
+            raise ValueError(f"hard-linked files are not exportable: {raw_rel}")
         src = candidate.resolve()
         try:
             resolved_rel = src.relative_to(patient_dir)
@@ -132,8 +139,19 @@ def export_share(
     if dest_dir == patient_dir or dest_dir.is_relative_to(patient_dir):
         print("ERROR: export destination must be outside the patient directory", file=sys.stderr)
         return 2
-    if not all(value.strip() for value in (recipient, purpose, authorization_ref)):
-        print("ERROR: recipient, purpose, and authorization-ref must be non-empty", file=sys.stderr)
+    if not all(value.strip() for value in (recipient, purpose, authorization_ref, expires_at)):
+        print(
+            "ERROR: recipient, purpose, authorization-ref and expires-at must be non-empty",
+            file=sys.stderr,
+        )
+        return 2
+    # The CLI parses/validates --expires-at, but the library entrypoint is what the
+    # unit tests (and any programmatic caller) use — re-validate here so a future
+    # expiry can never be skipped by calling export_share() directly.
+    try:
+        _parse_expiry(expires_at)
+    except argparse.ArgumentTypeError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
         return 2
 
     try:

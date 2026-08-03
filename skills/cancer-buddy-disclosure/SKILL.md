@@ -76,3 +76,6 @@ own verification steps.
 - [capacity-and-surrogates.md](references/capacity-and-surrogates.md)
 - [i18n.md](../../references/i18n.md)
 - [safety-guardrails.md](../../references/safety-guardrails.md)
+- [../../references/citation-format.md](../../references/citation-format.md)
+- [../../references/evidence-trust-tiers.md](../../references/evidence-trust-tiers.md)
+- [../../references/reference-library.md](../../references/reference-library.md)

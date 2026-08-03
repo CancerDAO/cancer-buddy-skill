@@ -321,12 +321,16 @@ def collect_sidecars(target: Path) -> list[Path]:
     # path below would look for a nonexistent <ocr>/ocr/ child and scan nothing).
     if target.name == "ocr":
         return sorted(target.glob("*.md"))
+    # A leftover / re-created ocr/ staging dir MUST NOT short-circuit the bucket
+    # scan. It used to `return` here, which meant every post-Phase-2 sidecar went
+    # unscanned while the gate still printed "PII rescan ... all pass" — a
+    # fail-OPEN that a bare `mkdir ocr` was enough to trigger. Union, never return.
+    out: list[Path] = []
     ocr_dir = target / "ocr"
     if ocr_dir.is_dir():
-        return sorted(ocr_dir.glob("*.md"))
+        out.extend(sorted(ocr_dir.glob("*.md")))
     # post-Phase-2: sidecars co-located in NN_ buckets
     buckets = sorted(target.glob("[0-9][0-9]_*"))
-    out: list[Path] = []
     for b in buckets:
         if b.is_dir():
             out.extend(sorted(b.rglob("*.md")))

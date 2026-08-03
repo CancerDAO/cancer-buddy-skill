@@ -56,7 +56,7 @@ slug (see `../../../references/i18n.md §6`). The `zh` slug is the on-disk folde
 | `07_` | `07_检验` | `07_labs` | `血常规/ 生化肝肾功/ 肿瘤标志物/ 凝血/ 尿便/ 心电图功能检查/ 其他/` | `06_检验` |
 | `08_` | `08_治疗` | `08_treatment` | `化疗/ 放疗/ 免疫治疗/ 靶向/ 内分泌/ 中医中药/ 处方医嘱/ 支持治疗/` | `07_治疗记录` (surgery split out) |
 | `09_` | `09_手术与操作` | `09_procedures` | `手术记录/ 麻醉记录/ 介入/ 内镜操作/ 植入物-器械卡/` | split from `07_治疗记录/手术-内镜` |
-| `10_` | `10_随访与监测` | `10_followup_monitoring` | `随访复查/ 可穿戴导出/ PRO自报/ 居家监测/` | **new** |
+| `10_` | `10_随访与监测` | `10_followup_monitoring` | `随访复查/ 可穿戴导出/ PRO自报/ 居家监测/ 团队交代/` | **new** |
 | `11_` | `11_会诊与转诊` | `11_consult_referral` | `MDT/ 会诊/ 转诊/ 第二意见/` | `08_会诊-转诊` |
 | `12_` | `12_心理社会与支持` | `12_psychosocial_support` | `心理评估/ 营养/ 康复/ 缓和/ 社工/` | **new** |
 | `13_` | `13_行政与财务` | `13_admin_financial` | `知情同意/ 费用发票/ 医保报销/ 证明材料/` | **new** |
@@ -134,6 +134,7 @@ slug (see `../../../references/i18n.md §6`). The `zh` slug is the on-disk folde
 | `10_随访与监测` | 可穿戴导出 | `wearable_export` |
 | `10_随访与监测` | PRO自报 | `pro_reported` |
 | `10_随访与监测` | 居家监测 | `home_monitoring` |
+| `10_随访与监测` | 团队交代 | `team_instructions` |
 | `11_会诊与转诊` | MDT | `MDT` |
 | `11_会诊与转诊` | 会诊 | `consult` |
 | `11_会诊与转诊` | 转诊 | `referral` |

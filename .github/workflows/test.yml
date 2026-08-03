@@ -18,10 +18,22 @@ jobs:
         with:
           python-version: "3.x"
 
+      - name: Install Python test deps
+        # Without jsonschema, validate_structured_outputs.py silently downgrades to
+        # "lightweight structured checks" and does NOT fail — i.e. a green CI would
+        # mean "weak checks passed", not "schema validation passed".
+        run: python3 -m pip install --upgrade 'jsonschema>=4.18'
+
       - name: Show tool versions
         run: |
           bash --version | head -1
           python3 --version
+          python3 -c "import jsonschema; print('jsonschema', jsonschema.__version__)"
+
+      - name: Run static safety lints
+        # These 6+ lint groups carry the product's safety assertions and had never
+        # run in CI — they were enforced only by "remember to run it locally".
+        run: bash tests/eval/run.sh
 
       - name: Run unit tests
         run: |

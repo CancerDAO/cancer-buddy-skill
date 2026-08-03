@@ -119,6 +119,7 @@ python3 scripts/validate_chart_svg.py <患者目录>/charts/CEA_趋势.html
 ## 硬规则
 
 - 无数据不画。每个绘制点都必须能在源 JSON 里找到
+- **保留源报告原文**：轴标签、指标名、单位、方法学标注一律照抄源报告字符串，不翻译、不改写、不规范化后再画。归一只用于判断两个点能否进同一条序列，**不覆盖显示出来的原始写法**——同一指标在不同医院写法不同本身就是患者需要看见的信息
 - 参考区间只用该次报告自带的 `reference_range`，**禁止套用通用参考值**；解析不出就不画区间带并说明
 - `method_or_device` 变化时序列自动断开，不连成一条线
 - 超出参考区间用琥珀描边，**不用红色填充**；红色只留给源报告自己标注的危急值
@@ -158,3 +159,8 @@ Authoritative matrix in [`../../references/roles.md`](../../references/roles.md)
 - `references/chart-catalog.md` — 图型目录、spec 字段、拒绝清单
 - `references/chart-style.md` — token 表、排版、红色克制规则
 - `references/chart-eligibility.md` — 画图资格门与主动识别边界
+- [../../references/safety-guardrails.md](../../references/safety-guardrails.md)
+- [../../references/i18n.md](../../references/i18n.md)
+- [../../references/citation-format.md](../../references/citation-format.md)
+- [../../references/evidence-trust-tiers.md](../../references/evidence-trust-tiers.md)
+- [../../references/reference-library.md](../../references/reference-library.md)

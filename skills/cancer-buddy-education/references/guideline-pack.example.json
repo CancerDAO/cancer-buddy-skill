@@ -1,25 +1,28 @@
 {
   "_note": "示例：把此文件复制为 <CANCER_BUDDY_GUIDELINES>/index.json 并按你合法持有的指南逐条登记。仅供 answer-time 本地一手来源核验；无对应条目或版本不清/过期的文件不会被当作当前来源（回退联网）。file 为该目录内相对路径，绝不指向目录外。",
+  "_placeholders": "下面两条是占位示例，字段结构照抄、值全部替换成你自己那份文件的真实出版方、标题、版本与日期。本仓库不附带任何指南文件，也不代表你有权持有或分发任何一份。是否合法持有、能否在你的部署环境中使用，由登记者自行负责。",
   "guidelines": [
     {
-      "file": "nccn/nsclc-2026.v3.pdf",
-      "publisher": "NCCN",
-      "title": "NCCN Clinical Practice Guidelines in Oncology — Non-Small Cell Lung Cancer",
-      "version": "2026.v3",
+      "file": "example-publisher/example-guideline-2026.pdf",
+      "publisher": "Example Society（换成该文件真实出版方）",
+      "title": "Example Clinical Practice Guideline — <cancer type>",
+      "version": "2026.v1",
       "date": "2026-05-01",
       "jurisdiction": "US",
-      "cancer_types": ["NSCLC", "lung", "肺癌"],
-      "license": "individually-licensed owned copy; no redistribution; cite version+page only"
+      "cancer_types": ["<cancer type>", "<别名>", "<中文名>"],
+      "license": "individually-licensed owned copy; no redistribution; cite version+page only",
+      "redistribution": "restricted"
     },
     {
-      "file": "csco/crc-2026.pdf",
-      "publisher": "CSCO",
-      "title": "CSCO 结直肠癌诊疗指南",
+      "file": "example-publisher-cn/example-guideline-cn-2026.pdf",
+      "publisher": "示例学会（换成该文件真实发布方）",
+      "title": "示例诊疗指南 — <癌种>",
       "version": "2026",
       "date": "2026-04-01",
       "jurisdiction": "CN",
-      "cancer_types": ["CRC", "colorectal", "结直肠癌"],
-      "license": "owned copy; no redistribution"
+      "cancer_types": ["<癌种>", "<英文名>"],
+      "license": "owned copy; no redistribution",
+      "redistribution": "restricted"
     }
   ]
 }

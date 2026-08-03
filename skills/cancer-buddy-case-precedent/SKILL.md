@@ -90,3 +90,6 @@ own verification steps.
 - [i18n.md](../../references/i18n.md)
 - [safety-guardrails.md](../../references/safety-guardrails.md)
 - [disclosure-behavior.md](../../references/disclosure-behavior.md)
+- [../../references/citation-format.md](../../references/citation-format.md)
+- [../../references/evidence-trust-tiers.md](../../references/evidence-trust-tiers.md)
+- [../../references/reference-library.md](../../references/reference-library.md)

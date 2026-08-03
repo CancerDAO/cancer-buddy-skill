@@ -107,3 +107,6 @@ own verification steps.
 - [../cancer-buddy-organize/scripts/render_html_template.py](../cancer-buddy-organize/scripts/render_html_template.py) — generic zero-medical-logic template engine (shared, stdlib only)
 - [../../references/i18n.md](../../references/i18n.md) — shared locale layer (host `locale` first, otherwise profile locale / detection fallback / persist / verbatim-clinical)
 - [../../references/safety-guardrails.md](../../references/safety-guardrails.md) — safety red lines
+- [../../references/citation-format.md](../../references/citation-format.md)
+- [../../references/evidence-trust-tiers.md](../../references/evidence-trust-tiers.md)
+- [../../references/reference-library.md](../../references/reference-library.md)
