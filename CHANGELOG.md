@@ -6,6 +6,57 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Fixed — 年龄/体重/ECOG 是时点观测，跨年份取值不同不再被判成来源冲突 (2026-08-05)
+
+用户反馈：同一患者跨年份的多份报告一起 organize 时，年龄"没法自动随年份变化，会自动判别冲突"。
+
+**根因（结构层，不是判断层）**：`patient_summary.schema.json` 把 `age` 建成一个**无时间锚的裸标量**，
+和真正时不变的 `sex` 并排放在 `demographics` 里。于是 2023 年报告的 52 岁和 2026 年报告的 55 岁被
+映射进同一个槽 → `organizer-prompt-phase2-synthesis.md` §2 的"不同来源冲突并列保留、不按最新优先裁决"
+命中 → 标 `disputed`。而 `disputed` 的唯一解除路径是"出具机构的正式更正或授权临床人员签认"
+（`upload-reconciliation.md`），**年龄永远拿不到这种签认，所以永久挂冲突**，下游
+`case_summary_data.age`、病情简要总结 HTML、Profile Card 冲突卡跟着报冲突或置空。
+同一份 schema 的 `current_status` 有 `as_of`、`longitudinal_observations` 每条观测有 `timestamp`
+——契约本身懂"时点观测"，唯独 `demographics` 整块漏了，所以 `height_cm` / `weight_kg` / `ecog`
+同样中招（只修 age 是症状层修复，下一次就轮到体重）。
+
+- **schema v2 → v2.1**（`patient_summary.schema.json`）：`demographics` 里只有 `sex` 是时不变的。
+  `age` / `height_cm` / `weight_kg` / `ecog` 各自新增 `_as_of` 来源日期（required，可 null）；
+  `age` 另加 `age_observations[]` 全时点序列（`{value, as_of, source_ref, age_basis?}`，`age_basis`
+  enum 锁 `completed_years|nominal_years|unspecified`，只有来源明说周岁/虚岁才填）；新增粗粒度
+  `birth_year`（仅 YYYY）。`age` 明确定义为**最近一次来源快照，永不推算到今天**。
+- **时变字段例外**（`organizer-prompt-phase2-synthesis.md` 新增 §2.1/§2.2，先于 §2 判定）：
+  冲突 = 同一时点的两个来源不相容；不同时点说了不同的话是时间演变。给出字段分类表（时变 vs 时不变）
+  与年龄自洽判据 `a₂ − a₁ ∈ [⌊Δ⌋−1, ⌈Δ⌉+1]`，**±1 容差不可收紧**（吸收生日是否已过 / 周岁虚岁 /
+  报告写就诊时年龄这三种正常差异）。仍判 `disputed` 的只有三种：同 `as_of` 内矛盾、与时间跨度矛盾
+  （年龄倒退）、值本身可疑（走忠实度 flag）。
+- **禁止伪精度的 `birth_year` 推算**：单条 `(age, as_of)` 只能推出两个候选年份，**禁止直接相减**；
+  只有来源含完整 DOB（取年份，其余不落盘）或 ≥2 条不同月份快照交集唯一时才写，否则 `null`。
+- **隐私边界**（`pii-rescan-prompt.md`）：`birth_year` 三条件豁免（只 4 位年份 / 只在
+  `patient_summary.json` 一个面 / 月日不以任何形式落盘），缺一即按 DOB 处理并标记。
+- **一并修的下游面**：`upload-reconciliation.md`（re-upload 的时变差异不进 `conflict` 分支）、
+  `patient-profile-schema.md`（`cross_source_conflict` 不因正常演变触发）、`profile-card.md`
+  （时变字段不进冲突卡）、`conversation-incremental-prompt.md`（患者自报年龄按时点归档，
+  不晋升为 `age` 快照）、`case_summary_data.schema.json` + `case-summary-html-prompt.md`
+  （年龄必须带 as-of 日期渲染，"52 岁（2024-03-11 报告）"；`birth_year` 非空时可在旁标"约"的现龄，
+  不替换带日期的快照）、`organize SKILL.md` Step 10 + 输出清单。
+  顺带修文档漂移：SKILL.md 把 `longitudinal_observations_v1` 更正为 schema 实际的 `v2`。
+
+**破坏性变更**：`schema_version` const 为 `"2.1"`，v2 存档（无时间锚）不再通过校验，需重跑 organize。
+下游 `smtb-skill/scripts/facts.py` 按顶层容器键名通用遍历、不硬编码 `age`，新增子字段不破坏它
+（未改动该仓）。
+
+验证：新增 `tests/unit/demographics-time-anchor.test.sh` **17/17**（跨年年龄序列可表达为合法文档；
+6 个 `_as_of`/序列字段缺失逐一 reject；无日期的 age 观测 reject；`date_of_birth` 走私 reject；
+`birth_year` 写成日期串 / 1750 reject、null 合法；全 null 无年龄合法；`age_basis` enum 正负例；
+`schema_version: "2"` reject；小数年龄 reject）。**负向控制**：把 `age_as_of`/`age_observations`
+移出 required 后测试立刻转红 2 项（15/17），恢复后 17/17 —— 证明它守的是真东西。
+判断层（自然增龄不判冲突 / 真矛盾仍 fail-closed）不可确定性测试，写成
+`tests/eval/scenarios/cancer-buddy-organize.md` 的 **org-05 + org-06**（含"禁止用单条快照反推
+`birth_year`"和"同日矛盾 + 年龄倒退双 flag"）。
+全量回归：unit 14/14 文件全绿（含既有 agents-md-fill 37、bucket-taxonomy 18、case-summary-trend 34、
+organize-fidelity 11、untrusted-scan 32）、integration 6/6 全绿、`tests/eval/run.sh` 8 lint 组全绿。
+
 ### Added — 三层参考文献库 + 全局引用规范 + 注入隔离 (2026-08-03)
 
 回答任何问题前先查一条固定的本地检索链，命中内容作为回答骨架与引用锚：

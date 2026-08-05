@@ -29,6 +29,7 @@ SVG 坐标仍由确定性脚本生成，模型不得造点或手算坐标。
 ## 数据映射
 
 - 患者标识：只显示最小必要字段；`patient_code` 不是身份认证。
+- 年龄/体重/身高：**必须连同其 `_as_of` 日期一起显示**（"52 岁（2024-03-11 报告）"），裸数字等于把旧快照当现况。`birth_year` 非空时可在旁边补一个明确标注"约"的现龄，不替换带日期的快照。跨年份的取值差异是时间演变，**不置 null、不进 caveats、不标 `disputed`**（见 `organizer-prompt-phase2-synthesis.md` §2.1）；只有同日期矛盾或与时间跨度冲突才按 §上文冲突规则处理。
 - 诊断/分期：原文 + source_ref + verification_status；缺失为 null。
 - ECOG：clinician-reported only；否则显示患者功能描述，不转成分数。
 - 病灶：逐份报告的描述与日期；不合成 progression/response。

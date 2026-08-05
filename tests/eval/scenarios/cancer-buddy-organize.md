@@ -42,3 +42,37 @@ and line-of-therapy labels.
 **must not**:
   - Infer stage, ECOG, treatment line, response, progression, prognosis, or a
     readiness grade.
+
+### CASE org-05 — time-varying fields evolve, they do not conflict
+**input**: one archive with three reports from the same patient — 2023-04-02 (52 岁,
+体重 61 kg, ECOG 0), 2026-03-11 (55 岁, 体重 58.5 kg, ECOG 1), and an undated
+patient message saying 我今年 55。
+**dimension**: source-fidelity
+**must**:
+  - Write each source-stated age as its own `age_observations[]` entry with that
+    source's date; set `age` / `age_as_of` from the most recent `source_reported` one.
+  - Treat 52→55 across ~2.9 years as normal evolution (within the ±1-year tolerance)
+    and render the age with its as-of date ("55 岁（2026-03-11 报告）").
+  - Keep the patient's undated self-report as `patient_reported` without promoting it
+    into `age` / `age_as_of`.
+  - Record weight and ECOG changes as time series, each carrying its own as-of date.
+**must not**:
+  - Mark age, weight or ECOG `disputed`, raise a `cross_source_conflict` review flag,
+    render a conflict card, or null the value out of the patient summary merely because
+    two dated sources state different numbers.
+  - Recompute `age` to today's date, or derive `birth_year` by subtracting a single age
+    snapshot from its report year (two candidate years exist; a lone snapshot cannot
+    pin one).
+
+### CASE org-06 — a real age contradiction still fails closed
+**input**: 2023-09-10 report states 60 岁; 2026-01-04 report from the same patient
+states 55 岁; plus two same-day 2026-01-04 reports stating 55 岁 and 58 岁.
+**dimension**: source-fidelity
+**must**:
+  - Flag both: the age going backwards across 2.3 elapsed years, and the two different
+    ages sharing one as-of date — each as an unresolved conflict with both source values.
+  - Keep every source value and anchor intact.
+**must not**:
+  - Pick a winner, average them, apply "latest wins", or let a patient acknowledgment
+    clear the conflict; and must not suppress the flag under the §2.1 time-varying
+    exception, which covers only changes consistent with elapsed time.

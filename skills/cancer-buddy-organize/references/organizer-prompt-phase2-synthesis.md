@@ -15,6 +15,38 @@ Phase 2 将已复核 sidecar 组织成 schema v2。它不诊断、不重新分�
 
 不同来源冲突时并列保留，不按“病理优先/最新优先/用户选择”自动裁决。只有正式更正文件或授权临床人员签认才能解决。所有旧值和锚点保持不可变。
 
+### 2.1 时变字段不是冲突（先判这一条，再判 §2）
+
+**冲突 = 同一时点的两个来源说了不相容的话。不同时点说了不同的话，是时间演变，不是冲突。**
+
+先按下表判字段类别，**时变字段跨不同来源日期取值不同一律不标 `disputed`**：
+
+| 类别 | 字段 | 跨来源取值不同时 |
+|---|---|---|
+| **时变** | `demographics.age`、`demographics.height_cm`、`demographics.weight_kg`、`demographics.ecog`、`current_status.*`、labs 面板值、生命体征 | 正常演变。各值带自己的 `_as_of` 并列保存，快照字段取 `_as_of` 最新者，**不标 disputed** |
+| **时不变** | `demographics.sex`、`diagnosis.primary/histology/icd10/diagnosed_at`、`birth_year`、既往治疗线的历史事实、已出具的分子结果 | 走 §2，标 `disputed` |
+
+时变字段仍要标 `disputed` 的三种情形（**只有这三种**）：
+
+1. **同一 `as_of` 日期**内两个来源给出不同值；
+2. **与时间跨度矛盾**：年龄倒退（2023 年报告 60 岁、2026 年报告 55 岁），或增量远超时间跨度；
+3. 值本身可疑（超范围、OCR 明显误读）→ 走忠实度 flag，不是冲突。
+
+**年龄自洽判据**：两条观测 `(a₁, t₁)`、`(a₂, t₂)`，`t₁ < t₂`，年跨度 `Δ = (t₂ − t₁)/365.25`。自洽条件为 `a₂ − a₁ ∈ [⌊Δ⌋ − 1, ⌈Δ⌉ + 1]`。**±1 的容差不可收紧**——它吸收的是生日是否已过、周岁/虚岁口径、以及报告写的是就诊时年龄这三种正常来源差异；收紧就会把正常增龄重新误判成冲突。仅当落在该区间外才按情形 2 标 `disputed`。
+
+体重/身高/ECOG 同理：只对比同 `_as_of` 的值；不同日期的差异是状态变化，写进 `longitudinal_observations.json`（`obs_type: vital` / `clinician_function_score`），不进冲突队列。
+
+### 2.2 年龄字段怎么写
+
+- 每个说了年龄的来源，各写一条 `age_observations[]`：`{value（原文年龄，不重算）, as_of（该来源的报告/采集日期）, source_ref}`；来源明说周岁/虚岁才填 `age_basis`，没说就是 `unspecified`。
+- `age` = `age_observations` 中 `as_of` 最新的那条的 `value`，`age_as_of` = 该条的 `as_of`。**`age` 是快照不是现龄，永远不要把它推算到今天。**
+- 来源没给报告日期 → 该条年龄进 `age_observations` 但 `as_of` 无法确定时，不写这条，改记 review flag（无锚年龄不可用）。
+- **`birth_year` 只在能被来源钉死时才写**，两条路径：
+  1. 来源含完整出生日期 → 取年份写入，**其余部分不落盘**（DOB 是准标识项，见 `pii-rescan-prompt.md`）；
+  2. 仅有年龄快照 → 单条快照 `(a, t)` 只能推出 `{year(t)−a−1, year(t)−a}` 两个候选，**禁止直接相减得出一个年份**；只有 ≥2 条不同月份的快照交集唯一时才写。
+  - 交集不唯一或无法确定 → `birth_year: null`。宁可没有，也不要伪精度。
+- `birth_year` 的 `provenance_layer` 是 `system_normalized`，永不覆盖来源原文年龄。
+
 ## 3. 禁止推断
 
 - 不把 TNM 映射到其他分期系统；

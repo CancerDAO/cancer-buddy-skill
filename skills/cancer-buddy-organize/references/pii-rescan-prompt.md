@@ -19,6 +19,7 @@ dispatch 时机：Phase-1 槽位 gate（phase1-ocr.md §2.5）、Phase-2 验收�
 - 联系/地址：电话/手机/座机/传真、email、家庭/通讯/工作住址、邮编。
 - 编号类：身份证/护照、住院号/门诊号/病案号/就诊卡号、MRN、**检验号/标本号/样本号/条形码**、保险号、银行卡。
 - 人口学/准标识项：**年龄、出生地/籍贯、职业/工作单位、民族、宗教、国籍、具体城市**、出生日期（DOB）。年龄单独出现未必直接识别个人，但与罕见病、地点、机构或日期组合时可增加再识别风险；按任务最小化，而不是一律保留或一律遮蔽。
+  - **`birth_year`（仅 YYYY）例外**：`patient_summary.json` 的 `demographics.birth_year` 是把完整 DOB 粗粒度化到年份后的产物，用于渲染近似现龄，**不标记为 finding**。豁免条件有三，缺一即按 DOB 处理并标记：① 只有 4 位年份，同一面上不得出现配套的月/日；② 仅出现在 `patient_summary.json` 这一个面，不得出现在 sidecar 正文、`INDEX.md`、`case_text.md` 或任何患者向 HTML；③ 出生日期的月/日不得以任何形式（含"生日""几月生"叙述）落盘。见 `organizer-prompt-phase2-synthesis.md` §2.2。
 - 账号/路径：host 绝对路径（`/Users/...`）、云盘账号、上传文件名里的真名。
 - 生物识别 / 任何上述的组合 quasi-identifier。
 

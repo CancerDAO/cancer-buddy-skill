@@ -37,7 +37,7 @@
     "report_date": { "type": ["string", "null"], "description": "YYYY-MM-DD (today)." },
 
     "sex": { "type": ["string", "null"], "description": "Mapped via i18n.val_male / val_female; never raw M/F if locale wants words." },
-    "age": { "type": ["string", "null"], "description": "Age only when necessary for the artifact and supported by source; never DOB, birthplace or occupation." },
+    "age": { "type": ["string", "null"], "description": "Age only when necessary for the artifact and supported by source; never DOB, birthplace or occupation. MUST carry its own as-of date inline — a bare number is a stale snapshot presented as current. Render the source snapshot with its date (zh: '52 岁（2024-03-11 报告）' / en: '52 (as of 2024-03-11)'); when patient_summary.demographics.birth_year is non-null an approximate current age may be shown BESIDE it, explicitly marked approximate (zh: '现约 55 岁' / en: 'approx. 55 now'), never replacing the dated snapshot. Wording comes from the locale string table per i18n.md §5, not hardcoded." },
     "height_weight_bmi": { "type": ["string", "null"], "description": "'165 cm / 68 kg / 25.0' — values/units verbatim, BMI computed." },
     "ecog": { "type": ["string", "null"], "description": "Clinician-reported ECOG only. Patient function descriptions are not converted to a score." },
 

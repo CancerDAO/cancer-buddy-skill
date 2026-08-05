@@ -10,7 +10,7 @@
 
 - 患者/照护者描述的症状、功能、用药实际执行、偏好和事件日期；
 - 新收到文件的存在与位置；
-- 患者对人口学信息的更正。
+- 患者对人口学信息的更正。患者自报的年龄/体重按**时点观测**归档：追加一条 `demographics.age_observations[]`（或体重的 vital 观测），`as_of` = 对话日期，`provenance_layer: patient_reported`。它与既往报告年龄不同时**不标 `disputed`**（判据见 `organizer-prompt-phase2-synthesis.md` §2.1）；但 `age` / `age_as_of` 这两个快照字段仍只取 `source_reported` 层的最新值，患者自述不晋升为正式字段。
 
 所有对话事实必须包含：
 

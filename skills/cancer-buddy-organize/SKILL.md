@@ -39,7 +39,7 @@ Written under `patients/<patient_code>/`:
 - `case_text.md` (consolidated narrative; every factual sentence anchored via `[[src:<bucket>/<canonical>.md#L<a>-L<b>]]` — bucket-relative, the text-masked MD that now lives next to its image)
 - `update_log.json` — append-only audit trail of every full / incremental run (timestamps, added/archived files, affected summaries, documentation-coverage deltas)
 - **6 structured JSON outputs** (schema-validated against `references/schemas/*.schema.json`):
-  - `patient_summary.json` — demographics + diagnosis + current_status rollup
+  - `patient_summary.json` — demographics + diagnosis + current_status rollup (`schema_version 2.1`: only `sex` is time-invariant — `age`/`height_cm`/`weight_kg`/`ecog` each carry an `_as_of` source date, `age` additionally keeps `age_observations[]` + optional coarse `birth_year`)
   - `timeline.json` — machine-readable mirror of `timeline.md`
   - `molecular.json` — report-linked NGS variants + IHC + separate MSI/MMR + TMB results
   - `treatment_lines.json` — chronological treatment episodes; a clinical line label is copied only when documented
@@ -57,7 +57,7 @@ Written under `patients/<patient_code>/`:
   and never silently overwrites, transforms, or deletes them. Retention/deletion is a host-governed,
   authenticated lifecycle action. Original filenames remain protected provenance and are excluded from
   derived exports. Each sidecar links to the authorized original through `source_inventory.json.raw_path`.
-- `longitudinal_observations.json` — parsed time series from `timeseries`/trended `structured` sources (wearable / PRO / lab trends); raw export filed in `10_随访与监测`. Conforms to `references/schemas/longitudinal_observations.schema.json` (`longitudinal_observations_v1`).
+- `longitudinal_observations.json` — parsed time series from `timeseries`/trended `structured` sources (wearable / PRO / lab trends); raw export filed in `10_随访与监测`. Conforms to `references/schemas/longitudinal_observations.schema.json` (`longitudinal_observations_v2`).
 - `病情简要总结.html` — 段D one-page case summary, 1:1 against the gold-standard template, generated after the Profile Card from text-masked JSON only (never raw images). Includes a **关键趋势 hero chart** + **实验室指标 trend rows** (inline-SVG sparklines drawn from `longitudinal_observations.json`, treatment-line changes overlaid on the same axis) and a **自上次总结的变化 delta strip** diffing the previous snapshot — so a patient who keeps adding follow-up records sees their trajectory and what changed. The patient-root file is always the **latest**; immutable **dated versions** accumulate under `case_summary_versions/病情简要总结_<date>.html` (a re-render never destroys the version a patient already shared).
 - `case_summary_versions/` — dated immutable snapshots of every 段D generation: both `病情简要总结_<date>.html` (patient-facing history) and `case_summary_data_<date>.json` (the render data, which is the comparison base for the next generation's 自上次总结的变化 delta).
 
@@ -189,6 +189,7 @@ This skill follows the shared locale contract in [`../../references/i18n.md`](..
     - **If only 🟡/🟢 flags**: present them as "建议核对", do not block downstream routing
     - **If `review_flags_total: 0`**: still tell the user "所有提取字段已通过 9 项可疑值检查 (格式/跨文档矛盾/临床逻辑/原始证据/数值趋势), 无待确认项 — 但仍请核对上面的 review_summary.md 速查清单"
     - A user acknowledgment may be logged, but it cannot clear a source-level clinical conflict or promote a model suggestion. Resolution requires an amended source or authorized clinician attestation.
+    - **Time-varying fields never produce a conflict flag for normal evolution.** Age, weight, height, ECOG and `current_status.*` differing between sources with different report dates is a time series, not a contradiction — no flag, no `disputed`. Escalate only on a same-as-of-date contradiction or a change that contradicts elapsed time (age going backwards). Judgement rule + the ±1-year age tolerance: [`references/organizer-prompt-phase2-synthesis.md`](references/organizer-prompt-phase2-synthesis.md) §2.1.
 
 11. **Output profile card** — display the Patient Profile Card ([references/profile-card.md](references/profile-card.md)) to the patient using the `terminology.md` format rules (中英 + 通俗解释). The card's "🔍 待人工确认" section pulls from `readiness.json.review_flags[]`.
 

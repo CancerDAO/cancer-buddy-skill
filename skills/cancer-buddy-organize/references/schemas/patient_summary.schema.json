@@ -8,20 +8,27 @@
   "additionalProperties": false,
   "properties": {
     "patient_code": { "type": "string", "pattern": "^PT-[A-F0-9]+(_\\d+)?$", "description": "Storage locator, not authentication." },
-    "schema_version": { "const": "2" },
+    "schema_version": { "const": "2.1" },
     "generated_at": { "type": "string", "format": "date-time" },
     "alias": { "type": ["string", "null"], "description": "Optional user-chosen non-clinical label; do not embed diagnosis or identifiers." },
     "demographics": {
       "type": "object",
-      "required": ["sex", "sex_normalized", "age", "height_cm", "weight_kg", "ecog", "function_description", "provenance_layer", "verification_status", "source_refs"],
+      "description": "Only sex is time-invariant. Age, anthropometrics and ECOG are point-in-time observations: each scalar carries its own `_as_of` source date, and differing values across different `_as_of` dates are normal evolution, NOT a source conflict.",
+      "required": ["sex", "sex_normalized", "age", "age_as_of", "age_observations", "birth_year", "height_cm", "height_cm_as_of", "weight_kg", "weight_kg_as_of", "ecog", "ecog_as_of", "function_description", "provenance_layer", "verification_status", "source_refs"],
       "additionalProperties": false,
       "properties": {
         "sex": { "type": ["string", "null"], "description": "Source wording." },
         "sex_normalized": { "type": ["string", "null"], "enum": ["female", "male", "intersex", "other", "unknown", null] },
-        "age": { "type": ["integer", "null"], "minimum": 0, "maximum": 130 },
+        "age": { "type": ["integer", "null"], "minimum": 0, "maximum": 130, "description": "Age as stated by the MOST RECENT source that states one — a snapshot, not a current age. Never recompute it to today; downstream renders it together with `age_as_of`. Null when no source states an age." },
+        "age_as_of": { "type": ["string", "null"], "format": "date", "description": "Report/collection date of the source that `age` was taken from. Required whenever `age` is non-null; an age without this anchor is meaningless and must not be written." },
+        "age_observations": { "type": "array", "items": { "$ref": "#/$defs/timed_age" }, "description": "Every source-stated age with its own date, oldest first. Values differing across dates are the expected time series, not a conflict — see organizer-prompt-phase2-synthesis.md §2.1." },
+        "birth_year": { "type": ["integer", "null"], "minimum": 1880, "maximum": 2030, "description": "Year of birth only (YYYY), `system_normalized`, written ONLY when a source states a full DOB or an age+date pair that pins it. Full DOB is never stored (quasi-identifier, see pii-rescan-prompt.md). Lets downstream render an approximate current age instead of a stale snapshot; the ±1-year ambiguity is intentional and must be surfaced as 约/approx." },
         "height_cm": { "type": ["number", "null"] },
-        "weight_kg": { "type": ["number", "null"] },
+        "height_cm_as_of": { "type": ["string", "null"], "format": "date", "description": "Source date of `height_cm`. Required whenever `height_cm` is non-null." },
+        "weight_kg": { "type": ["number", "null"], "description": "Most recent source-stated weight. Serial weights belong in longitudinal_observations.json (`obs_type: vital`); this is the latest snapshot only." },
+        "weight_kg_as_of": { "type": ["string", "null"], "format": "date", "description": "Source date of `weight_kg`. Required whenever `weight_kg` is non-null." },
         "ecog": { "type": ["integer", "null"], "minimum": 0, "maximum": 5, "description": "Clinician-reported only; never inferred." },
+        "ecog_as_of": { "type": ["string", "null"], "format": "date", "description": "Source date of `ecog`. Required whenever `ecog` is non-null. A later ECOG differing from an earlier one is a change in status, not a disputed value." },
         "function_description": { "type": ["string", "null"], "description": "Patient/caregiver description kept separate from ECOG." },
         "provenance_layer": { "$ref": "#/$defs/provenance_layer" },
         "verification_status": { "$ref": "#/$defs/verification_status" },
@@ -68,6 +75,18 @@
   },
   "$defs": {
     "source_refs": { "type": "array", "items": { "type": "string" } },
+    "timed_age": {
+      "type": "object",
+      "required": ["value", "as_of", "source_ref"],
+      "additionalProperties": false,
+      "properties": {
+        "value": { "type": "integer", "minimum": 0, "maximum": 130, "description": "Age exactly as stated by that source; never recomputed." },
+        "as_of": { "type": "string", "format": "date", "description": "Report/collection date of that source." },
+        "source_ref": { "type": "string" },
+        "age_basis": { "type": ["string", "null"], "enum": ["completed_years", "nominal_years", "unspecified", null], "description": "Only when the source says so (周岁 / 虚岁). Never inferred — an unlabelled age is `unspecified`, and unspecified ages are compared with ±1 tolerance." },
+        "verification_status": { "$ref": "#/$defs/verification_status" }
+      }
+    },
     "provenance_layer": { "enum": ["source_reported", "patient_reported", "caregiver_reported", "system_normalized"] },
     "verification_status": { "enum": ["unverified", "clinician_verified", "disputed"] }
   }
