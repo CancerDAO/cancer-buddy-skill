@@ -1,0 +1,1 @@
+{"candidates":[{"source_id":"s000011","upload":"synthetic_app_screenshot.jpg","relation":"conflict","target_doc":"07_检验/肿瘤标志物/2023-01-05_肿瘤标志物_合成示例医院_来源s000010.md","evidence":"合成用例","confidence":"high","new_field":"labs.CA19-9","new_value":"67.90 U/ml","old_value":"67.61 U/ml"}]}

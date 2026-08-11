@@ -19,3 +19,7 @@ patients/
 # 内部迭代 PRD 只留本地：含未修复缺陷的完整 P0/P1 清单与绕过路径，
 # 公开分发等于给攻击者路线图（同 TESTPLAN 的处理）
 docs/prd/reference-library-and-instruction-layer.md
+
+# conformance fixtures are SYNTHETIC patient dirs (fake facility/ids, no PII) and must ship with the contract
+!skills/*/tests/conformance/fixtures/**/patients/
+!skills/*/tests/conformance/fixtures/**/patients/**

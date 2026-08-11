@@ -73,9 +73,12 @@ $CANCER_BUDDY_PATIENTS_DIR
 ```bash
 bash tests/eval/run.sh
 for test in tests/unit/*.sh tests/integration/*.sh; do bash "$test"; done
+bash skills/cancer-buddy-organize/tests/conformance/run_conformance.sh   # organize 契约 conformance（三道确定性门）
 ```
 
 静态测试检查安全合同和结构；`tests/eval/scenarios/` 是需要模型/人工评审的行为用例。
+
+organize 契约自 `CONTRACT_VERSION` 2.2.0 起附带三道**确定性验收门**（`skills/cancer-buddy-organize/scripts/gates/`，stdlib-only 零 LLM）：G1 文件名↔sidecar 报告类型一致性、G2 对账候选值-源绑定、G3 同检验判重。任何宿主（平台/CLI）集成 organize 时必须在契约规定的时点执行这三道门，并保持 conformance suite 全绿——门与用例的由来见 `organize-contract.md` §Executable gates。
 
 ## 免责声明
 

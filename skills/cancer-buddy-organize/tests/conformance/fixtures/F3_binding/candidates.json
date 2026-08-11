@@ -1,0 +1,5 @@
+{"candidates":[
+ {"source_id":"s000021","upload":"synthetic_a.jpg","relation":"conflict","target_doc":"07_检验/肿瘤标志物/2023-01-05_肿瘤标志物_合成示例医院_来源s000020.md","new_field":"labs.CA19-9","new_value":"67.90 U/ml","old_value":"67.61 U/ml"},
+ {"source_id":"s000022","upload":"synthetic_b.jpg","relation":"conflict","target_doc":"07_检验/肿瘤标志物/2023-01-05_肿瘤标志物_合成示例医院_来源s000020.md","new_field":"labs.CEA","new_value":"26.74 ng/ml","old_value":"26.74 ng/ml"},
+ {"source_id":"s000023","upload":"synthetic_c.jpg","relation":"supersede","target_doc":"07_检验/肿瘤标志物/2023-01-05_肿瘤标志物_合成示例医院_来源s000020.md"}
+]}

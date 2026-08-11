@@ -6,6 +6,31 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Added — organize 契约可执行化：三道确定性验收门 + conformance suite（CONTRACT_VERSION 2.2.0）(2026-08-11)
+
+生产事故（2026-08-05，cancerdao.tech）暴露契约的散文保证在宿主移植时会静默丢失：
+①Phase-2 单次大批量归档把同批检验单名字错位分配（内容是胃肠道肿瘤标志5项的 sidecar
+被命名"凝血功能筛查"入凝血桶，同批 ≥3 处）；②对账把两个都读错的数字
+（档案 67.61 / 新图 67.90，真值 67.28）渲染成"与档案现有事实矛盾"的确定语气二选一，
+而两份文件实为同一检验（检验编号+采样/报告时间完全一致）的纸照与 App 截图双载体。
+
+- **`scripts/gates/`（G1/G2/G3，stdlib-only，零 LLM）**：G1 文件名↔sidecar 报告类型
+  一致性（别名组 `references/report-type-aliases.json`；泛型容器声明如
+  `laboratory_report` 视同未声明→unknown 不误杀）；G2 对账候选值-源绑定
+  （old_value 逐字定位且不带 needs_human_review；new_value 须由与判定调用隔离的
+  独立第二读复现；任一失败降级「数值待核对」）；G3 同检验判重（编号可见尾数重叠
+  ≥3 位——脱敏形态不统一绝不假设固定位数——加采样/报告双时间戳同时一致才判
+  same_test_duplicate，不出冲突卡；值不一致=internal_read_discrepancy 触发复读不问患者）。
+- **`tests/conformance/`**：全合成 fixtures（串位组/同检验双载体组/值误读组+各正例负例），
+  `run_conformance.sh` 12 用例非零退出即红；已另以 2026-08-05 真实档案 7 文件回放验证
+  （3 处串位全拦、0 误杀）。
+- **契约文本**：`organize-contract.md` 新增 §Executable gates（宿主跳门=违约）；
+  `upload-reconciliation.md` 新增 同检验判重/值-源绑定 两条不变量 + §Round-1 执行规范
+  （自 cancerdao-platform 内联 prompt 收编，宿主不得再自带分叉规则）；
+  `organizer-prompt-phase2-synthesis.md` 新增 §3b 桶内命名铁律（文件名报告类型段逐字
+  取自本 sidecar + `naming_echo.json` 自证产物）。
+- **仓根 `CONTRACT_VERSION`**（semver，起版 2.2.0）：G 门/schema/契约语义变更必须 bump。
+
 ### Fixed — 年龄/体重/ECOG 是时点观测，跨年份取值不同不再被判成来源冲突 (2026-08-05)
 
 用户反馈：同一患者跨年份的多份报告一起 organize 时，年龄"没法自动随年份变化，会自动判别冲突"。

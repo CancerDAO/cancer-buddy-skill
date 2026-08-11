@@ -56,6 +56,12 @@ Phase 2 将已复核 sidecar 组织成 schema v2。它不诊断、不重新分�
 - 不把患者确认当临床核实；
 - 不按通用阈值生成器官限制、严重度或治疗资格。
 
+## 3b. 桶内命名铁律（G1 一致性门的前置）
+
+- 桶内文件名的**报告类型段必须逐字取自该 sidecar 自己的报告类型声明**（`报告类型/document_title/document_type/report_type` 字段原文，或其所属别名组的规范名，别名组见 `report-type-aliases.json`）。绝不从"同日常见检验组套"、相邻文件或任何 sidecar 之外的来源推断名字——批量命名串位（内容是肿瘤标志物的 sidecar 被命名"凝血功能筛查"）正是这样发生的。
+- sidecar 没有可用的报告类型声明（缺失或仅有 `laboratory_report` 之类泛型容器词）→ 该文件**不得**冠以具体报告类型名，落待归类（pending-classification）路径。
+- 逐 sidecar 输出命名 echo 映射表 `naming_echo.json`：`{"entries":[{"source_id":"...","report_type_verbatim":"<sidecar 原文>","chosen_path":"<桶内相对路径>"}]}`。这是自证产物：宿主在落盘前用 `scripts/gates/gate_name_content.py`（确定性，零 LLM）逐行核验文件名↔sidecar 一致性，violation 不得以当前名落盘。
+
 ## 4. 结构化产物
 
 按 `schemas/` v2 写 `patient_summary.json`、`timeline.json`、`treatment_lines.json`（治疗事件）、`labs.json`、`molecular.json`、`comorbidities.json`、`longitudinal_observations.json` 和兼容文件名 `missing_items.json`。

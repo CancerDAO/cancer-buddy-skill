@@ -1,0 +1,183 @@
+{
+  "schema": "report_type_aliases_v1",
+  "comment": "G1 文件名↔sidecar 报告类型一致性门的别名组。同组关键词视为同一报告类型家族。匹配规则：直接子串命中（归一化后）优先；否则双方各自映射到别名组，组有交集即通过。本表是数据文件：边缘 case 由 LLM 仲裁产生候选后，仍须人工审核才能进表（门本身零 LLM）。zh 为主，附基础 en 关键词防英文 sidecar 误杀；未覆盖语种走 unknown 路径。",
+  "groups": [
+    {
+      "id": "cbc",
+      "keywords": [
+        "血常规",
+        "血细胞分析",
+        "全血细胞",
+        "血涂片",
+        "CBC",
+        "blood count",
+        "differential",
+        "hemogram"
+      ]
+    },
+    {
+      "id": "tumor_markers",
+      "keywords": [
+        "肿瘤标志",
+        "肿瘤标记",
+        "tumor marker",
+        "tumour marker"
+      ]
+    },
+    {
+      "id": "coagulation",
+      "keywords": [
+        "凝血",
+        "D二聚体",
+        "FDP",
+        "coagulation",
+        "D-dimer"
+      ]
+    },
+    {
+      "id": "chemistry",
+      "keywords": [
+        "肝肾功",
+        "生化",
+        "肝功",
+        "肾功",
+        "离子糖",
+        "电解质",
+        "chemistry panel",
+        "liver function",
+        "renal function",
+        "metabolic panel"
+      ]
+    },
+    {
+      "id": "blood_gas",
+      "keywords": [
+        "血气分析",
+        "血气",
+        "blood gas"
+      ]
+    },
+    {
+      "id": "urinalysis",
+      "keywords": [
+        "尿液分析",
+        "尿常规",
+        "尿液检查",
+        "urinalysis",
+        "urine analysis"
+      ]
+    },
+    {
+      "id": "stool",
+      "keywords": [
+        "便常规",
+        "粪便",
+        "大便常规"
+      ]
+    },
+    {
+      "id": "blood_type",
+      "keywords": [
+        "血型",
+        "ABO",
+        "RhD",
+        "blood type",
+        "blood group"
+      ]
+    },
+    {
+      "id": "pre_transfusion",
+      "keywords": [
+        "输血前感染",
+        "感染筛查",
+        "术前免疫",
+        "输血前检查",
+        "输血前八项",
+        "pre-transfusion",
+        "infection screen"
+      ]
+    },
+    {
+      "id": "temperature_chart",
+      "keywords": [
+        "体温单",
+        "体温记录",
+        "temperature chart"
+      ]
+    },
+    {
+      "id": "pathology",
+      "keywords": [
+        "病理",
+        "免疫组化",
+        "活检",
+        "pathology",
+        "biopsy",
+        "immunohistochemistry"
+      ]
+    },
+    {
+      "id": "imaging",
+      "keywords": [
+        "CT",
+        "MRI",
+        "MR平扫",
+        "超声",
+        "彩超",
+        "X线",
+        "DR摄影",
+        "PET",
+        "胸片",
+        "钼靶",
+        "ultrasound",
+        "radiograph",
+        "mammogram"
+      ]
+    },
+    {
+      "id": "admission_note",
+      "keywords": [
+        "入院记录",
+        "入院录",
+        "admission note"
+      ]
+    },
+    {
+      "id": "discharge_note",
+      "keywords": [
+        "出院记录",
+        "出院小结",
+        "出院证",
+        "discharge summary"
+      ]
+    },
+    {
+      "id": "ngs",
+      "keywords": [
+        "基因检测",
+        "NGS",
+        "测序",
+        "分子病理",
+        "sequencing",
+        "genomic profiling"
+      ]
+    },
+    {
+      "id": "thyroid",
+      "keywords": [
+        "甲状腺功能",
+        "甲功"
+      ]
+    },
+    {
+      "id": "infection_serology",
+      "keywords": [
+        "乙肝",
+        "丙肝",
+        "梅毒",
+        "HIV",
+        "传染病筛查"
+      ]
+    }
+  ]
+}
