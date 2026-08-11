@@ -12,7 +12,10 @@ from pathlib import Path
 REVIEW_FLAG = "needs_human_review"
 
 # Header keys a Phase-1 sidecar may use for the report type. Order matters: first hit wins.
-REPORT_TYPE_KEYS = ("报告类型", "document_title", "document_type", "report_type", "报告名称")
+# 真实档案回灌发现的形态: 报告类型(s000675)/文档类型(s000674)/检验项目(s000672,同批第4处
+# 串位正是靠它声明的)。"检验项目"要求冒号紧随,表格列头"| 检验项目 |"无冒号不会误命中。
+REPORT_TYPE_KEYS = ("报告类型", "document_title", "document_type", "report_type",
+                    "报告名称", "文档类型", "检验项目")
 
 
 def canon(text):
@@ -60,7 +63,7 @@ def alias_group_ids(text_canon, groups):
 GENERIC_TYPE_WORDS = (
     "laboratory", "report", "image", "medical", "document", "clinical", "record",
     "file", "scan", "photo", "page", "检验报告单", "检验报告", "报告单", "报告",
-    "记录单", "记录", "单据", "影像", "照片", "图片",
+    "记录单", "记录", "单据", "影像", "照片", "图片", "化验单", "检查单", "检验单",
 )
 
 

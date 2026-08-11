@@ -22,7 +22,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from gate_common import REVIEW_FLAG, read_json, value_locatable
+from gate_common import REVIEW_FLAG, numeric_token, read_json, value_locatable
 
 VERIFIED_STATES = ("double_read", "verified_by_second_read", "clinician_verified")
 
@@ -44,7 +44,13 @@ def inventory_status(patient_dir, target_doc):
 def old_value_flagged(lines, full_text, patient_dir, target_doc, value):
     """value 所在行带 needs_human_review，或行内无状态但文件级复核状态为待核。"""
     overrides = review_overrides(patient_dir).get(target_doc, {})
-    if str(overrides.get(str(value), "")) in VERIFIED_STATES:
+    # P8(verifySidecarHighRisk)以表格单元的裸数字作 key("67.61"),candidate 的 old_value
+    # 通常带单位("67.61 U/ml")——两种 key 都试,否则复读升级永远打不通(同事 review 实锤)。
+    keys = [str(value)]
+    bare = numeric_token(value)
+    if bare and bare not in keys:
+        keys.append(bare)
+    if any(str(overrides.get(key, "")) in VERIFIED_STATES for key in keys):
         return False
     value_lines_flagged = [l for l in lines if REVIEW_FLAG in l]
     if value_lines_flagged and len(value_lines_flagged) == len(lines):

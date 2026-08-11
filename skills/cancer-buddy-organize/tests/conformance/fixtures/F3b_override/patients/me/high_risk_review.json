@@ -1,0 +1,8 @@
+{
+ "schema": "high_risk_review_v1",
+ "values": {
+  "07_检验/肿瘤标志物/2023-01-05_肿瘤标志物_合成示例医院_来源s000020.md": {
+   "67.61": "verified_by_second_read"
+  }
+ }
+}

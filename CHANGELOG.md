@@ -30,6 +30,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
   `organizer-prompt-phase2-synthesis.md` 新增 §3b 桶内命名铁律（文件名报告类型段逐字
   取自本 sidecar + `naming_echo.json` 自证产物）。
 - **仓根 `CONTRACT_VERSION`**（semver，起版 2.2.0）：G 门/schema/契约语义变更必须 bump。
+- **Review round-2 修正（2026-08-11，同事对抗审查实锤两处）**：①G2 override 键不匹配
+  ——P8 宿主复读以表格裸数字作 key（"67.61"），G2 查表用完整 old_value（"67.61 U/ml"）
+  永远 miss，复读升级链路完全失效；修为双 key 尝试，并加 F3b 用例固化放行路径。
+  ②报告类型 key 覆盖不足——真实 sidecar 还用 `文档类型：`/`检验项目：` 声明（表格列头
+  无冒号不会误命中）；补入 REPORT_TYPE_KEYS 后对 2026-08-05 事故同批 7 份真实档案回放
+  从"3 拦 4 unknown"提升为 **6 拦 0 误杀 1 名实相符**——事故实际是同批 6/7 全串位
+  （尿液分析↔凝血试验6项、输血前感染筛查↔糖化血红蛋白等），此前受 key 覆盖限制低估。
+  另：GENERIC_TYPE_WORDS 补 化验单/检查单/检验单。
 
 ### Fixed — 年龄/体重/ECOG 是时点观测，跨年份取值不同不再被判成来源冲突 (2026-08-05)
 

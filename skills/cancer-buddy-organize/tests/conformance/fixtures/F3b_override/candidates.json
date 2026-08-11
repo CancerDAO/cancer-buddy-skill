@@ -1,0 +1,1 @@
+{"candidates": [{"source_id": "s000021", "upload": "synthetic_a.jpg", "relation": "conflict", "target_doc": "07_检验/肿瘤标志物/2023-01-05_肿瘤标志物_合成示例医院_来源s000020.md", "new_field": "labs.CA19-9", "new_value": "67.61 U/ml", "old_value": "67.61 U/ml"}]}

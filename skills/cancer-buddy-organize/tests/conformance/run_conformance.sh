@@ -22,13 +22,15 @@ check() { # name expr_python(读 stdin JSON，assert 后 exit 0/1)
 # ── G1 ──────────────────────────────────────────────────────────────
 out="$("$PY" "$GATES/gate_name_content.py" "$FX/F1_name_shuffle/patients/me")"; rc=$?
 check "F1 串位组: 拦下凝血名/肿瘤标志内容的串位" "$out" \
-  "r['pass']==False and len(r['violations'])==1 and '凝血功能筛查' in r['violations'][0]['claimed'] and '肿瘤标志' in r['violations'][0]['sidecar_says']"
+  "r['pass']==False and len(r['violations'])==2 and any('凝血功能筛查'==v['claimed'] and '肿瘤标志' in v['sidecar_says'] for v in r['violations'])"
+check "F1 串位组: 检验项目键声明也能拦(名血常规实为生化28项,s000672 型)" "$out" \
+  "any(v['claimed']=='血常规' and '生化' in v['sidecar_says'] for v in r['violations'])"
 check "F1 串位组: 无报告类型字段的只标 unknown 不拦" "$out" \
   "len(r['unknown'])==2 and any('尿液分析' in u['claimed'] for u in r['unknown'])"
 check "F1 串位组: 泛型 document_type(laboratory_report_image) 视同未声明 → unknown 不误杀" "$out" \
   "any('输血前感染筛查' in u['claimed'] for u in r['unknown']) and not any('输血前' in v['path'] for v in r['violations'])"
 check "F1 串位组: 血常规↔血细胞分析走别名组放行(不误杀)" "$out" \
-  "not any('血常规' in v['path'] for v in r['violations'])"
+  "not any('s000002' in v['path'] for v in r['violations'])"
 [ $rc -eq 1 ] || { echo "FAIL  F1 exit code (want 1, got $rc)"; fails=$((fails+1)); }
 
 out="$("$PY" "$GATES/gate_name_content.py" "$FX/F1_positive/patients/me")"; rc=$?
@@ -60,6 +62,11 @@ check "F3 c2 正例: 双方可复现且行标 double_read → verified(不误杀
 check "F3 c3: 纯 supersede 无值 → not_applicable" "$out" \
   "r['candidates'][2]['binding']=='not_applicable'"
 [ $rc -eq 1 ] || { echo "FAIL  F3 exit code (want 1, got $rc)"; fails=$((fails+1)); }
+
+out="$("$PY" "$GATES/gate_candidate_binding.py" "$FX/F3b_override/candidates.json" "$FX/F3b_override/patients/me")"; rc=$?
+check "F3b 放行链路: P8 裸数字 key 的 override + 第二读复现 → verified(复读升级打通)" "$out" \
+  "r['candidates'][0]['binding']=='verified' and r['candidates'][0]['binding_reasons']==[]"
+[ $rc -eq 0 ] || { echo "FAIL  F3b exit code (want 0, got $rc)"; fails=$((fails+1)); }
 
 echo "----"
 if [ $fails -eq 0 ]; then echo "CONFORMANCE OK (all cases green)"; exit 0
