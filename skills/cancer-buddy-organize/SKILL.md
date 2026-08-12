@@ -28,6 +28,10 @@ bash <skill_dir>/scripts/phase0_prepare.sh "$patient_dir" <每个输入目录...
 manifest 里 `status != ok` 的来源是 blocked（转不动/不支持），保留在清单里，最终报告
 必须如实列出——绝不静默跳过。
 
+> **打点纪律（每步都做）**：每个 Step 结束时执行
+> `echo "step<N> $(date +%H:%M:%S)" >> "$patient_dir/.run_timing.log"`——
+> Step 5 的交付报告必须引用这份文件报各步耗时，不得凭印象。
+
 ## Step 1 — 逐字转录（视觉，小切片并行）
 
 把 manifest 里 `status: ok` 的来源按 **6–8 个/组** 切片（宁多组、勿大组：切片大小 =
@@ -47,18 +51,21 @@ python3 <skill_dir>/scripts/highrisk_page_filter.py "$patient_dir" --dir ocr
 
 对筛出的每个高危来源（含药名/剂量/分期/化验值/标识——化验单会全中，正常）派一次轻量
 视觉比对：重新看 raster，逐项核对 sidecar 里的高危值。不一致的行改标
-`[uncertain: 甲|乙]` 并在 sidecar 末尾「不确定项」登记；一致的可在
-`$patient_dir/high_risk_review.json` 记 `{"values": {"<sidecar相对路径>": {"<裸数字>": "verified_by_second_read"}}}`。
-**第二读只核对不改判**：两读不一致时保留两个候选标不确定，不选边。
+`[uncertain: 甲|乙]` 并在 sidecar 末尾「不确定项」登记。
+**worker 只返回核对结果 JSON，不写共享文件**——编排层收齐后统一合并写
+`$patient_dir/high_risk_review.json`（`{"values": {"<sidecar相对路径>": {"<裸数字>": "verified_by_second_read"}}}`），
+避免并发写冲突。**第二读只核对不改判**：两读不一致时保留两个候选标不确定，不选边。
 
 ## Step 3 — 逐源归类命名（每个 sidecar 一次轻调用）
 
 对每个 sidecar 单独发一次小调用（**逐源，不批量**——批量归档会串位）：输入 = 该 sidecar
-全文 + [`references/bucket-taxonomy.md`](references/bucket-taxonomy.md)；输出 =
-`{"path": "NN_桶/子类/YYYY-MM-DD_报告类型_机构_来源<source_id>.md"}`。
+全文 + [`references/bucket-taxonomy.md`](references/bucket-taxonomy.md)；**worker 只返回**
+`{"path": "NN_桶/子类/YYYY-MM-DD_报告类型_机构_来源<source_id>.md"}`，
+**文件移动由编排层确定性执行**（worker 不动文件系统）。
 命名铁律：文件名报告类型段**逐字取自该 sidecar 自己的报告类型声明**；sidecar 写的是
-unknown → 归 `14_患者自管补充/患者补充/待归类资料_<source_id>.md`，不得冠具体类型名。
-按输出移动文件后，跑 G1 校验：
+unknown → 归 `14_患者自管补充/患者补充/待归类资料_<source_id>.md`，不得冠具体类型名；
+日期段取该文档自己的记录/报告日期，sidecar 内无记录日期时用页内唯一所见日期并在
+INDEX.md 说明。全部移动完成后跑 G1 校验：
 
 ```bash
 python3 <skill_dir>/scripts/gates/gate_name_content.py "$patient_dir"
@@ -70,11 +77,21 @@ violation 的文件改移待归类（不得以错名落盘），unknown 只记�
 
 派一个 subagent 读 [`references/organizer-prompt-phase2-synthesis.md`](references/organizer-prompt-phase2-synthesis.md)
 及其链接的 schema，对**已归好桶**的档案做综合：`source_inventory.json`（source_id 逐字
-来自 manifest）、`INDEX.md`、`timeline.md/.json`、`profile.json`（locale 从病历主语言检测）、
-`patient_summary.json`、`labs.json`、`molecular.json`、`treatment_lines.json`、
-`comorbidities.json`、`missing_items.json`、`update_log.json`、`review_summary.md`。
-本步**不改任何文件名、不移动任何文件**——归类命名已在 Step 3 定稿。冲突并列保留标
-`disputed`，不裁决。
+来自 manifest）、`INDEX.md`、`timeline.md/.json`、`case_text.md`、`profile.json`（locale
+从病历主语言检测）、`patient_summary.json`、`labs.json`、`molecular.json`、
+`treatment_lines.json`、`comorbidities.json`、`missing_items.json`、`update_log.json`、
+`review_summary.md`。本步**不改任何文件名、不移动任何文件**——归类命名已在 Step 3 定稿。
+冲突并列保留标 `disputed`，不裁决。
+
+## Step 4b — 段D 病情简要总结 HTML（患者可见交付物，不可省略）
+
+按 [`references/case-summary-html-prompt.md`](references/case-summary-html-prompt.md)：
+派一个 subagent 组装 `case_summary_data.json`（只读脱敏 JSON），然后**确定性渲染**——
+`backfill_lab_trends.py` → `compute_version_delta.py` → `compute_sparklines.py` →
+`render_html_template.py` → `validate_case_summary_html.py`，fail-closed：subagent 必须
+返回 `{status:"ok", template_sha:"<64-hex>"}` 才算完成，绝不接受手写 HTML 或无
+`template_sha` 的"done"声明；`status:"failed"` 就重派。产物为
+`$patient_dir/病情简要总结.html`。
 
 ## Step 5 — 验收与交付报告
 
@@ -83,7 +100,10 @@ violation 的文件改移待归类（不得以错名落盘），unknown 只记�
 2. 门已绿：G1 无 violation 残留；若本次涉及再上传对账候选，出卡前跑
    `gates/gate_same_test.py`（同检验双载体不出冲突卡）与 `gates/gate_candidate_binding.py`
    （卡上数值未经绑定验证的一律「数值待核对」）。
-3. 向用户交付：档案位置、各桶清单、待归类/blocked/不确定项数量、review_summary 要点。
+3. 产物齐全性（确定性 ls 核对，缺一即未完成）：Step 4 全部 JSON/MD +
+   `case_text.md` + `病情简要总结.html`（带 Step 4b 的 template_sha 凭证）。
+4. 向用户交付：档案位置、各桶清单、待归类/blocked/不确定项数量、review_summary 要点、
+   **各步耗时（读 `.run_timing.log`，不凭印象）**。
    **失败也如实报**：哪些没读出来、哪些标了不确定，不藏。
 
 ## Role behavior
