@@ -34,8 +34,10 @@ check "F1 串位组: 血常规↔血细胞分析走别名组放行(不误杀)" "
 [ $rc -eq 1 ] || { echo "FAIL  F1 exit code (want 1, got $rc)"; fails=$((fails+1)); }
 
 out="$("$PY" "$GATES/gate_name_content.py" "$FX/F1_positive/patients/me")"; rc=$?
-check "F1 正例: 全部名实一致 → 全绿 0 violation" "$out" \
-  "r['pass']==True and r['violations']==[] and r['checked']==2"
+check "F1 正例: 全部名实一致(含 lite 档 sidecar) → 全绿 0 violation" "$out" \
+  "r['pass']==True and r['violations']==[] and r['checked']==3"
+check "F1 正例: lite 档 sidecar 被 G1 正常消化(profile 分档不影响门)" "$out" \
+  "not any('SRC-abc123def456' in u.get('path','') for u in r['unknown'])"
 [ $rc -eq 0 ] || { echo "FAIL  F1_positive exit code (want 0, got $rc)"; fails=$((fails+1)); }
 
 # ── G3 ──────────────────────────────────────────────────────────────

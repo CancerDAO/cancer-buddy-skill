@@ -101,7 +101,11 @@ This skill follows the shared locale contract in [`../../references/i18n.md`](..
 
 ## Workflow
 
-> **跨 host 提示（Codex / 单进程先读这句）**：下面 Step 2–5 的 `Agent` 并行 fan-out + reduce 是 **Claude Code 参考绑定，不是契约**。无 subagent 的单进程 host（Codex 等）请以 [`references/organize-contract.md`](references/organize-contract.md)（零工具名的行为契约）+ [`references/runtime-bindings/headless-codex.md`](references/runtime-bindings/headless-codex.md) 为准：把 Phase 1 fan-out 改为**顺序遍历 source inventory 逐源调用**（`codex exec -i` 提供视觉 + 干净上下文），Phase 2 单次综合。**并行只关乎速度，产物集与不变量完全一致**。详见文末「Runtime adaptation」。
+> **跨 host 提示（非 Claude Code 宿主先读这句）**：下面 Step 2–5 的 `Agent` 并行 fan-out + reduce 是 **Claude Code 参考绑定，不是契约**。其它宿主按下表选绑定，行为底线一律以 [`references/organize-contract.md`](references/organize-contract.md)（零工具名的行为契约）为准：
+> - **Kimi / 个人单机宿主（有 subagent 但后台任务墙钟紧）** → [`references/runtime-bindings/kimi.md`](references/runtime-bindings/kimi.md)：**不要照抄下面的 fan-out**——先跑确定性 Phase 0（`scripts/phase0_prepare.sh` 批量转码+预分配 source_id），Phase 1 用 6-8 张/worker 小切片 + 自足一页 worker 卡片（[`kimi-phase1-worker-card.md`](references/runtime-bindings/kimi-phase1-worker-card.md)，worker 不读其它参考文件），lite 产物档位，定向第二读替代全量双读，Phase 2 拆逐源归类+单次综合。
+> - **Codex / 无 subagent 单进程 host** → [`references/runtime-bindings/headless-codex.md`](references/runtime-bindings/headless-codex.md)：Phase 1 改顺序遍历逐源调用（`codex exec -i` 提供视觉 + 干净上下文），Phase 2 单次综合。
+>
+> **并行只关乎速度，产物集与不变量（含三道门）完全一致**。详见文末「Runtime adaptation」。
 
 1. **Resolve input** — confirm the user-supplied path with them. For archives, unpack to `/tmp/cb-unpack-$$/` first (zip / rar / 7z / tar.gz / single pdf-or-docx). After unpack, the **resolved input directory** (`$src`) is what Step 2 plans against.
 
@@ -358,7 +362,7 @@ done 判据以前散在 Step 7 / 11.5 / 12 / 13 和好几个 validator 里；压
 
 ## Runtime adaptation
 
-The Workflow above (Step 2–5: `glob`-based slicing → parallel `Agent` Phase-1 source-fidelity ingestion fan-out → continuation loop → single `Agent` Phase-2 reduce, plus native/deterministic extraction, reviewable LLM assistance, and adapter commands such as `sips` HEIC decode) is the **Claude Code reference binding** — one concrete way to drive organize, not the contract. The runtime-neutral **behavior contract** (what each step produces / when it may write / which invariants hold, with zero tool names) lives in [`references/organize-contract.md`](references/organize-contract.md); the per-host fill-ins are in [`references/runtime-bindings/`](references/runtime-bindings/) (`claude-code.md` = the mechanism documented here; `headless-codex.md`; `_template.md` for OpenClaw/OpenCode/other agents).
+The Workflow above (Step 2–5: `glob`-based slicing → parallel `Agent` Phase-1 source-fidelity ingestion fan-out → continuation loop → single `Agent` Phase-2 reduce, plus native/deterministic extraction, reviewable LLM assistance, and adapter commands such as `sips` HEIC decode) is the **Claude Code reference binding** — one concrete way to drive organize, not the contract. The runtime-neutral **behavior contract** (what each step produces / when it may write / which invariants hold, with zero tool names) lives in [`references/organize-contract.md`](references/organize-contract.md); the per-host fill-ins are in [`references/runtime-bindings/`](references/runtime-bindings/) (`claude-code.md` = the mechanism documented here; `headless-codex.md`; `kimi.md` = personal single-machine hosts with tight subagent wall-clocks, lite artifact profile + deterministic Phase-0 + per-source classification; `_template.md` for OpenClaw/OpenCode/other agents).
 
 What this means for non-CC hosts:
 

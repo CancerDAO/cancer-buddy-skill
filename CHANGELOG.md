@@ -6,6 +6,29 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Added — Kimi 运行时绑定 + 产物档位（CONTRACT_VERSION 2.3.0）(2026-08-12)
+
+起因：Kimi CLI 实测跑 organize（50 张 HEIC）暴露参考绑定在个人单机宿主上的结构性低效——
+Phase-1 worker ×7 次重复冷读全套契约、全字段 sidecar 无消费者白付输出 token、14 张/worker
+必撞后台任务墙钟（超时→resume 重付冷启动）、Phase-2 单体吃 50 sidecar 且 4 个 worker 的
+source_id 体系当场漂移（s001… vs SRC-<hash>）。全程 ≈5 次 LLM 调用/张、Phase-1 墙钟 70+ 分钟。
+
+- **契约新增 §Artifact profiles**：platform（全字段）/ lite(个人单机)两档；红线字段
+  （manifest 指定的 source_id、原件 hash、报告类型逐字或 unknown、逐字转录+不确定标注、
+  PII 遮蔽、三道门）任何档位不得省略——档位裁输出重量，不裁保真与门。
+- **`runtime-bindings/kimi.md`**：Phase 0 确定性前置（`scripts/phase0_prepare.sh`：
+  批量转码+sha256+按 hash 预分配 source_id 进 phase0_manifest.json，ID 从此不由模型自造）；
+  Phase 1 小切片（6-8 张/worker，按宿主超时预算减半定）+ 一页纸自足 worker 卡片
+  （`kimi-phase1-worker-card.md`，内嵌逐字转录/PII/lite 模板规则，不再读全库参考）；
+  全量双读改为**定向第二读**（`scripts/highrisk_page_filter.py` 确定性筛高危页——
+  药名/剂量/分期/化验值/标识，召回优先）；Phase 2 拆为逐源归类小调用（结构性免疫
+  批量串位）+ 单次综合。预期 ≈1.3 次调用/张、墙钟 15-25 分钟。
+- 分工原则固化进绑定：判断留 prompt（转录/归类/命名/高危识别的语义部分），
+  验证与簿记留脚本（转码/hash/ID/门/coverage）。
+- conformance 补 lite 档 sidecar 正例（G1 正常消化，档位不影响门）；
+  phase0_prepare.sh 实测 jpg/HEIC/PDF/不支持格式四路（blocked 不静默跳过），
+  highrisk_page_filter 对事故真实 sidecar 7/7 命中化验单。
+
 ### Added — organize 契约可执行化：三道确定性验收门 + conformance suite（CONTRACT_VERSION 2.2.0）(2026-08-11)
 
 生产事故（2026-08-05，cancerdao.tech）暴露契约的散文保证在宿主移植时会静默丢失：

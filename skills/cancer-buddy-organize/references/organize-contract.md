@@ -46,6 +46,22 @@ The patient directory contains the source inventory, raw vault, clinical-domain 
 timeline, neutral record summary, review flags, document gaps, update log, and deterministic HTML. All
 artifacts share one patient directory; `patient_code` is a locator, not authentication.
 
+## Artifact profiles
+
+Sidecar weight scales with who consumes it. Two profiles exist; a host declares one and
+records it in each sidecar (`profile:` header).
+
+- **platform** (default): full sidecars — per-field confidence/review-status tables, pixel
+  source spans, `pii_regions` files — consumed by deterministic platform post-processing.
+- **lite** (personal/single-machine hosts, e.g. the Kimi binding): those platform-consumed
+  fields are dropped; nothing else is.
+
+**Red lines — mandatory in every profile, never trimmed:** manifest-assigned `source_id`
+(IDs are deterministic bookkeeping, never model-invented), original hash + `raw/` retention,
+a verbatim report-type declaration (or explicit `unknown` — never inferred), verbatim
+transcription with uncertainty marks (`[unreadable]`/`[uncertain: …]`), PII masking, and
+all three executable gates below. A profile trims output weight, never fidelity or gates.
+
 ## Executable gates (deterministic, host-mandatory)
 
 Prose guarantees in this contract have failed in production when a host skipped or re-implemented them
