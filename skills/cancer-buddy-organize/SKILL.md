@@ -73,17 +73,44 @@ python3 <skill_dir>/scripts/gates/gate_name_content.py "$patient_dir"
 
 violation 的文件改移待归类（不得以错名落盘），unknown 只记录不阻塞。
 
-## Step 4 — 综合（单次调用，只做跨文档工作）
+## Step 4 — 综合（三层：确定性 → 并行提取 → 串行收尾）
 
-派一个 subagent 读 [`references/organizer-prompt-phase2-synthesis.md`](references/organizer-prompt-phase2-synthesis.md)
-及其链接的 schema，对**已归好桶**的档案做综合：`source_inventory.json`（source_id 逐字
-来自 manifest）、`INDEX.md`、`timeline.md/.json`、`case_text.md`、`profile.json`（locale
-从病历主语言检测）、`patient_summary.json`、`labs.json`、`molecular.json`、
-`treatment_lines.json`、`comorbidities.json`、`missing_items.json`、`update_log.json`、
-`review_summary.md`。本步**不改任何文件名、不移动任何文件**——归类命名已在 Step 3 定稿。
-冲突并列保留标 `disputed`，不裁决。
+综合阶段对**已归好桶**的档案工作，任何一层都**不改文件名、不移动文件**——归类命名已在
+Step 3 定稿。冲突并列保留标 `disputed`，不裁决。schema 与字段规则见
+[`references/organizer-prompt-phase2-synthesis.md`](references/organizer-prompt-phase2-synthesis.md)。
 
-## Step 4b — 段D 病情简要总结 HTML（患者可见交付物，不可省略）
+### 4a 确定性件（零 LLM，先跑）
+
+```bash
+python3 <skill_dir>/scripts/build_inventory_index.py "$patient_dir" --run-mode full
+```
+
+生成 `source_inventory.json`（全字段从 manifest+落位推导，source_id 逐字来自 manifest）、
+`INDEX.md` 骨架、`update_log.json` 追加。这些是簿记，不花模型调用。脚本报
+`missing_sidecars` 非空 = 覆盖有洞，先回 Step 1 补齐再继续。
+
+### 4b 并行域提取器（一次全部派出，互不等待）
+
+| worker | 产物 | 喂什么（桶已分好，别多喂） |
+|---|---|---|
+| labs | `labs.json` | 只喂 `07_检验/` 各 sidecar |
+| molecular | `molecular.json` | 只喂 `08_基因与分子/`（缺桶则喂含分子内容的叙事桶） |
+| comorbidities | `comorbidities.json` | 只喂 `03_病程与叙事文书/` |
+| treatment_lines | `treatment_lines.json` | 只喂 `03_病程与叙事文书/` + `04_治疗/` |
+| timeline | `timeline.md` + `timeline.json` | 全档 sidecar（跨文档产物） |
+| case_text | `case_text.md` | 全档 sidecar（跨文档产物） |
+| patient_summary | `patient_summary.json` + `profile.json`（locale 从病历主语言检测） | 全档 sidecar |
+
+每个 worker 独立读 schema 中与自己相关的部分；并行的代价是跨产物小不一致的可能——
+一致性由 4c 审计与 validator 兜底，不靠单体自洽。
+
+### 4c 串行收尾（等 4b 全齐）
+
+`missing_items.json`（对照 checklist 只列文档缺口）→ review_flags 审计 →
+`review_flags.md`（非空时）+ `review_summary.md`（必写）→ INDEX.md 追加叙事注释。
+审计范围包括 4b 产物之间的交叉一致性（如 timeline 与 treatment_lines 的日期冲突）。
+
+### 4d 段D 病情简要总结 HTML（患者可见交付物，不可省略）
 
 按 [`references/case-summary-html-prompt.md`](references/case-summary-html-prompt.md)：
 派一个 subagent 组装 `case_summary_data.json`（只读脱敏 JSON），然后**确定性渲染**——
@@ -101,10 +128,20 @@ violation 的文件改移待归类（不得以错名落盘），unknown 只记�
    `gates/gate_same_test.py`（同检验双载体不出冲突卡）与 `gates/gate_candidate_binding.py`
    （卡上数值未经绑定验证的一律「数值待核对」）。
 3. 产物齐全性（确定性 ls 核对，缺一即未完成）：Step 4 全部 JSON/MD +
-   `case_text.md` + `病情简要总结.html`（带 Step 4b 的 template_sha 凭证）。
+   `case_text.md` + `病情简要总结.html`（带 Step 4d 的 template_sha 凭证）。
 4. 向用户交付：档案位置、各桶清单、待归类/blocked/不确定项数量、review_summary 要点、
    **各步耗时（读 `.run_timing.log`，不凭印象）**。
    **失败也如实报**：哪些没读出来、哪些标了不确定，不藏。
+
+## 中间产物保留（lite 档，与平台策略的刻意差异）
+
+- **`raw/` 原件与 `.staging/` 转码图：永久保留在档案内。** 自动删原件是平台的服务器端
+  隐私策略（不留明文 PII）；个人单机场景是本人设备上本人的数据，保留原件才是对的——
+  将来复读、重归类、换引擎重跑都靠它们。
+- **`ocr/` 不留副本**：sidecar 在 Step 3 是*移动*进桶（内容零丢失，只换位置），归类后
+  ocr/ 应为空并删除。同一份 sidecar 绝不两处存放——双源必漂移。
+- 可选调试快照（默认关）：需要"归类前状态"时，Step 3 移动前
+  `cp -R ocr/ .staging/ocr-snapshot/`，快照只读、不是真相源、不参与任何后续步骤。
 
 ## Role behavior
 
