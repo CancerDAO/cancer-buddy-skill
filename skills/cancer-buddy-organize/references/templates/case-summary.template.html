@@ -324,8 +324,9 @@ table.kv td.k {
   border-radius: 8pt;
   font-weight: 600;
 }
-.tl-badge.pd { background: #fdeeee; color: #c0392b; }
 .tl-badge.pending { background: #fdf3e2; color: #b7791f; }
+.tl-badge.documented { background: #eee8fa; color: #5f4b8b; }
+.tl-badge.disputed { background: #fdeeee; color: #a93226; }
 .tl-body { font-weight: 600; color: #2b2340; font-size: 10pt; }
 .tl-note { font-size: 9pt; color: #574a6e; margin-top: 1pt; }
 /* ===== 当前治疗路径 ===== */
@@ -531,7 +532,7 @@ table.kv td.k {
 </div>
 
 <!-- ============ SECTION 7: 治疗史 (timeline) ============ -->
-<!-- 来源: treatment_lines.json / timeline.json。LOOP lines:已结束/进行中 tl-marker + tl-badge.pd;待启动 tl-marker.pending + tl-badge.pending。 -->
+<!-- 来源: treatment_lines.json / timeline.json。line_badge_class 只允许空/pending/documented/disputed；不得用 badge 编码模型推断疗效。 -->
 <div class="card">
 <h2>{{i18n.sec_treatment}}</h2>
 <div class="timeline">

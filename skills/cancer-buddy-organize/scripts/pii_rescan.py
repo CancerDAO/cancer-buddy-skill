@@ -138,7 +138,14 @@ def scan_sidecar(path: Path) -> list[tuple[int, str, str]]:
         # /FILE_ID/MODALITY (+CONFIDENCE on the SOURCE line; legacy ORIGINAL:). These carry
         # enum/provenance tokens, never PII, so skipping them avoids both noise and any
         # header false-fire (e.g. FILE_ID: a stable source_id that must not trip numeric_id).
-        if line.startswith(("SOURCE:", "ORIGINAL:", "READ_MODE:", "ADAPTER:", "ADAPTER_PROVENANCE:", "CONFIDENCE:", "FILE_ID:", "MODALITY:")):
+        if line.startswith((
+            "SOURCE:", "ORIGINAL:", "READ_MODE:", "ADAPTER:",
+            "ADAPTER_PROVENANCE:", "CONFIDENCE:", "FILE_ID:", "MODALITY:",
+            # organize-lite lower-case provenance. `original:` is required to
+            # contain only the stable source_id; the protected raw_path lives
+            # in phase0_manifest/source_inventory, never in this header.
+            "source_id:", "original:", "read_mode:", "profile:",
+        )):
             continue
         # `## PII` trailer is metadata — stop scanning the body once we hit it
         if re.match(r"^##\s+PII\b", line):
@@ -169,6 +176,7 @@ def scan_sidecar(path: Path) -> list[tuple[int, str, str]]:
 DELIVERED_SURFACES = [
     "INDEX.md",
     "source_inventory.json",
+    "high_risk_review.json",
     ".rename_plan.json",
     ".phase1_sources.json",
     "update_log.json",
@@ -254,8 +262,41 @@ def load_deny_tokens(patient_dir: Path) -> set[str]:
     return tokens
 
 
+def load_system_locators(patient_dir: Path) -> set[str]:
+    """Return archive-generated pseudonymous IDs that are safe shape exceptions.
+
+    The loose numeric-ID backstop must not reject a legitimate ``SRC-`` whose
+    hash prefix happens to contain only digits.  Only values derived from the
+    protected Phase-0 manifest / pinned run state are trusted here; arbitrary
+    tokens found in delivered prose do not gain an exception.
+    """
+    tokens: set[str] = set()
+    if re.fullmatch(r"PT-[A-F0-9]+(?:_\d+)?", patient_dir.name):
+        tokens.add(patient_dir.name)
+    for name in ("phase0_manifest.json", ".organize_run.json"):
+        path = patient_dir / name
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        if name == "phase0_manifest.json" and isinstance(data, dict):
+            for row in data.get("sources", []):
+                if not isinstance(row, dict):
+                    continue
+                for key in ("source_id", "file_id"):
+                    value = row.get(key)
+                    if isinstance(value, str) and value:
+                        tokens.add(value)
+        elif isinstance(data, dict):
+            value = data.get("run_id")
+            if isinstance(value, str) and value:
+                tokens.add(value)
+    return tokens
+
+
 def scan_delivered_file(path: Path, deny_tokens: set[str], apply_filename_name: bool = True,
-                        drop_numeric_id: bool = False) -> list[tuple[int, str, str]]:
+                        drop_numeric_id: bool = False,
+                        system_locators: set[str] | None = None) -> list[tuple[int, str, str]]:
     """Scan a shipped non-sidecar file WHOLE (no header exemption).
 
     apply_filename_name=False skips the CJK-name-in-filename regex for clinical-prose
@@ -275,7 +316,10 @@ def scan_delivered_file(path: Path, deny_tokens: set[str], apply_filename_name: 
     pats = list(_PATH_PII) + (list(_FILENAME_PII) if apply_filename_name else [])
     results: list[tuple[int, str, str]] = []
     for i, line in enumerate(text.splitlines(), start=1):
-        for pii_type, snippet in scan_line(line):
+        shape_line = line
+        for token in sorted(system_locators or (), key=len, reverse=True):
+            shape_line = shape_line.replace(token, "[SYSTEM_LOCATOR]")
+        for pii_type, snippet in scan_line(shape_line):
             if drop_numeric_id and pii_type == "numeric_id":
                 continue
             results.append((i, pii_type, snippet))
@@ -293,6 +337,7 @@ def scan_delivered_surfaces(patient_dir: Path, deny_tokens: set[str] | None = No
     synthesized surface (whole-file shape/path/account/deny-list scan)."""
     if deny_tokens is None:
         deny_tokens = load_deny_tokens(patient_dir)
+    system_locators = load_system_locators(patient_dir)
     out: dict[str, list[tuple[int, str, str]]] = {}
     for name in DELIVERED_SURFACES + SYNTHESIZED_SURFACES:
         p = patient_dir / name
@@ -305,6 +350,7 @@ def scan_delivered_surfaces(patient_dir: Path, deny_tokens: set[str] | None = No
                 # timestamps (微信图片_<14位>.jpg) that would else false-fire and fail-close the gate.
                 # Structured delivered surfaces (INDEX/source_inventory/dotfiles/update_log) keep it.
                 drop_numeric_id=name in _CLINICAL_PROSE_SURFACES,
+                system_locators=system_locators,
             )
             if findings:
                 out[name] = findings

@@ -12,9 +12,10 @@ There are two anchor kinds:
 ## 1. Syntax
 
 ```
-[[src:<bucket-relative-path>]]
-[[src:<bucket-relative-path>#<fragment>]]
-[[src:conversation:<ISO8601>]]
+JSON:     "<bucket-relative-path>"                 # whole-sidecar ref is allowed
+JSON:     "<bucket-relative-path>#<fragment>"
+Markdown: [[src:<bucket-relative-path>#<fragment>]] # fragment is mandatory
+Either:   conversation:<ISO8601>                    # no filesystem fragment
 ```
 
 ### 1a. File anchor
@@ -22,11 +23,19 @@ There are two anchor kinds:
 - `<bucket-relative-path>` is a path to a `.md` sidecar **relative to `<patient_dir>`**, beginning with one of the clinical-domain prefixes (`01_…` … `14_…`; infra `raw/`/`99_` are never anchored), e.g. `04_诊断与分期/病理报告/2024-03-15_病理报告_x.md`.
 - The legacy `ocr/` prefix is **deprecated and rejected** — the central `ocr/` staging dir is a live transient dir during a run and is deleted by Phase-2 (so it no longer exists at anchor-write time); final MD sidecars live only inside their bucket alongside the image they were extracted from.
 - The historical `02_脱敏病历/` prefix is likewise retired in favor of bucket-relative paths.
-- `<fragment>` is optional. Two forms accepted:
+- `<fragment>` is optional only in structured JSON. A file reference in formal
+  Markdown (`timeline.md`, `case_text.md`, `review_summary.md`, `review_flags.md`)
+  **must** include it so a factual line points to a source span/section rather than
+  vaguely citing an entire document. Two forms are accepted:
   - **Line range**: `#L<start>` or `#L<start>-L<end>` — points to verbatim lines in the markdown file.
   - **Section anchor**: `#<slug>` where `<slug>` matches `[A-Za-z0-9_-]+` — points to a `## <Heading>` in the file (slug = lowercase, spaces → `-`).
 - Paths are case-sensitive and use `/` separators (never `\`).
 - No whitespace allowed inside the anchor.
+- Paths use a portable safe subset: absolute paths, `.` / `..` segments,
+  backslashes, drive/colon forms, Windows-forbidden/reserved segments, trailing
+  spaces/dots, and symlink resolution outside `<patient_dir>` are rejected. The
+  first segment must be a clinical bucket `01_…14_`; `raw/`, `ocr/`, and `99_…`
+  are not source-ref targets.
 
 ### 1b. Conversation anchor
 
@@ -56,9 +65,11 @@ Validity is checked per anchor kind.
 
 **File anchors** — before writing a file with file anchors, the synthesis worker MUST:
 
-1. Resolve every file anchor's bucket-relative path to an absolute filesystem path (`<patient_dir>/<bucket-relative-path>`).
-2. Verify the target `.md` sidecar exists inside its bucket. If it does not, the entire write is rejected and the missing path is logged into `readiness.json.warnings` as `"anchor_dangling: <path>"`. A path still using the deprecated `ocr/` prefix is treated as dangling.
-3. (Optional but recommended) For `#L<a>-L<b>` fragments, verify `<a>` and `<b>` are within the target file's line count; clamp or reject if out of range.
+1. Reject absolute/drive paths, backslashes, `.` / `..`, non-clinical bucket prefixes,
+   and any resolved/symlink target outside `<patient_dir>`.
+2. Resolve every safe file anchor's bucket-relative path to an absolute filesystem path (`<patient_dir>/<bucket-relative-path>`).
+3. Verify the target `.md` sidecar exists inside its bucket. If it does not, the entire write is rejected and the missing path is logged into `readiness.json.warnings` as `"anchor_dangling: <path>"`. A path still using the deprecated `ocr/` prefix is treated as dangling.
+4. (Optional but recommended) For `#L<a>-L<b>` fragments, verify `<a>` and `<b>` are within the target file's line count; clamp or reject if out of range.
 
 **Conversation anchors** — no filesystem path to resolve. Validity also requires an explicit provenance layer and actor. They can support patient/caregiver-reported fields only, not clinician/source clinical truth.
 
@@ -69,17 +80,25 @@ In `patient_summary.json`, `timeline.json`, `molecular.json`, `treatment_lines.j
 - Anchors live in `source_refs: [...]` arrays.
 
 > **`longitudinal_observations.json` exception**: this file carries a **singular** `source_ref: "<anchor>"` string per `observations[]` entry (not a plural `source_refs[]` array). The anchor string itself follows the same regex below; only the field name/cardinality differs. The acceptance gate (`validate_structured_outputs.py` `collect_source_refs`) validates both the plural `source_refs[]` and the singular `source_ref` forms.
-- Each entry is the **path-only** (file anchor) or **`conversation:<ISO8601>`** (conversation anchor) string, with no surrounding `[[src:` / `]]`.
-- For file anchors the fragment is preserved: `"04_诊断与分期/病理报告/2024-03-15_病理报告_x.md#L22-L29"` is valid.
+- Each entry is a **path-only or path+fragment** file anchor, or a
+  **`conversation:<ISO8601>`** conversation anchor, with no surrounding
+  `[[src:` / `]]`. Path-only JSON refs are intentionally valid.
+- When the JSON producer has a precise span, preserve it:
+  `"04_诊断与分期/病理报告/2024-03-15_病理报告_x.md#L22-L29"`.
 - For conversation anchors: `"conversation:2026-06-07T14:32:05Z"` is valid.
 
-Schemas in [`*.schema.json`](README.md) enforce this via the regex:
+`validate_structured_outputs.py` enforces the portable path structure,
+containment and target existence mechanically. Its lexical file-reference shape is:
 
 ```
-^(([0-9]{2}_[^\s/]+(/[^\s/]+)*\.md(#L\d+(-L\d+)?|#[A-Za-z0-9_-]+)?)|(conversation:\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})?))$
+^(?:0[1-9]|1[0-4])_[^\s/\\:]+(?:/[^\s/\\:]+)*\.md(?:#L\d+(?:-L\d+)?|#[A-Za-z0-9_-]+)?$
 ```
 
-The first alternative matches a bucket-relative `.md` path (leading `NN_` bucket segment, optional `#fragment`); the second matches a `conversation:<ISO8601>` reference. The legacy `^(ocr/|02_脱敏病历/)…` pattern is retired.
+Conversation refs are checked separately as `conversation:<ISO8601>`. Regex alone
+cannot prove containment, so the validator also rejects dot segments and requires
+the resolved target to remain inside `<patient_dir>` and exist. For Markdown file
+tokens the optional fragment group above becomes mandatory. The legacy
+`ocr/`, `02_脱敏病历/`, and quarantine `99_…` prefixes are rejected.
 
 ## 5. Why this matters
 

@@ -68,7 +68,7 @@ Format: `PT-<hex>`, e.g. synthetic `PT-A1B2C3D4E5`.
     "bmi": 27.7,
     "provenance_layer": "patient_reported",
     "verification_status": "unverified",
-    "source_refs": ["conversation:2024-07-05"]
+    "source_refs": ["conversation:2024-07-05T10:30:00Z"]
   },
   "summary": {
     "one_line_condition": "来源记录：乙状结肠腺癌；分期原文 pT3N1b；有 FOLFOX 治疗记录",
@@ -109,7 +109,7 @@ Block-by-block contract:
 - `anthropometrics` (optional): `height_cm` / `weight_kg` / `bmi` plus provenance, verification and `source_refs[]`. Null block when no body metrics are known.
 - `summary` (required): a denormalized source-preserving snapshot. Each clinical block carries `provenance_layer` (`source_reported|patient_reported|caregiver_reported|system_normalized`), `verification_status` (`unverified|clinician_verified|disputed`), and `source_refs[]`. Patient confirmation never promotes a value to `clinician_verified`.
 - `latest_status` (required): current treatment state copied from sources. `response` and `ecog` remain `null` unless a clinician-authored source explicitly states them. Do not infer either from lesion measurements, symptoms, or function descriptions.
-- `source_refs` (top-level, required): bucket-relative paths to the text-masked MD sidecars that back this profile. **Every clinical block** (`anthropometrics`, `summary`-derived facts via the top-level list, `latest_status`) carries its own `source_refs[]` so each fact is traceable.
+- `source_refs` (top-level, required): safe `01_…14_` bucket-relative paths to existing text-masked MD sidecars, or `conversation:<ISO8601>` for confirmed patient/caregiver statements. JSON refs may be path-only or carry a `#fragment`; formal Markdown facts require a fragment. Absolute paths, backslashes, `.`/`..`, `raw/`, `ocr/`, `99_…`, and dangling targets are invalid. **Every clinical block** (`anthropometrics`, `summary`-derived facts via the top-level list, `latest_status`) carries its own `source_refs[]` so each fact is traceable.
 
 Fields are left `null` when truly unknown — the organizer **never fabricates**.
 

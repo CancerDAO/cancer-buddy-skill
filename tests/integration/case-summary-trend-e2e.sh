@@ -69,7 +69,7 @@ cat > "$tmp/A.json" <<EOF
  "molecular_rows":[{"molecular_label":"驱动突变","molecular_value":"KRAS G12D (VAF 32%)"},{"molecular_label":"免疫表型","molecular_value":"MSS / pMMR"}],
  "treatment_lines":[{"line_label":"治疗记录 1","line_marker_class":"","line_date_range":"2025-10 → 2026-01","line_badge_class":"","line_badge_text":null,"line_regimen":"XELOX","line_note":"来源未记录标准化疗效分类"},
    {"line_label":"治疗记录 2","line_marker_class":"","line_date_range":"2026-02 → 至今","line_badge_class":"","line_badge_text":null,"line_regimen":"FOLFIRI + 贝伐珠单抗","line_note":"来源未记录标准化疗效分类"}],
- "caveats":[{"caveat_text":"化验趋势数值来自照片 OCR，请以检验原件核对"}]}
+ "provenance":[],"caveats":[{"caveat_text":"化验趋势数值来自照片 OCR，请以检验原件核对"}]}
 EOF
 cat > "$tmp/A_prev.json" <<EOF
 {"report_date":"2026-04-30","lab_trends":[{"lab_name":"CEA","current_value":"4.3"},{"lab_name":"HGB","current_value":"118"}],"treatment_lines":[{"line_label":"一线","line_regimen":"XELOX"}],"ecog":"1"}
@@ -107,7 +107,7 @@ cat > "$tmp/B.json" <<EOF
  "lesions":[{"lesion_site":"原发灶","lesion_detail":"右上肺占位"}],
  "molecular_rows":[{"molecular_label":"驱动突变","molecular_value":"EGFR 19del"}],
  "treatment_lines":[{"line_label":"治疗记录 1","line_marker_class":"","line_date_range":"2026-03 → 至今","line_badge_class":"","line_badge_text":null,"line_regimen":"奥希替尼","line_note":"来源未记录标准化疗效分类"}],
- "caveats":[]}
+ "provenance":[],"caveats":[]}
 EOF
 # NSE is intentionally ONLY in labs.json (panels[]) — not in longitudinal — so the
 # gate must find it via the real labs shape or it would false-reject and fail-close.
@@ -135,7 +135,7 @@ cat > "$tmp/C.json" <<EOF
  "case_summary_narrative":"新诊断胃癌，尚在完善检查。",
  "labs_period":"资料缺失",
  "trend_charts":[],"lab_trends":[],
- "lesions":[],"molecular_rows":[],"treatment_lines":[],"caveats":[]}
+ "lesions":[],"molecular_rows":[],"treatment_lines":[],"provenance":[],"caveats":[]}
 EOF
 htmlC=$(run_case C "$tmp/C.json" "" "" "") || true
 if [ -n "${htmlC:-}" ] && [ -f "${htmlC:-/nope}" ]; then
@@ -153,7 +153,7 @@ cat > "$tmp/D.json" <<EOF
    {"metric":"CA125","unit":"U/mL","series":[{"t":"2025-12-01","v":420},{"t":"2026-03-01","v":180},{"t":"2026-06-01","v":66}],"treatment_markers":[{"t":"2025-12-15","label":"治疗记录：PLD"}],"interpretation":null},
    {"metric":"HE4","unit":"pmol/L","series":[{"t":"2025-12-01","v":320},{"t":"2026-06-01","v":140}],"treatment_markers":[],"interpretation":null}],
  "lab_trends":[{"lab_name":"CA125","series":[{"t":"2025-12-01","v":420},{"t":"2026-06-01","v":66}],"current_value":"66","unit":"U/mL","status_class":"","status_label":"报告原文：H"}],
- "lesions":[],"molecular_rows":[],"treatment_lines":[],"caveats":[]}
+ "lesions":[],"molecular_rows":[],"treatment_lines":[],"provenance":[],"caveats":[]}
 EOF
 cat > "$tmp/D_long.json" <<EOF
 {"schema_version":"longitudinal_observations_v1","patient_code":"PT-D","observations":[
@@ -182,7 +182,7 @@ cat > "$tmp/E.json" <<EOF
    {"metric":"CEA","unit":"ng/mL","series":[{"t":"2025-11-01","v":9.1},{"t":"2026-06-01","v":5.4}],"treatment_markers":[],"interpretation":null},
    {"metric":"LDH","unit":"U/L","series":[{"t":"2025-11-01","v":420},{"t":"2026-02-01","v":300},{"t":"2026-06-01","v":250}],"treatment_markers":[],"interpretation":null}],
  "lab_trends":[{"lab_name":"CA-125","series":[{"t":"2025-11-01","v":880},{"t":"2026-06-01","v":150}],"current_value":"150","unit":"U/mL","status_class":"","status_label":"报告原文：H"}],
- "lesions":[],"molecular_rows":[],"treatment_lines":[],"caveats":[]}
+ "lesions":[],"molecular_rows":[],"treatment_lines":[],"provenance":[],"caveats":[]}
 EOF
 cat > "$tmp/E_long.json" <<EOF
 {"schema_version":"longitudinal_observations_v1","patient_code":"PT-E","observations":[

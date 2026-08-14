@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
-"""Total acceptance gate for a finished organize run.
+"""Form validator for in-progress artifacts and finished organize-lite runs.
 
-This script is the single deterministic form gate the orchestrator runs after Phase 2 (and
-after 段D HTML generation) to decide "is this patient_dir actually done?". It does
+The default mode validates every artifact currently present while tolerating outputs
+that later phases have not produced yet. The orchestrator/exporter invokes the same
+script with --require-complete at the final boundary to decide "is this patient_dir
+actually done?". It does
 NOT make any medical or content judgement — every check here is a *form/безопасность*
 invariant that is fixed regardless of which patient was processed. The LLM still
 owns ingestion / narrative / classification; this gate only verifies the deterministic
@@ -17,8 +19,9 @@ Gate sections (each contributes to one aggregated exit code):
       longitudinal_observations when the patient has timeseries/trended data),
       validate against references/schemas/<name>.schema.json (Draft 2020-12 via
       jsonschema>=4.18, with a lighter fallback when jsonschema is absent) and
-      verify every source_refs[] / source_ref anchor resolves to an existing
-      markdown file. A file that is absent is skipped (longitudinal is optional).
+      verify every source_refs[] / source_ref anchor (including profile.json)
+      resolves safely to an existing markdown file. A file that is absent is
+      skipped (longitudinal is conditional).
 
   [2] PII residue rescan — Layer 2 (pii_rescan.py, deterministic SHAPE floor):
       Independently re-scan every text-masked MD sidecar, the delivered
@@ -42,7 +45,7 @@ Gate sections (each contributes to one aggregated exit code):
       abnormal flag or compares a patient value with a clinical threshold.
 
   [3] Source inventory:
-      source_inventory.json MUST exist and every content unit must have a
+      When source_inventory.json is present, every content unit must have a
       text-masked MD sidecar plus a raw_path back to its verbatim original in raw/.
       Organization preserves source bytes under host access control; retention and
       sharing are governed separately. There is no image-level source-redaction gate. Sources
@@ -68,25 +71,32 @@ Gate sections (each contributes to one aggregated exit code):
       template_sha provenance proving it was machine-rendered (not hand-written).
 
 Usage:
+    # Validate every artifact that is currently present. Missing artifacts are OK.
     python3 scripts/validate_structured_outputs.py <patient_dir>
 
+    # Final full-run gate. The lite profile's required/conditional artifact set
+    # must be complete in addition to every normal validation below.
+    python3 scripts/validate_structured_outputs.py --require-complete <patient_dir>
+
 Exit codes:
-    0  — all present artifacts pass every gate (missing optional artifacts are OK)
+    0  — all present artifacts pass; with --require-complete, the full lite set exists
     1  — at least one gate failure
     2  — bad invocation
 """
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import re
 import subprocess
 import sys
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SCRIPT_DIR = Path(__file__).resolve().parent
 SCHEMA_DIR = REPO_ROOT / "references" / "schemas"
+BUCKET_TAXONOMY_JSON = REPO_ROOT / "references" / "bucket_taxonomy.json"
 CASE_SUMMARY_TEMPLATE = REPO_ROOT / "references" / "templates" / "case-summary.template.html"
 # The case-summary deliverable keeps a single, language-INDEPENDENT filename across
 # all locales — only the scaffold *inside* the HTML localizes (SKILL.md §i18n,
@@ -99,6 +109,36 @@ CASE_SUMMARY_DATA_NAME = ".case_summary_data.json"
 SOURCE_INVENTORY_NAME = "source_inventory.json"
 FORMAL_MARKDOWN_FILES = ("timeline.md", "case_text.md", "review_summary.md", "review_flags.md")
 _MTIME_EPS = 1e-9
+
+# The Kimi organize-lite full-run output set. Keep this list aligned with the
+# concrete producers in SKILL.md Step 4/5. Intermediate validation remains
+# missing-tolerant; only --require-complete enforces this set.
+LITE_REQUIRED_ARTIFACTS = (
+    "profile.json",
+    "patient_summary.json",
+    "molecular.json",
+    "treatment_lines.json",
+    "labs.json",
+    "comorbidities.json",
+    "timeline.json",
+    "timeline.md",
+    "readiness.json",
+    SOURCE_INVENTORY_NAME,
+    "missing_items.json",
+    "high_risk_review.json",
+    "update_log.json",
+    "case_text.md",
+    "INDEX.md",
+    "review_summary.md",
+    "AGENTS.md",
+    CASE_SUMMARY_DATA_NAME,
+    CASE_SUMMARY_HTML_NAME,
+    # The simple semantic-PII protocol keeps one receipt for the first scan and
+    # one receipt proving the final, corrected bytes were re-scanned clean. Both
+    # remain in this run; there is no cross-run/generation lineage runtime.
+    ".semantic_pii_review.phase1.json",
+    ".semantic_pii_review.json",
+)
 
 # Make sibling gate modules importable (pii_rescan / validate_case_summary_html).
 if str(SCRIPT_DIR) not in sys.path:
@@ -118,12 +158,40 @@ STRUCTURED_FILES = {
     "longitudinal_observations.json": "longitudinal_observations.schema.json",
     "missing_items.json": "missing_items.schema.json",
     "readiness.json": "readiness.schema.json",
+    "high_risk_review.json": "high_risk_review.schema.json",
+}
+SOURCE_REF_ONLY_JSON_FILES = ("profile.json",)
+
+# JSON references may be path-only. Markdown file references are stronger: a
+# factual line must point to a source span/section, so its [[src:...]] token must
+# carry a fragment. Both forms are checked by validate_source_ref().
+CONVERSATION_REF_RE = re.compile(
+    r"^conversation:\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?$"
+)
+SOURCE_FRAGMENT_RE = re.compile(r"^(?:L\d+(?:-L\d+)?|[A-Za-z0-9_-]+)$")
+CLINICAL_BUCKET_RE = re.compile(r"^(?:0[1-9]|1[0-4])_[^\s/\\:]+$")
+MD_SRC_RE = re.compile(r"\[\[src:([^\]]+)\]\]")
+WINDOWS_RESERVED_NAMES = {
+    "CON", "PRN", "AUX", "NUL",
+    *(f"COM{i}" for i in range(1, 10)),
+    *(f"LPT{i}" for i in range(1, 10)),
 }
 
-ANCHOR_RE = re.compile(
-    r"^(([0-9]{2}_[^\s/]+(/[^\s/]+)*\.md(#L\d+(-L\d+)?|#[A-Za-z0-9_-]+)?)|(conversation:\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})?))$"
-)
-MD_SRC_RE = re.compile(r"\[\[src:([^\]]+)\]\]")
+
+def _load_source_ref_bucket_slugs() -> frozenset[str]:
+    try:
+        taxonomy = json.loads(BUCKET_TAXONOMY_JSON.read_text(encoding="utf-8"))
+        return frozenset(
+            slug
+            for domain in taxonomy.get("domains", [])
+            for slug in (domain.get("zh"), domain.get("en"))
+            if isinstance(slug, str)
+        )
+    except (OSError, json.JSONDecodeError):
+        return frozenset()
+
+
+SOURCE_REF_BUCKET_SLUGS = _load_source_ref_bucket_slugs()
 
 try:
     from jsonschema import Draft202012Validator  # type: ignore
@@ -134,7 +202,7 @@ except ImportError:
 
 
 # --------------------------------------------------------------------------- #
-# [1] structured JSON schema + anchor (ORIGINAL behavior, preserved verbatim)
+# [1] structured JSON schema + portable source-reference validation
 # --------------------------------------------------------------------------- #
 def collect_source_refs(obj, path="$"):
     """Yield (jsonpath, anchor) tuples for every source_refs / source_ref entry in `obj`.
@@ -144,10 +212,13 @@ def collect_source_refs(obj, path="$"):
     per observation. Both are collected so their anchors are validated."""
     if isinstance(obj, dict):
         for k, v in obj.items():
-            if k == "source_refs" and isinstance(v, list):
-                for i, ref in enumerate(v):
-                    yield f"{path}.source_refs[{i}]", ref
-            elif k == "source_ref" and isinstance(v, str):
+            if k == "source_refs":
+                if isinstance(v, list):
+                    for i, ref in enumerate(v):
+                        yield f"{path}.source_refs[{i}]", ref
+                else:
+                    yield f"{path}.source_refs", v
+            elif k == "source_ref":
                 yield f"{path}.source_ref", v
             yield from collect_source_refs(v, f"{path}.{k}")
     elif isinstance(obj, list):
@@ -155,24 +226,195 @@ def collect_source_refs(obj, path="$"):
             yield from collect_source_refs(item, f"{path}[{i}]")
 
 
+def _resolve_source_sidecar(patient_dir: Path, path_part: str) -> tuple[Path | None, str | None]:
+    """Resolve a source-ref path without allowing platform-specific escapes.
+
+    Source refs are a portable POSIX contract even on Windows. Rejecting
+    backslashes, dot segments and colons before touching pathlib prevents
+    `..`, drive-relative and separator-confusion paths from being accepted on
+    one host and escaping on another.
+    """
+    if not path_part or "\\" in path_part or ":" in path_part:
+        return None, "must use a safe POSIX bucket-relative path"
+    raw_parts = path_part.split("/")
+    if any(part in ("", ".", "..") for part in raw_parts):
+        return None, "must not contain empty, '.' or '..' path segments"
+    for part in raw_parts:
+        if (
+            any(ord(ch) < 32 or ch in '<>"|?*' for ch in part)
+            or part.endswith((" ", "."))
+            or part.split(".", 1)[0].upper() in WINDOWS_RESERVED_NAMES
+        ):
+            return None, f"contains a non-portable path segment: {part!r}"
+    pure = PurePosixPath(path_part)
+    if pure.is_absolute() or len(pure.parts) < 2:
+        return None, "must be relative and include a bucket plus sidecar filename"
+    if not CLINICAL_BUCKET_RE.fullmatch(pure.parts[0]):
+        return None, "must start in a clinical-domain bucket 01_..14_"
+    if pure.parts[0] not in SOURCE_REF_BUCKET_SLUGS:
+        return None, "must start with a pinned clinical-domain bucket slug"
+    if pure.suffix != ".md":
+        return None, "must target a .md sidecar"
+
+    root = patient_dir.resolve()
+    candidate = root.joinpath(*pure.parts)
+    try:
+        resolved = candidate.resolve(strict=True)
+    except (OSError, RuntimeError):
+        return None, f"file not found: {path_part}"
+    try:
+        resolved.relative_to(root)
+    except ValueError:
+        return None, "resolved path escapes the patient directory"
+    if not resolved.is_file():
+        return None, f"file not found: {path_part}"
+    return resolved, None
+
+
+def validate_source_ref(
+    patient_dir: Path,
+    ref,
+    *,
+    require_fragment: bool,
+) -> str | None:
+    """Return an error detail for an invalid source ref, otherwise None.
+
+    JSON `source_ref(s)` callers set require_fragment=False and may cite a
+    whole sidecar. Markdown callers set it to True because a patient-visible
+    factual line must resolve to a source span/section, not merely a document.
+    Conversation refs have no filesystem fragment by contract.
+    """
+    if not isinstance(ref, str):
+        return f"is not a string: {ref!r}"
+    if not ref or ref != ref.strip() or any(ch.isspace() for ch in ref):
+        return f"contains whitespace or is empty: {ref!r}"
+    if CONVERSATION_REF_RE.fullmatch(ref):
+        return None
+    if ref.startswith("conversation:"):
+        return f"has invalid conversation timestamp syntax: {ref!r}"
+
+    if ref.count("#") > 1:
+        return f"contains more than one fragment separator: {ref!r}"
+    path_part, separator, fragment = ref.partition("#")
+    if require_fragment and not separator:
+        return f"Markdown file reference requires a #Lx[-Ly] or #section fragment: {ref!r}"
+    if separator and not SOURCE_FRAGMENT_RE.fullmatch(fragment):
+        return f"has invalid source fragment: {ref!r}"
+
+    _target, path_error = _resolve_source_sidecar(patient_dir, path_part)
+    return path_error
+
+
 def validate_anchors(patient_dir: Path, data, fname: str, errors: list):
     for jpath, ref in collect_source_refs(data):
-        if not isinstance(ref, str):
-            errors.append(f"{fname}: {jpath} is not a string: {ref!r}")
+        detail = validate_source_ref(patient_dir, ref, require_fragment=False)
+        if detail:
+            errors.append(f"{fname}: {jpath} invalid source ref — {detail}")
+
+
+def gate_case_summary_provenance(data, errors: list) -> None:
+    """Require a source row for every populated clinical render field.
+
+    The renderer intentionally ignores ``provenance``.  Without this small
+    cross-field gate, a model could emit schema-valid clinical values while
+    omitting the entire source side table and still pass HTML validation.
+    """
+    if not isinstance(data, dict):
+        return
+    rows = data.get("provenance")
+    if not isinstance(rows, list):
+        return  # JSON Schema reports the shape/required error.
+    present = {
+        row.get("field")
+        for row in rows
+        if isinstance(row, dict) and isinstance(row.get("field"), str)
+    }
+    required: list[str] = []
+    for field in (
+        "one_line_condition", "stage", "sex", "age", "height_weight_bmi",
+        "ecog", "case_summary_narrative", "labs_period",
+    ):
+        value = data.get(field)
+        if value is not None and value != "":
+            required.append(field)
+    for field in ("lesions", "molecular_rows", "trend_charts", "lab_trends", "treatment_lines"):
+        values = data.get(field)
+        if isinstance(values, list):
+            required.extend(f"{field}[{index}]" for index in range(len(values)))
+    missing = [field for field in required if field not in present]
+    if missing:
+        errors.append(
+            f"{CASE_SUMMARY_DATA_NAME}: populated clinical fields lack provenance: "
+            + ", ".join(missing)
+        )
+
+
+def gate_patient_summary_provenance(data, errors: list) -> None:
+    """Allow empty unknown groups, but never populated facts with zero refs."""
+    if not isinstance(data, dict):
+        return
+    clinical_fields = {
+        "demographics": (
+            "sex", "sex_normalized", "age", "age_observations", "birth_year",
+            "height_cm", "weight_kg", "ecog", "function_description",
+        ),
+        "diagnosis": (
+            "primary", "histology", "icd10", "diagnosed_at", "stage", "metastasis_sites",
+        ),
+        "current_status": ("regimen", "response", "ecog", "as_of"),
+    }
+
+    def populated(value) -> bool:
+        if value is None or value == "":
+            return False
+        if isinstance(value, (list, dict)):
+            return bool(value)
+        return True
+
+    for group_name, fields in clinical_fields.items():
+        group = data.get(group_name)
+        if not isinstance(group, dict):
             continue
-        if not ANCHOR_RE.match(ref):
+        if not any(populated(group.get(field)) for field in fields):
+            continue
+        refs = group.get("source_refs")
+        if not isinstance(refs, list) or not refs:
             errors.append(
-                f"{fname}: {jpath} does not match anchor regex: {ref!r}"
+                f"patient_summary.json: populated {group_name} has no source_refs"
             )
+
+
+def gate_markdown_source_refs(patient_dir: Path, errors: list) -> None:
+    """Validate every explicit source token in formal Markdown artifacts.
+
+    This gate deliberately does not guess whether arbitrary prose is factual.
+    The authoring contract requires every factual sentence to carry a token;
+    once a token is emitted, this deterministic floor makes its fragment,
+    relative-path safety and target existence mechanically enforceable.
+    """
+    for fname in FORMAL_MARKDOWN_FILES:
+        path = patient_dir / fname
+        if not path.is_file():
             continue
-        if ref.startswith("conversation:"):
+        try:
+            lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+        except OSError as exc:
+            errors.append(f"{fname}: unreadable Markdown: {exc}")
             continue
-        # Resolve and check existence (strip any #fragment)
-        rel = ref.split("#", 1)[0]
-        target = patient_dir / rel
-        if not target.is_file():
+        token_count = 0
+        for line_no, line in enumerate(lines, start=1):
+            matches = list(MD_SRC_RE.finditer(line))
+            token_count += len(matches)
+            if "[[src:" in MD_SRC_RE.sub("", line):
+                errors.append(f"{fname}: L{line_no} has malformed [[src:...]] token")
+            for match in matches:
+                ref = match.group(1)
+                detail = validate_source_ref(patient_dir, ref, require_fragment=True)
+                if detail:
+                    errors.append(f"{fname}: L{line_no} invalid source ref — {detail}")
+        if any(line.strip() for line in lines) and token_count == 0:
             errors.append(
-                f"{fname}: {jpath} dangling anchor — file not found: {rel}"
+                f"{fname}: non-empty formal Markdown has no [[src:path#fragment]] token"
             )
 
 
@@ -202,15 +444,24 @@ def validate_one(patient_dir: Path, fname: str, schema_name: str, errors: list):
         except Exception as e:
             errors.append(f"{fname}: schema load failed for {schema_name}: {e}")
     else:
-        # Light fallback: top-level required keys
+        # Light fallback: use this document's own top-level required keys. It
+        # must not assume every schema is a patient_code/schema_version domain
+        # artifact (e.g. high_risk_review has schema/sources instead).
         if not isinstance(data, dict):
             errors.append(f"{fname}: root must be object, got {type(data).__name__}")
             return
-        for k in ("patient_code", "schema_version"):
-            if k not in data:
-                errors.append(f"{fname}: missing required top-level field {k}")
+        try:
+            schema = json.loads((SCHEMA_DIR / schema_name).read_text(encoding="utf-8"))
+        except Exception as exc:
+            errors.append(f"{fname}: schema load failed for {schema_name}: {exc}")
+        else:
+            for key in schema.get("required", []):
+                if key not in data:
+                    errors.append(f"{fname}: missing required top-level field {key}")
 
     validate_anchors(patient_dir, data, fname, errors)
+    if fname == "patient_summary.json":
+        gate_patient_summary_provenance(data, errors)
 
 
 def validate_doc_schema(fname: str, data, schema_name: str, errors: list) -> None:
@@ -234,6 +485,16 @@ def validate_doc_schema(fname: str, data, schema_name: str, errors: list) -> Non
 def gate_structured(patient_dir: Path, errors: list) -> None:
     for fname, schema_name in STRUCTURED_FILES.items():
         validate_one(patient_dir, fname, schema_name, errors)
+    for fname in SOURCE_REF_ONLY_JSON_FILES:
+        path = patient_dir / fname
+        if not path.is_file():
+            continue
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except Exception as exc:
+            errors.append(f"{fname}: not parseable JSON: {exc}")
+            continue
+        validate_anchors(patient_dir, data, fname, errors)
 
 
 # --------------------------------------------------------------------------- #
@@ -340,7 +601,6 @@ def gate_numeric_integrity(patient_dir: Path, errors: list) -> None:
 def _read_json_file(patient_dir: Path, fname: str, errors: list):
     path = patient_dir / fname
     if not path.is_file():
-        errors.append(f"{fname}: missing — final archive requires source inventory")
         return None
     try:
         return json.loads(path.read_text(encoding="utf-8"))
@@ -379,7 +639,7 @@ def _anchor_sidecar_path(ref: str) -> str | None:
 def collect_formal_source_ref_paths(patient_dir: Path) -> set[str]:
     """Return bucket-relative sidecar paths cited by formal patient artifacts."""
     refs: set[str] = set()
-    for fname in STRUCTURED_FILES:
+    for fname in (*STRUCTURED_FILES, *SOURCE_REF_ONLY_JSON_FILES):
         path = patient_dir / fname
         if not path.is_file():
             continue
@@ -409,6 +669,8 @@ def collect_formal_source_ref_paths(patient_dir: Path) -> set[str]:
 
 
 def gate_source_inventory(patient_dir: Path, errors: list) -> None:
+    # Default validation is intentionally missing-tolerant so workers can check
+    # their own outputs during a run. --require-complete owns final presence.
     inventory = _read_json_file(patient_dir, SOURCE_INVENTORY_NAME, errors)
     if inventory is None:
         return
@@ -435,8 +697,17 @@ def gate_source_inventory(patient_dir: Path, errors: list) -> None:
         if not isinstance(raw, str) or not raw.startswith("raw/"):
             errors.append(f"{SOURCE_INVENTORY_NAME}: {sid}: raw_path must point under raw/")
 
+        if isinstance(raw, str) and raw.startswith("raw/") and not (patient_dir / raw).is_file():
+            errors.append(f"{SOURCE_INVENTORY_NAME}: {sid}: raw_path not found: {raw}")
+
         sidecar = entry.get("sidecar_path")
-        if not isinstance(sidecar, str) or not sidecar.endswith(".md"):
+        blocked = entry.get("read_mode") == "stub_unreadable"
+        if blocked:
+            if sidecar is not None or entry.get("bucket_path") is not None:
+                errors.append(
+                    f"{SOURCE_INVENTORY_NAME}: {sid}: stub_unreadable must have null sidecar/bucket"
+                )
+        elif not isinstance(sidecar, str) or not sidecar.endswith(".md"):
             errors.append(f"{SOURCE_INVENTORY_NAME}: {sid}: sidecar_path must point to a .md sidecar")
         else:
             if sidecar.startswith("ocr/"):
@@ -487,7 +758,6 @@ def gate_source_inventory(patient_dir: Path, errors: list) -> None:
 # pinned slug from bucket_taxonomy.json (zh OR en form). Any non-pinned dir is a
 # violation printed with the pinned slug that WAS expected for its NN prefix.
 # --------------------------------------------------------------------------- #
-BUCKET_TAXONOMY_JSON = REPO_ROOT / "references" / "bucket_taxonomy.json"
 _DOMAIN_DIR_RE = re.compile(r"^\d{2}_")
 
 
@@ -698,6 +968,13 @@ def gate_case_summary_html(patient_dir: Path, errors: list) -> None:
                 "case_summary_data.schema.json",
                 errors,
             )
+            validate_anchors(
+                patient_dir,
+                render_data,
+                CASE_SUMMARY_DATA_NAME,
+                errors,
+            )
+            gate_case_summary_provenance(render_data, errors)
 
     html_path = patient_dir / CASE_SUMMARY_HTML_NAME
     if not html_path.is_file():
@@ -739,7 +1016,8 @@ def gate_agents_md(patient_dir: Path, errors: list) -> None:
     """
     agents_md = patient_dir / "AGENTS.md"
     if not agents_md.exists():
-        errors.append("AGENTS.md missing — run Step 13 (scripts/fill_agents_md.py)")
+        # Missing is allowed in the default, in-progress validation mode. The
+        # explicit --require-complete gate requires the final artifact.
         return
     checker = SCRIPT_DIR / "fill_agents_md.py"
     if not checker.exists():
@@ -753,6 +1031,96 @@ def gate_agents_md(patient_dir: Path, errors: list) -> None:
     if proc.returncode != 0:
         detail = (proc.stderr or proc.stdout or "").strip().splitlines()
         errors.append(f"agents_md: {detail[-1] if detail else 'verification failed'}")
+
+
+def _read_json_if_present(path: Path):
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+
+
+def _requires_review_flags_markdown(patient_dir: Path) -> bool:
+    readiness = _read_json_if_present(patient_dir / "readiness.json")
+    flags = readiness.get("review_flags") if isinstance(readiness, dict) else None
+    return isinstance(flags, list) and bool(flags)
+
+
+def _requires_longitudinal_observations(patient_dir: Path) -> bool:
+    """Return whether the lite contract makes longitudinal output conditional-ON.
+
+    The condition is derived only from already-produced deterministic/structured
+    inputs: an explicitly timeseries source, an explicit patient-summary pointer,
+    or two or more values in one lab panel. It makes no medical judgment.
+    """
+    inventory = _read_json_if_present(patient_dir / SOURCE_INVENTORY_NAME)
+    if isinstance(inventory, dict):
+        for entry in _file_entries(inventory):
+            if isinstance(entry, dict) and entry.get("modality") == "timeseries":
+                return True
+
+    summary = _read_json_if_present(patient_dir / "patient_summary.json")
+    if isinstance(summary, dict) and summary.get("longitudinal_observations_ref"):
+        return True
+
+    labs = _read_json_if_present(patient_dir / "labs.json")
+    panels = labs.get("panels") if isinstance(labs, dict) else None
+    if isinstance(panels, list):
+        for panel in panels:
+            values = panel.get("values") if isinstance(panel, dict) else None
+            if isinstance(values, list) and len(values) >= 2:
+                return True
+    return False
+
+
+def gate_required_lite_artifacts(patient_dir: Path, errors: list) -> None:
+    """Enforce only the final organize-lite artifact set and its two conditions."""
+    for name in LITE_REQUIRED_ARTIFACTS:
+        if not (patient_dir / name).is_file():
+            errors.append(f"required_artifacts: missing required lite artifact: {name}")
+
+    if _requires_review_flags_markdown(patient_dir):
+        name = "review_flags.md"
+        if not (patient_dir / name).is_file():
+            errors.append(
+                "required_artifacts: review_flags.md is required because "
+                "readiness.json.review_flags[] is non-empty"
+            )
+
+    if _requires_longitudinal_observations(patient_dir):
+        name = "longitudinal_observations.json"
+        if not (patient_dir / name).is_file():
+            errors.append(
+                "required_artifacts: longitudinal_observations.json is required "
+                "because timeseries/trended data exists"
+            )
+
+
+def gate_semantic_pii_receipts(patient_dir: Path, errors: list) -> None:
+    """Replay each present simple semantic-PII receipt.
+
+    Presence alone is not a privacy proof.  The small gate checks the pinned
+    run, evidence hashes and report contract; the final receipt additionally
+    re-hashes the current archive scope.
+    """
+    checker = SCRIPT_DIR / "semantic_pii_gate.py"
+    if not checker.is_file():
+        errors.append("semantic_pii: semantic_pii_gate.py missing")
+        return
+    for stage, name in (
+        ("phase1", ".semantic_pii_review.phase1.json"),
+        ("final", ".semantic_pii_review.json"),
+    ):
+        if not (patient_dir / name).is_file():
+            continue
+        proc = subprocess.run(
+            [sys.executable, str(checker), "check", str(patient_dir), "--stage", stage],
+            capture_output=True,
+            text=True,
+        )
+        if proc.returncode != 0:
+            detail = (proc.stdout or proc.stderr or "semantic receipt check failed").strip()
+            errors.append(f"semantic_pii({stage}): {detail}")
 
 
 def gate_no_rogue_agents_md(patient_dir: Path, errors: list) -> None:
@@ -779,21 +1147,25 @@ def gate_no_rogue_agents_md(patient_dir: Path, errors: list) -> None:
 
 
 def gate_untrusted_content(patient_dir: Path, warnings: list) -> None:
-    """Scan archive text for instruction-shaped content. WARNING, never blocking.
+    """Read-only scan for instruction-shaped content. WARNING, never blocking.
 
     Deliberately non-blocking: a false positive would kill a real medical record
     ('胃旁路' contains bypass), while a false negative still faces every downstream
-    safety gate. Hits are surfaced here and recorded in readiness.json.review_flags[]
-    so a human sees them; they never change this script's exit code.
+    safety gate. Hits are surfaced here; the Phase-4 readiness owner consumes the
+    scanner report before finalization. A validator must never rewrite an artifact
+    that has already been hashed by the final semantic-PII gate.
     """
     scanner = SCRIPT_DIR / "scan_untrusted_markers.py"
     if not scanner.exists():
         return
     proc = subprocess.run(
-        [sys.executable, str(scanner), str(patient_dir), "--json"],
+        [sys.executable, str(scanner), str(patient_dir), "--quiet"],
         capture_output=True,
         text=True,
     )
+    if proc.returncode != 0:
+        warnings.append(f"untrusted_content: scanner failed with exit {proc.returncode}")
+        return
     try:
         report = json.loads(proc.stdout or "{}")
     except json.JSONDecodeError:
@@ -814,60 +1186,36 @@ def gate_untrusted_content(patient_dir: Path, warnings: list) -> None:
             f"untrusted_content:   {f.get('path', '?')}:{f.get('line', '?')} "
             f"[{f.get('severity')}] {f.get('rule', '?')}"
         )
-    flags = report.get("review_flags") or []
-    if flags:
-        _merge_review_flags(patient_dir, flags, warnings)
-
-
-def _merge_review_flags(patient_dir: Path, flags: list, warnings: list) -> None:
-    """Append scanner flags into readiness.json.review_flags[], idempotently.
-
-    readiness.schema.json types `category` as a free-form string (not an enum), so
-    this needs no schema change. Re-running must not duplicate rows, hence the
-    (category, detail) identity key.
-    """
-    readiness = patient_dir / "readiness.json"
-    if not readiness.exists():
-        return
-    try:
-        data = json.loads(readiness.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
-        warnings.append("untrusted_content: readiness.json unreadable — flags not recorded")
-        return
-    existing = data.get("review_flags")
-    if not isinstance(existing, list):
-        return
-    seen = {(f.get("category"), f.get("detail")) for f in existing if isinstance(f, dict)}
-    added = [f for f in flags if (f.get("category"), f.get("detail")) not in seen]
-    if not added:
-        return
-    data["review_flags"] = existing + added
-    try:
-        readiness.write_text(
-            json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
-        )
-    except OSError:
-        warnings.append("untrusted_content: could not write readiness.json review_flags")
-        return
-    warnings.append(
-        f"untrusted_content: recorded {len(added)} flag(s) in readiness.json.review_flags[]"
-    )
 
 
 def main() -> int:
-    if len(sys.argv) < 2:
-        print("usage: validate_structured_outputs.py <patient_dir>", file=sys.stderr)
-        return 2
+    parser = argparse.ArgumentParser(
+        description="Validate present organize artifacts, or require a complete lite run."
+    )
+    parser.add_argument("patient_dir")
+    parser.add_argument(
+        "--require-complete",
+        action="store_true",
+        help="fail when any required/conditional organize-lite artifact is missing",
+    )
+    try:
+        args = parser.parse_args()
+    except SystemExit as exc:
+        return int(exc.code)
 
-    patient_dir = Path(sys.argv[1]).resolve()
+    patient_dir = Path(args.patient_dir).resolve()
     if not patient_dir.is_dir():
         print(f"ERROR: {patient_dir} is not a directory", file=sys.stderr)
         return 2
 
     errors: list[str] = []
     warnings: list[str] = []
+    if args.require_complete:
+        gate_required_lite_artifacts(patient_dir, errors)
     gate_structured(patient_dir, errors)
+    gate_markdown_source_refs(patient_dir, errors)
     gate_pii_rescan(patient_dir, errors)
+    gate_semantic_pii_receipts(patient_dir, errors)
     gate_lab_source_shape(patient_dir, errors)
     gate_bucket_taxonomy(patient_dir, errors)
     gate_source_inventory(patient_dir, errors)
@@ -895,7 +1243,8 @@ def main() -> int:
         return 1
 
     print(
-        f"acceptance gate OK — structured outputs + PII rescan + source inventory "
+        f"acceptance gate OK ({'complete lite run' if args.require_complete else 'present artifacts'}) "
+        f"— structured outputs + source refs + PII rescan + source inventory "
         f"+ case-summary HTML all pass ({patient_dir})"
     )
     return 0

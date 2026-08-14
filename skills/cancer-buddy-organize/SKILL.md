@@ -3,173 +3,237 @@ name: cancer-buddy-organize
 description: "Organize patient medical records into a provenance-preserving patient directory. Produces source-attributed summaries and schema-validated JSON while keeping source-reported, patient-reported and normalized layers separate. It does not infer diagnosis, stage, ECOG, response, progression, treatment line, prognosis or testing indications. Triggers on 病历整理, 整理报告, organize medical records."
 ---
 
-# cancer-buddy-organize（Kimi 专用变体 · lite 产物档位）
+# cancer-buddy-organize（Kimi / Codex lite）
 
-> 本分支（`kimi/organize-lite`）是主线的**派生变体**：唯一入口、无绑定选择。行为底线
-> （[`references/organize-contract.md`](references/organize-contract.md)：来源保真、红线字段、
-> 三道确定性门）与主线共享同一份文件——**改契约/门请去主线分支，勿在本分支改**。
-> 判断留 prompt（转录/归类/命名），验证与簿记留脚本（转码/hash/ID/门/对账）。
+把一个病历文件夹整理成可追溯的患者档案。只转录、归类和汇总来源明确写出的事实；不诊断，
+不重算分期、ECOG、疗效、进展、治疗线或预后。看不清就标不确定，绝不猜。
 
-把原始病历变成结构化档案。只抽取和组织，不做临床推断：不诊断、不重算分期/ECOG/疗效/
-进展/治疗线/预后。看不清就标注不确定，**绝不猜**。
+这是开放编排，不是调度 runtime。全程只有一个 `patient_dir` 和一个固定 `run_id`；不要在
+恢复、复扫或重试时重新建患者或 run。任何模型单元最多重试一次，且只重试缺失/失败单元。
 
-## Step 0 — 建档 + 确定性前置（零 LLM，先跑再说）
+## Step 0 — 建档并固定 run（零 LLM）
 
 ```bash
+python="${CANCER_BUDDY_PYTHON:-python3}"
+if ! "$python" -c 'import jsonschema; from jsonschema import Draft202012Validator' 2>/dev/null; then
+  for candidate in "$HOME/anaconda3/bin/python3" "$HOME/miniconda3/bin/python3"; do
+    if [ -x "$candidate" ] && "$candidate" -c 'from jsonschema import Draft202012Validator' 2>/dev/null; then
+      python="$candidate"; break
+    fi
+  done
+fi
+"$python" -c 'from jsonschema import Draft202012Validator' || exit 1
 code="PT-$(openssl rand -hex 5 | tr a-f A-F)"
 root="${CANCER_BUDDY_PATIENTS_DIR:-$HOME/CancerDAO/patients}"
-patient_dir="$root/$code"; mkdir -p "$patient_dir"
+patient_dir="$root/$code"
+mkdir -p "$patient_dir"
+run_json="$("$python" <skill_dir>/scripts/run_context.py start "$patient_dir")"
+run_id="$(printf '%s' "$run_json" | "$python" -c 'import json,sys; print(json.load(sys.stdin)["run_id"])')"
 bash <skill_dir>/scripts/phase0_prepare.sh "$patient_dir" <每个输入目录...>
+run_dir="$patient_dir/.staging/runs/$run_id"
 ```
 
-`phase0_prepare.sh` 一次完成：原件 sha256 入 `raw/`、HEIC/PDF 批量转码到
-`.staging/rasters/`、**预分配全部 `source_id`（`SRC-<hash12>`）写进
-`phase0_manifest.json`**。后续所有环节只用 manifest 里的 ID，任何 worker 不得自造 ID。
-manifest 里 `status != ok` 的来源是 blocked（转不动/不支持），保留在清单里，最终报告
-必须如实列出——绝不静默跳过。
+`run_context.py start` 对 active run 只会返回同一个 `run_id`；调用失败就停止，不能另造 run
+绕过。`phase0_manifest.json` 中 `status != ok` 的来源记为 blocked，保留但不派视觉 worker。
+所有后续 ID 逐字使用 manifest 的 `source_id`；若 manifest 有 `file_id`，以 `file_id` 为稳定
+内容键，否则 lite 的 1:1 来源用 `source_id`。
 
-> **打点纪律（每步都做）**：每个 Step 结束时执行
-> `echo "step<N> $(date +%H:%M:%S)" >> "$patient_dir/.run_timing.log"`——
-> Step 5 的交付报告必须引用这份文件报各步耗时，不得凭印象。
+## Step 1 — 小切片并行转录 + Phase-1 PII 门
 
-## Step 1 — 逐字转录（视觉，小切片并行）
+把可读来源按每组 **3–4 件**切片，最多同时派 3 个 worker。先把本轮所有 worker 派出，再
+等待；不要派一个等完再派下一个。每个 prompt 只含：
 
-把 manifest 里 `status: ok` 的来源按 **6–8 个/组** 切片（宁多组、勿大组：切片大小 =
-宿主后台任务超时预算的一半，超时重跑是最贵的失败模式）。每组派一个 subagent，其
-prompt = **[`references/runtime-bindings/kimi-phase1-worker-card.md`](references/runtime-bindings/kimi-phase1-worker-card.md)
-全文内嵌** + 该组的 manifest 行（source_id / raw_path / raster_paths）+ patient_dir。
-worker 除卡片外不读任何其它文件；逐个处理、每完成一个立即写盘。
+- [`references/runtime-bindings/kimi-phase1-worker-card.md`](references/runtime-bindings/kimi-phase1-worker-card.md) 全文；
+- 本组 manifest 行（`source_id/raw_path/raster_paths`）、`patient_dir`、`slice_id`。
 
-全组返回后，对账：`ls ocr/*.md` 数量必须 == 派发数。缺的重派**只缺的那几个**（小重派，
-不整组重跑）。
+worker 每完成一件立即写 `ocr/<source_id>.md`。全部返回后，按 manifest 精确对账；缺件只重派
+缺失 ID 一次。可读来源数与 sidecar 数仍不一致就停止，不能进入 Step 2。
 
-## Step 2 — 定向第二读（只复读高危页）
+先跑确定性形状门：
 
 ```bash
-python3 <skill_dir>/scripts/highrisk_page_filter.py "$patient_dir" --dir ocr
+"$python" <skill_dir>/scripts/pii_rescan.py "$patient_dir"
 ```
 
-对筛出的每个高危来源（含药名/剂量/分期/化验值/标识——化验单会全中，正常）派一次轻量
-视觉比对：重新看 raster，逐项核对 sidecar 里的高危值。不一致的行改标
-`[uncertain: 甲|乙]` 并在 sidecar 末尾「不确定项」登记。
-**worker 只返回核对结果 JSON，不写共享文件**——编排层收齐后统一合并写
-`$patient_dir/high_risk_review.json`（`{"values": {"<sidecar相对路径>": {"<裸数字>": "verified_by_second_read"}}}`），
-避免并发写冲突。**第二读只核对不改判**：两读不一致时保留两个候选标不确定，不选边。
-
-## Step 3 — 逐源归类命名（每个 sidecar 一次轻调用）
-
-对每个 sidecar 单独发一次小调用（**逐源，不批量**——批量归档会串位）：输入 = 该 sidecar
-全文 + [`references/bucket-taxonomy.md`](references/bucket-taxonomy.md)；**worker 只返回**
-`{"path": "NN_桶/子类/YYYY-MM-DD_报告类型_机构_来源<source_id>.md"}`，
-**文件移动由编排层确定性执行**（worker 不动文件系统）。
-命名铁律：文件名报告类型段**逐字取自该 sidecar 自己的报告类型声明**；sidecar 写的是
-unknown → 归 `14_患者自管补充/患者补充/待归类资料_<source_id>.md`，不得冠具体类型名；
-日期段取该文档自己的记录/报告日期，sidecar 内无记录日期时用页内唯一所见日期并在
-INDEX.md 说明。全部移动完成后跑 G1 校验：
+再执行一次语义 PII 门。先创建冻结 scope：
 
 ```bash
-python3 <skill_dir>/scripts/gates/gate_name_content.py "$patient_dir"
+"$python" <skill_dir>/scripts/semantic_pii_gate.py scope "$patient_dir" \
+  --run-id "$run_id" --stage phase1 --pass before
 ```
 
-violation 的文件改移待归类（不得以错名落盘），unknown 只记录不阻塞。
+派一个独立 reviewer，只给它该命令返回的 `scope_path/report_path` 与
+[`references/pii-rescan-prompt.md`](references/pii-rescan-prompt.md)。reviewer 只读 scope
+列出的文本，只写 report。随后 `validate-report`：
 
-## Step 4 — 综合（三层：确定性 → 并行提取 → 串行收尾）
+- 若第一次报告 `clean=true`：直接 `record-clean`，不调用 `apply`；
+- 若有 findings：调用 `apply` 做固定 `[PII_MASKED]` 精确替换，再创建同一 `run_id` 的
+  `--pass after` scope，重新派一次 clean reviewer，`validate-report --require-clean` 后
+  `record-clean --corrections <apply 返回的 receipt_path>`；
+- 报告格式错误只允许在同一冻结 scope 重派一次；仍失败就停止。
 
-综合阶段对**已归好桶**的档案工作，任何一层都**不改文件名、不移动文件**——归类命名已在
-Step 3 定稿。冲突并列保留标 `disputed`，不裁决。schema 与字段规则见
-[`references/organizer-prompt-phase2-synthesis.md`](references/organizer-prompt-phase2-synthesis.md)。
-
-### 4a 确定性件（零 LLM，先跑）
+最后必须重新跑 `pii_rescan.py`，并通过：
 
 ```bash
-python3 <skill_dir>/scripts/build_inventory_index.py "$patient_dir" --run-mode full
+"$python" <skill_dir>/scripts/semantic_pii_gate.py check "$patient_dir" --stage phase1
 ```
 
-生成 `source_inventory.json`（全字段从 manifest+落位推导，source_id 逐字来自 manifest）、
-`INDEX.md` 骨架、`update_log.json` 追加。这些是簿记，不花模型调用。脚本报
-`missing_sidecars` 非空 = 覆盖有洞，先回 Step 1 补齐再继续。
+## Step 2 — 高危页独立第二读（稳定 ID）
 
-### 4b 并行域提取器（一次全部派出，互不等待）
+```bash
+"$python" <skill_dir>/scripts/highrisk_page_filter.py "$patient_dir" --dir ocr \
+  --json "$run_dir/high_risk_filter.json"
+```
 
-| worker | 产物 | 喂什么（桶已分好，别多喂） |
-|---|---|---|
-| labs | `labs.json` | 只喂 `07_检验/` 各 sidecar |
-| molecular | `molecular.json` | 只喂 `08_基因与分子/`（缺桶则喂含分子内容的叙事桶） |
-| comorbidities | `comorbidities.json` | 只喂 `03_病程与叙事文书/` |
-| treatment_lines | `treatment_lines.json` | 只喂 `03_病程与叙事文书/` + `04_治疗/` |
-| timeline | `timeline.md` + `timeline.json` | 全档 sidecar（跨文档产物） |
-| case_text | `case_text.md` | 全档 sidecar（跨文档产物） |
-| patient_summary | `patient_summary.json` + `profile.json`（locale 从病历主语言检测） | 全档 sidecar |
+对 `high_risk[]` 每个来源单独派一次视觉复读，最多 3 个并发；worker 只返回 JSON，不写共享
+文件。核对药名/剂量/频次、分期串、化验值/单位、分子结果和标识遮蔽。两读不一致不选胜者，
+把该来源设为 `needs_human_review` 并在 values 中只记录已确认的临床值；本步骤不改 sidecar
+字节。标识复核的 key 只写 `identifier:<字段名>`，value 仍写下述复核状态；绝不把原始姓名、
+号码或地址写进 ledger。
 
-每个 worker 独立读 schema 中与自己相关的部分；并行的代价是跨产物小不一致的可能——
-一致性由 4c 审计与 validator 兜底，不靠单体自洽。
+编排层一次写 `high_risk_review.json`：
 
-### 4c 串行收尾（等 4b 全齐）
+```json
+{
+  "schema": "high_risk_review_v2",
+  "sources": {
+    "<file_id；没有则source_id>": {
+      "file_id": "<可选>",
+      "source_id": "<SRC-...>",
+      "sidecar_path": "ocr/<source_id>.md",
+      "status": "not_applicable | passed_independent_reread | needs_human_review",
+      "values": {"<已确认临床值或identifier:字段名>": "verified_by_second_read"}
+    }
+  }
+}
+```
 
-`missing_items.json`（对照 checklist 只列文档缺口）→ review_flags 审计 →
-`review_flags.md`（非空时）+ `review_summary.md`（必写）→ INDEX.md 追加叙事注释。
-审计范围包括 4b 产物之间的交叉一致性（如 timeline 与 treatment_lines 的日期冲突）。
+每个可读来源必须恰有一条：筛选未命中写 `not_applicable`；完整独立复读才可写
+`passed_independent_reread`；部分、超时或冲突一律 `needs_human_review`。路径只是审计属性，
+后续查找只用稳定 ID。
 
-### 4d 段D 病情简要总结 HTML（患者可见交付物，不可省略）
+## Step 3 — 逐源归类命名
 
-按 [`references/case-summary-html-prompt.md`](references/case-summary-html-prompt.md)：
-派一个 subagent 组装 `case_summary_data.json`（只读脱敏 JSON），然后**确定性渲染**——
-`backfill_lab_trends.py` → `compute_version_delta.py` → `compute_sparklines.py` →
-`render_html_template.py` → `validate_case_summary_html.py`，fail-closed：subagent 必须
-返回 `{status:"ok", template_sha:"<64-hex>"}` 才算完成，绝不接受手写 HTML 或无
-`template_sha` 的"done"声明；`status:"failed"` 就重派。产物为
-`$patient_dir/病情简要总结.html`。
+每个 sidecar 单独发一次轻调用；输入是该 sidecar 全文与
+[`references/bucket-taxonomy.md`](references/bucket-taxonomy.md)。worker 只返回：
 
-## Step 5 — 验收与交付报告
+```json
+{"path":"NN_桶/子类/YYYY-MM-DD_报告类型_机构_来源<source_id>.md"}
+```
 
-1. 覆盖对账（确定性）：manifest 全部 source_id 都能在桶内或待归类中找到 sidecar；
-   blocked 清单如实列出。
-2. 门已绿：G1 无 violation 残留；若本次涉及再上传对账候选，出卡前跑
-   `gates/gate_same_test.py`（同检验双载体不出冲突卡）与 `gates/gate_candidate_binding.py`
-   （卡上数值未经绑定验证的一律「数值待核对」）。
-3. 产物齐全性（确定性 ls 核对，缺一即未完成）：Step 4 全部 JSON/MD +
-   `case_text.md` + `病情简要总结.html`（带 Step 4d 的 template_sha 凭证）。
-4. 向用户交付：档案位置、各桶清单、待归类/blocked/不确定项数量、review_summary 要点、
-   **各步耗时（读 `.run_timing.log`，不凭印象）**。
-   **失败也如实报**：哪些没读出来、哪些标了不确定，不藏。
+编排层验证路径属于 taxonomy 后再移动；worker 不动文件系统。报告类型逐字取自该 sidecar；
+unknown 固定落 `14_患者自管补充/患者补充/待归类资料_<source_id>.md`。日期缺失就保留 unknown，
+不拿别的文档日期补。全部移动后删除空 `ocr/`，并运行：
 
-## 中间产物保留（lite 档，与平台策略的刻意差异）
+```bash
+"$python" <skill_dir>/scripts/gates/gate_name_content.py "$patient_dir"
+```
 
-- **`raw/` 原件与 `.staging/` 转码图：永久保留在档案内。** 自动删原件是平台的服务器端
-  隐私策略（不留明文 PII）；个人单机场景是本人设备上本人的数据，保留原件才是对的——
-  将来复读、重归类、换引擎重跑都靠它们。
-- **`ocr/` 不留副本**：sidecar 在 Step 3 是*移动*进桶（内容零丢失，只换位置），归类后
-  ocr/ 应为空并删除。同一份 sidecar 绝不两处存放——双源必漂移。
-- 可选调试快照（默认关）：需要"归类前状态"时，Step 3 移动前
-  `cp -R ocr/ .staging/ocr-snapshot/`，快照只读、不是真相源、不参与任何后续步骤。
+violation 移回待归类；不要错名硬过门。
+
+## Step 4 — 简单并行 DAG
+
+先生成确定性 inventory/INDEX，并验证 DAG：
+
+```bash
+"$python" <skill_dir>/scripts/build_inventory_index.py "$patient_dir" --run-mode full
+"$python" <skill_dir>/scripts/plan_phase4.py --validate-only
+```
+
+然后循环调用：
+
+```bash
+"$python" <skill_dir>/scripts/plan_phase4.py "$patient_dir" \
+  --run-id "$run_id" --available-slots 3
+```
+
+只执行本次返回的 `ready[]`；该批全部结束后再 replan。`llm_worker` 使用
+[`references/runtime-bindings/phase4-worker-cards.md`](references/runtime-bindings/phase4-worker-cards.md)
+对应小节和任务列出的桶/输入/`schemas`，并把任务里的 `python_executable` 原样交给 worker；
+worker 校验产物只能调用该绝对路径，不得用裸 `python` / `python3`。每个文件只有一个 owner。`deterministic` 执行 planner
+返回的 `commands` 或 `procedure`。失败只重派该 task 一次。
+
+每一批结束后、replan 之前先运行 progressive validator：
+
+```bash
+"$python" <skill_dir>/scripts/validate_structured_outputs.py "$patient_dir"
+```
+
+若它指出本批 JSON/schema/source-ref 失败，该 task 不算完成：把该 task 本轮拥有的输出移到
+`$run_dir/failed-phase4/<task_id>/` 留存，按同一 schema 只重派该 owner 一次；canonical 中仍有
+无效非空文件时不得 replan。这样 planner 的“非空文件=完成”只接收已经过门的文件。
+
+并行规则是硬约束：
+
+- Wave A：`labs / comorbidities / missing_items` 三个必须全部派出后才等待；
+- Wave B：`molecular / treatment / patient_summary / timeline / case_text` 按空闲槽位派满后等待；
+- `molecular` 只读稳定桶前缀 `06_`；`treatment` 只读 `03_/08_/09_`；
+  `comorbidities` 只读 `02_/03_`；
+- `patient_summary` 只写 `patient_summary.json`；`profile.json` 由 `build_profile.py`
+  确定性生成；
+- `readiness.json/review_summary.md` 后置；模型只写 `.case_summary_data.json`，HTML 由模板
+  确定性渲染；
+- source-ref 合同统一：JSON 只写现存 `01_…14_` 桶内相对 sidecar 路径（可带 fragment）；
+  正式 Markdown 每个引用 token 必须是 `[[src:<相对路径>#<fragment>]]`。禁止绝对路径、
+  反斜线、`.`/`..`、`raw/ocr/99_` 和悬空引用。
+
+HTML task 按 planner procedure：复制 `.case_summary_data.json` 到患者目录外的临时文件，
+依次运行 `backfill_lab_trends.py`、`compute_version_delta.py`、`compute_sparklines.py`，再用
+`render_html_template.py` + `case-summary.template.html` 生成 `病情简要总结.html`，最后用
+`validate_case_summary_html.py --html --template --profile --data` 验证。不得手写 HTML。
+
+DAG 最后一个 task 是 `finalize_log`：只在 Phase 4 其余产物齐全且 Phase-1 PII receipt 存在
+时，以固定 `run_id` 写 `update_log.json`。此时 DAG complete；还不能向用户宣称完成。
+
+## Step 5 — 最终 PII、严格验收、完成 run
+
+在所有最终产物（包括 `update_log.json`）写好以后，先跑：
+
+```bash
+"$python" <skill_dir>/scripts/pii_rescan.py "$patient_dir"
+```
+
+再按 Step 1 的同一分支执行 final semantic gate：`scope --stage final --pass before`；初次 clean
+就直接 `record-clean`，有 findings 才 `apply` → 同一 `run_id` 的 after scope → clean rescan →
+`record-clean --corrections ...`。随后必须通过：
+
+```bash
+"$python" <skill_dir>/scripts/pii_rescan.py "$patient_dir"
+"$python" <skill_dir>/scripts/semantic_pii_gate.py check "$patient_dir" --stage final
+"$python" <skill_dir>/scripts/validate_structured_outputs.py --require-complete "$patient_dir"
+"$python" <skill_dir>/scripts/gates/gate_name_content.py "$patient_dir"
+"$python" <skill_dir>/scripts/run_context.py complete "$patient_dir" --run-id "$run_id"
+```
+
+最终 PII scope 创建以后，除 `.organize_run.json` 的完成状态外不得再写交付产物；否则 receipt
+会因 membership/hash 变化失效。任一门失败、必需产物缺失或 run 仍 active，都只能报告
+“未完成”，不能假绿。
+
+向用户只报告：档案位置、来源/blocked/待归类/needs-human 数量、各阶段真实耗时和失败单元；
+不要在消息中回显 PII 或病历原文。
 
 ## Role behavior
 
-角色与授权按 [`../../references/roles.md`](../../references/roles.md) 与
-[`../../references/disclosure-behavior.md`](../../references/disclosure-behavior.md)：
+- `role=patient`：患者本人可在当前任务授权范围内整理自己的档案。
+- `role=caregiver`：只处理患者明确、可撤销、限用途授权的文件与产物。
+- `role=family`：亲属关系本身不构成授权；没有患者明确授权就不读取本人档案。
 
-- `role=patient`（患者本人）：完全访问自己的档案与全部产物。
-- `role=caregiver`（照护者）：仅在明确、可撤销、限用途的授权范围内访问；授权范围之外的
-  桶/产物不读不引不概括。
-- `role=family`（家属）：亲属关系本身**不授权**——未经患者明确授权按无权限处理，只能得到
-  一般性、非本人档案的教育内容。
+三种角色都不能绕过确认、PII、来源保真或严格验收门。
 
-不可逆动作（删除/替换/字段更正）无论角色，一律走共享确认门
-[`../../references/confirm-gate.md`](../../references/confirm-gate.md)：逐项明确确认，
-沉默不删，替换留底。
+## 持久化与安全边界
 
-## 安全与共享契约（与主线一致，lite 档不豁免）
-
-- 安全边界：[`../../references/safety-guardrails.md`](../../references/safety-guardrails.md)
-  （含症状急迫性路由——整理资料不得拖延就医）。
-- **文本脱敏（text masking / desensitization）**：Phase-1 写盘前完成 PII 遮蔽——姓名/
-  证件号/病案号/检验编号/电话/住址遮蔽主体、保留末位后缀。**遮蔽只针对 PII，临床字符
-  一律原样保留**（数值/单位/参考范围/诊断/日期不动，防锚点漂移 anti-anchoring）；
-  **MD sidecar 是下游唯一读取源，任何下游环节不得回读含明文 PII 的原件**（原件只留在
-  访问受控的 `raw/`）。遮蔽不等于匿名化，导出前须提醒。
-- 语言与本地化：[`../../references/i18n.md`](../../references/i18n.md)（源临床字符串
-  verbatim 不翻译；患者可见解释按 locale 渲染）。
-- 引用与证据分级（review_summary 等涉及外部资料时）：
+- `raw/` 与 `.staging/rasters/` 保留在患者本机档案，后续模型不得读取；下游唯一临床文本源
+  是完成遮蔽的桶内 sidecar。
+- **文本脱敏（text masking）**只替换 PII，不改临床字符（anti-anchoring）。MD sidecar 是
+  下游唯一读取源且不携带 plaintext PII；clean scan 也不等于匿名化，外发仍需最小化与授权。
+- `ocr/` 在 Step 3 后不保留副本；sidecar 只移动，不复制成第二真相源。
+- 完整共享/角色/确认/安全契约仍适用：
+  [`references/organize-contract.md`](references/organize-contract.md)、
+  [`../../references/roles.md`](../../references/roles.md)、
+  [`../../references/disclosure-behavior.md`](../../references/disclosure-behavior.md)、
+  [`../../references/confirm-gate.md`](../../references/confirm-gate.md)、
+  [`../../references/safety-guardrails.md`](../../references/safety-guardrails.md)、
+  [`../../references/i18n.md`](../../references/i18n.md)、
   [`../../references/citation-format.md`](../../references/citation-format.md)、
   [`../../references/evidence-trust-tiers.md`](../../references/evidence-trust-tiers.md)、
   [`../../references/reference-library.md`](../../references/reference-library.md)。

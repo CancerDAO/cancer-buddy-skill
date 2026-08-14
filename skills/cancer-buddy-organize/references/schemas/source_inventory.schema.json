@@ -23,8 +23,8 @@
           "original_path": { "type": "string", "description": "De-identified raw handle (the Phase-1 de-id raw filename / source_id) recorded for audit; never used as an anchor. MUST be relative/de-identified — never a host-absolute path (/Users/...), cloud URL, email-attachment path, OR an identity-bearing upload basename (e.g. NOT '张测试-报告.pdf'). The verbatim upload filename is preserved only in raw/_FILENAME_MAPPING.md (inside raw/, excluded from export). source_inventory.json is a delivered/shared surface; the delivered-surface PII rescan (pii_rescan.py) hard-fails name/path leaks here." },
           "raw_path": { "type": "string", "pattern": "^raw/.+", "description": "Protected relative path to the uploaded original. Access requires host authorization; the path is never an anchor or an export default." },
           "page_range": { "type": ["string", "null"], "description": "Which pages of a multi-document source this content unit covers, e.g. \"3-5\". Null when the sidecar covers the whole file." },
-          "bucket_path": { "type": ["string", "null"], "description": "Canonical bucket-relative path of the text-masked .md SIDECAR after Phase2 classification (clinical domain 01_…14_). The original is NOT copied here — it stays once in raw/ (see raw_path). Null before classification or for isolated unrelated files." },
-          "sidecar_path": { "type": "string", "pattern": "^[0-9]{2}_[^\\s/]+(/[^\\s/]+)*\\.md$", "description": "Bucket-relative source-attributed, text-masked MD sidecar. The leading NN_ bucket segment is required." },
+          "bucket_path": { "type": ["string", "null"], "pattern": "^[0-9]{2}_[^\\s/]+(/[^\\s/]+)*$", "description": "Canonical bucket directory containing the text-masked .md sidecar after classification (clinical domain 01_…14_). This is a directory path, not the sidecar filename. Null for an unreadable/blocked source." },
+          "sidecar_path": { "type": ["string", "null"], "pattern": "^[0-9]{2}_[^\\s/]+(/[^\\s/]+)*\\.md$", "description": "Bucket-relative source-attributed, text-masked MD sidecar. The leading NN_ bucket segment is required. Null only when read_mode is stub_unreadable." },
           "modality": {
             "type": "string",
             "enum": ["text", "image", "structured", "omics_raw", "timeseries", "binary_other"],
@@ -43,7 +43,7 @@
               "engine": { "type": "string", "minLength": 1 },
               "version": { "type": ["string", "null"] },
               "raw_output_ref": { "type": ["string", "null"], "description": "Protected relative reference to preserved native/OCR character output; never a public export default." },
-              "llm_role": { "type": "string", "enum": ["none", "layout_assist", "candidate_correction", "semantic_label", "review"] }
+              "llm_role": { "type": "string", "enum": ["none", "transcription", "layout_assist", "candidate_correction", "semantic_label", "review"] }
             }
           },
           "high_risk_review_status": {
@@ -62,7 +62,29 @@
           },
           "persist": { "type": "boolean", "description": "Whether this source file is selected for final archive/persist. Medical sources cited by formal outputs (timeline/case_text/review outputs/structured JSON source_refs) must be true; false is reserved for isolated unrelated/non-persisted sources." },
           "notes": { "type": ["string", "null"] }
-        }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": { "read_mode": { "const": "stub_unreadable" } },
+              "required": ["read_mode"]
+            },
+            "then": {
+              "properties": {
+                "bucket_path": { "type": "null" },
+                "sidecar_path": { "type": "null" },
+                "high_risk_review_status": { "const": "needs_human_review" },
+                "adapter": { "const": "unsupported_stub" }
+              }
+            },
+            "else": {
+              "properties": {
+                "bucket_path": { "type": "string" },
+                "sidecar_path": { "type": "string" }
+              }
+            }
+          }
+        ]
       }
     }
   }

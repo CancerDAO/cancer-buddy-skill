@@ -1,0 +1,199 @@
+{
+  "schema": "organize_phase4_dag_v1",
+  "description": "Small file-state DAG for organize-lite Phase 4. It has no run database, receipt ledger, WAL, or retry runtime.",
+  "scheduler_contract": {
+    "invoke_after_previous_batch_settles": true,
+    "wave_a": {
+      "members": ["labs", "comorbidities", "missing_items"],
+      "dispatch": "all_before_wait"
+    },
+    "wave_b": {
+      "members": ["molecular", "treatment", "patient_summary", "timeline", "case_text"],
+      "dispatch": "up_to_available_slots_then_wait"
+    }
+  },
+  "tasks": [
+    {
+      "id": "inventory",
+      "kind": "deterministic",
+      "stage": 0,
+      "depends_on": [],
+      "outputs": ["source_inventory.json", "INDEX.md"],
+      "commands": [
+        ["{python}", "{skill_dir}/scripts/build_inventory_index.py", "{patient_dir}", "--run-mode", "full"]
+      ]
+    },
+    {
+      "id": "labs",
+      "kind": "llm_worker",
+      "stage": 10,
+      "wave": "A",
+      "depends_on": ["inventory"],
+      "outputs": ["labs.json"],
+      "schemas": {"labs.json": "{skill_dir}/references/schemas/labs.schema.json"},
+      "fresh_after_dependencies": true,
+      "sidecar_buckets": ["07_"],
+      "card": "phase4-worker-cards.md#labs"
+    },
+    {
+      "id": "comorbidities",
+      "kind": "llm_worker",
+      "stage": 10,
+      "wave": "A",
+      "depends_on": ["inventory"],
+      "outputs": ["comorbidities.json"],
+      "schemas": {"comorbidities.json": "{skill_dir}/references/schemas/comorbidities.schema.json"},
+      "fresh_after_dependencies": true,
+      "sidecar_buckets": ["02_", "03_"],
+      "card": "phase4-worker-cards.md#comorbidities"
+    },
+    {
+      "id": "missing_items",
+      "kind": "llm_worker",
+      "stage": 10,
+      "wave": "A",
+      "depends_on": ["inventory"],
+      "outputs": ["missing_items.json"],
+      "schemas": {"missing_items.json": "{skill_dir}/references/schemas/missing_items.schema.json"},
+      "fresh_after_dependencies": true,
+      "input_files": ["source_inventory.json"],
+      "card": "phase4-worker-cards.md#missing_items"
+    },
+    {
+      "id": "molecular",
+      "kind": "llm_worker",
+      "stage": 20,
+      "wave": "B",
+      "depends_on": ["labs", "comorbidities", "missing_items"],
+      "outputs": ["molecular.json"],
+      "schemas": {"molecular.json": "{skill_dir}/references/schemas/molecular.schema.json"},
+      "fresh_after_dependencies": true,
+      "sidecar_buckets": ["06_"],
+      "card": "phase4-worker-cards.md#molecular"
+    },
+    {
+      "id": "treatment",
+      "kind": "llm_worker",
+      "stage": 20,
+      "wave": "B",
+      "depends_on": ["labs", "comorbidities", "missing_items"],
+      "outputs": ["treatment_lines.json"],
+      "schemas": {"treatment_lines.json": "{skill_dir}/references/schemas/treatment_lines.schema.json"},
+      "fresh_after_dependencies": true,
+      "sidecar_buckets": ["03_", "08_", "09_"],
+      "card": "phase4-worker-cards.md#treatment"
+    },
+    {
+      "id": "patient_summary",
+      "kind": "llm_worker",
+      "stage": 20,
+      "wave": "B",
+      "depends_on": ["labs", "comorbidities", "missing_items"],
+      "outputs": ["patient_summary.json"],
+      "schemas": {"patient_summary.json": "{skill_dir}/references/schemas/patient_summary.schema.json"},
+      "fresh_after_dependencies": true,
+      "sidecar_buckets": ["01_", "02_", "03_", "04_", "05_", "06_", "07_", "08_", "09_", "10_", "11_", "12_", "13_", "14_"],
+      "card": "phase4-worker-cards.md#patient_summary"
+    },
+    {
+      "id": "timeline",
+      "kind": "llm_worker",
+      "stage": 20,
+      "wave": "B",
+      "depends_on": ["labs", "comorbidities", "missing_items"],
+      "outputs": ["timeline.json", "timeline.md"],
+      "optional_outputs": ["longitudinal_observations.json"],
+      "schemas": {
+        "timeline.json": "{skill_dir}/references/schemas/timeline.schema.json",
+        "longitudinal_observations.json": "{skill_dir}/references/schemas/longitudinal_observations.schema.json"
+      },
+      "fresh_after_dependencies": true,
+      "sidecar_buckets": ["01_", "02_", "03_", "04_", "05_", "06_", "07_", "08_", "09_", "10_", "11_", "12_", "13_", "14_"],
+      "card": "phase4-worker-cards.md#timeline"
+    },
+    {
+      "id": "case_text",
+      "kind": "llm_worker",
+      "stage": 20,
+      "wave": "B",
+      "depends_on": ["labs", "comorbidities", "missing_items"],
+      "outputs": ["case_text.md"],
+      "fresh_after_dependencies": true,
+      "sidecar_buckets": ["01_", "02_", "03_", "04_", "05_", "06_", "07_", "08_", "09_", "10_", "11_", "12_", "13_", "14_"],
+      "card": "phase4-worker-cards.md#case_text"
+    },
+    {
+      "id": "profile",
+      "kind": "deterministic",
+      "stage": 30,
+      "depends_on": ["molecular", "treatment", "patient_summary", "timeline", "case_text"],
+      "outputs": ["profile.json"],
+      "fresh_after_dependencies": true,
+      "commands": [
+        ["{python}", "{skill_dir}/scripts/build_profile.py", "{patient_dir}"]
+      ]
+    },
+    {
+      "id": "agents_md",
+      "kind": "deterministic",
+      "stage": 31,
+      "depends_on": ["profile"],
+      "outputs": ["AGENTS.md"],
+      "fresh_after_dependencies": true,
+      "commands": [
+        ["{python}", "{skill_dir}/scripts/fill_agents_md.py", "{patient_dir}"]
+      ]
+    },
+    {
+      "id": "readiness_review",
+      "kind": "llm_worker",
+      "stage": 40,
+      "depends_on": ["labs", "comorbidities", "missing_items", "profile", "agents_md", "molecular", "treatment", "patient_summary", "timeline", "case_text"],
+      "outputs": ["readiness.json", "review_summary.md"],
+      "optional_outputs": ["review_flags.md"],
+      "schemas": {"readiness.json": "{skill_dir}/references/schemas/readiness.schema.json"},
+      "input_files": ["source_inventory.json", "labs.json", "comorbidities.json", "missing_items.json", "molecular.json", "treatment_lines.json", "patient_summary.json", "timeline.json", "timeline.md", "case_text.md", "profile.json"],
+      "fresh_after_dependencies": true,
+      "card": "phase4-worker-cards.md#readiness_review"
+    },
+    {
+      "id": "case_summary_data",
+      "kind": "llm_worker",
+      "stage": 50,
+      "depends_on": ["readiness_review"],
+      "outputs": [".case_summary_data.json"],
+      "schemas": {".case_summary_data.json": "{skill_dir}/references/schemas/case_summary_data.schema.json"},
+      "input_files": ["profile.json", "patient_summary.json", "molecular.json", "treatment_lines.json", "labs.json", "comorbidities.json", "timeline.json", "case_text.md", "readiness.json"],
+      "fresh_after_dependencies": true,
+      "card": "phase4-worker-cards.md#case_summary_data"
+    },
+    {
+      "id": "case_summary_html",
+      "kind": "deterministic",
+      "stage": 60,
+      "depends_on": ["case_summary_data"],
+      "outputs": ["病情简要总结.html"],
+      "fresh_after_dependencies": true,
+      "procedure": [
+        "Copy .case_summary_data.json to a temporary work file outside the patient directory; do not mutate the model-owned canonical JSON.",
+        "Run backfill_lab_trends.py, compute_version_delta.py, and compute_sparklines.py against the temporary work file.",
+        "Run render_html_template.py with case-summary.template.html and the temporary work file, writing 病情简要总结.html.",
+        "Run validate_case_summary_html.py with --html, --template, --profile, and --data pointing at the temporary work file; delete the temporary file after the gate passes."
+      ]
+    },
+    {
+      "id": "finalize_log",
+      "kind": "deterministic",
+      "stage": 70,
+      "depends_on": ["case_summary_html"],
+      "required_files": [".semantic_pii_review.phase1.json"],
+      "outputs": ["update_log.json"],
+      "fresh_after_dependencies": true,
+      "commands": [
+        ["{python}", "{skill_dir}/scripts/validate_structured_outputs.py", "{patient_dir}"],
+        ["{python}", "{skill_dir}/scripts/build_inventory_index.py", "{patient_dir}", "--run-mode", "full", "--finalize-log", "--run-id", "{run_id}"]
+      ],
+      "notes": "The first command is a read-only progressive check. After update_log is written, the orchestrator runs the final same-run semantic PII scan/mask/rescan and the strict validator outside this generation DAG."
+    }
+  ]
+}

@@ -66,6 +66,13 @@ Phase 2 将已复核 sidecar 组织成 schema v2。它不诊断、不重新分�
 
 按 `schemas/` v2 写 `patient_summary.json`、`timeline.json`、`treatment_lines.json`（治疗事件）、`labs.json`、`molecular.json`、`comorbidities.json`、`longitudinal_observations.json` 和兼容文件名 `missing_items.json`。
 
+所有 worker 使用同一来源引用合同：结构化 JSON 的 `source_refs[]`（以及
+`longitudinal_observations.json` 的单数 `source_ref`）只写安全的 `01_…14_` 桶内相对
+sidecar 路径；JSON 可以引用整个文件，也可以保留 `#L…`/`#section` fragment。正式
+Markdown 的每条事实必须写 `[[src:<相对路径>#<fragment>]]`，文件引用不得只有 path。
+禁止绝对路径、反斜线、`.`/`..`、`raw/`、`ocr/`、`99_…` 和不存在的目标；详见
+`schemas/anchor-contract.md`，最终由 `validate_structured_outputs.py` 机械校验。
+
 `source_inventory.json` 必须使用 `source_inventory_v2`，逐 content unit 记录受保护的 `raw_path`、sidecar、读取方式、抽取器名称/版本/原始输出引用、LLM 的受限角色和高风险字段独立复读状态。缺少这些字段不得降级成无来源清单。
 
 `missing_items.json` 只输出现有文档档案缺口。checklist 的癌种 slug 不确定时用 unknown，不做 closest-fit。

@@ -16,16 +16,17 @@ markdown 到 `<patient_dir>/ocr/<source_id>.md`。**逐个处理、每完成一�
 
 ## PII 遮蔽（写进 sidecar 前完成）
 
-姓名/证件号/病案号/检验编号/电话/住址 → 遮蔽主体、保留末位后缀（如
-`检验编号：**…**017`）；日期、性别、诊断、检验值、单位、参考范围**保留**。
-工作人员姓名 → `[REDACTED:staff]`。
+患者/联系人/工作人员姓名、证件号、病案号、检验/标本/报告编号、电话、邮箱、住址、
+邮编、完整出生日期、职业/单位、籍贯/出生地/户籍、民族/国籍/宗教、婚姻/家庭关系中的
+**最小标识 token** → 统一写 `[PII_MASKED]`；不得保留编号或电话尾数。临床事件/采样/
+报告/入出院/治疗日期、来源机构、来源年龄、性别、诊断、检验值、单位、参考范围**保留**。
 
 ## sidecar 模板（lite 档，红线字段不得省略）
 
 ```markdown
 source_id: <manifest 给定的 SRC-…，禁止自造>
-original: <raw_path>
-read_mode: model_vision
+original: <manifest 给定的 source_id；受保护 raw_path 只在 source_inventory 中保存>
+read_mode: model_vision_assist
 profile: lite
 
 # 脱敏转录

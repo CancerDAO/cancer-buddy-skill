@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Enrich case_summary_data.json with inline-SVG trend geometry (stdlib only, ZERO medical logic).
+"""Enrich `.case_summary_data.json` with inline-SVG trend geometry (stdlib only, ZERO medical logic).
 
 The 段D case-summary renderer (render_html_template.py) is a dumb string
 substitutor — it cannot compute chart geometry. This helper is the deterministic,
@@ -34,7 +34,7 @@ print path drops canvas (see project delivery notes). This helper never emits an
 element; it only emits coordinate strings the template's static SVG consumes.
 
 CLI:
-    python3 compute_sparklines.py --data case_summary_data.json            # enrich in place
+    python3 compute_sparklines.py --data .case_summary_data.json            # enrich in place
     python3 compute_sparklines.py --data D.json --out enriched.json        # write elsewhere
     python3 compute_sparklines.py --data D.json --longitudinal L.json --labs labs.json  # + integrity gate
 
@@ -355,8 +355,8 @@ def enrich(data: dict) -> dict:
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="Inject inline-SVG trend geometry into case_summary_data.json (deterministic, zero medical logic).")
-    ap.add_argument("--data", required=True, help="path to case_summary_data.json")
+    ap = argparse.ArgumentParser(description="Inject inline-SVG trend geometry into .case_summary_data.json (deterministic, zero medical logic).")
+    ap.add_argument("--data", required=True, help="path to .case_summary_data.json")
     ap.add_argument("--out", help="output path (default: overwrite --data in place)")
     ap.add_argument("--longitudinal", help="longitudinal_observations.json for the anti-fabrication gate")
     ap.add_argument("--labs", help="labs.json for the anti-fabrication gate")

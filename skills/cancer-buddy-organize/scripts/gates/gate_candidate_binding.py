@@ -18,32 +18,59 @@ stdout: 原 candidates 逐条追加 binding / binding_reasons 后的 JSON。
 """
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from gate_common import REVIEW_FLAG, numeric_token, read_json, value_locatable
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from high_risk_review import find_review_record, load_review_records, verified_values
+
 VERIFIED_STATES = ("double_read", "verified_by_second_read", "clinician_verified")
 
 
-def review_overrides(patient_dir):
-    """P8 写的复读升级记录：{target_doc: {value_str: status}}。"""
-    data = read_json(Path(patient_dir) / "high_risk_review.json") or {}
-    return data.get("values", {}) if isinstance(data, dict) else {}
+def inventory_entry(patient_dir, target_doc):
+    inventory = read_json(Path(patient_dir) / "source_inventory.json") or {}
+    for row in inventory.get("files", []) if isinstance(inventory, dict) else []:
+        if not isinstance(row, dict):
+            continue
+        # v2 bucket_path is a directory. Only sidecar_path identifies a file;
+        # accept an old full-file bucket_path solely for archive compatibility.
+        if target_doc in (str(row.get("sidecar_path") or ""),
+                          str(row.get("bucket_path") or "")):
+            return row
+    return None
+
+
+def sidecar_source_id(patient_dir, target_doc):
+    try:
+        text = (Path(patient_dir) / target_doc).read_text(encoding="utf-8")
+    except OSError:
+        return None
+    match = re.search(r"^source_id:\s*(\S+)", text, re.M)
+    return match.group(1) if match else None
+
+
+def review_overrides(patient_dir, target_doc):
+    """Return value-level overrides via stable ID, never a current path join."""
+    entry = inventory_entry(patient_dir, target_doc) or {}
+    source_id = str(entry.get("source_id") or sidecar_source_id(patient_dir, target_doc) or "")
+    file_id = str(entry.get("file_id") or source_id)
+    records = load_review_records(Path(patient_dir) / "high_risk_review.json")
+    record = find_review_record(records, file_id, source_id, target_doc)
+    return verified_values(record)
 
 
 def inventory_status(patient_dir, target_doc):
-    inventory = read_json(Path(patient_dir) / "source_inventory.json") or {}
-    for row in inventory.get("files", []) if isinstance(inventory, dict) else []:
-        if str(row.get("bucket_path") or row.get("sidecar_path") or "") == target_doc:
-            return str(row.get("high_risk_review_status") or "")
-    return ""
+    row = inventory_entry(patient_dir, target_doc)
+    return str(row.get("high_risk_review_status") or "") if row else ""
 
 
 def old_value_flagged(lines, full_text, patient_dir, target_doc, value):
     """value 所在行带 needs_human_review，或行内无状态但文件级复核状态为待核。"""
-    overrides = review_overrides(patient_dir).get(target_doc, {})
+    overrides = review_overrides(patient_dir, target_doc)
     # P8(verifySidecarHighRisk)以表格单元的裸数字作 key("67.61"),candidate 的 old_value
     # 通常带单位("67.61 U/ml")——两种 key 都试,否则复读升级永远打不通(同事 review 实锤)。
     keys = [str(value)]

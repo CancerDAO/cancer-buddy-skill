@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compute the 段D "自上次总结的变化" delta by diffing two case_summary_data.json
+"""Compute the 段D "自上次总结的变化" delta from `.case_summary_data.json`
 snapshots (stdlib only, ZERO medical logic).
 
 Each 段D (re)generation snapshots its render data to
@@ -22,8 +22,8 @@ plain float compare when both sides parse as numbers, else a string-inequality
 or bad) — it is purely the arithmetic direction; the template colours it neutrally.
 
 CLI:
-    python3 compute_version_delta.py --data case_summary_data.json --prev PREV.json
-    python3 compute_version_delta.py --data case_summary_data.json            # no --prev → version_delta:null
+    python3 compute_version_delta.py --data .case_summary_data.json --prev PREV.json
+    python3 compute_version_delta.py --data .case_summary_data.json            # no --prev → version_delta:null
     python3 compute_version_delta.py --data D.json --prev P.json --out E.json
 
 Exit codes:
@@ -131,8 +131,8 @@ def compute_delta(cur: dict, prev: dict) -> dict:
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="Inject version_delta (自上次总结的变化) into case_summary_data.json.")
-    ap.add_argument("--data", required=True, help="current case_summary_data.json")
+    ap = argparse.ArgumentParser(description="Inject version_delta (自上次总结的变化) into .case_summary_data.json.")
+    ap.add_argument("--data", required=True, help="current .case_summary_data.json")
     ap.add_argument("--prev", help="previous snapshot case_summary_data_<date>.json (omit → version_delta:null)")
     ap.add_argument("--out", help="output path (default: overwrite --data in place)")
     args = ap.parse_args()

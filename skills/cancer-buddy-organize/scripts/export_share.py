@@ -54,7 +54,11 @@ def _run_acceptance_gate(patient_dir: Path) -> bool:
     if gate is not None and hasattr(gate, "main"):
         saved_argv = sys.argv
         try:
-            sys.argv = ["validate_structured_outputs.py", str(patient_dir)]
+            sys.argv = [
+                "validate_structured_outputs.py",
+                "--require-complete",
+                str(patient_dir),
+            ]
             return gate.main() == 0
         finally:
             sys.argv = saved_argv
@@ -62,7 +66,12 @@ def _run_acceptance_gate(patient_dir: Path) -> bool:
     import subprocess
 
     return subprocess.run(
-        [sys.executable, str(SCRIPT_DIR / "validate_structured_outputs.py"), str(patient_dir)]
+        [
+            sys.executable,
+            str(SCRIPT_DIR / "validate_structured_outputs.py"),
+            "--require-complete",
+            str(patient_dir),
+        ]
     ).returncode == 0
 
 

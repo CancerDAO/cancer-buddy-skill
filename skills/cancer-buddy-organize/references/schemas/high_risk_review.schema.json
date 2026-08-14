@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cancerdao.org/schemas/cancer-buddy/high_risk_review.schema.json",
+  "title": "HighRiskReview",
+  "description": "Independent reread results keyed by stable content ID. In the lite 1:1 profile file_id may equal source_id. sidecar_path records where the sidecar was reviewed; it is never the lookup key.",
+  "type": "object",
+  "required": ["schema", "sources"],
+  "additionalProperties": false,
+  "properties": {
+    "schema": { "const": "high_risk_review_v2" },
+    "sources": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["source_id", "sidecar_path", "status", "values"],
+        "additionalProperties": false,
+        "properties": {
+          "file_id": { "type": "string", "minLength": 1 },
+          "source_id": { "type": "string", "minLength": 1 },
+          "sidecar_path": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Sidecar location at review time. Informational only; it may become stale after deterministic filing."
+          },
+          "status": {
+            "type": "string",
+            "enum": ["not_applicable", "passed_independent_reread", "needs_human_review"],
+            "description": "not_applicable is written only when the deterministic filter selected no high-risk field. passed_independent_reread asserts complete coverage of all selected fields. A partial review must use needs_human_review."
+          },
+          "values": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string",
+              "enum": ["double_read", "verified_by_second_read", "clinician_verified"]
+            }
+          }
+        }
+      }
+    }
+  }
+}

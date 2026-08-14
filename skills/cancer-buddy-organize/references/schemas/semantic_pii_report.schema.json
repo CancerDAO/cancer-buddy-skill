@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cancerdao.org/schemas/cancer-buddy/semantic_pii_report.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "run_id", "stage", "scope_sha256", "scanned", "findings", "clean"],
+  "properties": {
+    "schema": { "const": "semantic_pii_report_v1" },
+    "run_id": { "type": "string", "pattern": "^RUN-[0-9]{8}T[0-9]{6}Z-[A-F0-9]{6}$" },
+    "stage": { "enum": ["phase1", "final"] },
+    "scope_sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "scanned": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string" } },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["surface", "line", "occurrence", "exact_text", "category"],
+        "properties": {
+          "surface": { "type": "string" },
+          "line": { "type": "integer", "minimum": 1 },
+          "occurrence": { "type": "integer", "minimum": 1 },
+          "exact_text": { "type": "string", "minLength": 1, "maxLength": 256 },
+          "category": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "clean": { "type": "boolean" }
+  }
+}
