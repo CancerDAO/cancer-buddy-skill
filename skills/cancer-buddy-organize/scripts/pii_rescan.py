@@ -105,17 +105,30 @@ _STANDALONE = [
     (re.compile(r"(?<!\d)\d{11,}(?!\d)"), "numeric_id"),
 ]
 
+# 契约内去标识句柄白名单（反馈 5）：sha256 派生的 source_id / raw 句柄（12 位 hex）偶发
+# 含 ≥11 位连续数字，会被 numeric_id 误伤（生产实测 64 源中招 1 例）。这些是契约分配的
+# 稳定 ID，不是 PII。
+_DEID_HANDLE_RE = re.compile(r"(?:SRC-[0-9a-fA-F]{12}|src_[0-9a-f]{12})")
+
 
 def scan_line(line: str) -> list[tuple[str, str]]:
     """Return list of (pii_type, matched_snippet) for SHAPE residue on this line.
 
     Only standalone shape identifiers — label/semantic PII is Layer 1's job. A
-    masked value (`[PII_MASKED]`) has no digits/email shape, so it never matches."""
+    masked value (`[PII_MASKED]`) has no digits/email shape, so it never matches.
+    Digit runs that are part of a contract de-id handle (SRC-…/src_…) are exempt."""
     findings: list[tuple[str, str]] = []
     if not line.strip():
         return findings
+    handle_spans = [m.span() for m in _DEID_HANDLE_RE.finditer(line)]
+
+    def in_handle(span: tuple[int, int]) -> bool:
+        return any(span[0] >= hs[0] and span[1] <= hs[1] for hs in handle_spans)
+
     for pattern, pii_type in _STANDALONE:
         for m in pattern.finditer(line):
+            if pii_type == "numeric_id" and in_handle(m.span()):
+                continue
             findings.append((pii_type, m.group(0)))
     return findings
 
