@@ -1073,6 +1073,55 @@ def _requires_longitudinal_observations(patient_dir: Path) -> bool:
     return False
 
 
+# 域产物主集合 ↔ 来源桶映射（白卷门用）。timeline 跨桶，用 None 表示任一临床桶。
+_DOMAIN_COLLECTIONS = (
+    ("labs.json", "panels", ("07_检验",)),
+    ("molecular.json", "reports", ("06_分子与组学",)),
+    ("treatment_lines.json", "episodes", ("03_病程与叙事文书", "08_治疗")),
+    ("timeline.json", "events", None),
+)
+
+_BUCKET_MD_RE = re.compile(r"^(?:0[1-9]|1[0-4])_[^/]+/.+\.md$")
+
+
+def _domain_sidecar_count(patient_dir: Path, prefixes) -> int:
+    count = 0
+    for path in patient_dir.rglob("*.md"):
+        rel = path.relative_to(patient_dir).as_posix()
+        if not _BUCKET_MD_RE.match(rel):
+            continue
+        if prefixes is None or any(rel.startswith(p + "/") for p in prefixes):
+            count += 1
+    return count
+
+
+def gate_domain_collections(patient_dir: Path, errors: list) -> None:
+    """白卷门：域产物主集合为空，仅在其来源桶也为空时合法。
+
+    2026-09-04 平台实证：提取器长输出被截断两轮后，第三轮以 panels: []/events: []
+    通过验收（schema 层面空数组合法），段D 随之整段误显「资料缺失」。桶内有
+    sidecar 而主集合为空 = 提取器交白卷，必须判不合格进修复轮。
+    """
+    for fname, key, prefixes in _DOMAIN_COLLECTIONS:
+        fpath = patient_dir / fname
+        if not fpath.is_file():
+            continue
+        data = _read_json_if_present(fpath)
+        if not isinstance(data, dict):
+            continue
+        collection = data.get(key)
+        if (
+            isinstance(collection, list)
+            and not collection
+            and _domain_sidecar_count(patient_dir, prefixes) > 0
+        ):
+            errors.append(
+                f"{fname}: empty_collection_with_nonempty_bucket: $.{key} is empty "
+                "but source sidecars exist in its domain bucket(s); an extractor must "
+                "not answer a repair round with an empty collection"
+            )
+
+
 def gate_required_lite_artifacts(patient_dir: Path, errors: list) -> None:
     """Enforce only the final organize-lite artifact set and its two conditions."""
     for name in LITE_REQUIRED_ARTIFACTS:
@@ -1198,6 +1247,15 @@ def main() -> int:
         action="store_true",
         help="fail when any required/conditional organize-lite artifact is missing",
     )
+    parser.add_argument(
+        "--require",
+        type=lambda s: [x.strip() for x in s.split(",") if x.strip()],
+        default=[],
+        metavar="FILE[,FILE...]",
+        help="patient_dir-relative artifact(s) that must exist. Lets a caller "
+             "validate exactly this run's expected outputs (worker self-check) "
+             "without the full --require-complete set (final boundary).",
+    )
     try:
         args = parser.parse_args()
     except SystemExit as exc:
@@ -1210,8 +1268,12 @@ def main() -> int:
 
     errors: list[str] = []
     warnings: list[str] = []
+    for name in args.require:
+        if not (patient_dir / name).is_file():
+            errors.append(f"required_artifacts: missing explicitly required artifact: {name}")
     if args.require_complete:
         gate_required_lite_artifacts(patient_dir, errors)
+    gate_domain_collections(patient_dir, errors)
     gate_structured(patient_dir, errors)
     gate_markdown_source_refs(patient_dir, errors)
     gate_pii_rescan(patient_dir, errors)
