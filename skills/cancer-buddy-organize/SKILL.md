@@ -38,6 +38,12 @@ run_dir="$patient_dir/.staging/runs/$run_id"
 所有后续 ID 逐字使用 manifest 的 `source_id`；若 manifest 有 `file_id`，以 `file_id` 为稳定
 内容键，否则 lite 的 1:1 来源用 `source_id`。
 
+**HEIC 派生光栅契约**：HEIC/HEIF 源（iPhone 直出病历照片的主流格式）在 phase0 转码时
+必须同时产出 JPEG 派生光栅（`.staging/rasters/<source_id>/page1.jpg`），供 Step 2 高危
+字段二读与争议复核使用；生命周期与 `.staging/` 一致（lite 档永久保留）。任何链路不得因
+"原格式不是位图"而跳过 HEIC 源的二读——没有可用光栅的 HEIC 高危源是覆盖缺口，不是
+`no_raster` 跳过项。
+
 ## Step 1 — 小切片并行转录 + Phase-1 PII 门
 
 把可读来源按每组 **3–4 件**切片，最多同时派 3 个 worker。先把本轮所有 worker 派出，再
@@ -123,7 +129,22 @@ worker 每完成一件立即写 `ocr/<source_id>.md`。全部返回后，按 man
 
 编排层验证路径属于 taxonomy 后再移动；worker 不动文件系统。报告类型逐字取自该 sidecar；
 unknown 固定落 `14_患者自管补充/患者补充/待归类资料_<source_id>.md`。日期缺失就保留 unknown，
-不拿别的文档日期补。全部移动后删除空 `ocr/`，并运行：
+不拿别的文档日期补——**唯一例外是多页文书归组**（下述）。
+
+### 多页文书归组（首页日期/机构继承）
+
+一份多页文书常被拆成多个源文件（如入院记录 2 页 = 2 张图），而**只有首页有完整页眉**
+（日期/机构/文书类型）。后续页 sidecar 若已诚实标注「本页未见明确记录日期」，归类时
+**不得**以"日期未知"落待归类，而应按确定性规则归组继承：
+
+1. 归组键：同机构 + 同文书类型声明 + 页码/时间连续性（如文件名序号相邻、sidecar 页脚
+   页码 `第 N 页/共 M 页`、采样时间同日相邻）。
+2. 组内非首页继承组头的**记录日期与机构**；sidecar 与 INDEX.md 中注明
+   `归组继承自 <组头 source_id>`，不伪造成本页所见。
+3. 不满足归组键的（机构/类型对不上、页序断档）仍按原规则落 unknown——归组不裁决
+   不相干文档。
+
+全部移动后删除空 `ocr/`，并运行：
 
 ```bash
 "$python" <skill_dir>/scripts/gates/gate_name_content.py "$patient_dir"

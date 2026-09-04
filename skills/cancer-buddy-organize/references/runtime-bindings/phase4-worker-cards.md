@@ -86,6 +86,20 @@ run、receipt、WAL，不移动或重命名 sidecar，也不写未分配给自�
   `review_flags.md`。
 - `readiness.json` 只写文档覆盖与来源/忠实度问题，不写 A–F、分数或临床可行动性。
 - 交叉检查只报告冲突，不修改上游产物；`review_summary.md` 每条事实继续使用桶内来源锚点。
+- **每条 review_flag 必须在 flag 级带 `source_refs`**（桶内相对路径 + `#L` 行号锚点），
+  渲染进 `review_flags.md` 时每行 flag 同样带 `[[src:path#L..]]`——锚点门对非空
+  review_flags.md 强制锚点；没有真实锚点的 flag 不得写入（也不许编造锚点过门）。
+
+## 域提取器通用纪律（labs / molecular / treatment / timeline / case_text / patient_summary）
+
+- **禁止以空集合应付修复轮**：主集合（panels/events/episodes/reports）修不好就保留错误
+  返回让编排层处置，绝不清空集合过门——桶内有 sidecar 而主集合为空是白卷，
+  validator 的 `empty_collection_with_nonempty_bucket` 门会判不合格。
+- **单域输出规模上限**：一次读取超过 ~12 份 sidecar 时按组切片输出、由编排层确定性
+  合并（map-reduce），不要把几十份 sidecar 压进一次超长 JSON 输出（provider 截断
+  是真实事故源）。
+- **timeline 两段式**：先产 `timeline.json`（全部事实与锚点），`timeline.md` 必须从
+  JSON 确定性派生，不二次自由发挥——锚点格式不一致的修复撞墙多源于手写 md。
 
 ## case_summary_data
 

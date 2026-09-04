@@ -40,6 +40,11 @@
             }
           },
           "issue": { "type": "string" },
+          "source_refs": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Flag-level source anchors (bucket-relative .md path, optional #L fragment). REQUIRED whenever review_flags.md is rendered — the FORMAL_MARKDOWN_FILES gate rejects anchorless flags; never fabricate anchors to pass the gate."
+          },
           "resolution_status": {
             "enum": ["unresolved", "resolved_by_corrected_source", "resolved_by_clinician_attestation", "resolved_administratively"]
           }
