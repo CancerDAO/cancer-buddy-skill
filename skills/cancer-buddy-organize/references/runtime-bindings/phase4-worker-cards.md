@@ -29,9 +29,12 @@ run、receipt、WAL，不移动或重命名 sidecar，也不写未分配给自�
 
 ## comorbidities
 
-- 只读：匹配稳定前缀 `02_*/**/*.md`、`03_*/**/*.md` 的本地化桶
+- 只读：匹配稳定前缀 `02_*/**/*.md`、`03_*/**/*.md`，以及 `07_*/心电图功能检查/**/*.md`
+  （或 pinned 英文等价子桶）的本地化桶
 - 唯一拥有：`comorbidities.json`
 - 只记录来源明确写出的共病、用药和过敏；“未见记载”不能写成“无”。
+- `doc_kind: waveform_report` 只消费文字区中医生明确写出的诊断/结论原文；不从波形或机器参数
+  推导共病。该结论与其它来源一样使用普通 sidecar source_ref，不需要特殊锚点格式。
 
 ## missing_items
 
@@ -68,6 +71,8 @@ run、receipt、WAL，不移动或重命名 sidecar，也不写未分配给自�
 - 唯一拥有：`timeline.json`、`timeline.md`；仅在存在时序/趋势数据时额外拥有
   `longitudinal_observations.json`。
 - 按来源日期排序；日期不完整时保持不完整并说明，不补日/月。时间相邻不表示因果或疗效。
+- `doc_kind: waveform_report` 可将医生书面结论作为来源明确写出的事件；不得把机器参数或波形
+  视觉特征转成诊断事件。仍使用普通 bucket sidecar anchor。
 
 ## case_text
 

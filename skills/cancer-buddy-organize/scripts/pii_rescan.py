@@ -158,6 +158,7 @@ def scan_sidecar(path: Path) -> list[tuple[int, str, str]]:
             # contain only the stable source_id; the protected raw_path lives
             # in phase0_manifest/source_inventory, never in this header.
             "source_id:", "original:", "read_mode:", "profile:",
+            "doc_kind:", "waveform_interpretation:",
         )):
             continue
         # `## PII` trailer is metadata — stop scanning the body once we hit it

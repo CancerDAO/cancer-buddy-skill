@@ -45,8 +45,8 @@ deterministic gate, not you, replaces it with `[PII_MASKED]`.
 
 For sidecar Markdown, skip the provenance header (`SOURCE:`, `READ_MODE:`,
 `ADAPTER:`, `ADAPTER_PROVENANCE:`, `CONFIDENCE:`, `FILE_ID:`, `MODALITY:` and
-legacy `ORIGINAL:`), plus lite `source_id:`, `original:`, `read_mode:` and
-`profile:`. The lite `original:` value is required to be the same stable
+legacy `ORIGINAL:`), plus lite `source_id:`, `original:`, `read_mode:`, `profile:`,
+`doc_kind:` and `waveform_interpretation:`. The lite `original:` value is required to be the same stable
 source_id, never a raw filename/path. Also skip the `## PII` trailer. Scan all
 other supplied surfaces in full.
 

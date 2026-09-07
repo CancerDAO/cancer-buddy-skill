@@ -44,13 +44,19 @@ Gate sections (each contributes to one aggregated exit code):
       range, report flag, provenance and source refs. It never calculates an
       abnormal flag or compares a patient value with a clinical threshold.
 
-  [3] Source inventory:
+   [3] Source inventory:
       When source_inventory.json is present, every content unit must have a
       text-masked MD sidecar plus a raw_path back to its verbatim original in raw/.
       Organization preserves source bytes under host access control; retention and
       sharing are governed separately. There is no image-level source-redaction gate. Sources
       cited by formal outputs must be persist:true with a co-located .md sidecar
-      in its bucket (the original itself lives once in raw/, never copied into a bucket).
+       in its bucket (the original itself lives once in raw/, never copied into a bucket).
+
+   [3a] Graphic-dominant waveform report contract: a sidecar that explicitly
+       declares ``doc_kind: waveform_report`` must retain its text area and
+       non-interpretation declaration, and (once inventory exists) its protected
+       ``raw_path`` linkage. The gate does not interpret a waveform or assess
+       whether a clinical conclusion is correct.
 
   [3b] Bucket-taxonomy enforcement (gate_bucket_taxonomy, CB-P0-1) —
       deterministic, no medical judgement: every top-level `NN_` domain dir and
@@ -748,6 +754,68 @@ def gate_source_inventory(patient_dir: Path, errors: list) -> None:
 
 
 # --------------------------------------------------------------------------- #
+# [3a] Graphic-dominant waveform report contract — deterministic form gate.
+#
+# This is intentionally not an ECG/EEG interpreter. It only checks that a worker
+# who explicitly selected waveform_report provided the source-preserving sections
+# and did not turn low text volume into a false extraction failure.
+# --------------------------------------------------------------------------- #
+_WAVEFORM_DOC_KIND_RE = re.compile(r"^doc_kind:\s*waveform_report\s*$", re.M)
+_WAVEFORM_INTERPRETATION_RE = re.compile(
+    r"^waveform_interpretation:\s*not_performed\s*$", re.M
+)
+_WAVEFORM_TEXT_SECTION_RE = re.compile(r"^##\s+文字区逐字转录\s*$", re.M)
+_WAVEFORM_DECLARATION_RE = re.compile(r"^##\s+图形主体声明\s*$", re.M)
+_WAVEFORM_FORBIDDEN_QUALITY = ("insufficient_text", "evidence_unavailable")
+
+
+def gate_waveform_reports(patient_dir: Path, errors: list) -> None:
+    inventory = _read_json_if_present(patient_dir / SOURCE_INVENTORY_NAME)
+    rows = _file_entries(inventory) if isinstance(inventory, dict) else []
+    rows_by_sidecar = {
+        str(row.get("sidecar_path")): row
+        for row in rows
+        if isinstance(row, dict) and isinstance(row.get("sidecar_path"), str)
+    }
+    for path in patient_dir.rglob("*.md"):
+        rel = path.relative_to(patient_dir).as_posix()
+        if not _BUCKET_MD_RE.match(rel):
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except OSError as exc:
+            errors.append(f"waveform_report: {rel}: unreadable sidecar: {exc}")
+            continue
+        if not _WAVEFORM_DOC_KIND_RE.search(text):
+            continue
+        if not _WAVEFORM_INTERPRETATION_RE.search(text):
+            errors.append(
+                f"waveform_report: {rel}: requires waveform_interpretation: not_performed"
+            )
+        if not _WAVEFORM_TEXT_SECTION_RE.search(text):
+            errors.append(f"waveform_report: {rel}: missing ## 文字区逐字转录")
+        if not _WAVEFORM_DECLARATION_RE.search(text):
+            errors.append(f"waveform_report: {rel}: missing ## 图形主体声明")
+        lowered = text.lower()
+        for marker in _WAVEFORM_FORBIDDEN_QUALITY:
+            if marker in lowered:
+                errors.append(
+                    f"waveform_report: {rel}: must not use {marker} as a waveform-text quality result"
+                )
+        if not rows:
+            continue  # in-progress Phase 1: the inventory is created after filing.
+        row = rows_by_sidecar.get(rel)
+        if not row:
+            errors.append(f"waveform_report: {rel}: no source_inventory row")
+            continue
+        if row.get("doc_kind") != "waveform_report":
+            errors.append(f"waveform_report: {rel}: source_inventory doc_kind must be waveform_report")
+        raw_path = row.get("raw_path")
+        if not isinstance(raw_path, str) or not raw_path.startswith("raw/"):
+            errors.append(f"waveform_report: {rel}: source_inventory must retain protected raw_path")
+
+
+# --------------------------------------------------------------------------- #
 # [3b] bucket-taxonomy enforcement (CB-P0-1) — deterministic, NO medical
 # judgement. The Phase-2 classifier is instructed to re-file every source onto
 # the pinned v3 taxonomy (bucket-taxonomy.md §1.1 / §1.1a) and to NEVER echo an
@@ -1281,6 +1349,7 @@ def main() -> int:
     gate_lab_source_shape(patient_dir, errors)
     gate_bucket_taxonomy(patient_dir, errors)
     gate_source_inventory(patient_dir, errors)
+    gate_waveform_reports(patient_dir, errors)
     gate_case_summary_html(patient_dir, errors)
     gate_agents_md(patient_dir, errors)
     gate_no_rogue_agents_md(patient_dir, errors)

@@ -52,6 +52,18 @@ def sidecar_locations(patient_dir):
     return out
 
 
+def sidecar_doc_kind(patient_dir, sidecar):
+    """Return an explicitly declared sidecar type without classifying documents here."""
+    if not sidecar:
+        return None
+    try:
+        text = (patient_dir / sidecar).read_text(encoding="utf-8")
+    except OSError:
+        return None
+    match = re.search(r"^doc_kind:\s*(\S+)\s*$", text, re.M)
+    return match.group(1) if match else None
+
+
 def adapter_for(source):
     """Map Phase-0's concrete preparation to the source-inventory enum."""
     if source.get("status") != "ok":
@@ -156,7 +168,8 @@ def main():
             "raw_output_ref": None,
             "llm_role": "transcription",
         })
-        rows.append({
+        doc_kind = sidecar_doc_kind(patient_dir, sidecar)
+        row = {
             "file_id": file_id,
             "source_id": sid,
             # Portable, de-identified handle. The protected raw location remains
@@ -174,7 +187,10 @@ def main():
                                         else inventory_review_status(review_record)),
             "adapter": adapter_for(src),
             "persist": True,
-        })
+        }
+        if doc_kind == "waveform_report":
+            row["doc_kind"] = doc_kind
+        rows.append(row)
     inventory = {"schema": "source_inventory_v2", "patient_dir": patient_dir.name,
                  "generated_at": now, "files": rows}
     (patient_dir / "source_inventory.json").write_text(
