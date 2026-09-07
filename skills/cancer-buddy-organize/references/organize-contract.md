@@ -28,6 +28,33 @@ does not authorize clinical interpretation.
 - Longitudinal observations are not response trajectories.
 - Missing/failed extraction yields null and review flags, never a plausible value.
 
+## Graphic-dominant waveform reports
+
+`waveform_report` is an extensible extraction type for records whose clinical source is a written report
+around a waveform (for example ECG or EEG). The waveform itself is not text and this contract does not
+authorize machine interpretation of it.
+
+- A valid waveform-report sidecar declares `doc_kind: waveform_report` and
+  `waveform_interpretation: not_performed`, transcribes the visible written area verbatim, and states that
+  the graphical trace requires clinician/specialist interpretation.
+- The text-area completeness gate replaces a text-volume heuristic for this type. A readable written area
+  is usable evidence even when the page body is almost entirely grid or trace; it must not be classified
+  as `insufficient_text` or `evidence_unavailable` solely for that reason.
+- Only a clinician-written conclusion may flow into a timeline or comorbidity record as `source_reported`.
+  Machine parameters remain verbatim source text; neither they nor the trace may be converted into a new
+  diagnosis.
+- The original remains referenced through the protected `raw_path` in the phase-0 manifest and
+  `source_inventory.json`. It is access-controlled and never an export/anchor target.
+
+## HEIC derived-raster lifecycle
+
+The HEIC/HEIF requirement introduced in PR #32 is a host-facing extraction contract: Phase 0 materializes
+`.staging/rasters/<source_id>/page1.jpg` (and subsequent pages when applicable) before any high-risk
+second read. The raster is a protected derivative for Phase-1/Step-2 and dispute review, never a second
+clinical source, export target, or `[[src:...]]` anchor. The original `raw_path` remains the durable source
+reference. A missing HEIC raster for a high-risk source is a coverage failure requiring `needs_human_review`,
+not a `no_raster` exemption.
+
 ## Irreversible actions
 
 No file is deleted on silence or model confidence. Quarantine and preview first; delete only after explicit,

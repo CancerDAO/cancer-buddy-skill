@@ -25,6 +25,7 @@
           "page_range": { "type": ["string", "null"], "description": "Which pages of a multi-document source this content unit covers, e.g. \"3-5\". Null when the sidecar covers the whole file." },
           "bucket_path": { "type": ["string", "null"], "pattern": "^[0-9]{2}_[^\\s/]+(/[^\\s/]+)*$", "description": "Canonical bucket directory containing the text-masked .md sidecar after classification (clinical domain 01_…14_). This is a directory path, not the sidecar filename. Null for an unreadable/blocked source." },
           "sidecar_path": { "type": ["string", "null"], "pattern": "^[0-9]{2}_[^\\s/]+(/[^\\s/]+)*\\.md$", "description": "Bucket-relative source-attributed, text-masked MD sidecar. The leading NN_ bucket segment is required. Null only when read_mode is stub_unreadable." },
+          "doc_kind": { "type": ["string", "null"], "enum": ["waveform_report", null], "description": "Optional extraction contract for a graphic-dominant waveform report. Ordinary record sidecars omit this field. waveform_report preserves written report text but does not interpret the trace." },
           "modality": {
             "type": "string",
             "enum": ["text", "image", "structured", "omics_raw", "timeseries", "binary_other"],

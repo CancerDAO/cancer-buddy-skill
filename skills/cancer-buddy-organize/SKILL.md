@@ -55,6 +55,19 @@ run_dir="$patient_dir/.staging/runs/$run_id"
 worker 每完成一件立即写 `ocr/<source_id>.md`。全部返回后，按 manifest 精确对账；缺件只重派
 缺失 ID 一次。可读来源数与 sidecar 数仍不一致就停止，不能进入 Step 2。
 
+### 图形主导文档：波形报告
+
+心电图、脑电图等**波形/网格为主体且带文字报告区**的来源，Phase-1 必须写
+`doc_kind: waveform_report` sidecar。它们的质量门按文字区逐字转录是否完整判断，**不按正文
+文本量**判 `insufficient_text` / `evidence_unavailable`，也不得因无法把波形变成文字而排除来源。
+sidecar 必须逐字保留机构、日期、报告标题、可见机器打印参数和医生书面结论，并包含
+`waveform_interpretation: not_performed` 与“系统未对波形作出解读，需由临床/专科医生解读”的
+图形主体声明。不得从波形或参数推导诊断，医生未写的结论一律不写。
+
+`raw_path` 仍只保留在 Phase-0 manifest 与最终 `source_inventory.json`：已授权宿主可由它打开
+原件，但它不是来源锚点，也不得进 sidecar 或模型上下文。该分支当前只覆盖波形报告；影像胶片、
+病理切片、伤口/皮肤照片和体温单曲线不自动归入本类型。
+
 先跑确定性形状门：
 
 ```bash
