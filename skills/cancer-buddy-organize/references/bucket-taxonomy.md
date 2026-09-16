@@ -1,13 +1,27 @@
-# Bucket Taxonomy — single source of truth (`scheme_version: 3`)
+# Bucket Taxonomy — single source of truth (`scheme_version: 4`)
 
 > This file is the **one authoritative definition** of the `cancer-buddy-organize` bucket scheme.
 > Every other reference (`organize-contract.md`, `organizer-prompt-phase2-synthesis.md`,
-> `organizer-prompt-phase1-ocr.md`, `../../../references/i18n.md §6`, `SKILL.md`,
-> `references/patient-profile-schema.md`, `schemas/anchor-contract.md`, runtime bindings, the
+> `organizer-prompt-phase1-transcribe.md`, `../../../references/i18n.md §6`, `SKILL.md`,
+> `../../../references/patient-profile-schema.md`, `schemas/anchor-contract.md`, runtime bindings, the
 > redaction job, and every sibling/downstream skill) MUST agree with the tables below. If they
 > disagree, **this file wins** and the other is a drift bug to fix.
 
-## 0. What changed in v3 (and why)
+## 0. What changed in v4 (and why)
+
+v4 is a **single additive change** on top of v3: a 15th visible bucket, `15_未分类资料`, whose
+sub-buckets are **open** (model-generated slugs under a whitelist regex) instead of pinned.
+
+Why: v3's top-level `NN_` namespace is closed, so a document type the taxonomy does not know had
+nowhere truthful to go — it landed in some bucket's `其他/` fallback, where downstream could no
+longer tell whether it was a molecular panel or a receipt. v4 gives "we kept the whole thing but our
+taxonomy has no drawer for it" a **first-class, declared** location: `15_未分类资料/<slug>/` with
+`kind: novel` + `novel_reason` + `clinical_class` on the inventory row (§1.1c).
+
+`15_` is an **open archive, not a quarantine** and **not an anchor target**. Everything in v3 below
+is unchanged; nothing is renamed or migrated.
+
+## 0a. What changed in v3 (and why)
 
 v2 collapsed three conflicting bucket lists into one contiguous `00…09` oncology-document scheme.
 v3 **generalizes** that scheme into a longitudinal, multi-modal, multi-disease data layer, because
@@ -29,7 +43,8 @@ longitudinal time series**, not only "tumor patient + image/text". The redesign 
    `10`). This is what lets the profile carry a trajectory, not just `latest_status`.
 
 > **Machine-readable mirror.** [`bucket_taxonomy.json`](bucket_taxonomy.json) is the JSON derivation of §1.1
-> (14 domains) + §1.1a (pinned typed sub-bucket slug map) + §1.2 (infra buckets). It is the single
+> (14 clinical domains + the `15_` open bucket) + §1.1a (pinned typed sub-bucket slug map) + §1.1c
+> (`15_` open-slug regex) + §1.2 (infra buckets). It is the single
 > machine-readable SOURCE the deterministic gate (`scripts/validate_structured_outputs.py` →
 > `gate_bucket_taxonomy`) reads to enforce the pinned slugs at mkdir time. This `.md` stays authoritative
 > for prose/rationale; if the JSON and this file disagree, regenerate the JSON from these tables.
@@ -39,11 +54,11 @@ longitudinal time series**, not only "tumor patient + image/text". The redesign 
 `NN_` is a **language-independent stable key** — downstream anchors, `_FILENAME_MAPPING`, and every
 `[[src:…]]` resolve on the `NN_` numeric prefix (anchor regex `^[0-9]{2}_…`), never on the localized
 slug (see `../../../references/i18n.md §6`). The `zh` slug is the on-disk folder name for `locale=zh`; the `en` slug per
-`../../../references/i18n.md §6.1`. The scheme is disease-agnostic: the same 14 domains serve oncology, rare-disease
+`../../../references/i18n.md §6.1`. The scheme is disease-agnostic: the same 14 clinical domains (+ the `15_` open bucket) serve oncology, rare-disease
 (firefly), chronic-disease, and healthy-baseline records — no domain hardcodes a cancer-only concept
 (`TNM`, `肿瘤标志物` are *typed subdirs / schema fields*, not bucket-level identity).
 
-### 1.1 Clinical domains (visible, anchored)
+### 1.1 Clinical domains (visible, anchored) + the open bucket `15_`
 
 | NN_ | `zh` slug | `en` slug | typed sub-buckets (`zh`) | from v2 |
 |---|---|---|---|---|
@@ -61,6 +76,11 @@ slug (see `../../../references/i18n.md §6`). The `zh` slug is the on-disk folde
 | `12_` | `12_心理社会与支持` | `12_psychosocial_support` | `心理评估/ 营养/ 康复/ 缓和/ 社工/` | **new** |
 | `13_` | `13_行政与财务` | `13_admin_financial` | `知情同意/ 费用发票/ 医保报销/ 证明材料/` | **new** |
 | `14_` | `14_患者自管补充` | `14_patient_supplement` | `患者补充/ 日记/ 自测/ conversation_notes/` | `09_患者补充` |
+| `15_` | `15_未分类资料` | `15_unclassified` | **open** (`open_sub_buckets: true`) — model-generated `<slug>/`, see §1.1c | **new in v4** |
+
+> **`01_…14_` are anchored clinical domains. `15_` is visible but NEVER an anchor target** — see
+> §1.1c and `schemas/anchor-contract.md`. The prose below about the 14 domains (single clinical-domain
+> axis, lazy creation, pinned sub-buckets) applies to `01_…14_`; `15_` follows §1.1c instead.
 
 ### 1.1a Typed subdirectory slug map (`zh` ↔ `en`, pinned)
 
@@ -155,9 +175,104 @@ slug (see `../../../references/i18n.md §6`). The `zh` slug is the on-disk folde
 
 ### 1.1b Empty-bucket policy (lazy creation — never pre-scaffold an empty domain)
 
-**A clinical bucket is created on disk only when a sidecar is actually filed into it** (Phase 2 `mkdir -p <bucket>` immediately before writing each sidecar; setup creates **only `ocr/` + `raw/`**, never the 14 domains up front — see `SKILL.md` Step 2). The reason is a patient-safety one: **an empty folder must not imply "no such record exists".** A pre-created empty `09_手术与操作/` reads to a human (and to a downstream skill scanning the tree) as "no surgery" — which is a silent, dangerous lie when the discharge summary states a resection was performed but the operative note simply wasn't among the uploaded files. With lazy creation, an absent `09_手术与操作/` truthfully means **"no surgery document was filed"**. Known/requested existing-document gaps belong in `missing_items.json`; they are inventory facts, not evidence that a test or procedure is clinically indicated.
+**A clinical bucket is created on disk only when a sidecar is actually filed into it** (段 2 `mkdir -p <bucket>` immediately before writing each sidecar; setup creates **only the transient `ocr/` staging dir + `raw/`**, never the 14 domains nor `15_` up front — see `SKILL.md` 段 0). The reason is a patient-safety one: **an empty folder must not imply "no such record exists".** A pre-created empty `09_手术与操作/` reads to a human (and to a downstream skill scanning the tree) as "no surgery" — which is a silent, dangerous lie when the discharge summary states a resection was performed but the operative note simply wasn't among the uploaded files. With lazy creation, an absent `09_手术与操作/` truthfully means **"no surgery document was filed"**. Known/requested existing-document gaps belong in `missing_items.json`; they are inventory facts, not evidence that a test or procedure is clinically indicated.
 
 If a host binding insists on pre-creating buckets, it MUST, at the end of the run, for every bucket left empty, **either remove it OR annotate it in `INDEX.md`** as `该桶为空：源材料未提供原始X`（X = that domain, e.g. 手术记录）— an empty folder may never sit silently in the tree implying the record exists or that its domain was checked and found clear. The lazy-create path above is the default because it makes this invariant hold structurally.
+
+### 1.1c `15_未分类资料` — the open bucket (`open_sub_buckets: true`)
+
+| key | `zh` slug | `en` slug | visible? | anchored? | sub-buckets |
+|---|---|---|---|---|---|
+| `15_` | `15_未分类资料` | `15_unclassified` | **yes** | **never** | **open** — one `<slug>/` per novel document type |
+
+**When a source goes here:** its document type is **not in the taxonomy at all** — not "I'm unsure
+which of the 14 drawers fits". Unsure-which-drawer still files into `01_…14_` (use that bucket's
+`其他/` fallback). `15_` is for a genuinely new type: a new sequencing vendor's custom panel, a gut
+microbiome report, a scoring instrument nobody has seen, a foreign-format discharge document.
+
+**`15_` takes `kind: novel` and nothing else.** A *type* gap and a *quality* gap are orthogonal:
+
+| | type gap | quality gap |
+|---|---|---|
+| the question | "**what kind** of document is this?" — no drawer exists | "**what does it say?**" — blurred / truncated / low quality / model unsure |
+| relevance class | `medical_or_administrative` | `possibly_relevant` |
+| destination | `15_未分类资料/<slug>/` | **the best-matching `01_…14_` bucket** (that bucket's `其他/` when unsure) |
+| `kind` | `novel` (+ `novel_reason` ≥ 8 chars) | `unreadable` |
+| review flag | not necessarily | **required**: `category: coverage_gap`, `audience: internal_qc` |
+
+A blurred CBC printout is still a CBC printout: it files into `07_检验` with `kind: unreadable`,
+never into `15_`. Routing quality gaps into `15_` would make "we do not know this report type" and
+"we could not read this page" indistinguishable downstream and would degrade the open archive into a
+low-quality dump. See `relevance-gate.md`.
+
+**Inventory requirements** (`source_inventory.json`, enforced by the gate):
+
+- `kind: novel` (required);
+- `novel_reason` — required, ≥8 characters, stating **why no existing drawer fits** (not a restatement
+  of the title);
+- `clinical_class ∈ {molecular, lab, imaging, pathology, narrative, admin, unknown}` — required,
+  an **enum**, never free text. This is what makes `15_` safe: the molecular/lab completeness gates
+  key on `clinical_class`, not on the path, so a vendor panel filed here still triggers the molecular
+  gate and still needs its sibling source-shape keys.
+
+The gate enforces the binding in **both directions**:
+
+1. every sidecar under `15_` has an inventory row with `kind == novel` **and** `novel_reason` ≥ 8 chars;
+2. every row with `kind == novel` has its sidecar under `15_`.
+
+Either direction failing is an ERROR. `kind: unreadable` rows are *not* admitted under `15_` — they
+stay in their best-matching `01_…14_` bucket with a `coverage_gap` / `internal_qc` review flag.
+
+#### Sub-bucket slug whitelist (a path component generated from untrusted OCR text)
+
+```
+^[一-鿿A-Za-z0-9][一-鿿A-Za-z0-9-]{1,23}$
+```
+
+CJK + Latin letters + digits + hyphen, **2–24 characters**, first character not a hyphen. Additionally
+the slug MUST NOT:
+
+- equal any pinned sub-bucket slug (either the `zh` or the `en` column of §1.1a);
+- equal any `ascii_infra_dirs` key (`high_confidence`, `uncertain`, `conversation_notes`, …) or any
+  `universal_fallback_sub_buckets` value (`其他` / `other`);
+- start with `NN_` (two digits + underscore);
+- contain `.`, `/`, `\`, `..`, or any control character.
+
+Slugs are case-sensitive; one run reuses one slug per novel type. **The gate asserts this regex on
+every `15_` sub-directory — it does not simply allow anything under `15_`.** A slug is a path
+component the model derived from an untrusted transcription, so it is a path-injection surface:
+validate before `mkdir`, and on failure degrade to `unknown-<NN>` plus an `internal_qc` flag
+(`category: untrusted_content_marker`).
+
+#### `15_` vs `99_无关文件` — different questions, different answers
+
+|  | `15_未分类资料` | `99_无关文件` |
+|---|---|---|
+| The question it answers | "**what** is this?" — a classification gap | "**is this medical at all?**" — a relevance judgment |
+| Typical content | medical/administrative material of an unknown type | selfies, scenery, food-delivery screenshots |
+| Visible to the patient | yes | no (quarantine) |
+| Transcribed, masked MD, inventory row | yes, exactly like `01_…14_` | held for confirmation |
+| Read by downstream | by `clinical_class` decision | never |
+| Anchorable | **no** (`open_ref` instead) | no |
+| Can be deleted | **never automatically** | only after explicit item-by-item confirmation |
+| Which relevance class lands here | **only** `medical_or_administrative` whose type is unknown (`kind: novel`). `possibly_relevant` does **not** land here — it stays in its best-matching `01_…14_` bucket with `kind: unreadable` | **only** `likely_unrelated` |
+
+Filing a novel medical document into `99_` is a classification error that can get clinical material
+deleted. See `relevance-gate.md`.
+
+#### `15_` is never an anchor target
+
+`source_refs[]` / `[[src:…]]` are restricted to `01_…14_` (`schemas/anchor-contract.md`). A fact that
+only exists in a `15_` source is referenced through `extracted_fields.json`'s own
+`open_ref = {source_id, page, bbox}`, which points at the `raw/` page rather than a bucket path.
+**Open fields do not enter any confirmed-fact surface**, and `extracted_fields.json` is not a legal
+source store for charts or core-completeness.
+
+Consumers decide whether to read `15_` by the row's `clinical_class`; an unreadable source
+(`kind: unreadable`) is never counted as covered and surfaces in
+`readiness.json.projection_coverage.summary.unreadable_sources`.
+
+Lazy creation (§1.1b) applies: `15_未分类资料/` exists on disk **iff** something was filed into it.
 
 ### 1.2 Infrastructure buckets (hidden, never anchored)
 
@@ -167,7 +282,11 @@ If a host binding insists on pre-creating buckets, it MUST, at the end of the ru
 | `99_` | `99_无关文件` | `99_unrelated` | **no (quarantine)** | never | `high_confidence/ uncertain/` relevance quarantine, outside the clinical scheme. |
 
 `raw/` and `99_` are **never patient-visible scaffold** and **never anchor targets** (anchors point
-only at the bucket `.md` sidecars; downstream never reads `99_`). `raw/` is the single store of
+only at the bucket `.md` sidecars; downstream never reads `99_`). **`99_` is unchanged in v4** — it
+remains the relevance quarantine holding `likely_unrelated` only; it did NOT absorb, and is not
+replaced by, the new `15_` open bucket (§1.1c). `raw/` additionally contains the controlled
+`raw/transcript/` verbatim layer, `raw/_cache/transcripts/`, and `raw/_provenance/<run_id>/`, all of
+which are equally non-anchorable and excluded from export. `raw/` is the single store of
 originals **as uploaded** — it replaces the former `90_原始文件镜像` byte mirror. Because the originals
 are no longer pixel-redacted, there is no separate "redacted vs mirror" copy: `raw/` holds the
 verbatim upload, and each clinical-domain `.md` sidecar links back to it via
@@ -178,7 +297,7 @@ verbatim upload, and each clinical-domain `.md` sidecar links back to it via
 > are **never runtime-translated** into other languages. `high_confidence` / `uncertain` /
 > `conversation_notes` are ASCII keys and stay as-is across locales.
 >
-> **`conversation_notes/` is cross-domain, not exclusive to `14_`.** A 段C conversation fact is
+> **`conversation_notes/` is cross-domain, not exclusive to `14_`.** A conversation-increment fact is
 > archived under the `conversation_notes/` subdir of its **corresponding clinical domain** (e.g. a
 > lab value → `07_检验/conversation_notes/`, a staging change → `04_诊断与分期/conversation_notes/`),
 > falling back to `14_患者自管补充/conversation_notes/` only when the fact fits no clinical domain
@@ -187,7 +306,7 @@ verbatim upload, and each clinical-domain `.md` sidecar links back to it via
 
 ### 1.3 Classification disambiguation (judge by clinical context, not a title keyword)
 
-The 14-domain scheme is filed by **LLM judgment of content** (`organizer-prompt-phase2-synthesis.md` Step 1a) — never a keyword match on the filename, and **never an echo of the source folder's own numbering/naming** (`3基因检测报告/` / `11不良反应记录/` / `13其他专科检查报告/` are the patient's ad-hoc scheme, not this taxonomy — re-classify onto the pinned `NN_` domain + sub-bucket). Known traps:
+The 14-domain scheme (+ `15_` for genuinely unknown types, §1.1c) is filed by **LLM judgment of content** (`organizer-prompt-phase2-synthesis.md` §5 归档落位) — never a keyword match on the filename, and **never an echo of the source folder's own numbering/naming** (`3基因检测报告/` / `11不良反应记录/` / `13其他专科检查报告/` are the patient's ad-hoc scheme, not this taxonomy — re-classify onto the pinned `NN_` domain + sub-bucket). Known traps:
 
 - **Imaging reports (CT / MRI / PET-CT / 超声 / X光 / 内镜影像) → `05_影像`, NEVER `04_诊断与分期` (HARD RULE).** `04_诊断与分期` is **病理报告 / 诊断证明 / 分期评估 / 其他 only** — it holds the pathology/diagnosis/staging *conclusion*, not the imaging exam itself. A CT/MRI/PET-CT/超声/X光/内镜 report (even one whose impression states or supports a stage) is filed under its `05_影像/<modality>` child; only a dedicated 分期评估 document (e.g. an AJCC staging worksheet / 分期评估单) goes to `04_诊断与分期/分期评估`. A source folder literally named `影像报告/` must NOT become `04_诊断与分期/影像报告`.
 - **Inpatient 体温单 / 护理生命体征记录 / 出入量单 → `03_病程与叙事文书/病程记录`, never `10_随访与监测`.** `10_随访与监测` is **outpatient-only** (门诊随访 / wearable / PRO自报 / 居家监测). If a "生命体征 / 体温 / 趋势" file's recording window falls inside an admission (ward + continuous inpatient dates), it is a hospitalization record → `03`. The words "趋势 / 监测 / 生命体征" in a title are a keyword trap — do not route to `10` on that basis.
@@ -196,10 +315,18 @@ The 14-domain scheme is filed by **LLM judgment of content** (`organizer-prompt-
 
 ## 2. Modality tag (orthogonal attribute)
 
-Every filed source records a `modality` in `source_inventory.json` (the authoritative location); typed
-ingest adapters (omics/timeseries) MAY additionally echo it as an OPTIONAL `MODALITY:` line in the
-sidecar header (per organizer-prompt-phase1-ocr.md — the header field is optional, `source_inventory.json`
-is authoritative). It describes the **data nature**, independent of the clinical domain, and drives
+Every filed source records a `modality` in `source_inventory.json` (the authoritative location).
+Its **producer** is the 段 1 sidecar: `modality` is a **required key of the sidecar YAML
+frontmatter** (`organizer-prompt-phase1-transcribe.md` §2.1), and 段 2 copies it onto the inventory
+row. The old optional `MODALITY:` colon line in a `[HEADER]` block is **retired along with the whole
+colon-line header** — sidecars are YAML frontmatter + `# 全文` (`runtime-bindings/_template.md` §2).
+
+"Authoritative location = `source_inventory.json`, producer = the sidecar frontmatter" is not a
+contradiction: the row is what consumers read, the frontmatter is where the value is first asserted
+with the page it came from. Leaving the producer unspecified is what let `modality` go missing on
+rows whose source never passed through a typed adapter.
+
+It describes the **data nature**, independent of the clinical domain, and drives
 ingest-parser dispatch.
 
 | `modality` | meaning | example | ingest path |
@@ -253,7 +380,7 @@ its original is carried in `source_inventory.json` (one row per content unit) an
 content unit := {
   file_id:    "<stable id, 1:1 with this sidecar>",   # e.g. f001
   source_id:  "<id of the upload it came from>",        # e.g. s001  (N content units may share one source_id)
-  sidecar_path: "04_诊断与分期/病理报告/2024-03-15_病理报告_中山六院.md",
+  sidecar_path: "04_诊断与分期/病理报告/2024-03-15_病理报告_示例医院.md",
   raw_path:   "raw/2024-Q1/discharge_2024-03-15.pdf",   # the un-redacted original (bytes verbatim) in raw/, de-identified filename; verbatim name only in raw/_FILENAME_MAPPING.md
   page_range: "3-5"                                      # which pages of a multi-document source; null if whole file
 }
@@ -263,19 +390,21 @@ content unit := {
   `raw/` file, **multiple sidecars** each with its own `file_id`, all sharing `source_id`, each with a
   distinct `page_range`. The frontend renders the `.md` and offers a "view original" button →
   `raw_path` (deep-linked to `page_range` when present).
-- `file_id` is 1:1 with a sidecar; `source_id` is 1:1 with an upload. Two distinct `raw/` audit files (never the same file): **`_FILENAME_MAPPING.md`** = Phase-1 verbatim-name audit table (`verbatim_upload_name | deid_raw_name | source_id` — the ONLY surviving copy of the real upload name, excluded from export); **`_SIDECAR_MAP.md`** = Phase-2 de-identified raw→sidecar→bucket nav table (no verbatim name). `source_inventory.json` is the machine-readable reverse lookup.
+- `file_id` is 1:1 with a sidecar; `source_id` is 1:1 with an upload. Two distinct `raw/` audit files (never the same file): **`_FILENAME_MAPPING.md`** = 段 1 verbatim-name audit table (`verbatim_upload_name | deid_raw_name | source_id` — the ONLY surviving copy of the real upload name, excluded from export); **`_SIDECAR_MAP.md`** = 段 2 de-identified raw→sidecar→bucket nav table (no verbatim name). `source_inventory.json` is the machine-readable reverse lookup.
 
-## 5. Redaction policy (image-level 段B removed)
+## 5. Redaction policy (the image-level redaction job is removed)
 
 - **The organizer does not mutate original bytes.** This archive-integrity rule does not authorize access,
   sharing, or indefinite retention. A purpose-limited export excludes `raw/`; if original images must be
   transferred, a separate authorized workflow assesses image pixels, headers, metadata, necessity, and
   residual re-identification risk.
-- **Sidecar text PII masking stays.** Phase 1 still masks PII in the `.md` sidecar body
-  (`phase1-ocr.md §2.4`) and `pii_rescan.py` still rescans the text — the sidecar remains the
-  downstream-only read source with no plaintext PII, so structured JSONs and patient-facing answers
-  stay de-identified.
-- **段E (unrelated-file deletion) is unchanged** — high-confidence non-medical files are still
+- **Sidecar text PII masking stays.** 段 1 produces two Markdown files per page: the verbatim
+  `raw/transcript/<source_id>/page-NNN.md` (under `raw/` access control, never entering downstream
+  context, excluded from export) and the **masked** sidecar that is filed into the bucket
+  (`organizer-prompt-phase1-transcribe.md` §6). `pii_rescan.py` plus the semantic layer still rescan
+  the masked text — the masked sidecar remains the downstream-only read source with no plaintext PII,
+  so structured JSONs and patient-facing answers stay de-identified.
+- **相关性门 (unrelated-file deletion) is unchanged** — high-confidence non-medical files are still
   deleted only after explicit item-specific confirmation; silence always holds the file.
 - Net: authorized users can audit derived text against the supplied file, while downstream artifacts use
   source-attributed sidecars and separate PII/minimization gates.
@@ -290,3 +419,9 @@ read the v3 prefixes only; they do not need to recognize legacy `00_/02_诊断�
 
 The "from v2" column in §1.1 / §1.2 is **provenance for the reader** (why each domain exists), not a
 migration instruction — nothing reads it at runtime.
+
+**v3 → v4 needs no migration either.** v4 only adds `15_` and bumps `scheme_version` to `4`; every
+v3 path, slug and anchor stays valid. A reader accepting `scheme_version` 4 must also accept 3
+(backward-compatible read); a writer emits 4. `bucket_taxonomy.json` and `PATIENT_DIR_CONTRACT.md`
+are mirrored into vmtb-skill — bump both repos together, and re-run the bucket-enumeration
+regression on the consumer side.

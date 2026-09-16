@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Compute the 段D "自上次总结的变化" delta by diffing two case_summary_data.json
+"""Compute the 摘要渲染 "自上次总结的变化" delta by diffing two case_summary_data.json
 snapshots (stdlib only, ZERO medical logic).
 
-Each 段D (re)generation snapshots its render data to
+Each 摘要渲染 (re)generation snapshots its render data to
 `case_summary_versions/case_summary_data_<date>.json`. This helper diffs the
 CURRENT render data against the most recent PRIOR snapshot and injects a
 `version_delta` object the template renders as a highlighted "what changed since

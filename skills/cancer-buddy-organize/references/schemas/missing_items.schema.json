@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://cancerdao.org/schemas/cancer-buddy/missing_items.schema.json",
   "title": "DocumentGaps",
-  "description": "Compatibility filename for existing-document inventory gaps. Absence never means that a test is clinically indicated.",
+  "description": "Compatibility filename for existing-document inventory gaps. Absence never means that a test is clinically indicated. Organize v3 note: this file is a CHECKLIST-DRIVEN view of what a cancer-type checklist expected to see, and it is explicitly NOT the coverage filter. A source no checklist row anticipated \u2014 a novel report filed under 15_\u672a\u5206\u7c7b\u8d44\u6599/ \u2014 is still fully organized, inventoried and archived; it simply has no gap row here. Read readiness.json.projection_coverage for \u300cwhat did the archive hold and what of it reached a structured slot\u300d; read this file only for \u300cwhat did the checklist expect and not find\u300d. Treating this file as the completeness gate would silently erase every open-world source.",
   "type": "object",
   "required": ["patient_code", "schema_version", "inventory_mode", "document_gaps", "disclaimer"],
   "additionalProperties": false,
@@ -11,6 +11,8 @@
     "schema_version": { "const": "2" },
     "generated_at": { "type": "string", "format": "date-time" },
     "inventory_mode": { "const": "existing_document_inventory_only" },
+    "coverage_basis": { "const": "per_source_raw_md_inventory", "description": "OPTIONAL. When present, declares that completeness for this run was judged per SOURCE \u2014 every source has a raw original, a masked .md sidecar and a source_inventory row \u2014 and NOT by whether the cancer-type checklist rows were all satisfied. Only one value is legal because there is only one defensible basis: a checklist is a prompt for what to look for, never a filter deciding what counts as a document." },
+    "novel_sources_counted": { "type": "boolean", "description": "OPTIONAL. true = kind=novel sources (filed under 15_) were included when judging coverage, which is the expected value under organize v3. false records an explicitly narrowed, auditable run. This flag exists because a checklist has no row for a document type nobody anticipated; recording that the open-world sources were counted keeps \u300cno gaps\u300d from quietly meaning \u300cnothing outside the checklist was looked at\u300d." },
     "cancer_type": { "type": ["string", "null"] },
     "document_gaps": {
       "type": "array",

@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cancerdao.org/schemas/cancer-buddy/human_sample_plan.schema.json",
+  "title": "HumanSamplePlan",
+  "description": "raw/_provenance/<run_id>/human_sample_plan.json — the ASK half of the human spot-check (A4/B11). A SCRIPT writes this file and nothing else may: it names which high-risk cells a person must open the original and read, chosen by a seed the run cannot influence (sha256(patient_code + sorted field keys), deliberately NOT including run_id, so re-running does not reshuffle the sample until something agrees). The ANSWER half is human_sample_result.json, written by the human. They are two files because one file meant the run chose the sample AND recorded the verdict in the same pass — 「人工抽查通过」 that cost nothing and certified itself. This file is a plan, never evidence: a plan with no result is an unfinished verification and the validator fails it as one.",
+  "type": "object",
+  "required": ["run_id", "sample", "rule"],
+  "additionalProperties": true,
+  "properties": {
+    "run_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The run this plan belongs to; matches the raw/_provenance/<run_id>/ directory holding it."
+    },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "seed": {
+      "type": "string",
+      "description": "The sampling seed actually used, recorded so the selection can be reproduced and shown not to have been chosen after the fact. Per A36 it is sha256(patient_code + sorted(field keys)) and contains no run_id: a sample that changes every run is a sample a run can retry until it likes the answer."
+    },
+    "rule": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The sampling rule in words, e.g. 「每患者 ≥3 个高风险字段或全部高风险字段的 5%，取大者」. Stated here so a reviewer can check the plan against the rule rather than trusting the count."
+    },
+    "sample": {
+      "type": "array",
+      "description": "The cells a human must check. MAY be empty only when the archive genuinely has no high-risk field at all; if any source's transcript frontmatter classifies a label as high-risk (scripts/_high_risk.py), an empty sample is a defect and the validator says so.",
+      "items": {
+        "type": "object",
+        "required": ["source_id", "page", "label"],
+        "additionalProperties": true,
+        "properties": {
+          "source_id": { "type": "string", "minLength": 1, "description": "Must match a source_id in source_inventory.json." },
+          "page": { "type": ["integer", "string"], "description": "1-based page number within the source, as pages.json numbers it." },
+          "label": { "type": "string", "minLength": 1, "maxLength": 120, "description": "The field label AS THE SOURCE PRINTS IT — the same verbatim string as the transcript frontmatter fields[].label and the inventory high_risk_fields[].label, so the three can be joined without fuzzy matching." },
+          "bbox": {
+            "type": "array",
+            "minItems": 4,
+            "maxItems": 4,
+            "items": { "type": "number", "minimum": 0, "maximum": 1 },
+            "description": "[x0, y0, x1, y1] normalized 0-1, origin top-left, anchored to the raw/ page image — where on the page the checker should look. Never a Markdown line number."
+          },
+          "transcript_value": {
+            "description": "What 段 1 read in this cell. It is included ON PURPOSE despite the anchoring risk: a checker asked 「what does this cell say?」 with no reference cannot report a MISMATCH, only a reading, and comparing the two readings afterwards is the same self-certification the split was meant to remove. The mitigation is procedural (the checker reads the original first) and is stated in the rule, not in the schema."
+          },
+          "note": { "type": ["string", "null"] }
+        }
+      }
+    }
+  }
+}

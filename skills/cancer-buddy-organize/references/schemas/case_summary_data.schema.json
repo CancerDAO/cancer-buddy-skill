@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://cancerdao.org/schemas/cancer-buddy/case_summary_data.schema.json",
-  "title": "Case Summary Render Data (段D)",
+  "title": "Case Summary Render Data (摘要渲染)",
   "description": "Deterministic render contract for case-summary.template.html. The LLM emits ONLY this object (case_summary_data.json) — never hand-written HTML — then scripts/render_html_template.py fills the template. Every key here maps to a {{placeholder}}, a <!-- LOOP --> array, or an i18n scaffold string in the template. The renderer is zero-medical: counts, fields, and locale all come from this data.",
   "type": "object",
   "required": ["i18n", "fallbacks", "lesions", "molecular_rows", "lab_trends", "treatment_lines", "caveats"],

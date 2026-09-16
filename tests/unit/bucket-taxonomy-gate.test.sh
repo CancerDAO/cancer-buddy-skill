@@ -17,7 +17,10 @@ pass=0; fail=0
 ok() { pass=$((pass+1)); }
 no() { echo "FAIL: $1" >&2; fail=$((fail+1)); }
 
-# helper: run gate_bucket_taxonomy directly, print each collected error on a line
+# helper: run gate_bucket_taxonomy directly, print each collected error on a line.
+# EXIT CODE is part of the contract: 0 when the gate collected nothing, 1 when it did.
+# Asserting only on grep output would let a gate that silently stopped collecting
+# errors keep "passing" every negative case — the gate would be decorative.
 run_bucket_gate() {
   python3 - "$ORG" "$1" <<'PY'
 import sys, pathlib, importlib
@@ -27,7 +30,16 @@ errs = []
 v.gate_bucket_taxonomy(pathlib.Path(sys.argv[2]), errs)
 for e in errs:
     print(e)
+sys.exit(1 if errs else 0)
 PY
+}
+
+# run_bucket_gate + capture rc without tripping `set -e`
+bucket_gate_rc() {
+  set +e
+  out="$(run_bucket_gate "$1")"
+  rc=$?
+  set -e
 }
 
 # helper: run gate_ngs_completeness directly, print each collected warning
@@ -40,6 +52,9 @@ warns = []
 v.gate_ngs_completeness(pathlib.Path(sys.argv[2]), warns)
 for w in warns:
     print(w)
+# WARN-only floor: it never changes an exit code. Asserted explicitly so a future
+# change that promotes it to an ERROR is caught here, not in a patient run.
+sys.exit(0)
 PY
 }
 
@@ -56,7 +71,8 @@ mkdir -p "$d/06_分子与组学/基因检测" \
 : > "$d/06_分子与组学/基因检测/x.md"
 : > "$d/04_诊断与分期/影像报告/y.md"
 
-out="$(run_bucket_gate "$d")"
+bucket_gate_rc "$d"
+[ "$rc" -eq 1 ] && ok || no "drift fixture: gate must EXIT 1, got $rc (a grep-only assertion would pass a dead gate)"
 echo "----- drift fixture gate output -----"
 echo "$out"
 echo "-------------------------------------"
@@ -92,17 +108,19 @@ mkdir -p "$c/06_分子与组学/NGS报告" \
          "$c/04_诊断与分期/其他" \
          "$c/99_无关文件/high_confidence" \
          "$c/14_患者自管补充/conversation_notes"
-out="$(run_bucket_gate "$c")"
+bucket_gate_rc "$c"
 echo "----- clean fixture gate output -----"
 echo "${out:-<none>}"
 echo "-------------------------------------"
 [ -z "$out" ] && ok || no "clean fixture should produce ZERO violations (got: $out)"
+[ "$rc" -eq 0 ] && ok || no "clean fixture: gate must EXIT 0, got $rc"
 
 # 2b. CLEAN fixture, en-locale slugs → also PASSES
 ce="$tmp/clean_en"
 mkdir -p "$ce/06_molecular_omics/ngs" "$ce/05_imaging/CT" "$ce/03_clinical_notes/progress_notes"
-out="$(run_bucket_gate "$ce")"
+bucket_gate_rc "$ce"
 [ -z "$out" ] && ok || no "clean en-locale fixture should produce ZERO violations (got: $out)"
+[ "$rc" -eq 0 ] && ok || no "clean en-locale fixture: gate must EXIT 0, got $rc"
 
 # ===========================================================================
 # 3. NGS completeness floor — NGS source present but molecular.json PGx empty.
@@ -134,13 +152,22 @@ cat > "$w/molecular.json" <<'EOF'
   "variants":[{"gene":"EGFR","variant":"p.L858R"}], "germline":[], "pharmacogenomics":[] }
 EOF
 cat > "$w/source_inventory.json" <<'EOF'
-{ "schema":"source_inventory_v2","patient_dir":"patients/PT-NGS02","files":[
-  {"file_id":"f1","source_id":"s1","original_path":"IMG.pdf","raw_path":"raw/h/IMG.pdf","page_range":null,"sidecar_path":"06_分子与组学/NGS报告/rep.md","bucket_path":"06_分子与组学/NGS报告","modality":"text","read_mode":"deterministic_ocr","extractor_provenance":{"engine":"fixture","version":"1","raw_output_ref":"raw/h/IMG.txt","llm_role":"review"},"high_risk_review_status":"passed_independent_reread","adapter":"pdf_pages","persist":true} ]}
+{ "schema":"source_inventory_v2","scheme_version":4,"patient_dir":"patients/PT-NGS02","generated_at":"2026-09-16T00:00:00Z","files":[
+  {"file_id":"f1","source_id":"s1","original_path":"IMG.pdf","raw_path":"raw/h/IMG.pdf","page_range":null,"kind":"known","doc_kind":"NGS报告","clinical_class":"molecular","text_layer_kind":"embedded_ocr","sidecar_path":"06_分子与组学/NGS报告/rep.md","bucket_path":"06_分子与组学/NGS报告","modality":"text","read_mode":"deterministic_ocr","extractor_provenance":{"engine":"fixture","version":"1","raw_output_ref":"raw/h/IMG.txt","llm_role":"review"},"high_risk_review_status":"passed_independent_reread","reread_channel":"deterministic_ocr","adapter":"pdf_pages","persist":true} ]}
 EOF
 python3 "$VAL" "$w" >/dev/null 2>"$tmp/warn.err" && rc=0 || rc=$?
 # it may still exit 1 for other reasons, but the NGS floor line must be a WARN, not an ERROR
 grep -q 'WARN: ngs_completeness' "$tmp/warn.err" && ok || no "NGS floor must print as WARN in entrypoint"
 grep -q 'ERROR: ngs_completeness' "$tmp/warn.err" && no "NGS floor must NOT be an ERROR (would false-block)" || ok
+# The fixture inventory itself must be VALID under scheme 4. (The rest of this
+# fixture is deliberately partial — a stub molecular.json, no AGENTS.md — so the
+# entrypoint still exits 1; what must NOT appear is an inventory-shape failure,
+# because then every assertion above would be standing on an archive the gate
+# rejects for an unrelated reason.)
+grep -q 'source_inventory.json: schema violation' "$tmp/warn.err" \
+  && no "fixture inventory violates source_inventory.schema.json: $(grep -m1 'source_inventory.json: schema violation' "$tmp/warn.err")" || ok
+grep -q 'passed_independent_reread but reread_channel' "$tmp/warn.err" \
+  && no "fixture claims passed_independent_reread with no independent channel" || ok
 
 # negative: molecular.json fully populated → floor silent
 f="$tmp/ngs_full"

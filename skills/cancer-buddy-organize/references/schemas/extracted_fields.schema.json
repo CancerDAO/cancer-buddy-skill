@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cancerdao.org/schemas/cancer-buddy/extracted_fields.schema.json",
+  "title": "OpenProjectionFields",
+  "description": "Open-world key/value projection for material that no pinned structured slot fits (organize v3). It exists so that a real finding in a novel report is not lost just because the closed schemas have nowhere to put it. Three hard limits define what this file is NOT. (1) It is NOT a settled-fact surface: nothing here may be presented to a patient or clinician as an established value, and no formal output (patient_summary / timeline / molecular / treatment_lines / labs / comorbidities / longitudinal_observations / missing_items / readiness / case_summary / charts) may cite it or read from it. (2) It is NOT anchorable: 15_ is not an anchor target, so entries carry their own `open_ref` {source_id, page, bbox} back to the raw page image instead of a bucket source_ref. (3) It is NOT a way around the source-shape invariants: a lab entry still needs its unit and its verbatim source text, and a molecular entry still needs its verbatim source text, so an open filing can never be thinner than the closed one it bypassed. Presence of a lab/molecular entry here does not excuse an empty labs.json/molecular.json — the completeness gates key off inventory clinical_class, not off this file.",
+  "type": "object",
+  "required": ["schema_version", "entries"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "const": "1" },
+    "patient_code": { "type": "string", "pattern": "^PT-[A-F0-9]+(_\\d+)?$" },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["source_id", "page", "doc_kind", "clinical_class", "label", "value", "open_ref", "open_verification_status"],
+        "additionalProperties": false,
+        "properties": {
+          "source_id": { "type": "string", "description": "MUST match a source_id in source_inventory.json. An entry pointing at a source that is not inventoried is an error, not an orphan to tolerate." },
+          "page": { "type": "integer", "minimum": 1, "description": "1-based page index within the source." },
+          "doc_kind": { "type": "string", "minLength": 1, "description": "Same value as the inventory row's doc_kind (a pinned type name, or novel:<slug>)." },
+          "clinical_class": {
+            "type": "string",
+            "enum": ["molecular", "lab", "imaging", "pathology", "narrative", "admin", "unknown"],
+            "description": "Same enum as source_inventory. Drives the conditional source-shape requirements below."
+          },
+          "label": { "type": "string", "minLength": 1, "maxLength": 120, "pattern": "^[^\\u0000-\\u001f\\u007f]+$", "description": "The label AS THE SOURCE PRINTS IT (verbatim, not normalized, not translated). Normalization is a separate, additive layer and does not belong in an open projection. Exactly TWO constraints, and neither is a vocabulary: at most 120 characters, and no control characters. A slug whitelist was rejected deliberately — the whole point of the open projection is material no pinned vocabulary anticipated, so forcing the label through a pinned shape would either mangle it or drop the entry. The cap and the control-character ban are containment (a runaway label cannot become a document-structuring payload), never classification." },
+          "value": { "description": "The value as read. Any JSON type; strings keep the source's own formatting." },
+          "unit": { "type": ["string", "null"], "description": "Unit exactly as printed. REQUIRED (non-null) when clinical_class = lab: a unitless laboratory number is uninterpretable and has historically been the single most dangerous silent defect." },
+          "source_reported_text": { "type": "string", "minLength": 1, "description": "The verbatim source substring this entry was read from, e.g. \"CEA 12.4 ng/mL (参考 0-5)\". REQUIRED when clinical_class is lab or molecular. It is what makes the entry checkable against the page without re-running a model, and it keeps the source-reported layer separate from any normalized reading." },
+          "reference_range": { "type": ["string", "null"], "description": "Reference range as printed by THIS report, when present. Never a range imported from elsewhere." },
+          "open_ref": {
+            "type": "object",
+            "required": ["source_id", "page", "bbox"],
+            "additionalProperties": false,
+            "description": "Self-contained pointer back to the raw page image. Replaces a bucket source_ref because 15_ is not anchorable; it also anchors to the PAGE, not to a markdown line, so the reference survives re-transcription.",
+            "properties": {
+              "source_id": { "type": "string" },
+              "page": { "type": "integer", "minimum": 1 },
+              "bbox": {
+                "type": "array",
+                "minItems": 4,
+                "maxItems": 4,
+                "items": { "type": "number", "minimum": 0, "maximum": 1 },
+                "description": "[x0, y0, x1, y1] NORMALIZED to 0-1 against the rendered page, origin top-left. Normalized so the reference stays valid at any render DPI."
+              },
+              "text_layer_offset": {
+                "type": ["array", "null"],
+                "minItems": 2,
+                "maxItems": 2,
+                "items": { "type": "integer", "minimum": 0 },
+                "description": "Optional [start, end] character offsets into the born-digital text layer, when one exists."
+              }
+            }
+          },
+          "open_verification_status": {
+            "type": "string",
+            "enum": ["unverified", "settled", "needs_human_review"],
+            "description": "Verification state of THIS OPEN entry. Deliberately NOT named `verification_status`: every structured output (labs / molecular / patient_summary) carries a `verification_status` whose vocabulary is unverified | clinician_verified | disputed, and the two were read as one field by consumers and by reviewers. They answer different questions — that one asks whether a CLINICIAN attested to a fact, this one asks whether a second READ channel agreed on the characters. `unverified` = read once, no independent channel. `settled` = an independent channel agreed (record which in reread_channel); it still does NOT promote the entry to a patient-facing settled fact — this whole file is off that surface. `needs_human_review` = channels disagreed; both readings must be visible to the reviewer."
+          },
+          "reread_channel": {
+            "type": "string",
+            "enum": ["text_layer", "barcode", "deterministic_ocr", "alternate_vision_model", "human", "none"],
+            "description": "Which independent channel produced the second read. Same independence rule as source_inventory: re-prompting the same model on the same image is a tie-break, not a channel."
+          },
+          "note": { "type": ["string", "null"] }
+        },
+        "allOf": [
+          {
+            "if": { "properties": { "clinical_class": { "const": "lab" } }, "required": ["clinical_class"] },
+            "then": { "required": ["unit", "source_reported_text"], "properties": { "unit": { "type": "string", "minLength": 1 } } },
+            "$comment": "A lab reading with no unit and no verbatim source text is not a fact, it is a number. Filing it as an open field must not be cheaper than filing it as a lab."
+          },
+          {
+            "if": { "properties": { "clinical_class": { "const": "molecular" } }, "required": ["clinical_class"] },
+            "then": { "required": ["source_reported_text"] },
+            "$comment": "Variant nomenclature (HGVS c./p., VAF) is exactly where transcription slips; the verbatim string is the only way a reviewer can check it without the model."
+          }
+        ]
+      }
+    }
+  }
+}

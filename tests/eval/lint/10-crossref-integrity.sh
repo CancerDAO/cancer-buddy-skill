@@ -11,7 +11,10 @@
 #   A. Section pointers resolve. Two written forms are recognized:
 #        `X.md` …「Y」节        (quoted section name, 节 suffix)
 #        `X.md` → Y             (arrow; a non-ASCII target is a section name,
-#                                a pure-ASCII one is a file handoff and skipped)
+#                                a pure-ASCII one is a file handoff and skipped.
+#                                The name ends at whitespace or at sentence
+#                                punctuation in EITHER script — 「协议.」 is the
+#                                sentence ending, not part of the heading.)
 #      For each: X must exist on disk AND X must carry a heading matching Y.
 #   B. Relative markdown links resolve. Every `](path)` target that is not a
 #      URL / mailto / bare anchor must exist on disk (anchor suffix stripped).
@@ -127,7 +130,12 @@ for f in "${MD_FILES[@]}"; do
       # pure-ASCII target = file/identifier handoff, not a section pointer
       [[ "$sec" =~ ^[A-Za-z0-9_./+-]+$ ]] && continue
       check_section "$f" "$lno" "$ref" "$sec"
-    done < <(printf '%s' "$line" | grep -oE '`[A-Za-z0-9_./-]+\.md`[[:space:]]*→[[:space:]]*`?[^ ，。；、）)|]+' || true)
+    # The terminator class must include ASCII sentence punctuation, not only the CJK
+    # forms: `../cancer-buddy/SKILL.md` → 档案读取协议. ends in an ASCII full stop, and
+    # without it the captured section name was 「档案读取协议.」 — a name no heading can
+    # ever match, so a RESOLVING pointer was reported as dangling. A lint that cries
+    # wolf on correct prose is the lint that gets switched off.
+    done < <(printf '%s' "$line" | grep -oE '`[A-Za-z0-9_./-]+\.md`[[:space:]]*→[[:space:]]*`?[^ ，。；、）)|.,;:]+' || true)
   done < <(grep -F '→' "$TMPD/prose" || true)
 
   # -------------------------------------------------------------------------

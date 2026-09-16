@@ -7,9 +7,14 @@
 # separate controls. No clean scan is treated as proof of anonymity.
 #
 # Static assertions:
-#   A. organize/SKILL.md states the text-masked-MD-sidecar invariant: the MD
+#   A. organize/SKILL.md states the masked-MD-sidecar invariant: the masked MD
 #      sidecar is the downstream-only read source and carries no plaintext PII;
-#      text masking masks PII only, never clinical characters (anti-anchoring).
+#      masking masks PII only, never clinical characters (anti-anchoring).
+#      organize v3→v4 renamed the vocabulary — 「文本脱敏 / text masking」 became
+#      「masked sidecar / masking」 once raw/transcript/ became the verbatim vault
+#      and the bucket copy became the derived masked one — so each assertion below
+#      accepts the old and the new wording. What must not be relaxed is the CLAIM:
+#      dropping any one of the three sentences is what this lint exists to catch.
 #   B. source_inventory carries a protected raw_path and extraction provenance.
 #   C. sharing requires authentication, scoped confirmation, minimization and
 #      residual-risk language; it never promises anonymity.
@@ -29,10 +34,10 @@ VAULT="$SKILLS_DIR/cancer-buddy-vault/SKILL.md"
 # A. text-masked sidecar invariant + anti-anchoring (no plaintext PII in the sidecar).
 [[ -f "$ORG_MD" ]] || fail "cancer-buddy-organize/SKILL.md not found"
 if [[ -f "$ORG_MD" ]]; then
-  grep -qiE '脱敏|desensitiz|text.?mask|文本脱敏|text masking' "$ORG_MD" \
-    || fail "organize: no text-masking/desensitization language"
-  grep -qiE 'no plaintext PII|无.*plaintext PII|不.*携带.*PII|downstream-only read source|下游.*读.*源' "$ORG_MD" \
-    || fail "organize: does not state MD sidecar is the no-plaintext-PII downstream read source"
+  grep -qiE '脱敏|desensitiz|text.?mask|文本脱敏|text masking|masked sidecar|masked `?\.?md`? sidecar|masked MD' "$ORG_MD" \
+    || fail "organize: no masking/desensitization language"
+  grep -qiE 'no plaintext PII|无.*plaintext PII|不.*携带.*PII|downstream-only read source|下游.*读.*源|only legal full-text surface downstream|ONLY readable text surface' "$ORG_MD" \
+    || fail "organize: does not state the masked MD sidecar is the no-plaintext-PII downstream read source"
   grep -qiE 'anti-anchoring|never alters clinical|never alter.*clinical|不.*改.*临床字符|masks PII only|只.*PII' "$ORG_MD" \
     || fail "organize: does not state text masking masks PII only (anti-anchoring, clinical chars intact)"
 fi

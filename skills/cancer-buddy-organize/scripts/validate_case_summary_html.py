@@ -26,7 +26,7 @@ Checks:
   (g) Provenance — the render_html_template.py `template_sha256:` comment is
       present AND equals the SHA-256 of the supplied --template. This proves the
       HTML was machine-rendered from THIS gold-standard template, not hand-written
-      (the hard gate in SKILL.md Step 12 requires this `template_sha` in the final
+      (the hard gate in SKILL.md 段 3 requires this `template_sha` in the final
       report). On success the sha is echoed to stdout as `template_sha=<hex>`.
   (h) Print-safe / no-JS floor — the trend charts are inline SVG ONLY. No
       <script>, <canvas>, <foreignObject>, <iframe>, <object>, <embed>, and no
@@ -59,7 +59,7 @@ Checks:
   Note: the anti-fabrication numeric-integrity gate (every plotted point must
   exist in longitudinal_observations.json) lives in compute_sparklines.py, not
   here — this validator only sees normalized pixel coordinates, from which the raw
-  clinical values cannot be recovered. SKILL.md Step 12 wires that gate in.
+  clinical values cannot be recovered. SKILL.md 段 3 wires that gate in.
 
 Any failed check exits non-zero.
 
@@ -186,7 +186,7 @@ def check(html: str, template: str, errors: list[str]) -> str | None:
 
     # (g) provenance — extract template_sha early so we can return it even when
     # later style checks short-circuit. Proves the HTML was machine-rendered from
-    # THIS template (the SKILL.md Step 12 hard gate needs this in its report).
+    # THIS template (the SKILL.md 段 3 hard gate needs this in its report).
     pm = _PROVENANCE_RE.search(html)
     template_sha = pm.group(1).lower() if pm else None
     if template_sha is None:
@@ -444,7 +444,7 @@ def main() -> int:
             print(f"ERROR: {e}", file=sys.stderr)
         return 1
 
-    # Echo the provenance sha so the SKILL.md Step 12 hard-gate report can quote it.
+    # Echo the provenance sha so the SKILL.md 段 3 hard-gate report can quote it.
     print(f"case-summary HTML OK — shape invariants hold ({html_path}) template_sha={template_sha}")
     return 0
 

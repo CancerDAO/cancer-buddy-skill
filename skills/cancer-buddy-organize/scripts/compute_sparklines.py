@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """Enrich case_summary_data.json with inline-SVG trend geometry (stdlib only, ZERO medical logic).
 
-The 段D case-summary renderer (render_html_template.py) is a dumb string
+The 摘要渲染 case-summary renderer (render_html_template.py) is a dumb string
 substitutor — it cannot compute chart geometry. This helper is the deterministic,
 patient-agnostic layer that turns a numeric series into the coordinate strings the
 template's inline `<svg>` markup consumes. It knows NOTHING about cancer, labs, or
 what a "good" trend is: it only maps (timestamp, value) pairs onto a fixed viewBox.
 
 It reads each `trend_charts[]` chart and each `lab_trends[]` row already assembled by
-the 段D subagent (values copied VERBATIM from longitudinal_observations.json /
+the 摘要渲染 subagent (values copied VERBATIM from longitudinal_observations.json /
 labs.json — never invented, never re-derived here) and injects, per series:
 
   - svg_points   : "x1,y1 x2,y2 …"            → <polyline points="…">
@@ -27,7 +27,7 @@ ANTI-FABRICATION GATE (optional, fail-closed): with --longitudinal / --labs, eve
 plotted value MUST appear (metric + value) in the source store. A curve point with
 no backing observation is a fabricated data point — the single most dangerous
 failure for a patient-facing trend — and aborts with exit 3. Wire these in the
-pipeline (SKILL.md Step 12) so no invented point can ship.
+pipeline (SKILL.md 段 3) so no invented point can ship.
 
 Charts are inline SVG ONLY — no <canvas>, no <script> — because the delivery PDF
 print path drops canvas (see project delivery notes). This helper never emits an

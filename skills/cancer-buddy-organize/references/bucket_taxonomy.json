@@ -1,6 +1,6 @@
 {
-  "scheme_version": 3,
-  "note": "Machine-readable mirror of references/bucket-taxonomy.md §1.1 (14 clinical domains) + §1.1a (pinned typed sub-bucket slug map) + §1.2 (infra buckets). This JSON is the single machine-readable SOURCE for deterministic gates (gate_bucket_taxonomy in scripts/validate_structured_outputs.py). bucket-taxonomy.md remains authoritative for prose/rationale; if the two disagree it is a drift bug — regenerate this JSON from the .md tables. Slugs come in exactly two pinned sets per §1.1a: zh (locale=zh) and en (every other locale). The NN_ two-digit prefix is the language-independent stable key.",
+  "scheme_version": 4,
+  "note": "Machine-readable mirror of references/bucket-taxonomy.md §1.1 (14 pinned clinical domains + the open domain 15) + §1.1a (pinned typed sub-bucket slug map) + §1.2 (infra buckets). This JSON is the single machine-readable SOURCE for deterministic gates (gate_bucket_taxonomy in scripts/validate_structured_outputs.py). bucket-taxonomy.md remains authoritative for prose/rationale; if the two disagree it is a drift bug — regenerate this JSON from the .md tables. Slugs come in exactly two pinned sets per §1.1a: zh (locale=zh) and en (every other locale). The NN_ two-digit prefix is the language-independent stable key. scheme_version 4 (organize v3) adds domain 15 — the ONLY domain with open_sub_buckets: true. Under an open domain the sub-bucket slug is written by a model from untrusted source text, so it is not pinned; it is instead validated against open_sub_bucket_slug_regex AND rejected when it collides with reserved_sub_bucket_names. Every other domain stays closed-world. 15_ is NEVER an anchor target: formal JSON source_refs must not point into it (see references/schemas/anchor-contract.md); open fields are referenced by extracted_fields.json open_ref = {source_id, page, bbox} instead, and downstream decides whether to read a 15_ source by its inventory clinical_class, never by its slug.",
   "domains": [
     {
       "nn": "01",
@@ -176,6 +176,14 @@
         {"zh": "自测", "en": "self_test"},
         {"zh": "conversation_notes", "en": "conversation_notes"}
       ]
+    },
+    {
+      "nn": "15",
+      "zh": "15_未分类资料",
+      "en": "15_unclassified",
+      "open_sub_buckets": true,
+      "sub_buckets": [],
+      "role": "open-world archive for materials no pinned domain fits; never an anchor target; downstream reads by clinical_class"
     }
   ],
   "infra_buckets": [
@@ -190,5 +198,34 @@
   "ascii_infra_dirs": ["high_confidence", "uncertain", "conversation_notes", "raw", "ocr"],
   "universal_fallback_sub_buckets": [
     {"zh": "其他", "en": "other"}
-  ]
+  ],
+  "open_sub_bucket_slug_regex": "^[\u4e00-\u9fffA-Za-z0-9][\u4e00-\u9fffA-Za-z0-9-]{1,23}$",
+  "open_sub_bucket_slug_regex_note": "Applies ONLY to sub-directories of a domain with open_sub_buckets: true (today: 15_ only). CJK + Latin + digits + hyphen, 2-24 chars, must start alphanumeric/CJK. Deliberately excludes '.', '/', '\\', '..', whitespace, control characters and '_' so a slug written by a model from untrusted OCR text cannot become a path component, a dotfile, a traversal, or an NN_ prefix. Matching the regex is necessary but NOT sufficient: the slug must also miss reserved_sub_bucket_names.",
+  "reserved_sub_bucket_names": {
+    "role": "Blacklist for open sub-bucket slugs. A slug that passes open_sub_bucket_slug_regex is STILL rejected when it collides with any name here, because a collision would let an open, model-named directory impersonate a pinned clinical bucket, an infra directory, or the universal fallback — silently re-routing sources past the closed-world gates.",
+    "composed_of": [
+      "every pinned domain slug (domains[].zh and domains[].en, incl. the NN_ prefix form)",
+      "every pinned typed sub-bucket slug (domains[].sub_buckets[].zh / .en)",
+      "every infra bucket slug (infra_buckets[].zh / .en) and its sub_buckets_ascii",
+      "ascii_infra_dirs",
+      "universal_fallback_sub_buckets (zh and en)",
+      "the explicit[] list below"
+    ],
+    "explicit": [
+      "transcript",
+      "adapter_views",
+      "_cache",
+      "_provenance",
+      "_processed",
+      "incoming",
+      "library",
+      "case_summary_versions",
+      "AGENTS.md",
+      "CLAUDE.md",
+      "AGENT.md",
+      ".git",
+      ".well-known"
+    ],
+    "also_rejected": "any slug matching ^\\d{2}_ (an NN_ domain prefix), any slug containing a path separator, '..', a leading '.', or a control character — these are rejected by open_sub_bucket_slug_regex itself and re-asserted by the gate."
+  }
 }

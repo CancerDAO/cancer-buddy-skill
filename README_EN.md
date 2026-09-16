@@ -6,7 +6,7 @@ Cancer Buddy is a non-clinical navigation skill for people affected by cancer an
 
 | Module | Purpose | Boundary |
 |---|---|---|
-| `cancer-buddy-organize` | Provenance-preserving record organization | No inferred stage, response, ECOG, progression, treatment line, or test indication |
+| `cancer-buddy-organize` | Provenance-preserving record organization: pixel pages are transcribed page-by-page by a multimodal model into full Markdown (verbatim copy access-controlled, masked copy downstream), high-risk fields get a channel-independent second read, structured JSON is a projection of the transcript; out-of-taxonomy material is archived in full under `15_unclassified/` | No inferred stage, response, ECOG, progression, treatment line, or test indication; `15_` is never an anchor target |
 | `cancer-buddy-visit-prep` | Snapshot, bring-list, and questions | Questions only |
 | `cancer-buddy-education` | Patient education | Version-sensitive claims require answer-time verification against a current primary source and fail closed |
 | `cancer-buddy-nutrition` | Symptom-directed food education and interaction verification | No automatic cancer/phase-based prescription |

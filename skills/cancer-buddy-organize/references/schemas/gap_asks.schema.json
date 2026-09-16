@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cancerdao.org/schemas/cancer-buddy/gap_asks.schema.json",
+  "title": "GapAsks",
+  "description": "Record of which documentation gaps were actually PUT TO THE PATIENT, when, through what channel, and what came back (references/gap-followup.md). It is the memory that stops the archive asking for the same missing discharge summary every session — and, more importantly, the memory that stops 「patient said they don't have it」 from decaying into 「the document does not exist」. Three hard limits. (1) It is a FOLLOW-UP LOG, not a clinical checklist: the inventory of which documents are missing lives in missing_items.json, and nothing here may be read as evidence that a test or procedure is indicated. (2) `declined` records a patient's answer, never a judgement about it — a declined ask is closed, not escalated, and never re-asked without a new reason. (3) It is not a source library: no structured output may cite it and no fact may rest on it, because an ask is a question, not a reading of any document.",
+  "type": "object",
+  "required": ["schema_version", "asks"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "const": "1" },
+    "patient_code": { "type": "string", "pattern": "^PT-[A-F0-9]+(_\\d+)?$" },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "asks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["document_category", "asked_at", "channel", "outcome"],
+        "additionalProperties": false,
+        "properties": {
+          "document_category": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "description": "WHICH class of document was asked for, in the archive's own category wording (e.g. 「出院小结」, 「病理报告」) — matching the missing_items.json row it follows up. A category, never a specific test recommendation and never a named institution."
+          },
+          "asked_at": { "type": "string", "format": "date-time", "description": "When the ask was made. It carries the date for the same reason every archived fact does: an unanswered ask from eight months ago and one from yesterday are different situations." },
+          "channel": {
+            "type": "string",
+            "enum": ["in_session", "message", "phone", "clinician_request", "other"],
+            "description": "How the ask reached the patient/caregiver. `clinician_request` marks a gap a clinician asked for, which is the one case the item may be surfaced to a clinician-facing view; every other channel is organizing-side follow-up."
+          },
+          "outcome": {
+            "type": "string",
+            "enum": ["pending", "answered", "declined"],
+            "description": "`pending` = asked, nothing back yet — the only state that justifies re-asking, and only after a sensible interval. `answered` = the material arrived and was ingested (the sidecar/inventory row is the proof, not this file). `declined` = the patient said no, or said they do not have it. A declined ask is CLOSED: it is not escalated, not re-asked without a new reason, and never converted into 「this document does not exist」 on any patient-facing surface."
+          },
+          "answered_at": { "type": ["string", "null"], "format": "date-time" },
+          "source_id": { "type": ["string", "null"], "description": "When outcome is answered: the source_id in source_inventory.json that the ask produced, so the loop is closeable from either end." },
+          "note": { "type": ["string", "null"], "description": "Short, factual follow-up note. Never a characterization of the patient's cooperation." }
+        }
+      }
+    }
+  }
+}

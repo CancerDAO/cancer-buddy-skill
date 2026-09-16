@@ -28,7 +28,7 @@ cat > "$d/INDEX.md" <<'EOF'
 EOF
 cat > "$d/source_inventory.json" <<'EOF'
 { "schema":"source_inventory_v2","patient_dir":"/Users/alice/CancerDAO/patients/PT-TEST01",
-  "files":[{"source_id":"f074","original_path":"/Users/alice/Library/CloudStorage/ExampleDrive-uploader@example.com/患者/张测试-OncoFusion报告.pdf","raw_path":"raw/clinical/张测试-OncoFusion报告-123456789.pdf"}] }
+  "files":[{"source_id":"f074","kind":"known","doc_kind":"NGS报告","clinical_class":"molecular","original_path":"/Users/alice/Library/CloudStorage/ExampleDrive-uploader@example.com/患者/张测试-OncoFusion报告.pdf","raw_path":"raw/clinical/张测试-OncoFusion报告-123456789.pdf"}] }
 EOF
 if python3 "$PII" "$d" >/dev/null 2>"$tmp/leaky.err"; then
   no "leaky delivered surface should exit 1"
@@ -49,7 +49,7 @@ cat > "$c/INDEX.md" <<'EOF'
 EOF
 cat > "$c/source_inventory.json" <<'EOF'
 { "schema":"source_inventory_v2","patient_dir":"patients/PT-TEST02",
-  "files":[{"source_id":"f001","original_path":"raw/h1/IMG_0001.HEIC","raw_path":"raw/h1/IMG_0001.HEIC"}] }
+  "files":[{"source_id":"f001","kind":"known","doc_kind":"检验报告","clinical_class":"lab","original_path":"raw/h1/IMG_0001.HEIC","raw_path":"raw/h1/IMG_0001.HEIC"}] }
 EOF
 # a clean sidecar body (no PII tokens) so the bucket scan also passes
 cat > "$c/07_检验/2024-08-08_血常规.md" <<'EOF'
@@ -94,15 +94,26 @@ cat > "$tmp/num/labs.json" <<'EOF'
   {"analyte":"癌胚抗原 CEA","values":[
     {"date":"2024-09-05","value":25.3}]} ]}
 EOF
-out=$(python3 - "$ORG" "$tmp/num" <<'PY'
+run_lab_shape() {
+  set +e
+  out=$(python3 - "$ORG" "$1" <<'PY'
 import sys; sys.path.insert(0, sys.argv[1]+"/scripts")
 import importlib, pathlib
 v = importlib.import_module("validate_structured_outputs")
 errs=[]; v.gate_lab_source_shape(pathlib.Path(sys.argv[2]), errs)
 print(sum(1 for e in errs if "lab_source_shape" in e))
+# EXIT CODE is the contract: a gate asserted only through its printed text
+# keeps "passing" every negative case after it stops collecting errors.
+sys.exit(1 if errs else 0)
 PY
-)
+  )
+  rc=$?
+  set -e
+}
+
+run_lab_shape "$tmp/num"
 [ "$out" = "1" ] && ok || no "missing source-preserving lab fields should block (got $out)"
+[ "$rc" -eq 1 ] && ok || no "lab source-shape gate must EXIT 1 on the negative fixture (got $rc)"
 
 # Complete per-result source fields pass without computing an abnormal flag.
 cat > "$tmp/num/labs.json" <<'EOF'
@@ -110,15 +121,9 @@ cat > "$tmp/num/labs.json" <<'EOF'
   {"analyte":"癌胚抗原 CEA","values":[
     {"date":"2024-09-05","value":25.3,"raw_value":"25.3","unit":"ng/ml","reference_range":"0.00-5.00","report_flag":null,"critical_flag":null,"provenance_layer":"source_reported","verification_status":"unverified","source_refs":["07_检验/x.md"]}]} ]}
 EOF
-out=$(python3 - "$ORG" "$tmp/num" <<'PY'
-import sys; sys.path.insert(0, sys.argv[1]+"/scripts")
-import importlib, pathlib
-v = importlib.import_module("validate_structured_outputs")
-errs=[]; v.gate_lab_source_shape(pathlib.Path(sys.argv[2]), errs)
-print(sum(1 for e in errs if "lab_source_shape" in e))
-PY
-)
+run_lab_shape "$tmp/num"
 [ "$out" = "0" ] && ok || no "complete source shape must pass without threshold comparison (got $out)"
+[ "$rc" -eq 0 ] && ok || no "lab source-shape gate must EXIT 0 on the positive fixture (got $rc)"
 
 # ---------------------------------------------------------------------------
 # 5. pii_rescan synthesized-surface scan (case_text.md / profile.json / timeline.md …)

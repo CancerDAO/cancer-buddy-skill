@@ -25,6 +25,27 @@ procedure, consent, or follow-up visit is clinically indicated.
 7. referral, second-opinion or trial documents already issued;
 8. patient goals, information preferences and questions, clearly marked patient-reported.
 
+## A checklist drives `missing_items[]` only — it is never a coverage filter
+
+A checklist answers one question: **"is there a record of this kind we should ask the user about?"**
+It does **not** decide whether the run is complete, does not gate delivery, and does not trigger a
+re-dispatch loop.
+
+- **`coverage_complete` no longer means "all known slots are filled".** Its judgement is now:
+  **every source has `raw/` bytes + a masked MD sidecar + a `source_inventory` row.** That is the
+  archive-form question, and it is the only one a script can answer honestly.
+- In an open world a source's fields may have **no known slot at all** (a novel report type filed
+  into `15_未分类资料/<slug>/`). Under the old judgement those runs never reached `coverage_complete`
+  and got re-dispatched forever, which produced no new information and cost a full extra pass.
+- The signal for "we have the text but not the structure" is
+  **`readiness.json.projection_coverage`**, not `coverage_complete`. The signal for "this kind of
+  record is missing from the archive" is **`missing_items.json`**. Neither blocks completion.
+- A checklist category that finds no match yields a `document_gaps[]` entry with
+  `gap_type: not_in_archive|unknown`. It **never** yields a failure, a retry, a "coverage gap"
+  severity, or a claim that a test is indicated.
+- Checklists are **advisory**, not a sieve: they are consulted after filing, never used to reject or
+  re-route a document, and never used to decide that a source "doesn't count".
+
 ## Output
 
 Use `missing_items.schema.json` compatibility filename, but emit `document_gaps[]` with

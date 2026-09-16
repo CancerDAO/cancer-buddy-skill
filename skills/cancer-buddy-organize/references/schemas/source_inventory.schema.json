@@ -2,12 +2,13 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://cancerdao.org/schemas/cancer-buddy/source_inventory.schema.json",
   "title": "SourceInventory",
-  "description": "Canonical source inventory. It preserves native/deterministic extraction provenance, separates raw text from LLM-assisted proposals, and links each derived sidecar to an access-controlled original. It is not an authorization record or a claim of anonymity.",
+  "description": "Canonical source inventory (organize v3 / taxonomy scheme_version 4). It preserves native/deterministic extraction provenance, separates raw text from LLM-assisted proposals, and links each derived sidecar to an access-controlled original. v3 adds the open-world signals the closed 14-domain scheme could not carry: `kind` (known | novel | unreadable), `clinical_class` (the enum downstream gates key off \u2014 a novel molecular panel filed under 15_ still trips the molecular completeness gate), `doc_kind`, `text_layer_kind`, `novel_reason`, `reread_channel` and `transcript_path`. It is not an authorization record, not a claim of anonymity, and `kind: unreadable` NEVER means the material is covered \u2014 it must surface in readiness.json.projection_coverage.",
   "type": "object",
   "required": ["schema", "patient_dir", "generated_at", "files"],
   "additionalProperties": false,
   "properties": {
     "schema": { "const": "source_inventory_v2" },
+    "scheme_version": { "enum": [3, 4], "description": "Bucket-taxonomy scheme this inventory was written against (references/bucket_taxonomy.json). It must be DECLARED: an archive that omits the key is not a legacy archive, it is an archive that did not say, and the validator ERRORs asking for `scheme_version: 4` (or 3 for a genuine pre-v4 archive). Treating silence as 3 was the hole \u2014 every v4-only gate skipped itself on any inventory that simply forgot the key, so the cheapest way to pass the open-world floors was to delete one line. An explicit 3 still stays READABLE: the validator relaxes the v4-only requirements, WARNs, and points at scripts/migrate_v3_to_v4.py. 4 is the current scheme and is validated in full \u2014 there is no forward-compatible value beyond it. Rows using 15_ / open sub-buckets are only meaningful under scheme 4." },
     "patient_dir": { "type": "string", "description": "Relative path or placeholder for <patient_dir> (e.g. \".\" or the patient-dir basename) — not an absolute path, so the inventory stays portable and never leaks a host filesystem path. All relative paths below resolve under this directory." },
     "generated_at": { "type": "string", "format": "date-time" },
     "files": {
@@ -15,15 +16,34 @@
       "minItems": 1,
       "items": {
         "type": "object",
-        "required": ["file_id", "source_id", "original_path", "raw_path", "page_range", "sidecar_path", "modality", "read_mode", "extractor_provenance", "high_risk_review_status", "adapter", "persist"],
+        "required": ["file_id", "source_id", "original_path", "raw_path", "page_range", "kind", "clinical_class", "sidecar_path", "modality", "read_mode", "extractor_provenance", "high_risk_review_status", "adapter", "persist"],
         "additionalProperties": false,
         "properties": {
           "file_id": { "type": "string", "description": "Stable id of this content unit (1:1 with the sidecar/MD), e.g. f001. N content units may share one source_id when a single upload yields multiple sidecars. See bucket-taxonomy.md §4." },
           "source_id": { "type": "string", "description": "Stable per-upload id, e.g. s001. 1:1 with an uploaded original in raw/; N content units may share it." },
-          "original_path": { "type": "string", "description": "De-identified raw handle (the Phase-1 de-id raw filename / source_id) recorded for audit; never used as an anchor. MUST be relative/de-identified — never a host-absolute path (/Users/...), cloud URL, email-attachment path, OR an identity-bearing upload basename (e.g. NOT '张测试-报告.pdf'). The verbatim upload filename is preserved only in raw/_FILENAME_MAPPING.md (inside raw/, excluded from export). source_inventory.json is a delivered/shared surface; the delivered-surface PII rescan (pii_rescan.py) hard-fails name/path leaks here." },
+          "original_path": { "type": "string", "description": "De-identified raw handle (the \u6bb5 1 de-id raw filename / source_id) recorded for audit; never used as an anchor. MUST be relative/de-identified — never a host-absolute path (/Users/...), cloud URL, email-attachment path, OR an identity-bearing upload basename (e.g. NOT '张测试-报告.pdf'). The verbatim upload filename is preserved only in raw/_FILENAME_MAPPING.md (inside raw/, excluded from export). source_inventory.json is a delivered/shared surface; the delivered-surface PII rescan (pii_rescan.py) hard-fails name/path leaks here." },
           "raw_path": { "type": "string", "pattern": "^raw/.+", "description": "Protected relative path to the uploaded original. Access requires host authorization; the path is never an anchor or an export default." },
           "page_range": { "type": ["string", "null"], "description": "Which pages of a multi-document source this content unit covers, e.g. \"3-5\". Null when the sidecar covers the whole file." },
-          "bucket_path": { "type": ["string", "null"], "description": "Canonical bucket-relative path of the text-masked .md SIDECAR after Phase2 classification (clinical domain 01_…14_). The original is NOT copied here — it stays once in raw/ (see raw_path). Null before classification or for isolated unrelated files." },
+          "kind": {
+            "type": "string",
+            "enum": ["known", "novel", "unreadable"],
+            "description": "Open-world classification of this content unit. `known` = fits a pinned doc type under domains 01_..14_. `novel` = real medical/administrative material no pinned domain fits; it is filed under 15_\u672a\u5206\u7c7b\u8d44\u6599/<slug>/ and REQUIRES novel_reason. novel is NOT quarantine: it is never auto-deleted, never demoted to 99_\u65e0\u5173\u6587\u4ef6 (which holds only likely_unrelated material), and its clinical_class still drives the molecular/lab completeness gates. `unreadable` = the source could not be transcribed (illegible, encrypted, opaque binary); it MUST NOT be counted as covered by any patient-facing surface and MUST appear in readiness.json.projection_coverage."
+          },
+          "doc_kind": { "type": "string", "minLength": 1, "description": "Document type name. For kind=known, a pinned doc type name (e.g. \"NGS\u62a5\u544a\", \"\u51fa\u9662\u5c0f\u7ed3\"). For kind=novel, the form `novel:<slug>` where <slug> satisfies bucket_taxonomy.json open_sub_bucket_slug_regex and misses reserved_sub_bucket_names \u2014 it is written by a model from untrusted source text, so it is validated, never trusted. Replaces the legacy free-form `doc_type` key, which was never in this schema; gates read doc_kind and fall back to doc_type for old archives." },
+          "clinical_class": {
+            "type": "string",
+            "enum": ["molecular", "lab", "imaging", "pathology", "narrative", "admin", "unknown"],
+            "description": "What KIND of clinical content this unit carries, independent of where it was filed. This is the key downstream consumers and the completeness gates read \u2014 NOT the bucket path \u2014 so a novel gene-panel report sitting in 15_\u672a\u5206\u7c7b\u8d44\u6599/ still trips the molecular gate instead of silently producing an empty molecular.json. It is a routing signal, NOT a diagnosis: `pathology` says the document IS a pathology report, never what it concluded. Use `unknown` only when the material genuinely resists classification; `unknown` on a source whose transcript contains lab values or variants is a defect."
+          },
+          "novel_reason": { "type": "string", "minLength": 8, "description": "REQUIRED when kind=novel: why no pinned domain fits, in the organizer's own words, citing what the document actually is. Blocks the failure mode where 15_ becomes a silent dumping ground \u2014 every open-world filing decision stays auditable." },
+          "text_layer_kind": {
+            "type": "string",
+            "enum": ["born_digital", "embedded_ocr", "absent", "not_applicable"],
+            "description": "Nature of the PDF/page text layer, decided by scripts/prepare_pages.py, not by a model. `born_digital` = real embedded glyphs from the producing application \u2014 the text layer IS the character truth and a vision disagreement goes to discrepancy[] instead of overwriting it. `embedded_ocr` = a text layer exists but the page is a full-page image (a scanner's own OCR), so the text layer is a second CHANNEL, never the truth. `absent` = no text layer; pixels are the truth. `not_applicable` = the unit has no page raster at all (plain text, CSV, structured payload)."
+          },
+          "transcript_path": { "type": "string", "pattern": "^raw/transcript/", "description": "Relative path to the VERBATIM per-page transcription for this unit, e.g. raw/transcript/<source_id>/page-001.md. REQUIRED for any unit that was transcribed. It lives under raw/ on purpose: it is unmasked character truth, it inherits raw/'s host access control, it is NEVER loaded into a downstream context, and scripts/export_share.py refuses it. The masked sidecar (sidecar_path) is the only downstream-readable surface." },
+          "legacy_transcript_unavailable": { "type": "boolean", "description": "TRUE only on a row that scripts/migrate_v3_to_v4.py carried forward from a scheme-3 archive whose characters a model read (read_mode model_vision_primary / model_vision_assist) at a time when no per-page transcript was written. Such a row CANNOT produce a transcript_path — the pages were never transcribed to disk and re-reading them would be a new run, not a migration — so the transcript_path requirement and gate_transcripts are relaxed for it. What it does NOT buy is coverage: the row MUST be counted in readiness.json.projection_coverage.summary.unreadable_sources and the archive MUST carry a review_flag with category coverage_gap / audience internal_qc, because 「we cannot re-check this source」 is exactly the fact a coverage number exists to surface. Never set it on a row a v4 run produced: there it would be a transcript the run simply declined to write." },
+          "bucket_path": { "type": ["string", "null"], "description": "Canonical bucket-relative path of the text-masked .md SIDECAR after \u6bb5 2 classification (clinical domain 01_…14_). The original is NOT copied here — it stays once in raw/ (see raw_path). Null before classification or for isolated unrelated files." },
           "sidecar_path": { "type": "string", "pattern": "^[0-9]{2}_[^\\s/]+(/[^\\s/]+)*\\.md$", "description": "Bucket-relative source-attributed, text-masked MD sidecar. The leading NN_ bucket segment is required." },
           "modality": {
             "type": "string",
@@ -32,8 +52,8 @@
           },
           "read_mode": {
             "type": "string",
-            "enum": ["native_text", "deterministic_ocr", "table_parser", "barcode_parser", "hybrid_verified", "model_vision_assist", "stub_unreadable"],
-            "description": "Primary character-extraction mode. Model vision may assist but is never the only truth layer for high-risk fields."
+            "enum": ["native_text", "deterministic_ocr", "table_parser", "barcode_parser", "hybrid_verified", "model_vision_assist", "model_vision_primary", "stub_unreadable"],
+            "description": "Primary character-extraction mode for this content unit. `model_vision_primary` (organize v3) is the honest label for a pixel page (text_layer_kind absent | embedded_ocr) whose character truth IS the multimodal transcription \u2014 use it instead of mislabelling such a page deterministic_ocr/hybrid_verified. Declaring it does NOT relax the high-risk rule: every high-risk field (references/high-risk-fields.md) still needs a CHANNEL-INDEPENDENT second read before high_risk_review_status may become passed_independent_reread. `native_text` is reserved for born-digital text taken byte-for-byte from the source \u2014 the only mode eligible for faithfulness_method: native_text_identity."
           },
           "extractor_provenance": {
             "type": "object",
@@ -43,13 +63,49 @@
               "engine": { "type": "string", "minLength": 1 },
               "version": { "type": ["string", "null"] },
               "raw_output_ref": { "type": ["string", "null"], "description": "Protected relative reference to preserved native/OCR character output; never a public export default." },
-              "llm_role": { "type": "string", "enum": ["none", "layout_assist", "candidate_correction", "semantic_label", "review"] }
+              "llm_role": { "type": "string", "enum": ["none", "layout_assist", "candidate_correction", "semantic_label", "review", "primary_transcription"], "description": "What the LLM actually did for this unit. `primary_transcription` (organize v3) records that a model wrote the character truth for a pixel page \u2014 a provenance admission, not a quality claim, and never by itself a substitute for the independent reread." }
             }
           },
           "high_risk_review_status": {
             "type": "string",
             "enum": ["not_applicable", "passed_independent_reread", "needs_human_review"],
-            "description": "Status of the independent reread for identifiers, dates, drug/dose/frequency, laboratory values/units/ranges, stage, variants/VAF and accession numbers."
+            "description": "Status of the CHANNEL-INDEPENDENT second read for identifiers, dates, drug/dose/frequency, laboratory values/units/reference ranges, stage, variants/VAF and accession numbers (references/high-risk-fields.md). `passed_independent_reread` is legal ONLY when reread_channel is present and is not `none`, and that channel is genuinely independent of the first read: a different model, a different modality (born-digital text layer, barcode decode, a parseable deterministic OCR run), or a human. Re-prompting the SAME model on the SAME image \u2014 including a cropped region \u2014 is a tie-break only and never sets this value. Disagreement \u2192 needs_human_review with both reads recorded side by side; majority voting is forbidden."
+          },
+          "transcribe_model_id": { "type": ["string", "null"], "description": "Identifier of the model that produced the FIRST read (\u6bb5 1 transcription) for this unit, e.g. \"host-vision-3.0\". REQUIRED in practice for any unit whose read_mode is model_vision_primary / model_vision_assist, because independence of the second read is otherwise uncheckable: without a first-read model id, `reread_channel: alternate_vision_model` is an unfalsifiable claim. null only for units no model transcribed." },
+          "high_risk_fields": {
+            "type": "array",
+            "description": "PER-FIELD second-read record for this unit's high-risk fields (references/high-risk-fields.md: identifier, date, drug_name, dose, frequency, lab_value, unit, reference_range, accession + the oncology pack stage, variant, vaf). The row-level high_risk_review_status is a DERIVED summary of this array (any needs_human_review \u2192 needs_human_review; all passed \u2192 passed_independent_reread; empty \u2192 not_applicable) and the gate checks the derivation. Recording the channel per FIELD is what makes the claim checkable: one field verified through a born-digital text layer says nothing about the handwritten dose beside it.",
+            "items": {
+              "type": "object",
+              "required": ["label", "status", "reread_channel"],
+              "additionalProperties": false,
+              "properties": {
+                "label": { "type": "string", "minLength": 1, "maxLength": 120, "description": "The field label AS THE SOURCE PRINTS IT, matching the transcript frontmatter fields[].label it came from." },
+                "status": { "type": "string", "enum": ["passed_independent_reread", "needs_human_review", "not_applicable"], "description": "Outcome for THIS field. passed_independent_reread requires reread_channel \u2209 {none} and a genuinely independent channel; disagreement is never voted away \u2014 it becomes needs_human_review with both readings kept in readings[]." },
+                "reread_channel": { "type": "string", "enum": ["text_layer", "barcode", "deterministic_ocr", "alternate_vision_model", "human", "none"], "description": "The independent channel that supplied this field's second read. `text_layer` is legal ONLY when the unit's text_layer_kind is born_digital or not_applicable (a deterministic adapter's output for a non-raster unit). embedded_ocr and absent are excluded: there the \u201ctext layer\u201d is the same pixels read twice, not an independent channel. `alternate_vision_model` REQUIRES reread_model_id \u2260 transcribe_model_id. `human` REQUIRES a matching verdict in raw/_provenance/<run>/human_sample_result.json \u2014 it is never a no-channel placeholder. `none` means no second read happened, and then status must not be passed_independent_reread." },
+                "reread_model_id": { "type": ["string", "null"], "description": "Model that performed the second read. REQUIRED (non-null) and MUST differ from transcribe_model_id when reread_channel is alternate_vision_model \u2014 re-prompting the SAME model on the SAME image, including a crop, is a tie-break and never an independent channel." },
+                "readings": {
+                  "type": "array",
+                  "description": "Every reading of this field, one per channel, kept side by side. On disagreement BOTH survive here \u2014 majority voting is forbidden and the reviewer must see what each channel actually said.",
+                  "items": {
+                    "type": "object",
+                    "required": ["channel", "value"],
+                    "additionalProperties": false,
+                    "properties": {
+                      "channel": { "type": "string", "enum": ["transcribe", "text_layer", "barcode", "deterministic_ocr", "alternate_vision_model", "human"], "description": "Which channel produced THIS reading. `transcribe` is the 段 1 first read (the multimodal transcription itself); the other five are the independent second-read channels and match reread_channel's vocabulary minus `none`. `none` is deliberately absent here: 「no second read happened」 is the ABSENCE of a second readings[] entry, not a reading whose channel is nothing — recording it as one made an unverified field look like a verified one with an odd label. One writer of this array (scripts/ingest_transcripts.py) and two readers (the validator, references/high-risk-fields.md §2.4) share this exact list; a sixth spelling of the first read — `first_read`, `model_vision_primary` — is a schema violation, because a channel name nothing matches is a channel nothing checks." },
+                      "value": { "description": "The value as that channel read it, verbatim." },
+                      "model_id": { "type": ["string", "null"] }
+                    }
+                  }
+                },
+                "note": { "type": ["string", "null"] }
+              }
+            }
+          },
+          "reread_channel": {
+            "type": "string",
+            "enum": ["text_layer", "barcode", "deterministic_ocr", "alternate_vision_model", "human", "none"],
+            "description": "Row-level SUMMARY of the primary independent channel across this unit's high_risk_fields[]. `none` means no independent second read happened \u2014 in that case high_risk_review_status must NOT be passed_independent_reread. `human` is NOT a no-channel placeholder: declaring it requires a matching verdict in raw/_provenance/<run>/human_sample_result.json, so \u300c\u4eba\u5de5\u770b\u8fc7\u300d can never be asserted without the record that proves it. `text_layer` is legal only when text_layer_kind is born_digital or not_applicable \u2014 never embedded_ocr or absent, where the \u201ctext layer\u201d is the same pixels read twice (schema allOf). `deterministic_ocr` counts only when the OCR run actually parsed: tesseract is tri-state \u2014 0 bytes / garbage = NO signal and raises no flag; parseable + a numeric-level conflict on a high-risk field = trigger a second read; agreement = a confidence bonus. It never vetoes on its own."
           },
           "adapter": {
             "type": "string",
@@ -62,7 +118,24 @@
           },
           "persist": { "type": "boolean", "description": "Whether this source file is selected for final archive/persist. Medical sources cited by formal outputs (timeline/case_text/review outputs/structured JSON source_refs) must be true; false is reserved for isolated unrelated/non-persisted sources." },
           "notes": { "type": ["string", "null"] }
-        }
+        },
+        "allOf": [
+          {
+            "if": { "properties": { "kind": { "const": "novel" } }, "required": ["kind"] },
+            "then": { "required": ["novel_reason"] },
+            "$comment": "Open-world filings must justify themselves: kind=novel without novel_reason is a schema error, so 15_ can never become an unaudited dumping ground."
+          },
+          {
+            "if": { "properties": { "read_mode": { "enum": ["model_vision_primary", "model_vision_assist"] }, "legacy_transcript_unavailable": { "not": { "const": true } } }, "required": ["read_mode"] },
+            "then": { "required": ["transcript_path"] },
+            "$comment": "A unit whose characters came out of a model MUST record where the verbatim per-page transcription lives. Omitting transcript_path used to skip gate_transcripts entirely (its three assertions all short-circuit on an absent path), so 'no transcript declared' was cheaper than 'transcript declared and checkable'. The ONE exemption is legacy_transcript_unavailable: true, which only scripts/migrate_v3_to_v4.py may write — a scheme-3 row whose pages were read by a model before per-page transcripts existed cannot produce a file that was never created, and demanding one would make every pre-v4 archive permanently unmigratable. The exemption is paid for elsewhere: gate_projection_coverage counts such a row as unreadable and requires a coverage_gap flag."
+          },
+          {
+            "if": { "properties": { "reread_channel": { "const": "text_layer" } }, "required": ["reread_channel"] },
+            "then": { "properties": { "text_layer_kind": { "enum": ["born_digital", "not_applicable"] } }, "required": ["text_layer_kind"] },
+            "$comment": "The gate excludes exactly two values, embedded_ocr and absent, because those are the cases where the 'text layer' is not independent of the first read: with absent there is no text layer at all, and with embedded_ocr it is a scanner's own OCR of the very pixels the model looked at. born_digital is the classic legal case (real embedded glyphs from the producing application). not_applicable is legal too and is NOT an oversight: a unit with no page raster \u2014 a VCF, a DICOM header, a timeseries payload \u2014 has its characters produced by a deterministic adapter, and that adapter output IS a channel independent of any vision read."
+          }
+        ]
       }
     }
   }

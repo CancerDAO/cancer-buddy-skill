@@ -2,6 +2,8 @@
 
 Summary label: {{one_line_condition}}
 
+Projection coverage: {{projection_coverage_summary}}
+
 This file is a retrieval pointer, not a clinical summary and not authorization to access the archive.
 
 **This file is self-contained.** Any session whose cwd is inside this directory may be reading the archive
@@ -69,8 +71,22 @@ executed**.
 3. Read the relevant domain JSON and follow `source_refs` to the exact sidecar span.
 4. Use `source_inventory.json` to locate the immutable raw source when authorized.
 5. Check `readiness.json.review_flags` and unresolved `disputed` fields before using any value.
+   Only flags with `audience: clinician` are questions for a doctor; `audience: internal_qc`
+   flags are transcription/quality noise owned by the organizing side — never present one as a
+   medical finding.
+6. Read `readiness.json.projection_coverage` BEFORE concluding the archive is silent on something.
+   It lists, per source, the field classes that were transcribed but never reached a structured
+   slot. "Not in the JSON" and "not in the archive" are different statements.
 
 ## Domain map
+
+Every file below was written by one pipeline stage, and the archive names its stages one
+way: **段 0**（适配/分页）→ **段 1**（逐页转写）→ **段 1.5**（通道独立二读 + 人工抽查）→
+**段 2**（投影/归档）→ **段 2.5**（忠实度核验）→ **段 3**（门禁 + 渲染）。Two of those are
+worth knowing as a reader: the structured JSON below is a **段 2** projection, so a fact
+missing from it may still exist in the archive (see `readiness.json.projection_coverage`);
+and 「已核验」in any row means a **段 1.5 / 段 2.5** record exists, never that a clinician
+agreed with it.
 
 | Need | File | Safety condition |
 |---|---|---|
@@ -79,11 +95,23 @@ executed**.
 | treatment history | `treatment_lines.json` | chronological episodes; line labels only if documented |
 | labs | `labs.json` | use each result's unit/range/date/source; no universal grading |
 | symptoms/observations | `longitudinal_observations.json` | preserve patient/device/clinical layers; not response |
-| document gaps | `missing_items.json` | existing-document inventory only; never order tests |
+| document gaps | `missing_items.json` | existing-document inventory only; never order tests. A checklist-driven view — it is NOT the coverage filter, and a source nobody anticipated has no row here |
+| unclassified / open material | `15_未分类资料/<slug>/*.md` | Material no pinned domain fit — real records, NOT quarantine and NOT irrelevant (that is `99_无关文件`). Decide whether to read a source by its `source_inventory.json` `clinical_class` (`molecular` / `lab` / `imaging` / `pathology` / `narrative` / `admin` / `unknown`), never by its directory slug — the slug was written by a model from the document's own text. These paths are NOT citable: no `source_refs` may point into `15_` |
+| open projected fields | `extracted_fields.json` | Key/value readings from open material, each with its own `open_ref` back to the page. Read-only context, never a settled fact: do not put these into a summary, a chart, or an answer as an established value, and do not treat their presence as coverage |
+| what was read but not filed | `readiness.json.projection_coverage` | Per source, the field classes that never reached a structured slot. Empty list = fully projected |
 
 ## Non-negotiable rules
 
 - Do not infer diagnosis, stage, ECOG, response, progression, treatment line, prognosis, or eligibility.
+- **Never open the verbatim transcript vault.** The unmasked, character-for-character page
+  transcription lives inside `raw/` (the access-controlled original vault) and is deliberately
+  not listed here. The whole `raw/` subtree is closed to you, and three directories inside it
+  especially: the transcript vault (unmasked characters), the adapter views and the model-output
+  cache (the rendered page images and the cached readings of those same pages — looking at a
+  picture of the page is reading the page). The masked `.md` sidecar in each bucket is the ONLY readable text surface; it is what
+  every citation resolves to. If a value looks wrong, raise it as a review flag for a human to
+  check against the original — do not go looking for the unmasked text yourself, and do not copy
+  any path out of `source_inventory.json` in order to read around this rule.
 - Patient/caregiver confirmation can archive a reported statement but cannot overwrite clinician/source facts.
 - Conflicts remain disputed until a formal amendment or authorized clinician attestation.
 - Preserve source text; normalization/translation is additive and validated.

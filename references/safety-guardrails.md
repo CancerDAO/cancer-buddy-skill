@@ -124,12 +124,13 @@ pixel-edits, or deletes an original. Retention, legal hold, user-requested delet
 data-governance actions that require authentication, authorization, audit, and applicable policy; “preserve
 during organization” is not a promise of indefinite retention.
 
-**Text masking occurs at the sidecar layer.** Phase 1 masks direct identifiers in the `.md` sidecar body
-(`organizer-prompt-phase1-ocr.md §2.4`) and `pii_rescan.py` applies a deterministic residue check. Derived
+**Text masking occurs at the sidecar layer.** 段 1 masks direct identifiers in the `.md` sidecar body
+(`organizer-prompt-phase1-transcribe.md` §6「遮蔽与两份 Markdown（PII 槽位 gate）」) and `pii_rescan.py`
+applies a deterministic residue check. Derived
 artifacts may still contain dates, institutions, rare diagnoses, genomics and other quasi-identifiers, so
 they remain sensitive and potentially re-identifiable; a clean scan is not proof of anonymity. Direct
 identity attributes needed for record-collision review stay in a separately protected mapping or host
-identity layer, not in a patient-facing summary. The **image-level redaction job (段B) is removed** — there
+identity layer, not in a patient-facing summary. The **image-level redaction job is removed** — there
 is no redact-then-delete of originals and no `redaction_manifest`/`redaction_status`/
 `source_redaction_status`. Originals in `raw/` may retain plaintext PII and therefore require the strongest
 host access controls.

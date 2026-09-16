@@ -2,13 +2,13 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://cancerdao.org/schemas/cancer-buddy/readiness.schema.json",
   "title": "DocumentationCoverageAndSourceReview",
-  "description": "Compatibility filename; not a clinical readiness score.",
+  "description": "Compatibility filename; not a clinical readiness score. It carries two independent things and they must not be conflated: documentation_coverage / projection_coverage (what the archive HAS, and what of it reached a structured slot) and review_flags[] (what a human must look at). Every review flag declares an `audience`: `clinician` flags are the only ones a patient-facing / visit-prep surface may render as 「\u8bf7\u533b\u751f\u786e\u8ba4」; `internal_qc` flags are transcription/QC noise that belongs on the internal review surface and must be collapsed to a single line for the family.",
   "type": "object",
   "required": ["patient_code", "schema_version", "documentation_coverage", "review_flags"],
   "additionalProperties": false,
   "properties": {
     "patient_code": { "type": "string", "pattern": "^PT-[A-F0-9]+(_\\d+)?$" },
-    "schema_version": { "const": "2" },
+    "schema_version": { "const": "3" },
     "generated_at": { "type": "string", "format": "date-time" },
     "documentation_coverage": {
       "type": "object",
@@ -16,16 +16,57 @@
         "enum": ["present", "not_in_archive", "unknown", "requested_by_clinician", "patient_declined_to_add"]
       }
     },
+    "projection_coverage": {
+      "type": "object",
+      "required": ["per_source", "summary"],
+      "additionalProperties": false,
+      "description": "How much of what the archive HOLDS actually reached a structured slot. documentation_coverage answers 「does a document exist?」; this answers 「did its content get lifted?」. Without it a best-effort projection is indistinguishable from a complete one: a novel report can be fully transcribed, filed, and still contribute zero structured facts with no signal anywhere. EVERY source_id in source_inventory.json must appear in per_source — including kind=unreadable and kind=novel sources, which are exactly the ones a coverage number would otherwise hide.",
+      "properties": {
+        "per_source": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["source_id", "unprojected_field_classes"],
+            "additionalProperties": false,
+            "properties": {
+              "source_id": { "type": "string", "description": "Must match a source_id in source_inventory.json." },
+              "unprojected_field_classes": { "type": "array", "items": { "type": "string" }, "description": "Classes of field present in this source's transcript that did NOT reach any structured slot, e.g. [\"lab_values\", \"imaging_measurements\"]. An EMPTY array means fully projected. Descriptive only — never a statement that the missing content was clinically unimportant." },
+              "note": { "type": ["string", "null"], "description": "Optional short reason, e.g. \"no pinned slot for microbiome abundances\"." }
+            }
+          }
+        },
+        "summary": {
+          "type": "object",
+          "required": ["sources_total", "sources_fully_projected", "novel_sources", "unreadable_sources"],
+          "additionalProperties": false,
+          "properties": {
+            "sources_total": { "type": "integer", "minimum": 0, "description": "Count of distinct source_id in source_inventory.json; must equal len(per_source)." },
+            "sources_fully_projected": { "type": "integer", "minimum": 0, "description": "per_source rows whose unprojected_field_classes is empty." },
+            "novel_sources": { "type": "integer", "minimum": 0, "description": "inventory rows with kind=novel." },
+            "unreadable_sources": { "type": "integer", "minimum": 0, "description": "inventory rows with kind=unreadable. Never counted as covered anywhere." }
+          }
+        }
+      }
+    },
     "warnings": { "type": "array", "items": { "type": "string" } },
     "review_flags": {
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["id", "category", "affected_field", "current_source_values", "issue", "resolution_status"],
+        "required": ["id", "category", "audience", "affected_field", "current_source_values", "issue", "resolution_status"],
         "additionalProperties": false,
         "properties": {
           "id": { "type": "string" },
-          "category": { "type": "string", "minLength": 1 },
+          "category": {
+            "type": "string",
+            "enum": ["transcription_disagreement", "ocr_artifact", "untrusted_content_marker", "pii_semantic_deferred", "source_conflict", "source_faithfulness", "coverage_gap", "other"],
+            "description": "What KIND of problem this is. A closed enum (organize v3) because the free-form string it replaced was never populated by producers, which made downstream filtering impossible and forced visit-prep to render every flag as a clinician action. transcription_disagreement = two read channels disagreed on a character/number. ocr_artifact = a transcription defect with no clinical content (phantom glyphs, rotation, dead scan). untrusted_content_marker = instruction-shaped text found in archive content. pii_semantic_deferred = the semantic PII pass was auditably deferred for a text-only increment and is still owed. source_conflict = two SOURCES state different clinical facts (a real clinician question, not a read error). source_faithfulness = a value could not be reproduced from its cited source span. coverage_gap = material exists but never reached a structured slot (mirrors projection_coverage). The first four are ALWAYS internal_qc."
+          },
+          "audience": {
+            "type": "string",
+            "enum": ["clinician", "internal_qc"],
+            "description": "Who this flag is for. REQUIRED — an unlabelled flag used to be rendered to the family as 「\u8bf7\u533b\u751f\u786e\u8ba4」 regardless of whether it was a clinical question or an OCR decimal point, so the real ones drowned. clinician = a genuine cross-source clinical question worth a doctor's minute. internal_qc = quality noise the organizing side owns; patient-facing surfaces collapse these into one line and never present them as medical findings. Categories transcription_disagreement / ocr_artifact / untrusted_content_marker / pii_semantic_deferred MUST be internal_qc."
+          },
           "affected_field": { "type": "string", "minLength": 1 },
           "current_source_values": {
             "type": "array",
@@ -35,7 +76,11 @@
               "additionalProperties": false,
               "properties": {
                 "value": {},
-                "source_ref": { "type": "string" }
+                "source_ref": {
+                  "type": ["string", "null"],
+                  "pattern": "^(([0-9]{2}_[^\\s/]+(/[^\\s/]+)*\\.md(#L[0-9]+(-L[0-9]+)?|#[A-Za-z0-9_-]+)?)|(conversation:[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?(Z|[+-][0-9]{2}:[0-9]{2})?)|(source:[^\\s]+))$",
+                  "description": "Where this competing value came from. Three legal forms, because the three situations are genuinely different and collapsing them produced fake anchors. (a) A sidecar ANCHOR (NN_…/….md[#span]) when the value sits in a filed source. (b) `source:<source_id>` when the value is attributable to an inventoried upload but not to a specific filed sidecar span — e.g. a 15_ open source, which is deliberately not anchorable (Q7). (c) null when the value has no source at all: a patient-reported figure, or a field the archive simply disagrees about with nothing to point at. null is an honest record; inventing an anchor to satisfy a required string was the defect."
+                }
               }
             }
           },

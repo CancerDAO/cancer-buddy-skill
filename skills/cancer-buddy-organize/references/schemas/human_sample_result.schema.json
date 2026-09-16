@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cancerdao.org/schemas/cancer-buddy/human_sample_result.schema.json",
+  "title": "HumanSampleResult",
+  "description": "raw/_provenance/<run_id>/human_sample_result.json — the ANSWER half of the human spot-check (A4/B11). A HUMAN writes this file: for every cell human_sample_plan.json named, what they saw when they opened the original. It is the only thing that makes `reread_channel: human` true anywhere in the archive — 「人工核对过」 asserted without a matching verdict here is a claim with no record, and the validator treats it as one. Two verdicts of `mismatch` make the archive NOT DELIVERABLE: one mismatch is a field to re-read, two say the transcription pass is unreliable on THIS material and the unsampled pages carry the same unmeasured error rate.",
+  "type": "object",
+  "required": ["run_id", "performed_by", "performed_at", "verdicts"],
+  "additionalProperties": true,
+  "properties": {
+    "run_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Must match the run_id of the human_sample_plan.json sitting beside it."
+    },
+    "performed_by": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Who did the check — a person or a named role, not a model id. An unattributed human check is not a record of one. This is an accountability field, and it is not patient content: it must never carry a PATIENT's name."
+    },
+    "performed_at": { "type": "string", "format": "date-time", "description": "When the check was performed. Undated means unauditable: it cannot be placed before or after the re-transcription it is supposed to validate." },
+    "verdicts": {
+      "type": "array",
+      "description": "One entry per planned sample item. A PARTIAL result is worse than none — it reads downstream as a completed spot-check while covering only the cells that happened to agree — so the validator requires every planned item to appear here.",
+      "items": {
+        "type": "object",
+        "required": ["source_id", "page", "label", "verdict"],
+        "additionalProperties": true,
+        "properties": {
+          "source_id": { "type": "string", "minLength": 1 },
+          "page": { "type": ["integer", "string"] },
+          "label": { "type": "string", "minLength": 1, "maxLength": 120, "description": "Verbatim, and identical to the plan's label for the same cell — the join key." },
+          "verdict": {
+            "type": "string",
+            "enum": ["match", "mismatch", "unreadable"],
+            "description": "THREE values, and the third one is the point. `match` = the original says what the archive says. `mismatch` = it does not. `unreadable` = the person could not tell, because the cell is illegible, cropped, or obscured on the original — which is NOT a match and must never be recorded as one. Collapsing unreadable into match is how an unverifiable cell becomes a verified one; collapsing it into mismatch would instead condemn a correct transcription for the page's own quality. Any fourth spelling (「ok」, 「pass」, 「n/a」) is a schema violation, because a verdict nothing recognises is a verdict nothing counts."
+          },
+          "observed_value": { "description": "Optional: what the checker actually read off the original. Required in practice for a mismatch, since the correction is what the re-read needs." },
+          "note": { "type": ["string", "null"] }
+        }
+      }
+    }
+  }
+}

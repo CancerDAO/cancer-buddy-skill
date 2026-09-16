@@ -6,6 +6,43 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Changed — organize v3：像素页多模态转写为字符真值、通道独立二读、开放投影落库（scheme_version 4）(2026-09-17)
+
+背景：2026-07-17 临床安全整改把「不要让模型编临床结论」误写成「不要让模型读图」——Penguin 绑定把 tesseract 当唯一独立复读，0 字节/乱码也算分歧，难页 flag 成灾并流进就诊准备包（2026-09-16 探针：9 条「请医生确认」里 7 条是转写小数点分歧；14 行纯文本化验单增量 30 分钟 / 4 worker）。成本表（PT-84E4A1445C）显示 191.7M token 中 98.1% 是 cache read，成本在「模型步数 × 单步上下文」与校验循环，不在视觉税。设计稿与三路独立审查见 `cancer-journey-penguin/docs/reviews/2026-09-16/03-*.md`、`04-*.md`。
+
+**感知层（硬规则 1–3）**
+- 像素页（`text_layer_kind ∈ {absent, embedded_ocr}`）字符真值 = 多模态逐页转写；born-digital 页文本层为正文，vision 只补章/手写/勾选/红圈/拆散表，token 冲突进 `discrepancy[]` 并触发二读。tesseract 降为三态 additive 信号（无信号 / 数值级冲突触发二读 / 一致加成），永不 veto。
+- 段 1 为**无状态单页调用**：`scripts/prepare_pages.py`（渲染、文本层、`text_layer_kind`、方向/白页/重复页、缓存键 `sha256(image).sha256(text_layer)[:16].prompt_version.model_id`）→ 宿主模型一次调用 → `scripts/ingest_transcripts.py` 回收（frontmatter 校验、逐字版 `raw/transcript/` + 遮蔽版 `ocr/` 派生、缓存、manifest、难页 `escalate_to_agent`）。缓存命中页也必须 `--from-cache` 过 ingest。
+- 高风险字段两层清单（通用 9 类 + 肿瘤 pack `stage/variant/vaf/response_wording`）**无条件通道独立第二读**：不同模型 / 不同模态（born-digital 文本层、条码、可解析 OCR）/ 人工，三选一；同模型裁剪仅 tie-break；`scripts/plan_second_read.py` 按页批量出包（`fields_to_verify[{label,trigger,bbox}]`），文本层 settle 改为数值 token 等值 + 边界（子串匹配曾把 WBC `112` 认证成 `1123` 的一部分）。人工抽查拆 `human_sample_plan.json`（脚本）与 `human_sample_result.json`（人写），`mismatch ≥ 2` 不得交付。
+- inventory 行新增 `high_risk_fields[]`（按字段的 status / reread_channel / reread_model_id / readings）；行级 `high_risk_review_status` 降为派生摘要。
+
+**归档层（硬规则 4–6）**
+- 每页两份 Markdown：`raw/transcript/`（逐字，受控，仅确定性脚本与授权人工可读，export 拒绝）+ 桶内遮蔽版（下游唯一读取面）。`pii_rescan.mask_text` 改写集收窄为零假阳性形状（身份证/中国手机/email/≥11 位/带标签证件号），美式电话与 E.164 只检测不改写（曾把「淀粉酶 105 350 1200」整行吞掉）；frontmatter 递归叶子遮蔽、失败 fail-closed。
+- 结构化是投影：`scripts/merge_fields.py` 产 `field_candidates.json`；段 2 按 `clinical_class` 分四组 worker + 薄 merge；`extracted_fields.json`（开放键值，`open_verification_status`）；`readiness.projection_coverage` 量化未投影字段类。
+- 新桶 `15_未分类资料/<slug>/`（`bucket_taxonomy.json` scheme_version 4，`open_sub_buckets`，slug 白名单正则）只收 `kind: novel`；`possibly_relevant` 留原桶 `kind: unreadable`；`99_` 只留 `likely_unrelated`。**Q7：`15_` 不可 anchor**（正式 `source_refs` 与 markdown `[[src:15_…]]` 均 ERROR，开放字段用 `open_ref`）；**Q8：`extracted_fields.json` 不是 charts / core-completeness 源库**。
+- `source_inventory` 新字段 `kind / doc_kind / clinical_class / text_layer_kind / novel_reason / reread_channel / transcript_path / transcribe_model_id`；`readiness.review_flags[]` 必带 `audience ∈ {clinician, internal_qc}` + `category` 枚举；新 schema `extracted_fields` / `update_log` / `gap_asks`。
+
+**门禁（段 3，一轮不循环）**
+- `validate_structured_outputs.py` 新增 12 个 gate：open-domain slug、15_ anchor 拒绝、`clinical_class` 驱动的分子/化验 floor（ERROR）、`gate_extracted_fields`、`gate_transcripts`、`gate_projection_coverage`、`gate_review_flag_audience`、`gate_human_sample`、`gate_faithfulness`（bbox 面积/页号）、`gate_field_provenance`（labs `raw_value` 必须在该源转写里出现）、`gate_update_log_provenance`（PII `deferred` 三条件）、`ocr/` 完成态必须不存在；`gate_numeric_integrity` 接线并改为 normalization consistency（科学计数/%/区间/单位换算不再误报）；core-completeness 检测到两文件存在即自动调用；`gate_untrusted_content` 因 `--json` 带值参数早已失效，改 `--stdout-json` 修复。
+- PII 语义扫描保持 fail-closed：1 轮 → 按 finding 定点遮蔽 → 只复扫受影响 surface；扫描面补 `extracted_fields.json`、`readiness.json`、`.case_summary_data.json` 与结构化 JSON；纯文本小增量可审计 `deferred`，`export_share.py` 独立回溯拒绝未补跑档案。
+- 路径安全：新 `scripts/_pathsafe.py`，所有 `source_id/page/run_id/model_id/prompt_version/--source/--out/--json` 过白名单 + realpath containment（模型输出 `source_id: ../../x` 曾把未遮蔽逐字页写到患者目录外）；`export_share.py` casefold + 真实拼写校验（APFS 大小写变体曾绕过 `raw/transcript/`）；`source_id` 保留 CJK + `sha256[:8]`（中文文件名曾全部塌缩为 `src` 导致 A 图配 B 文本层）。
+
+**增量短路**：纯文本 ≤15 文件 → 0 次 run_subagent，编排者内联，`scripts/verify_native_text.py` 字节同一性替代转写忠实度（`faithfulness_method: native_text_identity`，不写 `passed_independent_reread`），段 2 只 append，目标 P50 ≤ 2 min；`incoming/<batch>/` 移 `_processed/` 不删。
+
+**消费侧**：visit-prep 只把 `audience: clinician` 渲染为「请医生确认」，internal_qc 折叠一行；速览准入 = `clinician_verified` 或按字段 `passed_independent_reread`；禁读 `extracted_fields.json`。
+
+**兼容与迁移**：`scheme_version: 3` 档案在新 validator 下 WARN 不 ERROR，`scripts/migrate_v3_to_v4.py` 推导 `kind/clinical_class/audience/projection_coverage` 并记 `run_mode: migration`。
+
+**契约面**：`SKILL.md` 68.6KB/18 步 → 49.2KB/「四段编排 + 两道子门」（段 0/1/1.5/2/2.5/3）；`organizer-prompt-phase1-ocr.md` 改名 `organizer-prompt-phase1-transcribe.md`（`prompt_version: 3.1`）；新增 `organizer-prompt-second-read.md`、`high-risk-fields.md`、`domain-pack.md`（域无关内核 vs 域 pack；非视觉模态在段 0 走确定性适配器）、`_untrusted-input-clause.md`（逐字内联进 15 个读归档正文的文件）。PATIENT_DIR_CONTRACT 记录 vmtb 镜像在 CancerDAO/vmtb-skill 现役分支缺失；现役 SMTB 消费者 `smtb-skill/scripts/facts.py` 按 `source_ref` 前缀取层、不枚举桶，无需改动。Penguin 绑定改动在 `cancer-journey-penguin/agent/overlays/`，随 `SOURCES.lock` bump 生效。
+
+**Verification**（2026-09-17，本机 macOS，wall-time 见各行）
+- 全量测试：`tests/unit/*.test.sh` 54 套件 0 失败（可计数套件 1,580 条断言）+ `tests/integration/` 6 套件 0 失败 + `tests/eval/lint/` 8 项 0 失败，合计 wall 84 s。本次新增 33 个 unit 套件（全部含正向 + 负向臂）、`tests/fixtures/organize-gold/`（README + 合成样例 + `eval_transcription.py`，零真实数据）。
+- 审查闭环：3 轮独立第三方对抗审查（R1 契约 / R2 代码 / R3 复核 / R4 终审）共报 P0 29 条、P1 45 条、P2 42 条，全部修复并有 fixture 复现；4 轮修复包 + 4 轮测试包。代表性复现：中文文件名 → 两个不同 `source_id`；`source_id: ../../x` → invalid 且患者目录外零文件；`淀粉酶 105 350 1200` 不被遮蔽而 18 位身份证/手机/email 被遮；WBC `112` 对文本层 `11.2 … 1123` 不再 settle；`Raw/transcript` 导出拒绝；全角 `Ｗ Ｂ Ｃ` 标签仍进高风险分母；空 `high_risk_fields[]` + 页面含住院号/WBC/剂量 → ERROR；`migrate_v3_to_v4.py` 产物过 validator exit 0 且 `--force` 对完整 v4 档案前后全树 shasum 一致。
+- 性能：200 页 born-digital PDF `prepare_pages.py` 14.85 s（`--jobs 4` 11.54 s）；单档案 validator 0.21 s。
+- 未做（诚实项）：**未在真实病历上跑完整 E2E**（PT-84 s2–s4 难页金标需去标识后由用户放入 `tests/fixtures/organize-gold/`，本次只有合成样例）；Penguin 侧 `journey_core.organize_lite.LITE_MAX_FILES=3` 与 CLI `penguin run --json` 提前返回 completed（probe B1）属 journey-core，未改；`SOURCES.lock` 未 bump（上游 sha 需 push 后才存在）。
+- 实施总时长：2026-09-17 01:43 → 06:00（约 4 h 15 min），57 文件 +9,440/−995（不含 tests）。
+
+
 ### Fixed — 年龄/体重/ECOG 是时点观测，跨年份取值不同不再被判成来源冲突 (2026-08-05)
 
 用户反馈：同一患者跨年份的多份报告一起 organize 时，年龄"没法自动随年份变化，会自动判别冲突"。
