@@ -176,7 +176,54 @@ def validate_anchors(patient_dir: Path, data, fname: str, errors: list):
             )
 
 
-def validate_one(patient_dir: Path, fname: str, schema_name: str, errors: list):
+# Legacy structured outputs that predate a schema bump. A pre-bump archive is not
+# corrupt — it was correct under the contract in force when it was written — so it
+# must stay READABLE (validate against the older shape) while being WARNed as due
+# for a re-organize. Blocking it would strand every archive built before the bump.
+# Map: file → {legacy schema_version: how to relax the current schema in memory}.
+LEGACY_SCHEMA_VERSIONS = {
+    # patient_summary v2 had no time anchors on demographics: `age` was a bare
+    # scalar beside `sex`, which is exactly why cross-year reports collided into a
+    # permanent `disputed`. v2.1 adds `*_as_of` + `age_observations[]` + `birth_year`.
+    # A v2 archive can still be read — but its age/weight/ECOG carry no as-of date,
+    # so a consumer cannot tell which report they came from. Hence: WARN + re-organize.
+    "patient_summary.json": {
+        "2": {
+            "drop_required": {
+                "demographics": ("age_as_of", "age_observations", "birth_year",
+                                 "height_cm_as_of", "weight_kg_as_of", "ecog_as_of"),
+            },
+            "note": (
+                "patient_summary.json is schema_version 2 (pre-time-anchor). "
+                "demographics.age / weight_kg / height_cm / ecog carry no `_as_of` "
+                "source date, so downstream cannot tell which report each value came "
+                "from and must not present them as current. Re-run organize to upgrade "
+                "to 2.1 (adds *_as_of + age_observations[] + birth_year)."
+            ),
+        }
+    },
+}
+
+
+def _relax_schema_for_legacy(schema: dict, relax: dict) -> dict:
+    """Return an in-memory copy of `schema` accepting the legacy shape.
+
+    Only two things are relaxed: the pinned `schema_version` const, and the
+    `required` lists named in `drop_required`. Every other constraint — closed
+    `additionalProperties`, types, enums, ranges — still applies, so a legacy
+    archive is read leniently but never validated loosely.
+    """
+    legacy = copy.deepcopy(schema)
+    legacy.get("properties", {}).pop("schema_version", None)
+    for prop, fields in relax.get("drop_required", {}).items():
+        block = legacy.get("properties", {}).get(prop)
+        if isinstance(block, dict) and isinstance(block.get("required"), list):
+            block["required"] = [f for f in block["required"] if f not in fields]
+    return legacy
+
+
+def validate_one(patient_dir: Path, fname: str, schema_name: str, errors: list,
+                 warnings: list | None = None):
     path = patient_dir / fname
     if not path.is_file():
         return  # missing is OK — only validate what exists
