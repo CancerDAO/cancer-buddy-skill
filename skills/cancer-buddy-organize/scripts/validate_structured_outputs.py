@@ -134,7 +134,12 @@ Gate sections (each contributes to one aggregated exit code):
       prior_archive — never mixed with originals — and never enters longitudinal_observations;
       nothing cites a sidecar flagged prior_archive_digest_unrecognised; function_description
       is clinician wording found in a cited original; a self-reported current regimen keeps its
-      患者自述：/家属自述： marker in profile.summary. Each gate runs crash-safe (one ERROR line per crash).
+      患者自述：/家属自述： marker in profile.summary. Added after the verifier's review of those
+      replays: the 段D lead is neutral (报告写到, not 报告原文写到) and marks a translated finding
+      中文转述; a caveat quoting a translation starts 中文转述，非报告原句：; profile.summary.current_regimen
+      minus its marker = latest_status.regimen, and a marker only on a self-reported ongoing
+      episode; a conversation_notes/ record never counts as an original (function_description,
+      self-report-vs-original conflict grading). Each gate runs crash-safe (one ERROR line per crash).
 
 Usage:
     python3 scripts/validate_structured_outputs.py <patient_dir> [--readonly]
@@ -1260,8 +1265,15 @@ def _logged_outputs(entries: list[dict]) -> dict[str, str]:
 # [4] case-summary HTML shape + provenance
 # --------------------------------------------------------------------------- #
 # case-summary-html-prompt.md「急性/附带发现」: with emergent/urgent findings the 病情概要 narrative's
-# FIRST sentence is this lead followed by each finding's label and date (labels and dates only).
-ACUTE_SUMMARY_LEAD = "资料中有报告原文写到需要尽快告知治疗团队的发现："
+# FIRST sentence is this lead followed by each finding's label and date (labels and dates only). The lead is
+# neutral — 「报告写到」, never 「报告原文写到」 — because a finding registered from a Chinese rendering of a
+# foreign-language report (verbatim_is_translation, acute-findings.md §2.4) is in the same list: its item carries
+# ACUTE_LEAD_TRANSLATION_MARK inside its date parentheses, 「<label>（<日期>，中文转述）」. A caveat quoting that
+# finding introduces the quote with ACUTE_CAVEAT_TRANSLATION_PREFIX, never 「报告原文：」.
+# tests/eval/lint/13 (check N) pins all three in case-summary-html-prompt.md.
+ACUTE_SUMMARY_LEAD = "资料中有报告写到需要尽快告知治疗团队的发现："
+ACUTE_LEAD_TRANSLATION_MARK = "中文转述"
+ACUTE_CAVEAT_TRANSLATION_PREFIX = "中文转述，非报告原句："
 
 
 def _urgent_findings(acute_doc) -> list[dict]:
@@ -1269,11 +1281,28 @@ def _urgent_findings(acute_doc) -> list[dict]:
     return [f for f in (findings or []) if isinstance(f, dict) and f.get("acuity") in ("emergent", "urgent")]
 
 
+def _lead_marks_translation(first_norm: str, label_norm: str) -> bool:
+    """True when some occurrence of the label in the (normalised) first sentence is followed by its
+    parenthesised date group holding 中文转述 — 「<label>（<日期>，中文转述）」 (NFKC: （ → ( and ， → ,)."""
+    mark = _norm_text(ACUTE_LEAD_TRANSLATION_MARK)
+    start = 0
+    while label_norm:
+        i = first_norm.find(label_norm, start)
+        if i < 0:
+            return False
+        rest = first_norm[i + len(label_norm):]
+        close = rest.find(")")
+        if rest.startswith("(") and close > 0 and mark in rest[:close]:
+            return True
+        start = i + 1
+    return False
+
+
 def _lead_missing(acute_doc, render_data) -> tuple[list[str], list[dict]]:
-    """(problems, findings the 段D narrative's first sentence does not name). The emergent/urgent findings of
-    acute_findings.json lead the 段D narrative: its first sentence (up to the first 。) starts with
+    """(problems, findings the 段D narrative's first sentence does not name correctly). The emergent/urgent
+    findings of acute_findings.json lead the 段D narrative: its first sentence (up to the first 。) starts with
     ACUTE_SUMMARY_LEAD and names every such finding's label and its date (exam_date, else report_date, when
-    the source gives one)."""
+    the source gives one); a verbatim_is_translation finding's item is marked 中文转述 in its date parentheses."""
     urgent = _urgent_findings(acute_doc)
     if not urgent or not isinstance(render_data, dict):
         return [], []
@@ -1283,21 +1312,54 @@ def _lead_missing(acute_doc, render_data) -> tuple[list[str], list[dict]]:
         return ([f"case_summary_narrative's first sentence must start 「{ACUTE_SUMMARY_LEAD}」 and list the "
                  f"{len(urgent)} emergent/urgent finding(s) (case-summary-html-prompt.md 急性/附带发现)"], urgent)
     out, missing = [], []
+    first_norm = _norm_text(first)
     for f in urgent:
         label = f.get("label")
         day = f.get("exam_date") or f.get("report_date")
-        if isinstance(label, str) and _norm_text(label) not in _norm_text(first):
+        if isinstance(label, str) and _norm_text(label) not in first_norm:
             out.append(f"case_summary_narrative's first sentence does not name {f.get('finding_id')} ({label!r})")
             missing.append(f)
         elif isinstance(day, str) and day not in first:
             out.append(f"case_summary_narrative's first sentence names {f.get('finding_id')} without its date {day}")
             missing.append(f)
+        elif f.get("verbatim_is_translation") is True and isinstance(label, str) \
+                and not _lead_marks_translation(first_norm, _norm_text(label)):
+            out.append(f"case_summary_narrative's first sentence names {f.get('finding_id')} ({label!r}), a Chinese "
+                       "rendering of a foreign-language report (verbatim_is_translation), without "
+                       f"「{ACUTE_LEAD_TRANSLATION_MARK}」 in its date parentheses — write 「<label>（<日期>，"
+                       f"{ACUTE_LEAD_TRANSLATION_MARK}）」 (acute-findings.md §2.4)")
+            missing.append(f)
     return out, missing
 
 
+def translated_caveat_problems(acute_doc, render_data) -> list[tuple[str, dict]]:
+    """[(problem, finding)] for every verbatim_is_translation finding (any acuity) that a render caveat quotes
+    without ACUTE_CAVEAT_TRANSLATION_PREFIX right before the quote — a Chinese rendering shown as the report's
+    own words (「报告原文：…」). A caveat that does not quote the finding is not checked here."""
+    findings = acute_doc.get("findings") if isinstance(acute_doc, dict) else None
+    caveats = render_data.get("caveats") if isinstance(render_data, dict) else None
+    texts = [_norm_text(c["caveat_text"]) for c in (caveats if isinstance(caveats, list) else [])
+             if isinstance(c, dict) and isinstance(c.get("caveat_text"), str)]
+    prefix = _norm_text(ACUTE_CAVEAT_TRANSLATION_PREFIX)
+    out = []
+    for f in findings if isinstance(findings, list) else []:
+        if not isinstance(f, dict) or f.get("verbatim_is_translation") is not True \
+                or not isinstance(f.get("verbatim_text"), str) or not _norm_text(f["verbatim_text"]):
+            continue
+        quote = _norm_text(f["verbatim_text"])
+        # every occurrence of the quote in a caveat is introduced by the prefix (a caveat that also repeats it bare,
+        # or behind 「报告原文：」, still presents the rendering as the report's words)
+        if any(t.count(quote) > t.count(prefix + quote) for t in texts):
+            out.append((f"caveats quote {f.get('finding_id')} (verbatim_is_translation: a Chinese rendering of a "
+                        f"foreign-language report) without 「{ACUTE_CAVEAT_TRANSLATION_PREFIX}」 right before the quote "
+                        "— a rendering is never introduced as 「报告原文：」 (case-summary-html-prompt.md 急性/附带发现, "
+                        "acute-findings.md §2.4)", f))
+    return out
+
+
 def case_summary_acute_problems(acute_doc, render_data) -> list[str]:
-    """[] = OK / nothing to check (see _lead_missing)."""
-    return _lead_missing(acute_doc, render_data)[0]
+    """[] = OK / nothing to check (see _lead_missing and translated_caveat_problems)."""
+    return _lead_missing(acute_doc, render_data)[0] + [m for m, _ in translated_caveat_problems(acute_doc, render_data)]
 
 
 # phase2 §7 「段D 过期提示」: while the render predates emergent/urgent findings (stale / unstamped render, or a
@@ -1361,6 +1423,9 @@ def gate_case_summary_html(patient_dir: Path, errors: list, warnings: list | Non
     #     (CASE_SUMMARY_STALE_NOTICE, phase2 §7) must name the missing findings in review_summary.md AND
     #     readiness.json warnings[] — ERROR when either is absent, WARN "段D stale" when both are there;
     #   --final → ERROR on any stale lead: the terminal gate asserts the mandatory re-render happened.
+    # "Leads with" includes the translation labels (acute-findings.md §2.4): a verbatim_is_translation finding is
+    # marked 中文转述 in the lead, and a caveat quoting it starts ACUTE_CAVEAT_TRANSLATION_PREFIX — an urgent
+    # finding's caveat follows the lead's routing, an incidental one's is ERROR (fresh) / WARN (stale).
     current = _generation(patient_dir, generation)
     acute_doc = _load_json_quiet(patient_dir / ACUTE_FINDINGS_NAME)
 
@@ -1373,7 +1438,7 @@ def gate_case_summary_html(patient_dir: Path, errors: list, warnings: list | Non
             return
         absent = stale_notice_problems(patient_dir, missing)
         if absent:
-            errors.append(f"{where}: 段D stale ({state} render) — it does not lead with emergent/urgent finding(s) "
+            errors.append(f"{where}: 段D stale ({state} render) — it does not lead with (or mislabels) emergent/urgent finding(s) "
                           f"{ids}, and the pinned stale notice naming them is missing from {' and '.join(absent)} "
                           f"(phase2 §7: a line starting 「{CASE_SUMMARY_STALE_NOTICE[:24]}…」 followed by each "
                           "missing finding's label); the re-render (SKILL.md Step 12) is mandatory")
@@ -1397,8 +1462,25 @@ def gate_case_summary_html(patient_dir: Path, errors: list, warnings: list | Non
                 errors,
             )
             problems, missing = _lead_missing(acute_doc, render_data)
+            # a translated quote in the caveats (acute-findings.md §2.4): an emergent/urgent finding's follows the
+            # lead's routing (it is part of carrying that finding correctly); an incidental one's is an ERROR on a
+            # fresh render and a WARN on a stale one (its re-render is not mandatory, SKILL.md Step 12)
+            incidental: list[str] = []
+            for msg, f in translated_caveat_problems(acute_doc, render_data):
+                if f.get("acuity") in ("emergent", "urgent"):
+                    problems.append(msg)
+                    if not any(f is m for m in missing):
+                        missing.append(f)
+                else:
+                    incidental.append(msg)
+            state = case_summary_render_state(patient_dir, render_data) if problems or incidental else None
+            for msg in incidental:
+                if state == "fresh":
+                    errors.append(f"{CASE_SUMMARY_DATA_NAME}: {msg} — re-run 段D (Step 12)")
+                elif warnings is not None:
+                    warnings.append(f"{CASE_SUMMARY_DATA_NAME}: {msg} ({state} render: it predates the current "
+                                    "acute_findings.json — the next 段D render writes it correctly)")
             if problems:
-                state = case_summary_render_state(patient_dir, render_data)
                 if state == "fresh":
                     for msg in problems:
                         errors.append(f"{CASE_SUMMARY_DATA_NAME}: {msg} — this render read the current acute_findings.json "
@@ -1740,7 +1822,8 @@ FOREIGN_PARAPHRASE_CATEGORY = "foreign_language_paraphrase"
 LEGACY_UNSUPPORTED_CATEGORY = "legacy_value_unsupported"
 # phase2 §4.0: on a LEGACY archive (legacy_phase2_only) a digest-looking sidecar that carries none of the three
 # digest marks (既往档案摘录 sub-bucket / inventory source_kind prior_archive_digest / SOURCE header) is
-# flagged other / yellow and its facts stay out of every structured record until legacy_upgrade rewrites it.
+# flagged other / yellow and no new fact is taken from it until legacy_upgrade rewrites it; a value the old
+# structured files already held is kept with a legacy_value_unsupported flag (that rule wins — never drop).
 PRIOR_DIGEST_UNRECOGNISED_CATEGORY = "prior_archive_digest_unrecognised"
 LEGACY_ONLY_CATEGORIES = (LEGACY_UNSUPPORTED_CATEGORY, PRIOR_DIGEST_UNRECOGNISED_CATEGORY)
 _CANDIDATE_AFFIXES = ("no.", "组", "站")
@@ -3071,8 +3154,8 @@ def gate_review_flag_semantics(patient_dir: Path, errors: list, warnings: list |
                         f"({', '.join(sorted({str(e.get('field_class')) for e in high_risk}))}) {f.get('severity')!r} without "
                         "another page's supporting reading — legibility on a high-risk field is red unless "
                         "cross_doc_supported is supported (phase2 §6.1)")
-        # phase2 §6.1 / §2.4: a patient/caregiver self-report (a conversation: anchor, or a sidecar whose
-        # SOURCE is patient_supplement / filed under 14_患者自管补充/) that disagrees with ONE original is
+        # phase2 §6.1 / §2.4: a patient/caregiver self-report (a conversation: anchor or conversation_notes/ record,
+        # or a sidecar whose SOURCE is patient_supplement / filed under 14_患者自管补充/) that disagrees with ONE original is
         # conflict / yellow. red would bar the original's field from use as if two records disagreed;
         # the self-report sits beside it and never outranks it.
         if f.get("kind") == "conflict":
@@ -3080,7 +3163,7 @@ def gate_review_flag_semantics(patient_dir: Path, errors: list, warnings: list |
                        if isinstance(cv, dict) and isinstance(cv.get("source_ref"), str)]
 
             def _self_report(ref: str) -> bool:
-                if ref.startswith("conversation:"):
+                if _is_conversation_note(ref):  # a conversation: anchor or any conversation_notes/ record
                     return True
                 rel_ = ref.split("#", 1)[0]
                 if rel_.startswith("14_患者自管补充/"):
@@ -3499,16 +3582,25 @@ def gate_prior_archive_usage(patient_dir: Path, errors: list, warnings: list | N
         if head.get("SOURCE", "").strip() == "prior_archive_digest":
             digests.add(p.relative_to(patient_dir).as_posix())
     unrecognised = _flag_cited_sidecars(patient_dir, PRIOR_DIGEST_UNRECOGNISED_CATEGORY) - digests
+    # phase2 §4.0 precedence: a value the OLD structured files already held is kept (legacy_value_unsupported),
+    # even when its only support is such a sidecar — never dropped silently; nothing NEW is taken from it.
+    kept = _flag_cited_sidecars(patient_dir, LEGACY_UNSUPPORTED_CATEGORY)
     docs = {fname: _load_json_quiet(patient_dir / fname) for fname in list(STRUCTURED_FILES) + ["profile.json"]}
     for fname, doc in docs.items():
         if doc is None or fname == "readiness.json":
             continue
         for jpath, refs in ((jp, _record_ref_paths(rec)) for jp, rec in _walk_any_refs(doc)):
             hit = sorted(r for r in refs if r in unrecognised)
-            if hit:
+            if hit and hit[0] in kept:
                 add(f"prior_archive: {fname} {jpath} cites {hit[0]}, a digest-looking sidecar flagged "
-                    f"{PRIOR_DIGEST_UNRECOGNISED_CATEGORY} — its facts stay out of the structured files until "
-                    "legacy_upgrade rewrites it as a marked digest (phase2 §4.0)")
+                    f"{PRIOR_DIGEST_UNRECOGNISED_CATEGORY} — a value the old structured files held, kept with its "
+                    f"{LEGACY_UNSUPPORTED_CATEGORY} flag (phase2 §4.0); legacy_upgrade rewrites the sidecar as a marked "
+                    "digest and settles the value's layer")
+            elif hit:
+                add(f"prior_archive: {fname} {jpath} cites {hit[0]}, a digest-looking sidecar flagged "
+                    f"{PRIOR_DIGEST_UNRECOGNISED_CATEGORY} — no new fact is taken from it until legacy_upgrade rewrites "
+                    "it as a marked digest; a value the old structured files already held stays, but only with a "
+                    f"{LEGACY_UNSUPPORTED_CATEGORY} flag citing that sidecar (phase2 §4.0)")
         for jpath, rec in _walk_records(doc):
             refs = _record_ref_paths(rec)
             layer = rec.get("provenance_layer")
@@ -3580,11 +3672,11 @@ def _in_digest_bucket(rel: str) -> bool:
 
 
 def _digest_placement(patient_dir: Path, rows: dict[str, dict], digests: set[str], add, warnings) -> None:
-    """D9: a prior-archive digest is recognised by its inventory source_kind or its sub-bucket
-    (03_病程与叙事文书/既往档案摘录 | 03_clinical_notes/prior-archive-digest), so the three marks
-    must agree — a digest filed anywhere else has its prior_archive facts rejected and its
-    source_reported facts pass unnoticed. A digest without the pinned header is a legacy digest
-    (WARN: a legacy upgrade re-writes it)."""
+    """D9: a prior-archive digest is recognised by any of its three marks — inventory source_kind, sub-bucket
+    (03_病程与叙事文书/既往档案摘录 | 03_clinical_notes/prior-archive-digest) or the SOURCE header — and the marks
+    must agree: a digest filed outside the sub-bucket or without its inventory row is still checked as a digest
+    (gate_prior_archive_usage adds the header mark), but the archive disagrees with itself about what it is.
+    A digest without the pinned header is a legacy digest (WARN: a legacy upgrade re-writes it)."""
     import pii_rescan
     where = "03_病程与叙事文书/既往档案摘录 (en 03_clinical_notes/prior-archive-digest)"
     for rel, row in sorted(rows.items()):
@@ -3599,7 +3691,9 @@ def _digest_placement(patient_dir: Path, rows: dict[str, dict], digests: set[str
         src = pii_rescan.parse_header(p.read_text(encoding="utf-8", errors="replace")).get("SOURCE", "").strip()
         if src == "prior_archive_digest" and rel not in digests:
             add(f"prior_archive: {rel} is a prior-archive digest (SOURCE prior_archive_digest) filed outside {where} "
-                "with no source_kind prior_archive_digest row — its facts would not be recognised as history")
+                "with no source_kind prior_archive_digest row — its header alone makes it a digest (its facts are "
+                "prior_archive, history only, and are checked as such), but its three marks disagree: file it in "
+                f"{where} with a source_kind prior_archive_digest inventory row (legacy_upgrade re-files it)")
         elif rel in digests and not src:
             headerless.append(rel)
         elif rel in digests and src != "prior_archive_digest":
@@ -3697,10 +3791,18 @@ SELF_REPORT_LAYERS = ("patient_reported", "caregiver_reported")
 SELF_REPORT_REGIMEN_MARKERS = {"patient_reported": "患者自述：", "caregiver_reported": "家属自述："}
 
 
+def _is_conversation_note(ref: str) -> bool:
+    """A conversation record — a `conversation:` anchor, or any file under a conversation_notes/ folder (段C writes
+    them into the domain buckets too, e.g. 03_病程与叙事文书/conversation_notes/x.md): the patient's / caregiver's
+    words in the chat, never an original document."""
+    return ref.startswith("conversation:") or "conversation_notes" in ref.split("#", 1)[0].split("/")
+
+
 def _is_self_report_sidecar(patient_dir: Path, ref: str) -> bool:
-    """A patient / caregiver supplement sidecar (14_患者自管补充/, or headed SOURCE: patient_supplement)."""
+    """A patient / caregiver source that is not an original: a conversation record (any conversation_notes/
+    path), a 14_患者自管补充/ sidecar, or a sidecar headed SOURCE: patient_supplement."""
     rel = ref.split("#", 1)[0]
-    if rel.startswith("14_"):
+    if rel.startswith("14_") or _is_conversation_note(ref):
         return True
     try:
         import pii_rescan
@@ -3808,6 +3910,34 @@ def gate_record_links(patient_dir: Path, errors: list, warnings: list | None = N
     # statement never reads as a source_reported regimen.
     summ = prof.get("summary") if isinstance(prof, dict) else None
     cur_reg = summ.get("current_regimen") if isinstance(summ, dict) else None
+    # phase2 §5.7 / patient-profile-schema.md: summary.current_regimen, once its source marker is stripped, IS
+    # latest_status.regimen (null when there is no ongoing episode) — the same snapshot, never a separately
+    # worded current regimen. Checked whatever the summary block's layer (only the marker depends on it); an
+    # absent key reads as null, so dropping it while an episode is ongoing is reported too.
+    if isinstance(summ, dict) and isinstance(latest, dict):
+        cur_bare = _norm_text(cur_reg) if isinstance(cur_reg, str) else ""
+        marker_used = None
+        for mark in SELF_REPORT_REGIMEN_MARKERS.values():
+            if cur_bare.startswith(_norm_text(mark)):
+                cur_bare, marker_used = cur_bare[len(_norm_text(mark)):], mark
+                break
+        snap = latest.get("regimen")
+        snap_bare = _norm_text(snap) if isinstance(snap, str) else ""
+        if cur_bare != snap_bare:
+            add(f"profile.json: summary.current_regimen {cur_reg!r} "
+                + (f"(without its marker 「{marker_used}」) " if marker_used else "")
+                + f"≠ latest_status.regimen {snap!r} — current_regimen is latest_status.regimen, with the "
+                "患者自述：/家属自述： marker when the ongoing episode is a self-report, and null when there is no "
+                "ongoing episode (phase2 §5.7)")
+        elif marker_used and isinstance(tx, dict):
+            layer = next((k for k, v in SELF_REPORT_REGIMEN_MARKERS.items() if v == marker_used), None)
+            carriers = [ep for ep in tx.get("episodes") or [] if isinstance(ep, dict) and ep.get("status") == "ongoing"
+                        and _norm_text(str(ep.get("regimen") or "")) == cur_bare]
+            if carriers and not any(ep.get("provenance_layer") in SELF_REPORT_LAYERS for ep in carriers):
+                add(f"profile.json: summary.current_regimen {cur_reg!r} carries the self-report marker 「{marker_used}」 "
+                    f"but the ongoing episode {carriers[0].get('episode_id')} is {carriers[0].get('provenance_layer')!r} "
+                    f"— the marker says the regimen rests on a {layer} statement; an original's regimen is written "
+                    "without it (phase2 §5.7)")
     if isinstance(cur_reg, str) and cur_reg.strip() and isinstance(tx, dict) \
             and summ.get("provenance_layer") not in SELF_REPORT_LAYERS:
         bare = _norm_text(cur_reg)
@@ -3834,7 +3964,7 @@ def gate_record_links(patient_dir: Path, errors: list, warnings: list | None = N
         originals = [r for r in (demo.get("source_refs") or [])
                      if isinstance(r, str) and _DOMAIN_DIR_RE.match(r) and not _is_self_report_sidecar(patient_dir, r)]
         msg = text_in_any_cited_source(patient_dir, originals, fdesc) if originals else \
-            "cites no clinician original (only conversation / patient-supplement sources, or none)"
+            "cites no clinician original (only conversation records / patient-supplement sources, or none)"
         if msg:
             add(f"patient_summary.json: demographics.function_description {msg} — it holds a clinician source's own "
                 "function wording only; a self-description stays a patient_reported / caregiver_reported timeline "

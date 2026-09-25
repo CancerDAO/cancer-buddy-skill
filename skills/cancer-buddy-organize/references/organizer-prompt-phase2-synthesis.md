@@ -210,10 +210,16 @@ sidecar 写明几页同属一份）：旧档案里同一次检查的几页以不
     `source_kind: prior_archive_digest`、或头部写 `SOURCE: prior_archive_digest`（三者之一），它的事实才照 §5.9 标
     `provenance_layer: prior_archive`。没有这三种标记、只是内容看起来像旧档案摘录的 sidecar，你不能替它补标记（不移动、
     不改头部、不改清单行），它的事实也**不写进**任何结构化记录——既不标 `prior_archive`（校验器认不出，会报无摘录来源），
-    也不标 `source_reported`（那会把摘录当成本次原件）；同一事实另有本次原件支持时只引原件。为这份 sidecar 写**一条**
+    也不标 `source_reported`（那会把摘录当成本次原件）；同一事实另有本次原件支持时只引原件。这里的“不写进”只约束你
+    从这份 sidecar **新取**的事实；**旧结构化文件里已经有**、而本次只有这份未标记摘录支持的值（如只在旧 `molecular.json`
+    与这份摘录里的突变）按下一条 `legacy_value_unsupported` 的规则**保留**——那条规则优先，任何旧值（分子结果尤其）都不因
+    摘录未标记而静默消失：值与旧记录的 `source_refs` 照旧，写 `legacy_value_unsupported` flag，`current_source_values` 引这份
+    摘录的那一行，`issue` 写“旧版结构化文件中的值，仅见于未标记的旧档案摘录，等 legacy_upgrade 核对”。校验器对引了未标记
+    摘录的记录在旧版档案上报 WARN（有这条 flag 时说明它是保留的旧值），不据此删值。为这份 sidecar 写**一条**
     `category: prior_archive_digest_unrecognised`、`kind: other`、`severity: yellow` 的 flag（`affected_field` 写
     “旧档案摘录（未标记）”，`current_source_values` 引该 sidecar 首行），`warnings` 与返回 JSON 写明需要 `legacy_upgrade`
-    （它会由摘录 worker 重写成带头部的摘录）。校验器核对：引了这种 flag 所指 sidecar 的结构化记录一律报出。
+    （它会由摘录 worker 重写成带头部的摘录）。校验器核对：引了这种 flag 所指 sidecar 的结构化记录一律报出（旧版档案上
+    是 WARN；保留的旧值应同时有上文的 `legacy_value_unsupported` flag）。
   - 结构化产物照 §5 重写，内容规则与当前契约相同（一个方案一个 episode——旧档案按周期拆开的 episode 合并；
     `treatment_lines.json` 的 `regimen`、`status_basis_text` 从 sidecar 逐字重取，不沿用旧文件里的转述或“患者自述：”之类前缀
     ——episode 自带 `provenance_layer`，前缀多余；`profile.json.summary.current_regimen` 不同，它照 §5.7 保留自述标记；
@@ -225,7 +231,8 @@ sidecar 写明几页同属一份）：旧档案里同一次检查的几页以不
   - 旧文件里有、sidecar 也支持、但放错了来源层的值（如自述用药在 `medications[]`、自述功能描述在
     `demographics.function_description`）：来源层规则优先——按 §5.2/§5.7 移到自述所属的位置（时间线自述事件、
     treatment episode），不写 `legacy_value_unsupported` flag，在 `warnings[]` 写一句移动了什么。
-  - 旧结构化文件里有、本次 sidecar 找不到原文支持的值（如只在旧 JSON 里出现的性别）：**保留**，写一条
+  - 旧结构化文件里有、本次 sidecar 找不到原文支持的值（如只在旧 JSON 里出现的性别），或只有未标记摘录支持的值（上一条）：
+    **保留**，写一条
     `category: legacy_value_unsupported`、`kind: other`、`severity: yellow` 的 flag（§6.1），不删、不另编；它的
     `current_source_values` 写 `{value: 旧值, source_ref: 旧记录当时引用的 sidecar 行}`（旧记录没有行号就引那份 sidecar 的
     `#L1`；旧记录没引任何 sidecar 时，引该字段所属领域日期最新的一份 sidecar 的 `#L1`），`issue` 写“旧版结构化文件中的
@@ -235,7 +242,10 @@ sidecar 写明几页同属一份）：旧档案里同一次检查的几页以不
     warning 以旧编号开头（“RF-012（原 flag，改为说明）：…”）。
   - 旧版档案上的 flag 没有 sidecar 的 `layout` 记录：旧 flag 文字**或** sidecar 自己对该处的说明（如 Phase 1 说明“折痕
     压住该字”）写明是阴影、折痕、弯曲、划线之类版面观察时，按 `artifact` 分级（影响高风险字段为 yellow），两处都没写才按
-    `legibility`；永不写 `document_intent`（它要两次独立读取）。
+    `legibility`；永不写 `document_intent`（它要两次独立读取）。**例外，优先于本条**：检验表的
+    `category: lab_column_pairing` flag 一律按 §5.1 分级（有候选值：`legibility` / `yellow`；全部拒配：`artifact` / `red`），
+    旧 sidecar 自己写了“列错位”之类的版面说明也不改它的 `kind`——这类说明逐字写进这条 flag 的 `issue`，不另写
+    `artifact` flag（一个观察一条 flag）。本条只管旧 flag 里对**某个字段读数**的不确定。
   - 缺页（§5.8）：旧 sidecar 没有 `PAGE_LABEL`，`page_completeness.py` 把它们全列进 `unlabeled[]`、`gaps[]` 为空——这是
     “**无法检查**”，不是“没有缺页”。返回 JSON 写 `missing_pages_groups: null`、`page_continuity_checked: false`；
     `review_summary.md` 的缺页组一行写“旧版 sidecar 没有页码标注，缺页无法检查（`legacy_upgrade` 后检查）”。
@@ -379,7 +389,8 @@ sidecar → 桶；不写原上传名；**不改** Phase 1 的 `raw/_FILENAME_MAP
   版面观察要逐字写进下面那条 flag 的 `issue`，让核对的人看到转写者当时的疑虑。当前契约的 sidecar 没有这个块是
   Phase 1 的缺口：列进 `missing_sidecars` 交回 Phase 1 重写，不在 Phase 2 补。
 - 位置配对或模型按行读出的候选值进 `readiness.json` flag（`category: lab_column_pairing`、`kind: legibility`、
-  `severity: yellow`，“数值按位置配对，未核实”/“数值为模型按行读出，未核实”，`current_source_values` 引该 sidecar）；
+  `severity: yellow`，“数值按位置配对，未核实”/“数值为模型按行读出，未核实”，`current_source_values` 引该 sidecar；
+  旧 sidecar 写了“列错位”之类的版面说明时仍是这一分级，说明逐字进 `issue`——本条优先于 §4.0 旧 flag 的版面分级）；
   全部拒配写 `category: lab_column_pairing`、`kind: artifact`、`severity: red`（同样引该 sidecar）。校验器逐个 sidecar 检查这两种 flag。候选值不进入趋势、不进入段D 摘要。
 
 ### 5.2 用药（`comorbidities.json.medications`）
@@ -507,8 +518,9 @@ episode：`started_at` 取首程日期，`regimen` 逐字（取原文写法；�
   `performance_status_verbatim` 等；它是权威来源，整块 `provenance_layer: source_reported`，所以只收原件里的值：
   患者/家属自述的功能描述、年龄、体重不写进这里，作为时间线自述事件（`provenance_layer: patient_reported` /
   `caregiver_reported`）保留。`function_description` 只收医生文书里对功能状态的原文（如“生活可自理，可下床活动”），
-  必须逐字出现在 `demographics.source_refs` 所引的某份原件里（不是 `conversation:` 锚点、不是 `14_患者自管补充/`；
-  校验器核对）；没有这样的原文就写 null。
+  必须逐字出现在 `demographics.source_refs` 所引的某份原件里（不是 `conversation:` 锚点、不是任何
+  `conversation_notes/` 下的对话记录——包括领域桶里的，如 `03_病程与叙事文书/conversation_notes/`——、不是
+  `14_患者自管补充/` 或 `SOURCE: patient_supplement` 的 sidecar；校验器核对）；没有这样的原文就写 null。
 - `profile.json.demographics`：`{sex, age, age_as_of, performance_status_verbatim[], provenance_layer, source_refs}`，
   从 `patient_summary.json` 原样复制，不另行抽取；年龄是准标识项，只作档案内部字段，导出时按
   最小必要原则处理。
@@ -516,7 +528,9 @@ episode：`started_at` 取首程日期，`regimen` 逐字（取原文写法；�
   一个 `provenance_layer`（通常是 `source_reported`，取决于诊断等字段），所以在治依据是自述（该 episode 的
   `provenance_layer` 为 `patient_reported` / `caregiver_reported`）时，`current_regimen` **保留**来源标记前缀：
   患者说的写“患者自述：<方案>”，家属/照护者说的写“家属自述：<方案>”——不能让自述方案以 `source_reported` 的面目
-  出现（校验器核对）。`treatment_lines.json` 与 `latest_status.regimen` 不加前缀（它们自带来源层）。
+  出现；反过来，在治 episode 是原件时不加前缀。校验器核对三件事：去掉前缀后与 `latest_status.regimen` 相同（都为 null
+  也算相同）、自述 episode 带对应前缀、原件 episode 不带前缀。`treatment_lines.json` 与 `latest_status.regimen` 不加前缀
+  （它们自带来源层）。
 - `profile.json.latest_status`：`regimen` 取 `status: ongoing` 的 episode（没有则 null），`as_of` 为其
   `status_as_of`（未注明日期的自述为 null），`status_basis` 为该 episode 的 `status_basis` 原样（如
   `order_or_indication_only`、`patient_reported`；没有在治 episode 时 null）——只读 profile 的下游据此知道“在治”
@@ -593,7 +607,7 @@ episode：`started_at` 取首程日期，`regimen` 逐字（取原文写法；�
 | 机构待核实、文件名与内容不符 | `other` | `yellow` |
 | 外文报告只有中文转述、没有原句（`category: foreign_language_paraphrase`，每份这样的 sidecar 一条——影像、检验、HLA 等都算，不只是登记了发现的那份；`acute-findings.md` §2.4） | `other` | `yellow` |
 | **仅旧版档案**：旧结构化文件里的值在本次 sidecar 中找不到原文支持（如只在旧 JSON 里的性别；`category: legacy_value_unsupported`）——值保留、不删、不另编，等 `legacy_upgrade` 或 Phase 2.5 核对 | `other` | `yellow` |
-| **仅旧版档案**：内容像旧档案摘录、但没有任何摘录标记的 sidecar（`category: prior_archive_digest_unrecognised`，每份一条；它的事实不写进结构化记录，§4.0） | `other` | `yellow` |
+| **仅旧版档案**：内容像旧档案摘录、但没有任何摘录标记的 sidecar（`category: prior_archive_digest_unrecognised`，每份一条；不从它新取事实，旧结构化文件里已有、只有它支持的值照 `legacy_value_unsupported` 保留，§4.0） | `other` | `yellow` |
 | 不可信内容标记（`UNTRUSTED-*`，由 `scan_untrusted_markers.py` 生成、校验器并入，§9） | `other` | 脚本定：最高命中为 high → `yellow`，其余 `info` |
 
 - **分级只看字段类别与旁证，不投票**：高风险字段（phase1 §2 的清单）的读数不一致，不按“多数通道一致”或“明显是某个
@@ -620,7 +634,7 @@ episode：`started_at` 取首程日期，`regimen` 逐字（取原文写法；�
   （`<NN_桶>/…/<文件>.md#L<n>`），不写 `ocr/` 路径。
 - `category` 仍写具体类别（如 `extraction_fidelity`、`cross_source_conflict`、`lab_column_pairing`、
   `missing_pages`、`source_recency`）；`kind` 与 `severity` 是统一的机读分级。
-- 校验器机械核对的行：`kind: conflict` 的 flag 一边是患者/照护者自述（`conversation:` 锚点，或 `SOURCE: patient_supplement` /
+- 校验器机械核对的行：`kind: conflict` 的 flag 一边是患者/照护者自述（`conversation:` 锚点或任何 `conversation_notes/` 下的记录，或 `SOURCE: patient_supplement` /
   `14_患者自管补充/` 下的 sidecar）、另一边只有一份原件 ⇒ `yellow`；`cross_doc_supported.status: contradicted` ⇒ `red`；`category: missing_pages` ⇒
   `completeness` / `red`；`category: source_recency` ⇒ `completeness` / `yellow`；`legibility` flag 指向的条目
   `field_class` 不是 `other`（高风险字段）时，除非 `cross_doc_supported.status` 是 `supported`，一律 `red`；
@@ -659,8 +673,10 @@ episode：`started_at` 取首程日期，`regimen` 逐字（取原文写法；�
   严重程度”，再按 `red` → `yellow` → `info` 分组，组内按 `kind` 分小节（字迹不清 / 版面异常 /
   文书删改 / 来源不一致 / 缺页与资料时效 / 其他），每条写受影响字段、各来源读法和锚点。
 - **段D 过期提示**（`legacy_phase2_only` 在内的每种运行）：`acute_findings.json` 有 emergent/urgent 发现，而现有的 段D
-  渲染没有写入其中某些（`.case_summary_data.json` 的 `case_summary_narrative` 首句没有逐条写到它们的 `label` 与日期；或
-  只有 `病情简要总结.html`、没有 `.case_summary_data.json`，无从确认）时，你在 `review_summary.md` 开头（资料时效之前）与
+  渲染没有写入其中某些（`.case_summary_data.json` 的 `case_summary_narrative` 首句没有逐条写到它们的 `label` 与日期——
+  首句不以“资料中有报告写到需要尽快告知治疗团队的发现：”开头时（包括旧写法“资料中有报告原文写到…”）全部都算没写入；
+  `verbatim_is_translation: true` 的发现在首句里没标“中文转述”、或 caveats 引它时前面不是“中文转述，非报告原句：”，也算没写入；
+  或只有 `病情简要总结.html`、没有 `.case_summary_data.json`，无从确认）时，你在 `review_summary.md` 开头（资料时效之前）与
   `readiness.json.warnings[]` 各写一条，都以下面这句**原样**开头，后接每条没写入的发现“<label>（<日期>）”，用“；”分隔：
 
   ```text

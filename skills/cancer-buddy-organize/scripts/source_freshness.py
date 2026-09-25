@@ -13,9 +13,12 @@ Which documents count (deterministic, no medical judgement):
   * every sidecar `NN_…/…/YYYY-MM-DD_….md` under a clinical bucket — the filename date
     prefix is the document's own report/exam date (bucket naming convention);
   * EXCLUDED: 14_患者自管补充 (patient supplements carry no report date of their own),
-    99_ quarantine, conversation_notes, prior-archive digests (sub-bucket
-    既往档案摘录 / prior-archive-digest, or inventory rows with
-    source_kind=prior_archive_digest) and any date after as_of (reported, not used).
+    99_ quarantine, conversation_notes, prior-archive digests — recognised exactly as
+    validate_structured_outputs.py recognises them: sub-bucket 既往档案摘录 / prior-archive-digest,
+    an inventory row with source_kind=prior_archive_digest, or the `SOURCE: prior_archive_digest`
+    header — plus a digest-looking sidecar a readiness.json review flag of category
+    prior_archive_digest_unrecognised cites (a legacy archive's unmarked digest: its filename date
+    is an earlier archive's, not a document of this one), and any date after as_of (reported, not used).
 Upload / file-modification times are never used.
 
 as_of: --as-of YYYY-MM-DD, else readiness.json `as_of_run_date`, else the date part
@@ -41,6 +44,12 @@ import sys
 from datetime import date
 from pathlib import Path
 
+# sibling modules (pii_rescan's header parser) are importable when this file is run as a script or imported
+_SCRIPT_DIR = str(Path(__file__).resolve().parent)
+if _SCRIPT_DIR not in sys.path:
+    sys.path.insert(0, _SCRIPT_DIR)
+import pii_rescan  # noqa: E402  sibling module: the one header-block parser (a broken import fails loudly)
+
 THRESHOLD_DAYS = 14
 _DATE_PREFIX_RE = re.compile(r"^(\d{4}-\d{2}-\d{2})_")
 _BUCKET_RE = re.compile(r"^\d{2}_")
@@ -57,20 +66,47 @@ def _parse_date(s) -> date | None:
         return None
 
 
-def _digest_sidecars(patient_dir: Path) -> set[str]:
-    inv = patient_dir / "source_inventory.json"
-    out: set[str] = set()
-    if not inv.is_file():
-        return out
+DIGEST_HEADER_SOURCE = "prior_archive_digest"
+UNRECOGNISED_DIGEST_CATEGORY = "prior_archive_digest_unrecognised"
+
+
+def _load_json(path: Path):
     try:
-        doc = json.loads(inv.read_text(encoding="utf-8"))
+        return json.loads(path.read_text(encoding="utf-8"))
     except Exception:
-        return out
+        return None
+
+
+def _digest_sidecars(patient_dir: Path) -> set[str]:
+    """Sidecars (patient-dir-relative) that are prior-archive digests by an inventory row or a
+    prior_archive_digest_unrecognised review flag; the sub-bucket and the header are checked per file
+    in compute() (_is_digest_file)."""
+    out: set[str] = set()
+    doc = _load_json(patient_dir / "source_inventory.json")
     for row in doc.get("files", []) if isinstance(doc, dict) else []:
         if isinstance(row, dict) and row.get("source_kind") == "prior_archive_digest" \
                 and isinstance(row.get("sidecar_path"), str):
             out.add(row["sidecar_path"])
+    r = _load_json(patient_dir / "readiness.json")
+    for f in (r.get("review_flags") or []) if isinstance(r, dict) else []:
+        if not isinstance(f, dict) or f.get("category") != UNRECOGNISED_DIGEST_CATEGORY:
+            continue
+        for cv in f.get("current_source_values") or []:
+            if isinstance(cv, dict) and isinstance(cv.get("source_ref"), str):
+                out.add(cv["source_ref"].split("#", 1)[0])
     return out
+
+
+def _is_digest_file(p: Path) -> bool:
+    """The sub-bucket or the pinned `SOURCE: prior_archive_digest` header (read with the same header parser
+    the validator uses)."""
+    if any(part in DIGEST_SUB_BUCKETS for part in p.parts):
+        return True
+    try:
+        text = p.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return False
+    return pii_rescan.parse_header(text).get("SOURCE", "").strip() == DIGEST_HEADER_SOURCE
 
 
 def default_as_of(patient_dir: Path) -> tuple[date, str]:
@@ -123,7 +159,7 @@ def compute(patient_dir: Path | str, as_of: str | date | None = None) -> dict:
             if skip_top:
                 excluded["patient_supplement_or_quarantine"] += 1
                 continue
-            if rel in digests or any(part in DIGEST_SUB_BUCKETS for part in p.parts):
+            if rel in digests or _is_digest_file(p):
                 excluded["prior_archive_digest"] += 1
                 continue
             m = _DATE_PREFIX_RE.match(p.name)

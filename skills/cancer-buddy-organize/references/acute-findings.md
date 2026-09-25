@@ -115,7 +115,9 @@ HTML 里，结构化 JSON 与 timeline 都没有，下游读不到就当作不�
 sidecar 都写一条。校验器核对每份 sidecar 至多一条、且为 other/yellow，并核对两者对应：引了带这条 flag 的
 sidecar 的发现必须 `verbatim_is_translation: true`，写了 true 的发现所引 sidecar 必须有这条 flag。
 **转述不是原文**：`verbatim_is_translation: true` 的发现在任何展示面（Step 7.5、§11、段D）都标明“中文转述，
-非报告原句”，不说成“报告原文写到”。
+非报告原句”，不说成“报告原文写到”。段D 病情概要首句的前缀因此是中性的“资料中有报告写到需要尽快告知治疗团队的发现：”，
+转述的发现写成“<label>（<日期>，中文转述）”，caveats 里它的引文前写“中文转述，非报告原句：”
+（`case-summary-html-prompt.md`「急性/附带发现」；校验器核对这两处）。
 
 ## 3. finding_class 与默认 acuity（固定表）
 
@@ -209,7 +211,8 @@ obstructive_words: 阻塞 | obstructive
 - `verbatim_text`：原文句子逐字（来自已脱敏 sidecar；可用“……”省略与本发现无关的前后文，
   不得改写保留部分）；可选 `verbatim_is_translation`：sidecar 只有外文报告的中文转述时为 true（§2.4）；
 - `exam_date`（检查/采样日期）、`report_date`（报告日期）：来源写了才填，`YYYY-MM-DD` 或 null；校验器要求它是
-  所引 sidecar 的文件名日期，或印在该 sidecar（或同一份报告的另一页 sidecar，§2.2）上。病理报告只印
+  所引 sidecar 的文件名日期，或印在该 sidecar 上，或印在 §2.2「日期借用」一条允许借用的另一页上——与本页同目录、同文件名
+  日期、同机构段的 sidecar；同一次检查以不同日期命名的另一页不在此列（该日期写 null）。病理报告只印
   收到日期或签发日期时，`exam_date` 为 null（收到日期不是采样日期），签发日期写 `report_date`；影像报告只印
   一个日期、没写明是检查还是报告日期时，写 `exam_date`，`report_date` 为 null；
 - `source_ref`：`<bucket>/<canonical>.md#L<n>`，句子跨行时 `#L<n>-L<m>`（必须带行号）；`verbatim_text` 按
@@ -240,9 +243,9 @@ obstructive_words: 阻塞 | obstructive
 | 无比较用语，或用语不在上表（如“边缘较前清晰”“较前明显”） | `not_stated`（用语不在上表时 `verbatim` 仍逐字写它；没有比较用语时 null） |
 
 - `prior_date_stated`：原文写明对照检查日期时才填，按原文日期照录为 `YYYY-MM-DD`，否则 null。日期可以
-  取自**同一份报告**的任一行（如开头的对照行“与 2030-01-02 片比较”，或同一份报告的另一页），前提是这个对照
-  覆盖本条所见；报告把对照日期明确挂在另一条所见上时不借给本条。不从档案里另找一份“上次检查”去补。
-  校验器核对这个日期印在所引报告（或同一份报告的另一页）上。
+  取自所引 sidecar 的任一行（如开头的对照行“与 2030-01-02 片比较”），或 §2.2「日期借用」一条允许借用的另一页（同目录、
+  同文件名日期、同机构段），前提是这个对照覆盖本条所见；报告把对照日期明确挂在另一条所见上时不借给本条。不从档案里
+  另找一份“上次检查”去补。校验器核对这个日期印在所引 sidecar 或这样的另一页上。
 
 ## 7. 与 timeline 的双向链接
 
@@ -251,8 +254,8 @@ obstructive_words: 阻塞 | obstructive
 逐字印的机构名（与该报告的影像/检验事件相同；正文没有就 null，不从文件名取），
 `source_refs` 含该 finding 的 `source_ref`，日期取 `exam_date`（缺失时取 `report_date`）。两者都为 null
 时：病历复述登记的发现（§2.3）取该病历的就诊日期、`date_precision: approximate`；其余写来源上可见的日期
-原文（如“2030年1月”，并按精度填 `date_precision`），同一份报告拆成几个 sidecar 时可取另一页上的日期
-（§2.2），来源上完全没有日期则 `date: "unknown"`、`date_precision: "unknown"`；不从文件名、上传时间或
+原文（如“2030年1月”，并按精度填 `date_precision`），同一份报告拆成几个 sidecar 时可取 §2.2「日期借用」一条允许
+借用的另一页（同目录、同文件名日期、同机构段）上的日期，来源上完全没有日期则 `date: "unknown"`、`date_precision: "unknown"`；不从文件名、上传时间或
 其他文书借日期。
 finding 的 `timeline_event_id` 反向指向这条事件（旧版档案上只重跑 Phase 2 时不加这条事件、`timeline_event_id` 写 null，
 事件随 `legacy_upgrade` 补上；phase2 §4.0）。原影像/检验事件（`category: imaging|lab`）照常保留。

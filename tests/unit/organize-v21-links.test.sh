@@ -87,8 +87,9 @@ check("latest_status.regimen null while an episode is ongoing → ERROR",
       any("latest_status.regimen is null although" in e for e in errs), str(errs))
 errs, _ = g("gate_record_links", lambda d: (latest(lambda ls: ls.update({"regimen": None, "as_of": None}))(d),
             synlib.edit_json(d, "treatment_lines.json", lambda doc: doc["episodes"][1].update(
-                {"status": "stopped", "status_as_of": None}))))
-check("no ongoing episode and latest_status.regimen null passes", errs == [], str(errs))
+                {"status": "stopped", "status_as_of": None})),
+            synlib.edit_json(d, "profile.json", lambda doc: doc["summary"].__setitem__("current_regimen", None))))
+check("no ongoing episode, latest_status.regimen and summary.current_regimen null passes", errs == [], str(errs))
 errs, _ = g("gate_record_links", latest(lambda ls: ls.__setitem__("regimen", "示例方案 B")))
 check("whitespace-only difference in the regimen string passes", errs == [], str(errs))
 

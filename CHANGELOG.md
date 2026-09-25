@@ -6,6 +6,49 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Fixed — organize 复核遗留：转述的急性发现不再被称为“报告原文”，自述与摘录的层级规则由校验器兑现 (2026-09-25)
+
+独立复核上一节后留下的矛盾与漏洞逐条收口（合成数据，无真实病例内容）。
+
+- **病情概要首句改为中性写法**（P1）：固定前缀由“资料中有报告原文写到需要尽快告知治疗团队的发现：”改为
+  “资料中有报告写到需要尽快告知治疗团队的发现：”——`verbatim_is_translation: true` 的发现也在这个列表里，不能说成
+  “报告原文”。转述的那一条写“<label>（<日期>，中文转述）”（无日期写“<label>（中文转述）”，不与原句登记的同名发现合写）；
+  caveats 引它时前面紧挨着“中文转述，非报告原句：”。校验器 `validate_structured_outputs.py` 的 段D 检查同时核对两处
+  （常量 `ACUTE_SUMMARY_LEAD` / `ACUTE_LEAD_TRANSLATION_MARK` / `ACUTE_CAVEAT_TRANSLATION_PREFIX`）：新鲜渲染出错即
+  ERROR；过期渲染里的紧急发现走原有过期提示路径（没有提示 ERROR、有提示 WARN、`--final` ERROR），附带发现的转述标注在过期
+  渲染上只 WARN（它不强制重渲染）。`validate_case_summary_html.py` 仍只查页面形状，不读急性发现。旧写法的首句在盖了新戳的
+  渲染上现在报错（“must start …”），重新运行 段D 即可；Phase 2 的过期提示把旧前缀的首句视为全部未写入。lint 13 新增 N：
+  `case-summary-html-prompt.md` 逐字含这三个常量、且不再教旧前缀，phase2 §7 引用的也是同一前缀。
+- **`current_regimen` 与 `latest_status.regimen` 的相等关系真正核对**：去掉“患者自述：/家属自述：”前缀后必须等于
+  `latest_status.regimen`（没有在治 episode 时两者都为 null；缺这个键按 null 算），不论 `summary` 块是哪一层；此前只在两者
+  恰好相同时才查前缀，措辞不同或干脆缺键的 `current_regimen` 都可以通过。反方向也核对：在治 episode 是原件时
+  `current_regimen` 不带自述前缀。合成夹具的 `profile.summary` 补上 `current_regimen`（生成器与提交产物同步）。
+- **领域桶里的对话记录不算原件**：`03_病程与叙事文书/conversation_notes/…` 这类路径此前被当成原件——
+  `function_description` 可以只凭一段对话通过，自述与原件冲突的 flag 也不按 yellow 核对。现在任何含 `conversation_notes`
+  段的路径都按对话记录处理（两处共用一个判定）；phase2 §5.7 / §6.1 与 schema 描述同步。
+- **资料时效与校验器认同一批摘录**：`source_freshness.py` 原来只认子桶与清单 `source_kind`，头部 `SOURCE:
+  prior_archive_digest` 的摘录和被标 `prior_archive_digest_unrecognised` 的未标记摘录仍按文件名日期算进“最新资料日期”。
+  现在四种都排除（头部用校验器同一个解析器读）。
+- **摘录放错位置的提示不再误导**：头部已标明是摘录、却不在子桶也没有清单行时，提示原来说“它的事实不会被认作既往史”，
+  而校验器早已凭头部认出它；现改为“凭头部已按摘录核对，但三种标记不一致，`legacy_upgrade` 会重新归档”。
+- **规则优先级写死**：
+  - 检验表的 `lab_column_pairing` flag 一律按 phase2 §5.1 分级（有候选值 legibility/yellow，全部拒配 artifact/red）；
+    旧 sidecar 自己写的“列错位”只逐字进这条 flag 的 `issue`，不改 `kind`、不另写 artifact flag——§5.1 优先于 §4.0 的
+    旧 flag 版面分级（后者只管某个字段读数的不确定）。
+  - 旧结构化文件里已有、本次只有未标记摘录支持的值（分子结果尤其）按 `legacy_value_unsupported` **保留**：值与旧
+    `source_refs` 照旧，flag 引该摘录行；`prior_archive_digest_unrecognised` 的“不写进结构化记录”只约束新取的事实。校验器
+    在旧版档案上对这种引用报 WARN，有 `legacy_value_unsupported` flag 时说明是保留的旧值，没有时说明缺这条 flag。
+- **日期借用只有一个口径**：acute-findings §5 的 `exam_date` / `report_date`、§6 的 `prior_date_stated`、§7 的时间线日期都直接
+  指向 §2.2「日期借用」（同目录、同文件名日期、同机构段的另一页），不再写宽泛的“同一份报告的另一页”。
+- 测试：`acute-findings-gate.test.sh` 新增 TL 组（旧前缀、未标转述、标在别的条目上、caveat 称“报告原文”、过期与
+  `--final`、附带发现、无日期、同一 caveat 既标转述又称原文），`organize-provenance-guards.test.sh` 新增 D2 / U2 / R2 / F2 / C3 组，并把上一节两个
+  不能区分新旧代码的负例改为核对错误内容（`P` 查 JSON 解析报错而非找不到文件 `-`，`T schema` 查类型错误而非未知键），
+  `source-freshness.test.sh` 新增头部摘录与未标记摘录各一对正负例，`organize-contract-lints.test.sh` 新增 N 组；
+  `organize-replay-fixes`（B3 未注明日期的家属自述）与 `organize-v21-links`（无在治 episode）两个正例场景补上与之相符的
+  `current_regimen`（“家属自述：示例方案B” / null）。
+  在上一提交（6c69146）的代码上实测：本节新增的 25 项校验器/脚本检查全部失败（18 个负例、4 条提示措辞检查、2 条过期路由
+  检查、1 条前缀常量检查；测试与合成夹具取本节版本），新增正例全部通过；lint N 的 4 个负例在旧 lint 上失败、正例通过；改写的两个旧负例在 8626e44 上失败。
+
 ### Fixed — organize 旧档案只重跑综合：新急性发现必然进入病情简要总结，来源层不再混用 (2026-09-25)
 
 旧版档案只重跑 Phase 2 时暴露的矛盾与缺口逐条定死（合成数据，无真实病例内容）。
@@ -23,17 +66,19 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
   写出急性发现（没有独立事件，`timeline.md` 也不加行）；`longitudinal_observations.json` 用当前版本号；旧 sidecar 没有
   `PAGE_LABEL` 时缺页是“无法检查”（返回 `missing_pages_groups: null`、`page_continuity_checked: false`）；放错来源层的
   旧值按层规则移位，找不到原文的旧值 `legacy_value_unsupported` 引旧记录所引的 sidecar 行；旧 flag 改成说明时保留旧编号；
-  旧 flag 文字或 sidecar 自己的说明写了版面观察即按 `artifact` 分级。
+  旧 flag 文字或 sidecar 自己的说明写了版面观察即按 `artifact` 分级（检验表的 `lab_column_pairing` flag 除外，见下一节）。
 - **旧档案摘录只凭三种标记使用**：子桶、清单 `source_kind`、头部 `SOURCE: prior_archive_digest`。校验器的用途检查补上
   头部标记（此前只认前两种，导致正确的 `prior_archive` 标注报“无摘录来源”、错误的 `source_reported` 漏检）。没有任何
   标记、内容像摘录的 sidecar 写 `prior_archive_digest_unrecognised`（other/yellow，仅旧版档案）并要求 `legacy_upgrade`，
-  它的事实不写进结构化记录；校验器报出任何引它的记录。
+  不从它新取事实（旧结构化文件里已有、只有它支持的值按 `legacy_value_unsupported` 保留，见下一节）；校验器报出任何引它的
+  记录（旧版档案上为 WARN）。
 - **一条记录一个来源层**：引了摘录的记录必须是 `prior_archive`，不能与本次原件同块（此前只查“只引摘录”的记录，
   `diagnosis`、`demographics`、`profile.summary` 混引摘录可以通过）；`one_line_condition` 只由本次原件拼成。
   `prior_archive` 或 `as_of: null` 的体能条目不进 `longitudinal_observations.json`（校验器核对不引摘录）。
 - **自述不以原件面目出现**：`profile.summary.current_regimen` 等于 `latest_status.regimen`，在治依据是自述时保留
-  “患者自述：/家属自述：”前缀（校验器核对；`treatment_lines` 不加前缀）；`demographics.function_description` 只收医生文书
-  原文，schema 描述改为同一口径，校验器核对它出现在所引原件（不含对话、`14_患者自管补充/`）里。
+  “患者自述：/家属自述：”前缀（校验器核对——相等关系到下一节才真正核对；`treatment_lines` 不加前缀）；
+  `demographics.function_description` 只收医生文书原文，schema 描述改为同一口径，校验器核对它出现在所引原件（不含对话记录、
+  `14_患者自管补充/`；领域桶里的 `conversation_notes/` 到下一节才排除）里。
 - **外文转述标明是转述**：`acute_findings.json` 新增可选 `verbatim_is_translation`，与该 sidecar 的
   `foreign_language_paraphrase` flag 双向绑定（校验器，所有档案）；Step 7.5、acute-findings §11、段D caveats、
   `safety-guardrails.md` 一律标“中文转述，非报告原句”。这条 flag 覆盖所有只有中文转述的外文 sidecar（检验、HLA 等）。
@@ -55,7 +100,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
   结果的检查是 `requested_by_clinician`（yellow）；“清楚读数”按受影响的字段算而非整行；锚点行号按 `splitlines()` 计，
   含换页符的旧 sidecar 给出读行号的命令；除终态门外，Phase 2 §9 自己的校验是唯一不带 `--readonly` 的一次。
 - 测试：新增 `tests/unit/organize-provenance-guards.test.sh`（译文绑定、摘录三种标记与单层记录、时序、未标记摘录、
-  自述方案前缀、功能描述、脚本标准输入；每个负例在旧校验器上失败）；`acute-findings-gate.test.sh` 的过期组按新规则
+  自述方案前缀、功能描述、脚本标准输入；16 个负例中有 14 个在旧校验器上失败，另两个——`T schema` 只查“被拒”、
+  `P --columns -` 畸形输入只查退出码——在旧代码上也会通过，下一节改为核对错误内容后 16 个全部在旧校验器上失败）；`acute-findings-gate.test.sh` 的过期组按新规则
   重写（无提示 ERROR、有提示 WARN、只有一处或不点名 ERROR、`--final` 一律 ERROR、只有 HTML 的旧档案）；
   `organize-contract-lints.test.sh` 新增 M 组。
 

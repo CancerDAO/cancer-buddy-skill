@@ -307,7 +307,7 @@ def build() -> dict[str, str]:
         "schema": "cancer_buddy_profile_v3", "patient_code": PT, "locale": "zh",
         "generated_at": GEN_AT,
         "summary": {"one_line_condition": "示例肿瘤（合成夹具），在用示例方案B", "primary": "示例肿瘤",
-                    "histology": None, "stage": None, "provenance_layer": "source_reported",
+                    "histology": None, "stage": None, "current_regimen": "示例方案B", "provenance_layer": "source_reported",
                     "verification_status": "unverified", "source_refs": [r_dx]},
         "latest_status": {"regimen": "示例方案B", "response": None, "ecog": None,
                           "as_of": "2030-01-10", "status_basis": "clinician_note_current", "source_refs": [r_now]},

@@ -8,6 +8,7 @@
     "primary": "示例肿瘤",
     "histology": null,
     "stage": null,
+    "current_regimen": "示例方案B",
     "provenance_layer": "source_reported",
     "verification_status": "unverified",
     "source_refs": [

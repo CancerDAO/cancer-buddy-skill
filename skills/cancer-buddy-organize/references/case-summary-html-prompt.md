@@ -53,15 +53,20 @@ SVG 坐标仍由确定性脚本生成，模型不得造点或手算坐标。
   “该日检验单的数值未能可靠对应到项目，请以原件为准”。
 - 急性/附带发现：模板没有专门区块，而 caveats 渲染在页面最底部的脚注里，不够醒目。因此：
   - 有 emergent/urgent 发现时，`case_summary_narrative`（页面上方的“病情概要”）**第一句**写：
-    “资料中有报告原文写到需要尽快告知治疗团队的发现：<label>（<日期>）；<label>（<日期>）。”
-    只用 `label` 与日期，不加判断词，不写 `finding_class` 的类名（它是路由桶，不是报告的话，如
-    `pneumonitis_ild_suspected` 不能写成“疑似药物性肺炎”）；几份报告各登记的同一个 `label` 合写一次、列出全部日期
-    （“<label>（<日期1>、<日期2>）”）；其后才是原有的病情概要句子（验收门检查这一句：以该前缀开头，逐条含每个
-    emergent/urgent 发现的 `label` 与日期）；
+    “资料中有报告写到需要尽快告知治疗团队的发现：<label>（<日期>）；<label>（<日期>）。”
+    这句前缀是中性的（“报告写到”，不写“报告原文写到”），因为外文报告只有中文转述的发现也在其中：
+    `verbatim_is_translation: true` 的发现在日期括号里标明，写成“<label>（<日期>，中文转述）”（没有日期时写
+    “<label>（中文转述）”）。只用 `label` 与日期，不加判断词，不写 `finding_class` 的类名（它是路由桶，不是报告的话，
+    如 `pneumonitis_ild_suspected` 不能写成“疑似药物性肺炎”）；几份报告各登记的同一个 `label` 合写一次、列出全部日期
+    （“<label>（<日期1>、<日期2>）”）——转述的与原句的不合写，几条转述的同名发现合写成“<label>（<日期1>、<日期2>，
+    中文转述）”；其后才是原有的病情概要句子（验收门检查这一句：以该前缀开头，逐条含每个 emergent/urgent 发现的
+    `label` 与日期，转述的发现其 `label` 紧跟的括号里有“中文转述”）；
   - caveats 最前面逐条写完整原文：“报告原文：<verbatim_text>（<日期>，<来源文书>）——请尽快告知治疗
     团队”；`verbatim_is_translation: true` 的发现是外文报告的中文转述，写成“报告（外文）中文转述，非报告原句：
     <verbatim_text>（<日期>，<来源文书>）——请尽快告知治疗团队”，不称“报告原文”（`acute-findings.md` §2.4）；
-    incidental 发现只在 caveats 写原文与日期（转述同样标明），不进病情概要。
+    incidental 发现只在 caveats 写原文与日期（转述同样标明），不进病情概要。验收门（`validate_structured_outputs.py`
+    的 段D 检查；`validate_case_summary_html.py` 只查页面形状）核对：caveat 里出现转述发现的 `verbatim_text` 时，
+    它前面紧挨着“中文转述，非报告原句：”。
   - 不解释病因、不评估严重程度、不给处理建议。不改 `one_line_condition`（它会被复制进 `AGENTS.md`）。
 - 旧档案摘录（`provenance_layer: prior_archive`）的事实只可出现在既往史相关内容中，并逐项标注
   “来自既往摘要，原件未在本次资料中”（与 `PATIENT_DIR_CONTRACT.md` §5 (e) 同一句）；不得出现在当前方案、当前
@@ -129,7 +134,7 @@ python3 "<skill_dir>/scripts/validate_case_summary_html.py" --html <patient_dir>
 
 验证通过（exit 0，含核心完整性检查：来源中存在的分期、驱动基因、当前方案不得在摘要中丢失），并且
 `python3 "<skill_dir>/scripts/validate_structured_outputs.py" <patient_dir> --readonly` 的输出里没有以
-`ERROR: .case_summary_data.json` 开头的行（盖戳后首句漏写 emergent/urgent 发现在这里报错；其他文件的错误不归你），才返回
+`ERROR: .case_summary_data.json` 开头的行（盖戳后首句漏写 emergent/urgent 发现、转述的发现没标“中文转述”或 caveats 把转述称作“报告原文”，都在这里报错；其他文件的错误不归你），才返回
 `template_sha`。趋势图只填该次报告自带的参考区间，禁止套用通用参考值。
 
 4. **版本快照**（编排者在收到通过的 `template_sha` 后执行，不属于段D worker）：把根目录

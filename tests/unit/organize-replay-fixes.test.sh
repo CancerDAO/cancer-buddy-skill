@@ -424,6 +424,8 @@ def undated(latest_basis="patient_reported", drop_basis=False):
             doc["latest_status"].update({"as_of": None, "status_basis": latest_basis})
             if drop_basis:
                 doc["latest_status"].pop("status_basis")
+            # phase2 §5.7: the summary keeps the family statement's marker (its block stays source_reported)
+            doc["summary"]["current_regimen"] = "家属自述：示例方案B"
         synlib.edit_json(d, "profile.json", ls)
         # patient_summary.current_status mirrors the same undated statement (as_of is nullable there)
         synlib.edit_json(d, "patient_summary.json", lambda doc: doc["current_status"].update(

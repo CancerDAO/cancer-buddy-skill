@@ -282,12 +282,13 @@ I18N_KEYS = ("html_lang", "doc_title", "disclaimer", "report_date_label", "sec_i
              "val_male", "val_female", "val_pending", "val_to_start", "footer_doc")
 
 
-def render(narrative, stamp=True):
+def render(narrative, stamp=True, caveats=None):
     def fn(d):
         synlib.save(d, ".case_summary_data.json", {
             "i18n": {k: "x" for k in I18N_KEYS}, "fallbacks": {"__default__": "资料缺失"}, "report_date": "2030-01-20",
             "one_line_condition": "示例肿瘤（合成夹具）", "case_summary_narrative": narrative, "trend_charts": [],
-            "lab_trends": [], "lesions": [], "molecular_rows": [], "treatment_lines": [], "caveats": []})
+            "lab_trends": [], "lesions": [], "molecular_rows": [], "treatment_lines": [],
+            "caveats": [{"caveat_text": c} for c in (caveats or [])]})
         if stamp:
             subprocess.run(STAMP + [str(d)], check=True, capture_output=True)
     return fn
@@ -340,7 +341,7 @@ def both(*fns):
 def gate(d, final=False):
     e, w = [], []
     vso.gate_case_summary_html(d, e, w, final=final)
-    keep = ("case_summary_narrative", "段D stale", vso.CASE_SUMMARY_HTML_NAME)
+    keep = ("case_summary_narrative", "caveats quote", "段D stale", vso.CASE_SUMMARY_HTML_NAME)
     return [x for x in e if any(k in x for k in keep)], [x for x in w if any(k in x for k in keep)]
 
 
@@ -431,6 +432,86 @@ e, w = [], []
 vso.gate_case_summary_html(html_only, e, w)
 check("S1 …with the notice → no stale ERROR (WARN)", not any("stale notice" in x for x in e)
       and any("段D stale (unverifiable" in x for x in w), str(e + w))
+
+# ---- TL: a finding quoted from a Chinese rendering of a foreign-language report (verbatim_is_translation,
+# acute-findings.md §2.4) is never presented as the report's own words: the 段D lead is neutral (报告写到, not
+# 报告原文写到), the translated item carries 中文转述 in its date parentheses, and a caveat quoting it starts
+# 中文转述，非报告原句：. Routing is the lead's: fresh → ERROR, stale → notice / WARN, --final → ERROR; an incidental
+# translated finding's caveat is ERROR on a fresh render, WARN on a stale one.
+AF1_VERBATIM = "左肺上叶舌段肺动脉分支充盈缺损……请结合临床"
+OLD_LEAD = "资料中有报告原文写到需要尽快告知治疗团队的发现：" + AF1_LABEL + "（2030-01-12）。其后是病情概要。"
+MARKED = vso.ACUTE_SUMMARY_LEAD + AF1_LABEL + "（2030-01-12，中文转述）。其后是病情概要。"
+CAV_ORIG = f"报告原文：{AF1_VERBATIM}（2030-01-12，胸部CT报告）——请尽快告知治疗团队"
+CAV_TR = f"报告（外文）中文转述，非报告原句：{AF1_VERBATIM}（2030-01-12，胸部CT报告）——请尽快告知治疗团队"
+
+
+def translated(acuity=None, dateless=False):
+    def fn(d):
+        def g(doc):
+            f = doc["findings"][0]
+            f["verbatim_is_translation"] = True
+            if acuity:
+                f["acuity"] = acuity
+            if dateless:
+                f["exam_date"] = f["report_date"] = None
+        synlib.edit_json(d, "acute_findings.json", g)
+    return fn
+
+
+check("TL the pinned lead is neutral: no 报告原文 in it", "原文" not in vso.ACUTE_SUMMARY_LEAD, vso.ACUTE_SUMMARY_LEAD)
+cur = synlib.make(tmp / "tl_old_lead", render(OLD_LEAD))
+e2, _ = gate(cur)
+check("TL fresh render still leading 「资料中有报告原文写到…」 → ERROR (the lead no longer claims 原文)",
+      any("must start" in e and vso.ACUTE_SUMMARY_LEAD in e for e in e2), str(e2))
+cur = synlib.make(tmp / "tl_unmarked", both(translated(), render(LEAD)))
+e2, _ = gate(cur)
+check("TL fresh render naming a translated finding without 中文转述 → ERROR",
+      any("AF-001" in e and "without 「中文转述」" in e for e in e2), str(e2))
+cur = synlib.make(tmp / "tl_ok", both(translated(), render(MARKED, caveats=[CAV_TR])))
+check("TL fresh render: 「<label>（<日期>，中文转述）」 + caveat 「中文转述，非报告原句：…」 → no message (positive)",
+      gate(cur) == ([], []), str(gate(cur)))
+check("TL …and the same at --final", gate(cur, final=True) == ([], []), str(gate(cur, final=True)))
+cur = synlib.make(tmp / "tl_dateless", both(translated(dateless=True),
+                                            render(vso.ACUTE_SUMMARY_LEAD + AF1_LABEL + "（中文转述）。其后是病情概要。")))
+check("TL a translated finding with no date written 「<label>（中文转述）」 → no message (positive)",
+      gate(cur) == ([], []), str(gate(cur)))
+cur = synlib.make(tmp / "tl_cav_orig", both(translated(), render(MARKED, caveats=[CAV_ORIG])))
+e2, _ = gate(cur)
+check("TL fresh render whose caveat introduces the translated quote as 「报告原文：」 → ERROR",
+      any("caveats quote AF-001" in e for e in e2), str(e2))
+cur = synlib.make(tmp / "tl_cav_both", both(translated(), render(MARKED, caveats=[CAV_TR + "；" + CAV_ORIG])))
+e2, _ = gate(cur)
+check("TL a caveat carrying the labelled translation AND the same quote as 「报告原文：」 → ERROR",
+      any("caveats quote AF-001" in e for e in e2), str(e2))
+cur = synlib.make(tmp / "tl_orig_ok", render(LEAD, caveats=[CAV_ORIG]))
+check("TL an untranslated finding quoted 「报告原文：…」 → no message (positive: only a rendering is barred)",
+      gate(cur) == ([], []), str(gate(cur)))
+st = synlib.make(tmp / "tl_mark_other", lambda d: (later_urgent(d), translated()(d), render(
+    vso.ACUTE_SUMMARY_LEAD + AF1_LABEL + "（2030-01-12）；" + AF2_LABEL + "（2030-01-12，中文转述）。其后是病情概要。")(d)))
+e2, _ = gate(st)
+check("TL the 中文转述 mark on another item, not on the translated finding's → ERROR naming AF-001",
+      any("AF-001" in e and "without 「中文转述」" in e for e in e2) and not any("AF-002" in e for e in e2), str(e2))
+cur = synlib.make(tmp / "tl_stale", both(translated(), render(LEAD, stamp=False)))
+e2, w2 = gate(cur)
+check("TL unstamped render naming the translated finding unmarked, no stale notice → ERROR (stale notice)",
+      any("stale notice" in e and "AF-001" in e for e in e2), str(e2 + w2))
+notice([AF1_LABEL])(cur)
+e2, w2 = gate(cur)
+check("TL …with the stale notice naming it → WARN only (Phase 2 §9 stays passable)",
+      not e2 and any("段D stale (unstamped" in w and "AF-001" in w for w in w2), str(e2 + w2))
+e2, _ = gate(cur, final=True)
+check("TL …at --final → ERROR (the mandatory re-render writes it marked)", any("terminal gate" in e for e in e2), str(e2))
+cur = synlib.make(tmp / "tl_inc_fresh", both(translated(acuity="incidental"), render("病情概要。", caveats=[CAV_ORIG])))
+e2, w2 = gate(cur)
+check("TL incidental translated finding quoted 「报告原文：」 in a fresh render → ERROR",
+      any("caveats quote AF-001" in e for e in e2), str(e2 + w2))
+cur = synlib.make(tmp / "tl_inc_stale", both(translated(acuity="incidental"), render("病情概要。", stamp=False, caveats=[CAV_ORIG])))
+e2, w2 = gate(cur)
+check("TL …in a stale (unstamped) render → WARN, not ERROR (an incidental change does not force the re-render)",
+      not e2 and any("caveats quote AF-001" in w for w in w2), str(e2 + w2))
+cur = synlib.make(tmp / "tl_inc_ok", both(translated(acuity="incidental"), render("病情概要。", caveats=[CAV_TR])))
+check("TL incidental translated finding quoted 「中文转述，非报告原句：」 → no message (positive)",
+      gate(cur) == ([], []), str(gate(cur)))
 
 # ---- stamp_case_summary_sources.py
 d = synlib.make(tmp / "stamp_ok", render("x", stamp=False))

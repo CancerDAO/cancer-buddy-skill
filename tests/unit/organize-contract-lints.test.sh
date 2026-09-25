@@ -23,6 +23,8 @@
 #   L. a recursive rm naming "$src" (SKILL.md) or "<patient_dir>/raw" (a reference) → fail; the Step 17 rm of
 #      the archive unpack dir, with prose naming $src and raw/ beside it, passes (positive control)
 #   M. phase2 §7 段D stale notice with one character changed, or its ```text block removed → fail
+#   N. case-summary-html-prompt.md lead reverted to 「资料中有报告原文写到…」, the translated item form or the caveat
+#      prefix dropped / reworded, or phase2 §7 quoting another lead → fail
 set -uo pipefail
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 LINT="$REPO_ROOT/tests/eval/lint/13-organize-prompt-contracts.sh"
@@ -195,6 +197,19 @@ fresh m1; edit "$tmp/m1/references/organizer-prompt-phase2-synthesis.md" 't.repl
 expect "phase2 §7 stale notice reworded by one word" fail "$tmp/m1" "CASE_SUMMARY_STALE_NOTICE"
 fresh m2; edit "$tmp/m2/references/organizer-prompt-phase2-synthesis.md" 't.replace("  ```text\n  本次登记了需要尽快告知治疗团队的发现", "  本次登记了需要尽快告知治疗团队的发现", 1)'
 expect "phase2 §7 stale notice outside a text block" fail "$tmp/m2" "CASE_SUMMARY_STALE_NOTICE"
+
+# ---- N. the 段D lead and the translation labels
+CSP=references/case-summary-html-prompt.md
+fresh n1; edit "$tmp/n1/$CSP" 't.replace("“资料中有报告写到需要尽快告知治疗团队的发现：<label>", "“资料中有报告原文写到需要尽快告知治疗团队的发现：<label>", 1)'
+expect "case-summary prompt lead reverted to 报告原文写到" fail "$tmp/n1" "ACUTE_SUMMARY_LEAD"
+fresh n2; edit "$tmp/n2/$CSP" 't.replace("“<label>（<日期>，中文转述）”", "“<label>（<日期>，转述）”", 1)'
+expect "case-summary prompt translated item form reworded" fail "$tmp/n2" "translated item form"
+fresh n3; edit "$tmp/n3/$CSP" 't.replace("中文转述，非报告原句：", "中文转述：", 2)'
+expect "case-summary prompt caveat prefix reworded" fail "$tmp/n3" "ACUTE_CAVEAT_TRANSLATION_PREFIX"
+fresh n4; edit "$tmp/n4/$CSP" 't.replace("  - 有 emergent/urgent 发现时", "  - 另有 emergent/urgent 发现时", 1)'
+expect "case-summary prompt reworded outside the pinned strings (positive)" pass "$tmp/n4"
+fresh n5; edit "$tmp/n5/references/organizer-prompt-phase2-synthesis.md" 't.replace("首句不以“资料中有报告写到需要尽快告知治疗团队的发现：”开头", "首句不以“资料中有报告原文写到需要尽快告知治疗团队的发现：”开头", 1)'
+expect "phase2 §7 quoting another lead than the validator's" fail "$tmp/n5" "§7 段D 过期提示"
 
 echo "organize-contract-lints: pass=$pass fail=$fail"
 [[ "$fail" -eq 0 ]]

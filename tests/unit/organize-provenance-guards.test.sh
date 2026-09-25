@@ -7,9 +7,17 @@
 #   L  longitudinal_observations never carries a digest (prior_archive) performance-status entry
 #   U  prior_archive_digest_unrecognised: other / yellow, legacy archives only, and no structured record
 #      cites the flagged sidecar
-#   R  profile.summary.current_regimen keeps 患者自述：/ 家属自述： when the ongoing episode is a self-report
-#   F  patient_summary demographics.function_description is clinician wording found in a cited original
-#   P  pair_lab_columns.py reads `--text -` / `--columns -` from stdin (the legacy lab path writes no raw/ file)
+#      (U2: a record citing it is reported as a kept legacy value when a legacy_value_unsupported flag cites the
+#      sidecar — phase2 §4.0 precedence: keep, flagged — and as needing that flag otherwise)
+#   D2 a digest recognised by its header but filed outside the sub-bucket: the placement message says its marks
+#      disagree, never that its facts "would not be recognised"
+#   R  profile.summary.current_regimen keeps 患者自述：/ 家属自述： when the ongoing episode is a self-report;
+#      R2: minus its marker it equals latest_status.regimen (null ↔ null), and an original's regimen has no marker
+#   F  patient_summary demographics.function_description is clinician wording found in a cited original;
+#      F2/C3: a conversation_notes/ record in a domain bucket is never an original (function_description,
+#      self-report-vs-original conflict grading)
+#   P  pair_lab_columns.py reads `--text -` / `--columns -` from stdin (the legacy lab path writes no raw/ file);
+#      the malformed-stdin negative checks the JSON error text, so it cannot pass by failing to open a file "-"
 # Each negative mutates ONE thing of the clean synthetic archive; the clean copy is the positive control.
 set -uo pipefail
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -95,7 +103,10 @@ check("T legacy archive: the same binding is an ERROR (the acute file's own bind
       any("verbatim_is_translation is not true" in e for e in errs), str(errs))
 doc = synlib.fixture_doc("acute_findings.json")
 doc["findings"][0]["verbatim_is_translation"] = "yes"
-check("T schema: verbatim_is_translation is a boolean", bool(synlib.schema_errors("acute_findings.schema.json", doc)))
+# the rejection must be the TYPE rule — a schema without the key rejects "yes" too, as an unknown property
+check("T schema: verbatim_is_translation is a boolean (a type error, not an unknown key)",
+      any("verbatim_is_translation" in e and "boolean" in e for e in synlib.schema_errors("acute_findings.schema.json", doc)),
+      str(synlib.schema_errors("acute_findings.schema.json", doc)))
 doc["findings"][0]["verbatim_is_translation"] = True
 check("T schema: verbatim_is_translation true validates", not synlib.schema_errors("acute_findings.schema.json", doc),
       str(synlib.schema_errors("acute_findings.schema.json", doc)))
@@ -135,6 +146,11 @@ d = mk(headed_elsewhere("prior_archive"))
 errs, _ = gate("gate_prior_archive_usage", d)
 check("D …a prior_archive record citing it is not 'cites no prior_archive_digest source' (positive)",
       not any("hla_typing[1]" in e and "cites no prior_archive_digest" in e for e in errs), str(errs))
+place = [e for e in errs if HEADED in e and "filed outside" in e]
+check("D2 a header-marked digest filed outside the sub-bucket: the placement message says the marks disagree",
+      len(place) == 1 and "its header alone makes it a digest" in place[0] and "three marks disagree" in place[0], str(place))
+check("D2 …and never claims its facts would not be recognised (the header mark is recognised)",
+      not any("would not be recognised" in e for e in errs), str(place))
 
 # ---- L. the current PS series never carries a digest statement
 def longitudinal(ref, layer):
@@ -187,6 +203,23 @@ cur = mk(unmarked, add_flag(UFLAG))
 errs, _ = gate("gate_review_flag_semantics", cur)
 check("U current archive: the flag category exists only on a legacy archive → ERROR",
       any("exists only on a legacy" in e and "prior_archive_digest_unrecognised" in e for e in errs), str(errs))
+KEPT = {"id": "RF-092", "category": "legacy_value_unsupported", "kind": "other", "severity": "yellow",
+        "affected_field": "timeline 旧值", "resolution_status": "unresolved",
+        "current_source_values": [{"value": "2029-03 起曾接受示例方案A", "source_ref": f"{UNMARKED}#L1"}],
+        "issue": "旧版结构化文件中的值，仅见于未标记的旧档案摘录，等 legacy_upgrade 核对。"}
+lg = mk(unmarked, add_flag(UFLAG), add_flag(KEPT), cite_unmarked, legacy=True)
+errs, warns = gate("gate_prior_archive_usage", lg)
+hits = [w for w in warns if "timeline.json" in w and "prior_archive_digest_unrecognised" in w]
+check("U2 legacy: an old value kept with a legacy_value_unsupported flag citing the unmarked sidecar → WARN naming it "
+      "a kept value (keep wins, phase2 §4.0)", hits and all("kept with its legacy_value_unsupported flag" in w for w in hits)
+      and not errs, str(errs + warns))
+lg = mk(unmarked, add_flag(UFLAG), cite_unmarked, legacy=True)
+errs, warns = gate("gate_prior_archive_usage", lg)
+hits = [w for w in warns if "timeline.json" in w and "prior_archive_digest_unrecognised" in w]
+check("U2 legacy: the same citation without that flag → WARN saying no new fact comes from it and a kept value needs "
+      "the flag (never 'stay out of the structured files')", hits and all("no new fact is taken from it" in w and
+      "only with a legacy_value_unsupported flag" in w and "stay out of the structured files" not in w for w in hits),
+      str(errs + warns))
 
 # ---- R. a self-reported current regimen keeps its marker in profile.summary
 def episode_layer(layer):
@@ -216,6 +249,29 @@ check("R caregiver_reported episode with the patient marker 「患者自述：�
       bool(reg_msgs(mk(episode_layer("caregiver_reported"), current_regimen("患者自述：示例方案B")))))
 check("R patient_reported episode, 「患者自述：示例方案B」 → no message (positive)",
       reg_msgs(mk(episode_layer("patient_reported"), current_regimen("患者自述：示例方案B"))) == [])
+# R2 the de-marked current_regimen IS latest_status.regimen (both null without an ongoing episode)
+check("R2 current_regimen worded differently from latest_status.regimen → ERROR",
+      any("≠ latest_status.regimen" in m for m in reg_msgs(mk(current_regimen("示例方案B（续用）")))))
+check("R2 a self-report marker on another regimen: marker stripped, still ≠ latest_status.regimen → ERROR",
+      any("≠ latest_status.regimen" in m for m in reg_msgs(mk(episode_layer("caregiver_reported"),
+                                                              current_regimen("家属自述：示例方案C")))))
+
+
+def no_ongoing(d):
+    synlib.edit_json(d, "treatment_lines.json", lambda doc: [ep.__setitem__("status", "stopped") for ep in doc["episodes"]])
+    synlib.edit_json(d, "profile.json", lambda doc: doc["latest_status"].update(regimen=None, as_of=None, status_basis=None))
+
+
+check("R2 no ongoing episode (latest_status.regimen null) but current_regimen names a regimen → ERROR",
+      any("≠ latest_status.regimen None" in m for m in reg_msgs(mk(no_ongoing, current_regimen("示例方案B")))))
+check("R2 no ongoing episode and current_regimen null → no message (positive)",
+      reg_msgs(mk(no_ongoing, current_regimen(None))) == [])
+check("R2 an original (source_reported) ongoing episode written 「患者自述：示例方案B」 → ERROR (the marker says self-report)",
+      any("carries the self-report marker" in m for m in reg_msgs(mk(current_regimen("患者自述：示例方案B")))))
+check("R2 the fixture (current_regimen = latest_status.regimen = 示例方案B) → no message (positive)", reg_msgs(mk()) == [])
+check("R2 summary.current_regimen key dropped while latest_status.regimen is set → ERROR (absent reads as null)",
+      any("≠ latest_status.regimen" in m for m in reg_msgs(mk(lambda d: synlib.edit_json(
+          d, "profile.json", lambda doc: doc["summary"].pop("current_regimen"))))))
 
 # ---- F. function_description is clinician wording from a cited original
 def fdesc(v, extra_ref=None):
@@ -238,6 +294,42 @@ check("F wording found in no cited source → ERROR", bool(fd_msgs(mk(fdesc("生
 check("F wording only in a caregiver supplement the block cites → ERROR (a self-description is not demographics)",
       bool(fd_msgs(mk(fdesc("外院检查提示肝转移", f"{SELF}#L16")))))
 check("F null → no message", fd_msgs(mk()) == [])
+CONV = "03_病程与叙事文书/conversation_notes/2030-01-18_对话记录.md"
+
+
+def conv_note(d):
+    (d / CONV).parent.mkdir(parents=True, exist_ok=True)
+    (d / CONV).write_text("# 对话记录（合成）\n家属说：生活可自理，可下床活动。\n", encoding="utf-8")
+
+
+check("F2 wording only in a domain-bucket conversation_notes/ record the block cites → ERROR (a chat record is not an "
+      "original)", any("does not appear in any source" in m for m in fd_msgs(mk(conv_note, fdesc("生活可自理", f"{CONV}#L2")))))
+only_conv = lambda d: synlib.edit_json(d, "patient_summary.json", lambda doc: doc["demographics"].update(
+    function_description="生活可自理", source_refs=[f"{CONV}#L2"]))
+check("F2 a block citing only the conversation_notes/ record → ERROR 'cites no clinician original'",
+      any("cites no clinician original" in m for m in fd_msgs(mk(conv_note, only_conv))))
+check("F2 …the same wording also on a cited original line → no message (positive)",
+      fd_msgs(mk(conv_note, clin, fdesc("生活可自理", f"{CONV}#L2"))) == [])
+
+
+def rf002(fn):
+    return lambda d: synlib.edit_json(d, "readiness.json",
+                                      lambda doc: fn(next(f for f in doc["review_flags"] if f["id"] == "RF-002")))
+
+
+SELF_MSG = "is a self-report vs one original"
+
+
+def conflict_msgs(d):
+    errs, warns = gate("gate_review_flag_semantics", d)
+    return [m for m in errs + warns if SELF_MSG in m]
+
+
+conv_side = lambda f: f["current_source_values"][0].__setitem__("source_ref", f"{CONV}#L2")
+check("C3 a domain-bucket conversation_notes/ record vs one original graded red → ERROR (a self-report is yellow)",
+      bool(conflict_msgs(mk(conv_note, rf002(lambda f: (f.__setitem__("severity", "red"), conv_side(f)))))))
+check("C3 …graded yellow → no self-report message (positive)",
+      conflict_msgs(mk(conv_note, rf002(conv_side))) == [])
 
 # ---- P. pair_lab_columns.py stdin inputs (the legacy lab path writes nothing under raw/)
 PLC = [sys.executable, str(synlib.SCRIPTS / "pair_lab_columns.py")]
@@ -250,7 +342,11 @@ check("P --columns - (stdin) gives exactly the file input's output", by_pipe.ret
       by_pipe.stdout == by_file.stdout and json.loads(by_pipe.stdout)["pairing_method"] == "linear_position",
       by_pipe.stderr)
 bad = subprocess.run(PLC + ["--columns", "-"], input="not json", capture_output=True, text=True)
-check("P --columns - with a malformed stdin → exit 2", bad.returncode == 2, str(bad.returncode))
+# the error must come from parsing stdin — before `--columns -` existed, the script exited 2 too, but because it
+# could not open a file named "-" ("No such file"), so the exit code alone would not tell the two apart
+check("P --columns - with a malformed stdin → exit 2 from the JSON parse of stdin (not a missing file '-')",
+      bad.returncode == 2 and "Expecting value" in bad.stderr and "No such file" not in bad.stderr,
+      f"{bad.returncode} {bad.stderr.strip()[-120:]}")
 lin = "检验项目\n示例项A\n示例项B\n结果\n1.20\n3.4\n"
 t_file = tmp / "lin.txt"
 t_file.write_text(lin, encoding="utf-8")

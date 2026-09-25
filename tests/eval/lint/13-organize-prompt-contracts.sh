@@ -45,6 +45,10 @@
 #   M. one 段D stale notice: phase2 §7 carries validate_structured_outputs.CASE_SUMMARY_STALE_NOTICE verbatim
 #      in a ```text block — the validator looks for that sentence in review_summary.md and readiness warnings[]
 #      whenever the 段D render predates emergent/urgent findings, so the prompt must teach exactly it.
+#   N. one 段D lead: case-summary-html-prompt.md「急性/附带发现」carries validate_structured_outputs.ACUTE_SUMMARY_LEAD
+#      (the neutral 报告写到 — never the retired 报告原文写到 lead), the translated item form 「（<日期>，中文转述）」
+#      (ACUTE_LEAD_TRANSLATION_MARK) and the caveat prefix ACUTE_CAVEAT_TRANSLATION_PREFIX — the validator checks the
+#      narrative's first sentence and the caveats against exactly these strings; phase2 §7 quotes the same lead.
 #   I. phase1 §3 table rows READ_MODE / ADAPTER / MODALITY list exactly the validator's
 #      SIDECAR_READ_MODES / SIDECAR_ADAPTERS / SIDECAR_MODALITIES (checked on the header itself, so
 #      a sidecar without an inventory row cannot carry free text there).
@@ -358,6 +362,39 @@ if notice_m is not None:
     if not any(notice_m in b for b in blocks_m):
         fail("organizer-prompt-phase2-synthesis.md §7 has no ```text block holding "
              f"validate_structured_outputs.CASE_SUMMARY_STALE_NOTICE verbatim ({notice_m!r})")
+
+# ---- N. the 段D lead and the translation labels ↔ validate_structured_outputs constants
+try:
+    import validate_structured_outputs as vso_n
+    lead_n, mark_n = vso_n.ACUTE_SUMMARY_LEAD, vso_n.ACUTE_LEAD_TRANSLATION_MARK
+    cav_n = vso_n.ACUTE_CAVEAT_TRANSLATION_PREFIX
+except Exception as e:
+    fail(f"validate_structured_outputs.py has no ACUTE_SUMMARY_LEAD / ACUTE_LEAD_TRANSLATION_MARK / "
+         f"ACUTE_CAVEAT_TRANSLATION_PREFIX: {e}")
+    lead_n = None
+if lead_n is not None:
+    csp = (org / "references" / "case-summary-html-prompt.md").read_text(encoding="utf-8")
+    sec_n = re.search(r"^- 急性/附带发现(.*?)^- 旧档案摘录", csp, re.S | re.M)
+    body_n = sec_n.group(1) if sec_n else ""
+    if not sec_n:
+        fail("case-summary-html-prompt.md has no 「- 急性/附带发现」 bullet (followed by 「- 旧档案摘录」)")
+    else:
+        if f"“{lead_n}<label>（<日期>）" not in body_n:
+            fail("case-summary-html-prompt.md 急性/附带发现 does not teach the lead "
+                 f"validate_structured_outputs.ACUTE_SUMMARY_LEAD verbatim ({lead_n!r} followed by <label>（<日期>）)")
+        if "报告原文写到需要尽快告知治疗团队" in body_n:
+            fail("case-summary-html-prompt.md 急性/附带发现 still teaches the retired lead 「资料中有报告原文写到…」 — a "
+                 "translated finding is in the same list, so the lead is neutral (acute-findings.md §2.4)")
+        if f"<label>（<日期>，{mark_n}）" not in body_n:
+            fail(f"case-summary-html-prompt.md 急性/附带发现 does not teach the translated item form 「<label>（<日期>，{mark_n}）」")
+        if cav_n not in body_n:
+            fail("case-summary-html-prompt.md 急性/附带发现 does not teach the caveat prefix "
+                 f"validate_structured_outputs.ACUTE_CAVEAT_TRANSLATION_PREFIX ({cav_n!r})")
+    # phase2 §7 tells Phase 2 which renders count as "not written" by quoting the same lead
+    sec_n7 = re.search(r"^## 7\. .*?$(.*?)^## 8\. ", p2, re.S | re.M)
+    if not sec_n7 or f"“{lead_n}”开头" not in sec_n7.group(1):
+        fail("organizer-prompt-phase2-synthesis.md §7 段D 过期提示 does not quote "
+             f"validate_structured_outputs.ACUTE_SUMMARY_LEAD verbatim ({lead_n!r}) as the lead a current render starts with")
 
 sys.exit(min(bad, 100))
 PY

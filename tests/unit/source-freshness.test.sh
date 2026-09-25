@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # O-04 source recency (scripts/source_freshness.py + gate_source_freshness).
 # latest_source_date = newest `YYYY-MM-DD_` sidecar under NN_ buckets (14_ patient
-# supplements, 99_, prior-archive digests and dates after as-of excluded);
+# supplements, 99_, prior-archive digests — sub-bucket, inventory source_kind, SOURCE header, or a
+# prior_archive_digest_unrecognised flag — and dates after as-of excluded);
 # days_since_latest = as_of − latest; > 14 days is stale (exactly 14 is not — organizer-prompt-phase2-synthesis.md §6.2).
 set -uo pipefail
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -59,6 +60,33 @@ check("as-of from readiness.as_of_run_date", sf.compute(a)["as_of_source"] == "r
       and sf.compute(a)["days_since_latest"] == 19)
 (a / "readiness.json").write_text(json.dumps({"generated_at": "2030-03-05T08:00:00Z"}), encoding="utf-8")
 check("as-of from readiness.generated_at", sf.compute(a)["as_of_run_date"] == "2030-03-05")
+
+# a digest is recognised exactly as the validator recognises it: besides the sub-bucket and the inventory
+# source_kind, the `SOURCE: prior_archive_digest` header (a digest filed elsewhere) and a digest-looking sidecar
+# a prior_archive_digest_unrecognised review flag cites (legacy archive) — neither is a dated original of this archive
+g = tmp / "g"
+touch(g, "05_影像/CT/2030-03-01_胸部CT_示例医院.md")
+hp = g / "03_病程与叙事文书/其他/2030-03-12_既往档案摘录副本.md"
+hp.parent.mkdir(parents=True, exist_ok=True)
+hp.write_text("SOURCE: prior_archive_digest\nFILE_ID: dg-002\n\n既往整理档案记载（合成）\n", encoding="utf-8")
+r = sf.compute(g, "2030-03-16")
+check("a header-marked digest outside the sub-bucket is not the latest source",
+      r["latest_source_date"] == "2030-03-01" and r["excluded"]["prior_archive_digest"] == 1, str(r))
+hp.write_text("SOURCE: imaging_report\nFILE_ID: dg-002\n\n胸部CT（合成）\n", encoding="utf-8")
+check("…the same file headed as an original counts (positive control)",
+      sf.compute(g, "2030-03-16")["latest_source_date"] == "2030-03-12")
+hp.write_text("既往整理档案记载：2029-03 起曾接受示例方案A（合成）\n", encoding="utf-8")
+(g / "readiness.json").write_text(json.dumps({"review_flags": [{
+    "id": "RF-091", "category": "prior_archive_digest_unrecognised", "kind": "other", "severity": "yellow",
+    "current_source_values": [{"value": "旧档案摘录（未标记）",
+                               "source_ref": "03_病程与叙事文书/其他/2030-03-12_既往档案摘录副本.md#L1"}]}]}),
+    encoding="utf-8")
+r = sf.compute(g, "2030-03-16")
+check("a sidecar flagged prior_archive_digest_unrecognised is not the latest source",
+      r["latest_source_date"] == "2030-03-01" and r["excluded"]["prior_archive_digest"] == 1, str(r))
+(g / "readiness.json").write_text(json.dumps({"review_flags": []}), encoding="utf-8")
+check("…without the flag the header-less file counts by its filename date (positive control)",
+      sf.compute(g, "2030-03-16")["latest_source_date"] == "2030-03-12")
 
 # no dated source → null / not stale
 b = tmp / "b"
