@@ -6,6 +6,28 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Fixed — organize：一个不确定标记只遮住它自己那一段；带标记的诊断/分期/方案保留字面并附另一读法；诊断按来源阶梯取 (2026-09-26)
+
+case1 在正文乱码之外还丢了诊断：食管鳞癌第二原发、cT3N2M0 III 期、组织学与转移部位都没进结构化字段，同一行一个 token
+把两读一致的“PR”连带置空；case3 两份影像指征都写了胰腺导管腺癌，`diagnosis.primary` 仍为 null。合成数据，无真实病例内容。
+
+- **token 作用域**（phase2 §3）：把 §2.5“按受影响的那个字段算，不按整行算”搬进 §3——同一行别的字段两读一致就照常写确定值，
+  不连带置 null。`diagnosis.primary / histology / stage` 与 episode 的 `regimen` 带 token 时保留“字面 + 它自己的 token”，另写
+  新的可选数组 `alt_readings[]`（`{field, uncertain_id, source_ref, channel, text}`：另一通道读数与词表 high 候选），永远不升格。
+  新校验门 `readings`（独立模块 `scripts/_gate_readings.py`）：`alt_readings` 所指字段为 null → ERROR（被 token 连带置空）、字段
+  不带该 token → ERROR（另一读法被升格）、`source_ref` 所指行没有该 token → ERROR、指向非文本字段 → ERROR。
+- **诊断来源阶梯**（判断写在 phase2 §5.7，脚本只核结果）：病理 > 出院/门诊诊断 > 申请单或影像指征 > NGS“临床诊断”栏 >
+  自述（只进自述层）；`primary` 逐字照抄，所取层级写进新的可选枚举 `diagnosis_basis`。校验器：`primary` 有值而无
+  `diagnosis_basis` → WARN；`profile.summary.one_line_condition` 必须带上 `primary`（去 token 后的字面），`primary` 为 null 时须写
+  “诊断资料缺失” → 否则 ERROR（当前契约档案；旧版 WARN）；复读表里两读一致的诊断（“是”行）而 `primary` 为 null → WARN；两读
+  一致的诊断或分期在任何结构化字段都找不到 → 完整性 WARN（phase2 同步要求在 `readiness.warnings` 写一句）。
+- 段D（`case-summary-html-prompt.md`）：分期带另一读法时写“待核对（字面读作 X；另一读法 Y）”，两通道不同不再是渲染失败。
+- schema：`patient_summary.diagnosis.diagnosis_basis`、`diagnosis.alt_readings[]`、`treatment_lines.episodes[].alt_readings[]` 均为
+  可选（不升版本：新必填字段会把 patient_summary 推到 2.3，并牵动旧版读取路径与 SMTB 读取）。合成夹具的诊断补上
+  `diagnosis_basis: discharge_or_clinic_diagnosis`。
+- 测试：新增 `diagnosis-readings.test.sh`（17 项：alt_readings 四个负例与正例、episode 置空、one_line_condition 三例、三类 WARN、
+  schema 四例）。段D 的“另一读法”渲染是 LLM 步骤，没有确定性测试。
+
 ### Added — organize 编排纪律：`--can-stop` 回合闸、技能目录运行期只读并在终态门复核、grok 运行时绑定 (2026-09-25)
 
 三例 grok E2E：2/3 例在 headless 下用“阶段小结”结束回合，整个进程随之退出（case1 停在 SMTB 3.5、case3 停在 plan）；

@@ -169,6 +169,14 @@ sidecar 写明几页同属一份）：旧档案里同一次检查的几页以不
 读数并用 `uncertain_ids` 指向 sidecar 条目。sidecar 里的候选只可在 flag 的 `issue` 中作为“可能的
 读法”提及，永远不进入结构化值位。
 
+**一个 token 只遮住它覆盖的那一段**（按受影响的那个字段算，不按整行算，与 §2.5 同一口径）：同一行里别的字段两读一致，
+就照常写确定值——“PR（部分缓解）”读得清、同一行的日期带 token，疗效照写，日期另记；不因同行别处有 token 就把整条记录或
+别的字段连带置 null。`patient_summary.diagnosis` 的 `primary` / `histology` / `stage` 与 episode 的 `regimen` 带 token 时，
+字段保留“字面 + 它自己的 token”，另写 `alt_readings[]`：每条 `{field, uncertain_id, source_ref, channel, text}`，放另一个
+通道对同一段的读数（`channel` 取该条目 `readings[]` 的通道值）与词表 `high` 候选（`channel: "lexicon:<词表名>"`）。
+`alt_readings` 永远只是读法：不升格为字段值，不参与 `one_line_condition`。校验器核对：`alt_readings` 所指字段不为 null、
+带着该 token，`source_ref` 所指行上有该 token。
+
 ## 4. 归档：分类、写前桶计划与搬迁
 
 ### 4.0 开工前：旧档案升级与重派续做
@@ -522,6 +530,14 @@ episode：`started_at` 取首程日期，`regimen` 逐字（取原文写法；�
   必须逐字出现在 `demographics.source_refs` 所引的某份原件里（不是 `conversation:` 锚点、不是任何
   `conversation_notes/` 下的对话记录——包括领域桶里的，如 `03_病程与叙事文书/conversation_notes/`——、不是
   `14_患者自管补充/` 或 `SOURCE: patient_supplement` 的 sidecar；校验器核对）；没有这样的原文就写 null。
+- `patient_summary.json.diagnosis`（判断在这里做，脚本只核对结果）：`primary` 按**来源阶梯**取第一个有写的来源，逐字照抄
+  （不改写、不合并、不归一）：病理诊断 > 出院/门诊诊断 > 检查申请单或影像检查指征（“临床诊断：…”“检查目的：…”）>
+  NGS 报告的“临床诊断”栏 > 自述（自述只进 `patient_reported` / `caregiver_reported` 层，不填 `primary`）；取自哪一级写进
+  `diagnosis_basis`（`pathology` | `discharge_or_clinic_diagnosis` | `order_or_imaging_indication` | `ngs_clinical_diagnosis` |
+  `patient_reported`）。两个原发、或不同来源说法不同，按 §2 并列保留并写 flag，不挑一个。`profile.json.summary.one_line_condition`
+  **必须带上** `primary`（去掉 token 后的字面）；`primary` 为 null 时写“诊断资料缺失”（校验器核对）。sidecar 的
+  `## 高风险字段复读` 表里两读一致的诊断或分期（“是”行），在任何结构化字段里都找不到时，在 `readiness.json.warnings[]` 写一句
+  完整性提示（“<sidecar>#L<n> 的<分期/诊断>「…」未进入结构化字段”），校验器同样给 WARN。
 - `profile.json.demographics`：`{sex, age, age_as_of, performance_status_verbatim[], provenance_layer, source_refs}`，
   从 `patient_summary.json` 原样复制，不另行抽取；年龄是准标识项，只作档案内部字段，导出时按
   最小必要原则处理。

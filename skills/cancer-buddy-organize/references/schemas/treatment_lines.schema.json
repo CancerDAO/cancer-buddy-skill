@@ -36,6 +36,23 @@
           "status_as_of": { "type": ["string", "null"], "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$", "description": "Date (YYYY-MM-DD) of the source the status rests on. For status ongoing it is null ONLY in the undated self-report form (status_basis patient_reported + status_as_of_precision undated_self_report)." },
           "status_as_of_precision": { "enum": ["day", "undated_self_report"], "description": "Optional. day (the meaning when absent) = status_as_of is the source's own date. undated_self_report = a patient/family statement that carries no date of its own (\"这个方案现在还在用\"): status_as_of is null, status_basis is patient_reported and provenance_layer is patient_reported / caregiver_reported (by who said it); downstream words it as an undated family statement to be confirmed with the treating team." },
           "line_number": { "type": ["integer", "null"], "minimum": 1, "description": "Only when a source literally states the line number; never counted from the episode list." },
+          "alt_readings": {
+            "type": "array",
+            "description": "Other readings of regimen when it carries an [OCR_UNCERTAIN:U-nnn] token (the field keeps its literal + token). Optional; never promoted.",
+            "items": {
+            "type": "object",
+            "required": ["field", "uncertain_id", "source_ref", "channel", "text"],
+            "additionalProperties": false,
+            "description": "Another reading of a token-bearing text field: the other channel's reading of the same span, or a high-confidence lexicon candidate (channel lexicon:<name>). A reading, never a value: it is never promoted into the field.",
+            "properties": {
+              "field": { "type": "string", "minLength": 1 },
+              "uncertain_id": { "type": "string", "pattern": "^U-\\d{3,}$" },
+              "source_ref": { "type": "string", "minLength": 1 },
+              "channel": { "type": "string", "minLength": 1 },
+              "text": { "type": ["string", "null"] }
+            }
+            }
+          },
           "medication_refs": { "type": "array", "items": { "type": "string", "minLength": 1 }, "description": "Optional comorbidities.json medications[].medication_id of the order rows this episode was given from." }
         },
         "allOf": [

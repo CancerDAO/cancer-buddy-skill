@@ -200,6 +200,8 @@ if str(SCRIPT_DIR) not in sys.path:
 import _gate_second_read  # noqa: E402 — the second-read gate (phase1 §4 G / §5), its own module
 import _high_risk_spans as _hrs  # noqa: E402 — VALUE_CLASSES: the uncertain field classes a legibility flag grades red
 gate_second_read = _gate_second_read.gate_second_read
+import _gate_readings  # noqa: E402 — token scope / alt_readings / one_line_condition (ORG-P1-02), its own module
+gate_readings = _gate_readings.gate_readings
 
 STRUCTURED_FILES = {
     "patient_summary.json": "patient_summary.schema.json",
@@ -4406,6 +4408,7 @@ def main() -> int:
     _run_gate("line_breaks", gate_sidecar_line_breaks, errors, patient_dir, errors, warnings, g)
     _run_gate("uncertainty", gate_review_flag_semantics, errors, patient_dir, errors, warnings, g)
     _run_gate("second_read", gate_second_read, errors, patient_dir, errors, warnings, g)
+    _run_gate("readings", gate_readings, errors, patient_dir, errors, warnings, g)
     _run_gate("lab_pairing", gate_lab_pairing, errors, patient_dir, errors, warnings, g)
     _run_gate("page_completeness", gate_page_completeness, errors, patient_dir, errors, warnings, g)
     _run_gate("source_freshness", gate_source_freshness, errors, patient_dir, errors, warnings, g)

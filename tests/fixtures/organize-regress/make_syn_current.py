@@ -348,7 +348,8 @@ def build() -> dict[str, str]:
         },
         "diagnosis": {
             "primary": "示例肿瘤", "histology": None, "icd10": None, "diagnosed_at": None,
-            "stage": None, "metastasis_sites": [], "provenance_layer": "source_reported",
+            "stage": None, "diagnosis_basis": "discharge_or_clinic_diagnosis", "metastasis_sites": [],
+            "provenance_layer": "source_reported",
             "verification_status": "unverified", "source_refs": [r_dx],
         },
         "current_status": {

@@ -46,6 +46,28 @@
         "icd10": { "type": ["string", "null"] },
         "diagnosed_at": { "type": ["string", "null"], "format": "date" },
         "stage": { "type": ["string", "null"], "description": "Verbatim clinician/source stage; never recomputed." },
+        "diagnosis_basis": {
+          "type": ["string", "null"],
+          "enum": ["pathology", "discharge_or_clinic_diagnosis", "order_or_imaging_indication", "ngs_clinical_diagnosis", "patient_reported", null],
+          "description": "Which rung of the source ladder `primary` was taken from, verbatim (phase2 §5.7): pathology > discharge / outpatient diagnosis > order or imaging indication > the clinical-diagnosis box of an NGS report > self-report (patient_reported layer only). Optional (no version bump); the validator WARNs when primary is set without it."
+        },
+        "alt_readings": {
+          "type": "array",
+          "description": "Other readings of primary / histology / stage when that field carries an [OCR_UNCERTAIN:U-nnn] token (the field keeps its literal + token). Optional; never promoted.",
+          "items": {
+        "type": "object",
+        "required": ["field", "uncertain_id", "source_ref", "channel", "text"],
+        "additionalProperties": false,
+        "description": "Another reading of a token-bearing text field: the other channel's reading of the same span, or a high-confidence lexicon candidate (channel lexicon:<name>). A reading, never a value: it is never promoted into the field.",
+        "properties": {
+          "field": { "type": "string", "minLength": 1 },
+          "uncertain_id": { "type": "string", "pattern": "^U-\\d{3,}$" },
+          "source_ref": { "type": "string", "minLength": 1 },
+          "channel": { "type": "string", "minLength": 1 },
+          "text": { "type": ["string", "null"] }
+        }
+      }
+        },
         "metastasis_sites": { "type": "array", "items": { "type": "string" } },
         "provenance_layer": { "$ref": "#/$defs/provenance_layer" },
         "verification_status": { "$ref": "#/$defs/verification_status" },

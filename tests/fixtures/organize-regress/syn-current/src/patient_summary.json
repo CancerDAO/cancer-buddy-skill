@@ -43,6 +43,7 @@
     "icd10": null,
     "diagnosed_at": null,
     "stage": null,
+    "diagnosis_basis": "discharge_or_clinic_diagnosis",
     "metastasis_sites": [],
     "provenance_layer": "source_reported",
     "verification_status": "unverified",
