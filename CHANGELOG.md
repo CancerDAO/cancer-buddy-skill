@@ -6,6 +6,59 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Fixed — organize 旧档案只重跑综合：新急性发现必然进入病情简要总结，来源层不再混用 (2026-09-25)
+
+旧版档案只重跑 Phase 2 时暴露的矛盾与缺口逐条定死（合成数据，无真实病例内容）。
+
+- **新的紧急发现必做重渲染**（覆盖上一条“由新鲜度提问决定”）：新登记或改动了 emergent/urgent 发现后，Step 12 直接
+  重新生成 段D，不询问；非交互宿主与旧版档案同样（段D 照读现有 JSON，不升级档案）。渲染之前，Phase 2 在
+  `review_summary.md` 开头与 `readiness.json.warnings[]` 各写一条固定过期提示（phase2 §7，校验器常量
+  `CASE_SUMMARY_STALE_NOTICE`，逐条列出总结里还没有的发现）；这句话在重渲染后仍属实，不必回删。校验器：渲染过期
+  （戳不同、没有戳，或只有 HTML 没有渲染数据）而任一处缺提示 → ERROR（旧版档案同样，它是安全面）；两处都有 → WARN；
+  `--final` 上任何过期首句都是 ERROR（增量、上传对账、段E 移回之后同样，移回返回 `case_summary_rerender_required`
+  时回到 Step 12）；在旧版档案上重渲染后仍漏写 → ERROR。lint 13 新增 M：phase2 §7 的 ```text 块逐字含该常量。
+- **旧档案只重跑综合有了名字** `run_mode: legacy_phase2_only`（SKILL.md Step 1/5/17、phase2 §0/§4.0/§10）：只在旧版档案、
+  没有新文件、用户暂不做一次性重新转写时选；明确 §4.6 清单与 `INDEX.md` 不重写，§5 各领域、§6、`case_text.md` /
+  `timeline.md` / `review_*.md` 重写；`timeline.json` 带 `conflict_group` / `acute_finding_id` 键，影像事件的 `detail` 必须
+  写出急性发现（没有独立事件，`timeline.md` 也不加行）；`longitudinal_observations.json` 用当前版本号；旧 sidecar 没有
+  `PAGE_LABEL` 时缺页是“无法检查”（返回 `missing_pages_groups: null`、`page_continuity_checked: false`）；放错来源层的
+  旧值按层规则移位，找不到原文的旧值 `legacy_value_unsupported` 引旧记录所引的 sidecar 行；旧 flag 改成说明时保留旧编号；
+  旧 flag 文字或 sidecar 自己的说明写了版面观察即按 `artifact` 分级。
+- **旧档案摘录只凭三种标记使用**：子桶、清单 `source_kind`、头部 `SOURCE: prior_archive_digest`。校验器的用途检查补上
+  头部标记（此前只认前两种，导致正确的 `prior_archive` 标注报“无摘录来源”、错误的 `source_reported` 漏检）。没有任何
+  标记、内容像摘录的 sidecar 写 `prior_archive_digest_unrecognised`（other/yellow，仅旧版档案）并要求 `legacy_upgrade`，
+  它的事实不写进结构化记录；校验器报出任何引它的记录。
+- **一条记录一个来源层**：引了摘录的记录必须是 `prior_archive`，不能与本次原件同块（此前只查“只引摘录”的记录，
+  `diagnosis`、`demographics`、`profile.summary` 混引摘录可以通过）；`one_line_condition` 只由本次原件拼成。
+  `prior_archive` 或 `as_of: null` 的体能条目不进 `longitudinal_observations.json`（校验器核对不引摘录）。
+- **自述不以原件面目出现**：`profile.summary.current_regimen` 等于 `latest_status.regimen`，在治依据是自述时保留
+  “患者自述：/家属自述：”前缀（校验器核对；`treatment_lines` 不加前缀）；`demographics.function_description` 只收医生文书
+  原文，schema 描述改为同一口径，校验器核对它出现在所引原件（不含对话、`14_患者自管补充/`）里。
+- **外文转述标明是转述**：`acute_findings.json` 新增可选 `verbatim_is_translation`，与该 sidecar 的
+  `foreign_language_paraphrase` flag 双向绑定（校验器，所有档案）；Step 7.5、acute-findings §11、段D caveats、
+  `safety-guardrails.md` 一律标“中文转述，非报告原句”。这条 flag 覆盖所有只有中文转述的外文 sidecar（检验、HLA 等）。
+  Phase 2 返回的 `acute_findings_urgent[]` 带 `verbatim_text` 与 `verbatim_is_translation`，Step 5 列出它。
+- **同一份报告按检查身份判定**（acute-findings §2.2，phase2 §2.5 用同一定义）：同一模态、同一次检查（检查号/申请号或
+  检查项目与日期）、同一机构，或 sidecar 写明同属一份；以不同日期命名的图像所见页与印象页仍是一份报告，每个发现只
+  登记一次。日期借用仍只限同目录、同文件名日期、同机构段的另一页（校验器可核对）；跨页的危急值说明单独登记为
+  `critical_result_flag`。
+- **连写印象**：“请结合临床/建议复查”归属读不出时两种读法各推一遍，类别相同才并入最近的可登记所见，否则单独登记
+  一条引整行的 `clinical_correlation_requested`。另定：结节（含“考虑炎性结节”）不入肺部炎症类；病理/细胞病理的
+  “请结合临床”不登记；影像印象的诊断性用语（“考虑转移”）按诊断名进 phase1 高风险清单。
+- **旧 flag 拆分**：高风险字段（免疫组化、药名、日期、诊断、站别等）只要在 sidecar 里能定位就一律单独成 flag；只有
+  “顺带提到”且“定位不到”两条同时成立才进 `warnings[]`。
+- **检验旧表**：没有 `## 列配对` 的旧 sidecar 经标准输入交给 `pair_lab_columns.py`（`--text -`，新增 `--columns -`），
+  Phase 2 不在 `raw/` 下写任何中间文件（旧档案可能没有 `raw/`）；sidecar 里“列错位”之类的记录逐字写进 flag 的 `issue`。
+  写入者白名单写明 Phase 2 在 `raw/` 下只写 `_SIDECAR_MAP.md`、只把旧产物移入 `_legacy_<ts>/`。
+- **其他口径**：影像申请单指征“on X”的用药行 `use_status: active_reported`（schema 描述同步）；“某科日间化疗”算日间单元；
+  同页重复照片的年龄与体能同一口径（算一处）；“截止现在已经 N 个周期”按累计次数写 `unknown`；医生嘱托过、档案里没有
+  结果的检查是 `requested_by_clinician`（yellow）；“清楚读数”按受影响的字段算而非整行；锚点行号按 `splitlines()` 计，
+  含换页符的旧 sidecar 给出读行号的命令；除终态门外，Phase 2 §9 自己的校验是唯一不带 `--readonly` 的一次。
+- 测试：新增 `tests/unit/organize-provenance-guards.test.sh`（译文绑定、摘录三种标记与单层记录、时序、未标记摘录、
+  自述方案前缀、功能描述、脚本标准输入；每个负例在旧校验器上失败）；`acute-findings-gate.test.sh` 的过期组按新规则
+  重写（无提示 ERROR、有提示 WARN、只有一处或不点名 ERROR、`--final` 一律 ERROR、只有 HTML 的旧档案）；
+  `organize-contract-lints.test.sh` 新增 M 组。
+
 ### Fixed — organize 收尾不再删除患者原件；段D 过期与漏写分开；终态门与 段C 形状补齐 (2026-09-25)
 
 - **收尾删除范围**（P0）：此前 Step 17 的 `rm -rf "$src"` 在普通文件夹输入时会删掉用户自己的输入文件夹，在

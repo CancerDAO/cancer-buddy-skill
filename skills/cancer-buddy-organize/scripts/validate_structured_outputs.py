@@ -126,7 +126,15 @@ Gate sections (each contributes to one aggregated exit code):
       severity rows; lab values = the sidecar `## 列配对` record, re-computed from its input by
       pair_lab_columns.py; every missing-page gap flagged; single-file Phase 1 redispatch; the
       clean semantic PII scan recorded in organize_meta.json; the 段D narrative leads with the
-      emergent/urgent findings. Each gate runs crash-safe (one ERROR line per crash).
+      emergent/urgent findings. Added after the Phase-2 replays of legacy archives: a render
+      that predates emergent/urgent findings needs Phase 2's pinned stale notice in
+      review_summary.md and readiness warnings (legacy archives too; --final: the re-render is
+      mandatory); a translated acute quote (verbatim_is_translation) ↔ its sidecar's
+      foreign_language_paraphrase flag; a record citing a digest (any of its three marks) is
+      prior_archive — never mixed with originals — and never enters longitudinal_observations;
+      nothing cites a sidecar flagged prior_archive_digest_unrecognised; function_description
+      is clinician wording found in a cited original; a self-reported current regimen keeps its
+      患者自述：/家属自述： marker in profile.summary. Each gate runs crash-safe (one ERROR line per crash).
 
 Usage:
     python3 scripts/validate_structured_outputs.py <patient_dir> [--readonly]
@@ -134,7 +142,8 @@ Usage:
 
     --readonly  never write into the archive (the untrusted-content scan otherwise
                 records its review flags in readiness.json). Use it for any check that
-                is not the organize run's own terminal gate (SMTB intake, audits, replays).
+                is neither the organize run's own terminal gate nor the Phase 2 worker's
+                own §9 run (SMTB intake, audits, replays).
 
 Exit codes:
     0  — all present artifacts pass every gate (missing optional artifacts are OK)
@@ -1255,35 +1264,77 @@ def _logged_outputs(entries: list[dict]) -> dict[str, str]:
 ACUTE_SUMMARY_LEAD = "资料中有报告原文写到需要尽快告知治疗团队的发现："
 
 
-def case_summary_acute_problems(acute_doc, render_data) -> list[str]:
-    """The emergent/urgent findings of acute_findings.json lead the 段D narrative: its first sentence
-    (up to the first 。) starts with ACUTE_SUMMARY_LEAD and names every such finding's label and its
-    date (exam_date, else report_date, when the source gives one). [] = OK / nothing to check."""
+def _urgent_findings(acute_doc) -> list[dict]:
     findings = acute_doc.get("findings") if isinstance(acute_doc, dict) else None
-    urgent = [f for f in (findings or []) if isinstance(f, dict) and f.get("acuity") in ("emergent", "urgent")]
+    return [f for f in (findings or []) if isinstance(f, dict) and f.get("acuity") in ("emergent", "urgent")]
+
+
+def _lead_missing(acute_doc, render_data) -> tuple[list[str], list[dict]]:
+    """(problems, findings the 段D narrative's first sentence does not name). The emergent/urgent findings of
+    acute_findings.json lead the 段D narrative: its first sentence (up to the first 。) starts with
+    ACUTE_SUMMARY_LEAD and names every such finding's label and its date (exam_date, else report_date, when
+    the source gives one)."""
+    urgent = _urgent_findings(acute_doc)
     if not urgent or not isinstance(render_data, dict):
-        return []
+        return [], []
     narrative = render_data.get("case_summary_narrative")
     first = narrative.split("。", 1)[0] if isinstance(narrative, str) else ""
     if not first.startswith(ACUTE_SUMMARY_LEAD):
-        return [f"case_summary_narrative's first sentence must start 「{ACUTE_SUMMARY_LEAD}」 and list the "
-                f"{len(urgent)} emergent/urgent finding(s) (case-summary-html-prompt.md 急性/附带发现)"]
-    out = []
+        return ([f"case_summary_narrative's first sentence must start 「{ACUTE_SUMMARY_LEAD}」 and list the "
+                 f"{len(urgent)} emergent/urgent finding(s) (case-summary-html-prompt.md 急性/附带发现)"], urgent)
+    out, missing = [], []
     for f in urgent:
         label = f.get("label")
         day = f.get("exam_date") or f.get("report_date")
         if isinstance(label, str) and _norm_text(label) not in _norm_text(first):
             out.append(f"case_summary_narrative's first sentence does not name {f.get('finding_id')} ({label!r})")
+            missing.append(f)
         elif isinstance(day, str) and day not in first:
             out.append(f"case_summary_narrative's first sentence names {f.get('finding_id')} without its date {day}")
+            missing.append(f)
+    return out, missing
+
+
+def case_summary_acute_problems(acute_doc, render_data) -> list[str]:
+    """[] = OK / nothing to check (see _lead_missing)."""
+    return _lead_missing(acute_doc, render_data)[0]
+
+
+# phase2 §7 「段D 过期提示」: while the render predates emergent/urgent findings (stale / unstamped render, or a
+# 病情简要总结.html with no render data to check), Phase 2 writes this pinned sentence — followed by each missing
+# finding's 「<label>（<date>）」 — as a line of review_summary.md AND an entry of readiness.json.warnings[]. It stays
+# true after the (mandatory) re-render, so nobody has to remove it. tests/eval/lint/13 pins it in the prompt.
+CASE_SUMMARY_STALE_NOTICE = ("本次登记了需要尽快告知治疗团队的发现，登记时现有的病情简要总结.html 还没有写入它们"
+                             "（该文件若未在本次之后重新生成，请以 acute_findings.json 为准）：")
+
+
+def stale_notice_problems(patient_dir: Path, missing: list[dict]) -> list[str]:
+    """What is absent of the stale notice for `missing` findings: [] = both places carry the pinned
+    sentence naming every missing finding's label."""
+    head = _norm_text(CASE_SUMMARY_STALE_NOTICE)
+    labels = [_norm_text(f["label"]) for f in missing if isinstance(f.get("label"), str)]
+
+    def names_all(s: str) -> bool:
+        return all(lb in s for lb in labels)
+
+    out = []
+    try:
+        lines = (patient_dir / "review_summary.md").read_text(encoding="utf-8").splitlines()
+    except OSError:
+        lines = []
+    if not any(head in _norm_text(l) and names_all(_norm_text(l)) for l in lines):
+        out.append("review_summary.md")
+    r = _load_json_quiet(patient_dir / "readiness.json")
+    ws = [w for w in (r.get("warnings") or []) if isinstance(w, str)] if isinstance(r, dict) else []
+    if not any(_norm_text(w).startswith(head) and names_all(_norm_text(w)) for w in ws):
+        out.append("readiness.json warnings[]")
     return out
 
 
 # The 段D render stamps the sha256 of the acute_findings.json it read (scripts/
-# stamp_case_summary_sources.py); runs whose 段D renders after Phase 2 in the same run (Step 12
-# always runs on these) — a stale render at --final after one of them is a skipped Step 12.
+# stamp_case_summary_sources.py), which separates "段D read the finding and left it out" (fresh) from
+# "the findings changed after 段D rendered" (stale / unstamped).
 CASE_SUMMARY_ACUTE_STAMP = "acute_findings_sha256"
-RENDERING_RUN_MODES = ("full", "legacy_upgrade")
 
 
 def case_summary_render_state(patient_dir: Path, render_data) -> str:
@@ -1300,27 +1351,39 @@ def case_summary_render_state(patient_dir: Path, render_data) -> str:
     return "fresh" if stamp == current else "stale"
 
 
-def _last_acute_rewriting_run_mode(patient_dir: Path) -> str | None:
-    """run_mode of the last update_log entry whose run may rewrite acute_findings.json (ACUTE_REWRITING_RUN_MODES)."""
-    entries = _update_log_entries(patient_dir) or []
-    modes = [e.get("run_mode") for e in entries if e.get("run_mode") in ACUTE_REWRITING_RUN_MODES]
-    return modes[-1] if modes else None
-
-
 def gate_case_summary_html(patient_dir: Path, errors: list, warnings: list | None = None,
                            generation: str | None = None, final: bool = False) -> None:
-    # The narrative lead (case_summary_acute_problems) on a current archive:
+    # The narrative lead (case_summary_acute_problems) — a safety surface, so the same on a legacy and a
+    # current archive (a legacy_phase2_only pass writes acute_findings.json and 段D re-renders on it too):
     #   fresh render (stamp == current acute_findings.json) → ERROR: 段D read the finding and left it out;
-    #   stale or unstamped render → WARN "段D stale": the file changed after 段D rendered (an incremental,
-    #     upload-reconciliation or restore run, or the old render a legacy_upgrade leaves in place) and the
-    #     re-render waits for the case-summary freshness question (SKILL.md) — Phase 2 §9 cannot fix it;
-    #   --final → ERROR as well when the render is unstamped or the last run that may rewrite acute findings is
-    #     full/legacy_upgrade (those runs render 段D after Phase 2, so a stale render there is a skipped Step 12);
-    #     a Step 14 restore (relevance_disposition) re-synthesizes findings AFTER Step 12, so it counts as a later
-    #     run whose re-render waits for the freshness question.
-    # A legacy archive (a Phase-2-only pass writes acute_findings.json but does not re-render) → WARN.
+    #   stale / unstamped render, or a 病情简要总结.html without render data to check → the re-render is
+    #     mandatory (SKILL.md Step 12, no freshness question); until it happens Phase 2's pinned stale notice
+    #     (CASE_SUMMARY_STALE_NOTICE, phase2 §7) must name the missing findings in review_summary.md AND
+    #     readiness.json warnings[] — ERROR when either is absent, WARN "段D stale" when both are there;
+    #   --final → ERROR on any stale lead: the terminal gate asserts the mandatory re-render happened.
     current = _generation(patient_dir, generation)
+    acute_doc = _load_json_quiet(patient_dir / ACUTE_FINDINGS_NAME)
+
+    def stale(problems: list[str], missing: list[dict], state: str, where: str) -> None:
+        ids = ", ".join(str(f.get("finding_id")) for f in missing)
+        if final:
+            for msg in problems:
+                errors.append(f"{where}: {msg} — 段D stale ({state} render) at the terminal gate: a new or changed "
+                              "emergent/urgent finding makes the 段D re-render mandatory; re-run 段D (Step 12)")
+            return
+        absent = stale_notice_problems(patient_dir, missing)
+        if absent:
+            errors.append(f"{where}: 段D stale ({state} render) — it does not lead with emergent/urgent finding(s) "
+                          f"{ids}, and the pinned stale notice naming them is missing from {' and '.join(absent)} "
+                          f"(phase2 §7: a line starting 「{CASE_SUMMARY_STALE_NOTICE[:24]}…」 followed by each "
+                          "missing finding's label); the re-render (SKILL.md Step 12) is mandatory")
+        elif warnings is not None:
+            warnings.append(f"{'' if current else 'legacy archive: '}{where}: 段D stale ({state} render: "
+                            f"acute_findings.json changed after 段D rendered; {ids} not in its lead) — the stale "
+                            "notice is in place; the re-render (SKILL.md Step 12) is mandatory")
+
     data_path = patient_dir / CASE_SUMMARY_DATA_NAME
+    html_path = patient_dir / CASE_SUMMARY_HTML_NAME
     if data_path.is_file():
         try:
             render_data = json.loads(data_path.read_text(encoding="utf-8"))
@@ -1333,24 +1396,20 @@ def gate_case_summary_html(patient_dir: Path, errors: list, warnings: list | Non
                 "case_summary_data.schema.json",
                 errors,
             )
-            problems = case_summary_acute_problems(_load_json_quiet(patient_dir / ACUTE_FINDINGS_NAME), render_data)
-            state = case_summary_render_state(patient_dir, render_data) if problems and current else None
-            for msg in problems:
-                line = f"{CASE_SUMMARY_DATA_NAME}: {msg}"
-                if not current:
-                    if warnings is not None:
-                        warnings.append(f"legacy archive: {line}")
-                elif state == "fresh":
-                    errors.append(line + " — this render read the current acute_findings.json "
-                                  f"({CASE_SUMMARY_ACUTE_STAMP} matches); re-run 段D (Step 12)")
-                elif final and (state == "unstamped" or _last_acute_rewriting_run_mode(patient_dir) in RENDERING_RUN_MODES):
-                    errors.append(line + f" — 段D stale ({state} render) at the terminal gate: "
-                                  + ("the render carries no acute_findings_sha256 (段D step 3 stamps it)"
-                                     if state == "unstamped" else
-                                     "a full / legacy_upgrade run renders 段D after Phase 2") + "; re-run 段D (Step 12)")
-                elif warnings is not None:
-                    warnings.append(line + f" — 段D stale ({state} render: acute_findings.json changed after 段D "
-                                    "rendered); re-render via the case-summary freshness question (SKILL.md)")
+            problems, missing = _lead_missing(acute_doc, render_data)
+            if problems:
+                state = case_summary_render_state(patient_dir, render_data)
+                if state == "fresh":
+                    for msg in problems:
+                        errors.append(f"{CASE_SUMMARY_DATA_NAME}: {msg} — this render read the current acute_findings.json "
+                                      f"({CASE_SUMMARY_ACUTE_STAMP} matches); re-run 段D (Step 12)")
+                else:
+                    stale(problems, missing, state, CASE_SUMMARY_DATA_NAME)
+    elif html_path.is_file() and _urgent_findings(acute_doc):
+        # an older 段D left no render data: nothing shows the HTML carries the findings
+        urgent = _urgent_findings(acute_doc)
+        stale([f"{CASE_SUMMARY_HTML_NAME} has no {CASE_SUMMARY_DATA_NAME} to show it leads with the "
+               f"{len(urgent)} emergent/urgent finding(s)"], urgent, "unverifiable", CASE_SUMMARY_HTML_NAME)
 
     html_path = patient_dir / CASE_SUMMARY_HTML_NAME
     if not html_path.is_file():
@@ -1679,6 +1738,11 @@ FOREIGN_PARAPHRASE_CATEGORY = "foreign_language_paraphrase"
 # (e.g. a sex recorded only in the old JSON) is kept and flagged other / yellow — never dropped or
 # invented. A current-contract archive has no such values: there an unanchored value is an anchor gap.
 LEGACY_UNSUPPORTED_CATEGORY = "legacy_value_unsupported"
+# phase2 §4.0: on a LEGACY archive (legacy_phase2_only) a digest-looking sidecar that carries none of the three
+# digest marks (既往档案摘录 sub-bucket / inventory source_kind prior_archive_digest / SOURCE header) is
+# flagged other / yellow and its facts stay out of every structured record until legacy_upgrade rewrites it.
+PRIOR_DIGEST_UNRECOGNISED_CATEGORY = "prior_archive_digest_unrecognised"
+LEGACY_ONLY_CATEGORIES = (LEGACY_UNSUPPORTED_CATEGORY, PRIOR_DIGEST_UNRECOGNISED_CATEGORY)
 _CANDIDATE_AFFIXES = ("no.", "组", "站")
 # every key of a `## 不确定字段` entry (references/schemas/README.md; phase1 §5) — all required on a current sidecar
 UNCERTAIN_ENTRY_KEYS = ("id", "line", "field_class", "readings", "candidates", "cross_doc_supported",
@@ -2024,6 +2088,23 @@ def _is_digest_sidecar(patient_dir: Path, rel: str) -> bool:
         return False
 
 
+def _flag_cited_sidecars(patient_dir: Path, category: str) -> set[str]:
+    """Sidecar paths the readiness.json review flags of `category` cite (current_source_values)."""
+    r = _load_json_quiet(patient_dir / "readiness.json")
+    out: set[str] = set()
+    for f in (r.get("review_flags") or []) if isinstance(r, dict) else []:
+        if not isinstance(f, dict) or f.get("category") != category:
+            continue
+        for cv in f.get("current_source_values") or []:
+            if isinstance(cv, dict) and isinstance(cv.get("source_ref"), str):
+                out.add(cv["source_ref"].split("#", 1)[0])
+    return out
+
+
+def _paraphrase_flagged_sidecars(patient_dir: Path) -> set[str]:
+    return _flag_cited_sidecars(patient_dir, FOREIGN_PARAPHRASE_CATEGORY)
+
+
 def gate_acute_findings(patient_dir: Path, errors: list, warnings: list | None = None,
                         generation: str | None = None) -> None:
     """O-02: acute_findings.json present, each finding ↔ one timeline event, anchored
@@ -2051,6 +2132,10 @@ def gate_acute_findings(patient_dir: Path, errors: list, warnings: list | None =
     tl = _load_json_quiet(patient_dir / "timeline.json")
     events = [e for e in (tl.get("events") or []) if isinstance(e, dict)] if isinstance(tl, dict) else []
     events_by_id = {e.get("event_id"): e for e in events}
+    # acute-findings.md §2.4 / §11: a finding quoted from a sidecar that holds only a Chinese rendering of a
+    # foreign-language report is shown as a translation, never as the report's own words — so its
+    # verbatim_is_translation is bound both ways to that sidecar's foreign_language_paraphrase flag.
+    paraphrased = _paraphrase_flagged_sidecars(patient_dir)
     by_id: dict[str, dict] = {}
     for f in findings:
         if not isinstance(f, dict):
@@ -2091,6 +2176,15 @@ def gate_acute_findings(patient_dir: Path, errors: list, warnings: list | None =
         msg = anchor_line_binding(patient_dir, src_ref, f.get("verbatim_text"))
         if msg:
             add(f"{ACUTE_FINDINGS_NAME}: {fid} {msg}")
+        src_rel = src_ref.split("#", 1)[0] if isinstance(src_ref, str) else None
+        translated = f.get("verbatim_is_translation") is True
+        if src_rel in paraphrased and not translated:
+            add(f"{ACUTE_FINDINGS_NAME}: {fid} cites {src_rel}, which carries a {FOREIGN_PARAPHRASE_CATEGORY} flag (only a "
+                "Chinese rendering of a foreign-language report), but verbatim_is_translation is not true — a rendering "
+                "shown as the report's own words (acute-findings.md §2.4 / §11)")
+        elif translated and src_rel not in paraphrased:
+            add(f"{ACUTE_FINDINGS_NAME}: {fid} verbatim_is_translation true but {src_rel} has no {FOREIGN_PARAPHRASE_CATEGORY} "
+                "review flag — a translated quote and its sidecar's flag go together (acute-findings.md §2.4)")
         # A non-default acuity and a stated change both rest on the SOURCE's own words
         # (acute-findings.md §4), quoted from the cited LINES — not anywhere in the file (an unrelated
         # 「未见」 elsewhere in the report is not the finding's wording) — and containing the
@@ -3021,7 +3115,7 @@ def gate_review_flag_semantics(patient_dir: Path, errors: list, warnings: list |
             if f.get("kind") != "other":
                 add(f"review_flags: {fid} category {ANCHOR_GAP_CATEGORY} has kind {f.get('kind')!r} — "
                     "an anchor gap is kind other (phase2 §6.1)")
-        if f.get("category") in (FOREIGN_PARAPHRASE_CATEGORY, LEGACY_UNSUPPORTED_CATEGORY) \
+        if f.get("category") in (FOREIGN_PARAPHRASE_CATEGORY,) + LEGACY_ONLY_CATEGORIES \
                 and (f.get("kind"), f.get("severity")) != ("other", "yellow"):
             add(f"review_flags: {fid} category {f.get('category')} is kind other / severity yellow "
                 f"(has {f.get('kind')!r} / {f.get('severity')!r}; phase2 §6.1)")
@@ -3029,6 +3123,10 @@ def gate_review_flag_semantics(patient_dir: Path, errors: list, warnings: list |
             errors.append(f"review_flags: {fid} category {LEGACY_UNSUPPORTED_CATEGORY} exists only on a legacy "
                           f"archive — on a current-contract archive a value no sidecar supports is an "
                           f"{ANCHOR_GAP_CATEGORY} (other / red)")
+        if f.get("category") == PRIOR_DIGEST_UNRECOGNISED_CATEGORY and current:
+            errors.append(f"review_flags: {fid} category {PRIOR_DIGEST_UNRECOGNISED_CATEGORY} exists only on a legacy "
+                          "archive — on a current-contract archive a header-less digest-looking sidecar is sent back to "
+                          "Phase 1 (phase2 §4.1 / §4.2), never kept")
         if f.get("category") == FOREIGN_PARAPHRASE_CATEGORY:
             for rel in sorted(set(cited)):
                 paraphrase_flags.setdefault(rel, []).append(fid)
@@ -3356,6 +3454,18 @@ def _walk_records(obj, path="$"):
             yield from _walk_records(v, f"{path}[{i}]")
 
 
+def _walk_any_refs(obj, path="$"):
+    """Yield (jsonpath, dict) for every dict carrying source_refs / source_ref (with or without a layer)."""
+    if isinstance(obj, dict):
+        if "source_refs" in obj or "source_ref" in obj:
+            yield path, obj
+        for k, v in obj.items():
+            yield from _walk_any_refs(v, f"{path}.{k}")
+    elif isinstance(obj, list):
+        for i, v in enumerate(obj):
+            yield from _walk_any_refs(v, f"{path}[{i}]")
+
+
 def _record_ref_paths(rec: dict) -> list[str]:
     refs = []
     if isinstance(rec.get("source_refs"), list):
@@ -3367,8 +3477,15 @@ def _record_ref_paths(rec: dict) -> list[str]:
 
 def gate_prior_archive_usage(patient_dir: Path, errors: list, warnings: list | None = None,
                              generation: str | None = None) -> None:
-    """O-06: facts restated only from a prior-archive digest carry provenance_layer
-    prior_archive; prior_archive facts cite a digest; digests never feed current status."""
+    """O-06: a record that cites a prior-archive digest carries provenance_layer prior_archive (one record, one
+    layer — digest facts never share a source_reported block with this archive's originals); prior_archive
+    facts cite a digest; digests never feed current status or the current time series.
+
+    A digest is recognised by any of its three marks — the 既往档案摘录 sub-bucket, an inventory row with
+    source_kind prior_archive_digest, or the `SOURCE: prior_archive_digest` header (_is_digest_sidecar) — the
+    same three the Phase 2 prompt names (phase2 §4.0 / §5.9). A digest-looking sidecar with none of them is
+    flagged prior_archive_digest_unrecognised on a legacy archive, and no structured record may cite it."""
+    import pii_rescan
     add = _router(errors, warnings, _generation(patient_dir, generation))
     rows = _inventory_rows(patient_dir)
     digests = {rel for rel, row in rows.items() if row.get("source_kind") == "prior_archive_digest"}
@@ -3376,19 +3493,45 @@ def gate_prior_archive_usage(patient_dir: Path, errors: list, warnings: list | N
         if any(part in DIGEST_SUB_BUCKETS for part in p.parts):
             digests.add(p.relative_to(patient_dir).as_posix())
     _digest_placement(patient_dir, rows, digests, add, warnings)
+    # the header mark counts as well (after the placement check, which reports a headed digest filed elsewhere)
+    for p in _bucket_sidecars(patient_dir):
+        head = pii_rescan.parse_header(p.read_text(encoding="utf-8", errors="replace"))
+        if head.get("SOURCE", "").strip() == "prior_archive_digest":
+            digests.add(p.relative_to(patient_dir).as_posix())
+    unrecognised = _flag_cited_sidecars(patient_dir, PRIOR_DIGEST_UNRECOGNISED_CATEGORY) - digests
     docs = {fname: _load_json_quiet(patient_dir / fname) for fname in list(STRUCTURED_FILES) + ["profile.json"]}
     for fname, doc in docs.items():
-        if doc is None:
+        if doc is None or fname == "readiness.json":
             continue
+        for jpath, refs in ((jp, _record_ref_paths(rec)) for jp, rec in _walk_any_refs(doc)):
+            hit = sorted(r for r in refs if r in unrecognised)
+            if hit:
+                add(f"prior_archive: {fname} {jpath} cites {hit[0]}, a digest-looking sidecar flagged "
+                    f"{PRIOR_DIGEST_UNRECOGNISED_CATEGORY} — its facts stay out of the structured files until "
+                    "legacy_upgrade rewrites it as a marked digest (phase2 §4.0)")
         for jpath, rec in _walk_records(doc):
             refs = _record_ref_paths(rec)
             layer = rec.get("provenance_layer")
-            if refs and digests and all(r in digests for r in refs) and layer != "prior_archive":
-                add(f"prior_archive: {fname} {jpath} is sourced only from the prior-archive digest but "
-                    f"provenance_layer is {layer!r} — digest facts are prior_archive (history only)")
+            if refs and digests and any(r in digests for r in refs) and layer != "prior_archive":
+                only = all(r in digests for r in refs)
+                add(f"prior_archive: {fname} {jpath} "
+                    + ("is sourced only from the prior-archive digest" if only else
+                       "cites the prior-archive digest next to this archive's originals")
+                    + f" but provenance_layer is {layer!r} — digest facts are prior_archive (history only) and a "
+                    "record has one layer: never mix digest and originals in one record (phase2 §5.9)")
             if layer == "prior_archive" and not any(r in digests for r in refs):
                 add(f"prior_archive: {fname} {jpath} is provenance_layer prior_archive but cites no "
                     "prior_archive_digest source")
+    # phase2 §2.3: the performance-status time series is this archive's dated statements only — a digest
+    # statement (prior_archive, often with as_of null) is history and never enters longitudinal_observations.
+    lo = docs.get("longitudinal_observations.json")
+    for i, ob in enumerate((lo.get("observations") or []) if isinstance(lo, dict) else []):
+        if not isinstance(ob, dict):
+            continue
+        if ob.get("provenance_layer") == "prior_archive" or any(r in digests for r in _record_ref_paths(ob)):
+            add(f"prior_archive: longitudinal_observations.json observations[{i}] ({ob.get('metric')!r}) comes from "
+                "the prior-archive digest — a digest statement is history only and never part of the current "
+                "time series (phase2 §2.3)")
     # D8: a performance-status statement restated from the digest is prior_archive (history, never
     # the current PS). Its item-level provenance_layer is optional, so an item WITHOUT one that
     # cites the digest is not seen by the walk above — check the PS lists explicitly.
@@ -3549,6 +3692,24 @@ def partial_upgrade_problem(patient_dir: Path, entries: list, current: bool) -> 
             "no v1 ledger, phase2 §8)")
 
 
+SELF_REPORT_LAYERS = ("patient_reported", "caregiver_reported")
+# phase2 §5.7: the marker a self-reported current regimen keeps in profile.summary.current_regimen
+SELF_REPORT_REGIMEN_MARKERS = {"patient_reported": "患者自述：", "caregiver_reported": "家属自述："}
+
+
+def _is_self_report_sidecar(patient_dir: Path, ref: str) -> bool:
+    """A patient / caregiver supplement sidecar (14_患者自管补充/, or headed SOURCE: patient_supplement)."""
+    rel = ref.split("#", 1)[0]
+    if rel.startswith("14_"):
+        return True
+    try:
+        import pii_rescan
+        text = (patient_dir / rel).read_text(encoding="utf-8", errors="replace")
+    except (OSError, ImportError):
+        return False
+    return pii_rescan.parse_header(text).get("SOURCE", "").strip() == "patient_supplement"
+
+
 def gate_record_links(patient_dir: Path, errors: list, warnings: list | None = None,
                       generation: str | None = None) -> None:
     """O-05/O-07: conflict_group has ≥ 2 events; medication_refs resolve to medication_id; an HLA row's
@@ -3642,6 +3803,42 @@ def gate_record_links(patient_dir: Path, errors: list, warnings: list | None = N
                 if latest.get("as_of") is None and basis != "patient_reported":
                     add("profile.json: latest_status.as_of is null — only the undated self-report form has no date, "
                         "and then latest_status.status_basis is patient_reported (copied from the episode)")
+    # phase2 §5.7: profile.summary has ONE provenance_layer, so a current regimen that rests on a self-report
+    # (the ongoing episode is patient_reported / caregiver_reported) keeps its source marker there — a family
+    # statement never reads as a source_reported regimen.
+    summ = prof.get("summary") if isinstance(prof, dict) else None
+    cur_reg = summ.get("current_regimen") if isinstance(summ, dict) else None
+    if isinstance(cur_reg, str) and cur_reg.strip() and isinstance(tx, dict) \
+            and summ.get("provenance_layer") not in SELF_REPORT_LAYERS:
+        bare = _norm_text(cur_reg)
+        for mark in SELF_REPORT_REGIMEN_MARKERS.values():
+            if bare.startswith(_norm_text(mark)):
+                bare = bare[len(_norm_text(mark)):]
+                break
+        for ep in tx.get("episodes") or []:
+            if not isinstance(ep, dict) or ep.get("status") != "ongoing" \
+                    or ep.get("provenance_layer") not in SELF_REPORT_LAYERS \
+                    or _norm_text(str(ep.get("regimen") or "")) != bare:
+                continue
+            mark = SELF_REPORT_REGIMEN_MARKERS[ep["provenance_layer"]]
+            if not _norm_text(cur_reg).startswith(_norm_text(mark)):
+                add(f"profile.json: summary.current_regimen {cur_reg!r} is the {ep['provenance_layer']} episode "
+                    f"{ep.get('episode_id')} under a {summ.get('provenance_layer')!r} summary block — a self-reported "
+                    f"regimen keeps its marker 「{mark}」 there (phase2 §5.7)")
+    # phase2 §5.7: demographics.function_description is a clinician's own wording, quoted from an original the
+    # block cites — a patient / caregiver self-description stays a self-report event, never demographics.
+    ps = _load_json_quiet(patient_dir / "patient_summary.json")
+    demo = ps.get("demographics") if isinstance(ps, dict) else None
+    fdesc = demo.get("function_description") if isinstance(demo, dict) else None
+    if isinstance(fdesc, str) and fdesc.strip():
+        originals = [r for r in (demo.get("source_refs") or [])
+                     if isinstance(r, str) and _DOMAIN_DIR_RE.match(r) and not _is_self_report_sidecar(patient_dir, r)]
+        msg = text_in_any_cited_source(patient_dir, originals, fdesc) if originals else \
+            "cites no clinician original (only conversation / patient-supplement sources, or none)"
+        if msg:
+            add(f"patient_summary.json: demographics.function_description {msg} — it holds a clinician source's own "
+                "function wording only; a self-description stays a patient_reported / caregiver_reported timeline "
+                "event (phase2 §5.7)")
     # O-05.3: an antineoplastic order is also a treatment episode (never only a medication row)
     for m in (cm.get("medications") or []) if isinstance(cm, dict) else []:
         if not isinstance(m, dict) or m.get("order_role") != "antineoplastic":
@@ -3766,9 +3963,6 @@ FINAL_REQUIRED_FILES = ("organize_meta.json", "INDEX.md", "timeline.md", "case_t
                         "AGENTS.md", CASE_SUMMARY_HTML_NAME)
 # runs that ingest or rewrite the archive's clinical content — each is followed by Phase 2.5
 INGEST_RUN_MODES = ("full", "legacy_upgrade", "incremental", "upload_reconciliation")
-# runs that may rewrite acute_findings.json: the ingest runs plus a Step 14 restore / reclassify (phase2 §12
-# re-synthesizes §5.5 for restored sources), which runs after Step 12 even inside a full build
-ACUTE_REWRITING_RUN_MODES = INGEST_RUN_MODES + ("relevance_disposition",)
 # the renderer's provenance comment (render_html_template.PROVENANCE_FMT; the same pattern
 # validate_case_summary_html.py reads)
 _TEMPLATE_SHA_RE = re.compile(r"template_sha256:\s*([0-9a-f]{64})", re.IGNORECASE)

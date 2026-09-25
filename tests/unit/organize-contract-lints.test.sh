@@ -22,6 +22,7 @@
 #   K. phase2 §6.1 untrusted row not stating the scanner's grading → fail
 #   L. a recursive rm naming "$src" (SKILL.md) or "<patient_dir>/raw" (a reference) → fail; the Step 17 rm of
 #      the archive unpack dir, with prose naming $src and raw/ beside it, passes (positive control)
+#   M. phase2 §7 段D stale notice with one character changed, or its ```text block removed → fail
 set -uo pipefail
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 LINT="$REPO_ROOT/tests/eval/lint/13-organize-prompt-contracts.sh"
@@ -188,6 +189,12 @@ expect "a non-recursive rm is out of scope (positive)" pass "$tmp/l4"
 # ---- K. untrusted-content severity row = the scanner's grading
 fresh k1; edit "$tmp/k1/references/organizer-prompt-phase2-synthesis.md" 't.replace("最高命中为 high → `yellow`，其余 `info`", "`yellow`", 1)'
 expect "phase2 §6.1 grading untrusted markers yellow regardless of the scanner" fail "$tmp/k1" "不可信内容标记 row"
+
+# ---- M. the pinned 段D stale notice
+fresh m1; edit "$tmp/m1/references/organizer-prompt-phase2-synthesis.md" 't.replace("登记时现有的病情简要总结.html 还没有写入它们", "登记时现有的病情简要总结.html 尚未写入它们", 1)'
+expect "phase2 §7 stale notice reworded by one word" fail "$tmp/m1" "CASE_SUMMARY_STALE_NOTICE"
+fresh m2; edit "$tmp/m2/references/organizer-prompt-phase2-synthesis.md" 't.replace("  ```text\n  本次登记了需要尽快告知治疗团队的发现", "  本次登记了需要尽快告知治疗团队的发现", 1)'
+expect "phase2 §7 stale notice outside a text block" fail "$tmp/m2" "CASE_SUMMARY_STALE_NOTICE"
 
 echo "organize-contract-lints: pass=$pass fail=$fail"
 [[ "$fail" -eq 0 ]]

@@ -8,7 +8,14 @@ Phase 2 将已复核 sidecar 组织成当前版本的 schema（v2.1 契约，版
 Phase 2 worker 与 段C worker（对话增量，`conversation-incremental-prompt.md`）写**；编排者不会、也不得替你补写。你负责：分类与搬迁 sidecar、`source_inventory.json`、
 `INDEX.md`、`timeline.md`、`case_text.md`、`profile.json`、`readiness.json`、`review_flags.md`、
 `review_summary.md`、全部结构化 JSON（含 `acute_findings.json`）以及本次运行的 `update_log.json` 条目。
-你不改 sidecar 正文（搬迁不改字），不渲染 HTML，不生成 `AGENTS.md`。
+你不改 sidecar 正文（搬迁不改字），不渲染 HTML，不生成 `AGENTS.md`。`raw/` 是 Phase 1 与原件的区域，你在其中
+只做两件事：写 §4.5 的 `raw/_SIDECAR_MAP.md`，以及 §4.0/§8 把旧产物移入 `raw/_legacy_<ts>/`；其余一律不写（需要
+跑脚本的中间文本走管道，§5.1）。
+
+**行号**：锚点 `#L<n>` 的行号按校验器的算法——Python `str.splitlines()`——计。sidecar 里有换页符（`\f`）等
+特殊换行时，`cat -n` / `head` 的行号会比它少；这类文件（校验器报 `line_breaks: … form feeds` 的旧 sidecar）用
+`python3 -c 'import sys;[print(i,l) for i,l in enumerate(open(sys.argv[1],encoding="utf-8").read().splitlines(),1)]' <sidecar>`
+读行号。
 
 **写盘节奏**：编排者在 **10 分钟无新文件写入或连续 30 次只读工具调用** 时终止你并重派。“只读调用”= 没有在
 `<patient_dir>` 下写出或修改任何文件的工具调用（读文件、列目录、grep、只打印的脚本）；写文件、`mv`、追加
@@ -20,7 +27,7 @@ Phase 2 worker 与 段C worker（对话增量，`conversation-incremental-prompt
 Call parameters：`skill_dir`（本 skill 目录的绝对路径——你的工作目录不是它：文中的 `scripts/…`、`references/…`、
 `schemas/…` 都在它下面，运行脚本写 `python3 "<skill_dir>/scripts/<脚本>"`）、`worker_id`、`patient_dir`、
 `phase1_summary`（各 Phase 1 worker 的返回 JSON）、
-`dispatch_log`（编排者记录的派发/终止/重派事件；上下文压缩后以 `raw/_dispatch_log.jsonl` 为准，两者合并读）、`run_mode`（`full` | `legacy_upgrade`（§4.0）| `incremental` |
+`dispatch_log`（编排者记录的派发/终止/重派事件；上下文压缩后以 `raw/_dispatch_log.jsonl` 为准，两者合并读）、`run_mode`（`full` | `legacy_upgrade`（§4.0）| `legacy_phase2_only`（§4.0：旧版档案上只重跑 Phase 2，不升级）| `incremental` |
 `upload_reconciliation`（§12）| `faithfulness_patch`（§11）| `relevance_disposition`（§12）| `pii_remask`（§13））、`as_of_run_date`
 （本次运行的**本地**日期 `YYYY-MM-DD`；本次 `update_log.json` 条目的 `at` 写 UTC 时间，所以两者的日期可能差一天，
 校验器容许 ±1 天；不能改成最新资料日期来把天数归零）、`input_manifest`（`scripts/inventory_hash.py` 对本次输入
@@ -46,9 +53,13 @@ Call parameters：`skill_dir`（本 skill 目录的绝对路径——你的工�
 
 **一条 flag 只针对一个受影响字段**（一个 `affected_field`，各自分级）：几个字段都不确定就各写一条；旧档案里
 一条 flag 混了几个字段的（如“某站别 + 某日期”“某标志物 + 某单位”），重写时按字段拆开：拆出的 flag 接着现有最大编号
-取新 `RF-nnn`，`issue` 写“拆自 RF-00x”；旧 flag 只在说明文字里顺带提到（“另有未决项”）、sidecar 里找不到对应字段的，
-不单独成 flag，写进 `readiness.json.warnings[]`。姓名、住院号、病理号这类已遮蔽的身份编号之间的不一致不写 flag
-（它们不是临床字段，也不能写出读数）。
+取新 `RF-nnn`，`issue` 写“拆自 RF-00x”。旧 flag 说明文字里**顺带**提到的字段（“另有未决项”），逐个按下面两条分流：
+1. **高风险字段**（phase1 §2 清单：免疫组化标志物与判读、药名、日期、诊断名、淋巴结站别、分期、分子结果、剂量等）
+   **只要能在某份 sidecar 里定位到**（找得到那一行），就**一律**单独成 flag，照 §6.1 分级——不论旧 flag 是正式列出
+   还是顺带一提；
+2. 只有**同时**满足“只是顺带提到”**且**“在任何 sidecar 里都定位不到对应字段”的，才不成 flag，写进
+   `readiness.json.warnings[]`（写明来自哪条旧 flag）；非高风险字段能定位时按 §6.1 照常成 flag。
+姓名、住院号、病理号这类已遮蔽的身份编号之间的不一致不写 flag（它们不是临床字段，也不能写出读数）。
 
 ### 2.1 时变字段不是冲突（先判这一条，再判 §2）
 
@@ -78,6 +89,7 @@ Call parameters：`skill_dir`（本 skill 目录的绝对路径——你的工�
 ### 2.2 年龄字段怎么写
 
 - 每个说了年龄的**原件** sidecar，各写一条 `age_observations[]`：`{value（原文年龄，不重算）, as_of, source_ref, age_basis}`。
+  同一页的重复照片（同日期、同文字）与 §2.3 同一口径：算一个出现处，写一条（引 `file_id` 较小的那份）。
   `as_of` 一律取该 sidecar 的文件名日期（即该文书的出具日期，§4.2；病理只印收到日期、影像分检查与报告日期的，同样取
   文件名日期），`age_basis` 总是写：来源明说周岁/虚岁照写，没说写 `unspecified`。对话或自述里的年龄不进
   `age_observations`（段C 只写时间线自述事件）。
@@ -105,7 +117,10 @@ Call parameters：`skill_dir`（本 skill 目录的绝对路径——你的工�
   2029-05-20），摘录没引到带日期的旧 sidecar 就写 null——不写摘录生成日期。
 - `demographics.ecog` / `latest_status.ecog` 仍只收原文明写 “ECOG” 的临床来源；其余为 null。
 - 有体能条目时同时逐日写 `longitudinal_observations.json`（`obs_type: clinician_function_score`，
-  `metric` 用原文标签，如“PS（原文未注明量表）”）；没有就不写这份条件文件。
+  `metric` 用原文标签，如“PS（原文未注明量表）”）；没有就不写这份条件文件。只写本次原件的、`as_of` 为日期的条目：
+  `as_of: null` 的条目（它的 `timestamp` 必填、无从填写）不写进时序，**`provenance_layer: prior_archive` 的条目一律
+  不进当前时序**（它是既往记录，只留在 `performance_status_verbatim[]`）；这两种都不另写 warning。校验器核对时序里
+  没有引旧档案摘录的条目。
 
 ### 2.4 患者自述与原件并列（`conflict_group`）
 
@@ -120,12 +135,17 @@ Call parameters：`skill_dir`（本 skill 目录的绝对路径——你的工�
 ### 2.5 同一对象的跨页用字对账
 
 同一标本、同一日期、同一编号在多页出现时，把各页读法放进同一条 flag，引用全部 sidecar 行。“他页”只算：
-同一份文书的另一页或另一张照片，或针对**同一标本**（同一标本号/同一次操作的同一种标本）的另一份报告。医生在后来的
+同一份文书的另一页或另一张照片，或针对**同一标本**（同一标本号/同一次操作的同一种标本）的另一份报告。“同一份
+文书”按检查/文书身份判定，与 `acute-findings.md` §2.2 同一个定义（同一模态、同一次检查或同一编号、同一机构，或
+sidecar 写明几页同属一份）：旧档案里同一次检查的几页以不同日期命名，仍是同一份文书的另一页。医生在后来的
 病历里照抄的报告结论、同一站别同日的另一种标本（如细胞学穿刺与组织活检）、另一份文书重复的同一句话都**不算**
 他页清楚读数（`cross_doc_supported: none`），它们不是对同一对象的独立读取；
 一页有 `[OCR_UNCERTAIN:U-nnn]`、另一页有清楚读数时，写 `cross_doc_supported`：拿清楚读数与不确定处
 **每个通道的读数和每个候选**比较（读数里的 `?` 可匹配任一字符），等于其中任一个 → `supported`，与全部读数和
-候选都不相容 → `contradicted`（§6.1 → `red`），引用写进 `refs`。`kind: conflict` 的 flag 也可以写
+候选都不相容 → `contradicted`（§6.1 → `red`），引用写进 `refs`。**“清楚读数”按受影响的那个字段算，不按整行算**：
+他页上**这个字段**（与本处 token 所覆盖的同一处文字）没有不确定 token、且至少一个通道读出了它，就是清楚读数——同一行
+别处另有一个不确定字不影响它；他页这个字段本身也带 token，或各通道都没读出这一句，就不是清楚读数（`none`）。两页
+各在不同字段上有一个不确定字时，可以互为对方那个字段的清楚读数。`kind: conflict` 的 flag 也可以写
 `cross_doc_supported`（例如同一份报告的另一张照片与其中一方的读法相同），同样只是旁证。
 这是旁证记录：不裁决、不把清楚页的读法抄进不确定页，结构化层不得出现“一处写成确定值、另一处写成
 不确定”的不对称——两处都按各自原文写，并共享这条 flag。
@@ -168,7 +188,7 @@ Call parameters：`skill_dir`（本 skill 目录的绝对路径——你的工�
   `source_ref`）并进 `detail` 一句（“陈述者：照护者”），不丢内容也不改层级；`event_id` 与本次新事件不重号。旧档案里的
   其他内容不作为本次来源。
 - **旧版档案上的其他运行不升级版本**：`run_mode` 不是 `legacy_upgrade`、而档案仍是旧版（`readiness.json` 不是
-  `2.1`，也没有 `organize_meta.json`）时——例如只重跑 Phase 2、`faithfulness_patch`——你
+  `2.1`，也没有 `organize_meta.json`）时——例如 `legacy_phase2_only`、`faithfulness_patch`——你
   改写的每份结构化文件都**保持它原来的版本号**，不要把任何一份升到当前版本：只升一部分会把整个档案切换成当前
   契约，其余没重写的旧文件与没有 12 键头部的旧 sidecar 就全部变成校验错误。同理，**不新建本契约的标记**：
   v1 形状（带 `workers[]`）的 `update_log.json` 条目与 `organize_meta.json` 是当前契约的标记，写出任何一个，校验器
@@ -180,19 +200,47 @@ Call parameters：`skill_dir`（本 skill 目录的绝对路径——你的工�
   Step 7.5 先展示。旧日志也不转换（§8），所以必须写日志条目的
   运行（`relevance_disposition` 的删除与移回、上传对账）在旧版档案上不执行，返回给编排者先做升级。旧版档案
   要进入当前契约，只有 `legacy_upgrade` 一条路（Phase 1 全部重新转写 + 本提示词全量运行）。
-  **旧版档案上只重跑 Phase 2 时怎么做**（没有 Phase 1）：
+  **旧版档案上只重跑 Phase 2（`run_mode: legacy_phase2_only`）时怎么做**（没有 Phase 1；编排者只在旧版档案、**没有新文件**、
+  而用户暂不做一次性重新转写时选它，SKILL.md「Incremental and update runs」）：
   - §4.1 的头部检查、§4.3–§4.5 的分类与搬迁都不做：sidecar 原地不动、不改名（旧文件名里的机构名随锚点保留）；
     不把任何旧 sidecar 列进 `missing_sidecars`。不改 sidecar 正文（旧 sidecar 里的处理说明留到 `legacy_upgrade` 重新转写）。
-  - 没有头部、看起来是旧档案摘录的 sidecar 留在原处，它支持的事实照 §5.9 标 `provenance_layer: prior_archive`（只进既往史）；
-    返回 JSON 的 `warnings` 写明需要 `legacy_upgrade`。校验器在旧版档案上对它只报 WARN。
-  - 结构化产物照 §5 重写，内容规则与当前契约相同（一个方案一个 episode——旧档案按周期拆开的 episode 合并；方案名、
-    `status_basis_text` 从 sidecar 逐字重取，不沿用旧文件里的转述或“患者自述：”之类前缀；timeline `detail` 只写来源
-    内容，旧的方法说明移到 `readiness.json.warnings[]`），`generated_at` 更新为本次时间，版本号保持不变。
+    §4.6 的 `source_inventory.json` 与 §7 的 `INDEX.md` 不重写（没有搬迁，清单与索引照旧）；§5 各领域、§6 `readiness.json`、
+    §7 的 `case_text.md`、`timeline.md`、`review_summary.md`、`review_flags.md` 照规则重写。
+  - **旧档案摘录只凭校验器认得出的标记使用**：一份 sidecar 在 `既往档案摘录` 子桶里、或旧 `source_inventory.json` 行已是
+    `source_kind: prior_archive_digest`、或头部写 `SOURCE: prior_archive_digest`（三者之一），它的事实才照 §5.9 标
+    `provenance_layer: prior_archive`。没有这三种标记、只是内容看起来像旧档案摘录的 sidecar，你不能替它补标记（不移动、
+    不改头部、不改清单行），它的事实也**不写进**任何结构化记录——既不标 `prior_archive`（校验器认不出，会报无摘录来源），
+    也不标 `source_reported`（那会把摘录当成本次原件）；同一事实另有本次原件支持时只引原件。为这份 sidecar 写**一条**
+    `category: prior_archive_digest_unrecognised`、`kind: other`、`severity: yellow` 的 flag（`affected_field` 写
+    “旧档案摘录（未标记）”，`current_source_values` 引该 sidecar 首行），`warnings` 与返回 JSON 写明需要 `legacy_upgrade`
+    （它会由摘录 worker 重写成带头部的摘录）。校验器核对：引了这种 flag 所指 sidecar 的结构化记录一律报出。
+  - 结构化产物照 §5 重写，内容规则与当前契约相同（一个方案一个 episode——旧档案按周期拆开的 episode 合并；
+    `treatment_lines.json` 的 `regimen`、`status_basis_text` 从 sidecar 逐字重取，不沿用旧文件里的转述或“患者自述：”之类前缀
+    ——episode 自带 `provenance_layer`，前缀多余；`profile.json.summary.current_regimen` 不同，它照 §5.7 保留自述标记；
+    timeline `detail` 只写来源内容，旧的方法说明移到 `readiness.json.warnings[]`），`generated_at` 更新为本次时间，版本号
+    保持不变。`timeline.json` 照 §5.6 写（每个事件带 `conflict_group` 与 `acute_finding_id` 键——后者此时总是 null——旧版
+    schema 也接受），不加 `acute_finding` 事件，所以影像/检验事件的 `detail` **必须**写出该报告登记的急性发现；
+    `timeline.md` 同样不加急性发现行（`acute-findings.md` §7）。`longitudinal_observations.json` 照 §2.3 写，用它的当前版本号
+    （这份条件文件只有一个版本，不是契约标记）。
+  - 旧文件里有、sidecar 也支持、但放错了来源层的值（如自述用药在 `medications[]`、自述功能描述在
+    `demographics.function_description`）：来源层规则优先——按 §5.2/§5.7 移到自述所属的位置（时间线自述事件、
+    treatment episode），不写 `legacy_value_unsupported` flag，在 `warnings[]` 写一句移动了什么。
   - 旧结构化文件里有、本次 sidecar 找不到原文支持的值（如只在旧 JSON 里出现的性别）：**保留**，写一条
-    `category: legacy_value_unsupported`、`kind: other`、`severity: yellow` 的 flag（§6.1），不删、不另编。
+    `category: legacy_value_unsupported`、`kind: other`、`severity: yellow` 的 flag（§6.1），不删、不另编；它的
+    `current_source_values` 写 `{value: 旧值, source_ref: 旧记录当时引用的 sidecar 行}`（旧记录没有行号就引那份 sidecar 的
+    `#L1`；旧记录没引任何 sidecar 时，引该字段所属领域日期最新的一份 sidecar 的 `#L1`），`issue` 写“旧版结构化文件中的
+    值，所引 sidecar 未见原文”（或“旧记录未引来源”）。
   - `readiness.json` 照 §6.2 写资料时效三字段与超期提示（旧版 schema 也接受）；`acute_findings.json` 照写（上文）。
-  - 旧版档案上的 flag 没有 sidecar 的 `layout` 记录：旧 flag 文字写明是阴影、折痕、弯曲、划线之类版面观察时按 `artifact`
-    分级（影响高风险字段为 yellow），永不写 `document_intent`（它要两次独立读取）。
+  - 旧 flag 改为 `warnings[]` 说明（方法学说明、顺带提到且定位不到的字段，§2/§6.1）时，旧编号不能就此消失：该条
+    warning 以旧编号开头（“RF-012（原 flag，改为说明）：…”）。
+  - 旧版档案上的 flag 没有 sidecar 的 `layout` 记录：旧 flag 文字**或** sidecar 自己对该处的说明（如 Phase 1 说明“折痕
+    压住该字”）写明是阴影、折痕、弯曲、划线之类版面观察时，按 `artifact` 分级（影响高风险字段为 yellow），两处都没写才按
+    `legibility`；永不写 `document_intent`（它要两次独立读取）。
+  - 缺页（§5.8）：旧 sidecar 没有 `PAGE_LABEL`，`page_completeness.py` 把它们全列进 `unlabeled[]`、`gaps[]` 为空——这是
+    “**无法检查**”，不是“没有缺页”。返回 JSON 写 `missing_pages_groups: null`、`page_continuity_checked: false`；
+    `review_summary.md` 的缺页组一行写“旧版 sidecar 没有页码标注，缺页无法检查（`legacy_upgrade` 后检查）”。
+  - 你登记或改动了 emergent/urgent 发现，而现有的 段D 渲染还没有写入它们时，照 §7 在 `review_summary.md` 与
+    `readiness.json.warnings[]` 写过期提示（§9 的校验器核对）；重新渲染由编排者必做（SKILL.md Step 12），你不渲染。
 - **重派续做**（`redispatch: true`）：上一个 Phase 2 worker 可能已部分完成。先读已有的
   `.rename_plan.json`：`md_dest` 已存在的条目视为已搬迁，不重新分类、不重复搬迁；`reviewed: true` 的条目不再复核；
   `ocr/` 中剩余的 sidecar 照常处理并追加计划条目；结构化产物按全部 sidecar 重新写出（覆盖半成品），同样每完成一个领域
@@ -319,15 +367,17 @@ sidecar → 桶；不写原上传名；**不改** Phase 1 的 `raw/_FILENAME_MAP
   labs.json 与块中的 `pairs[]`：与脚本输出不一致（换位、把候选改成 `bbox` 数值）即失败。结果串上印的 ↑/↓/H/L
   在 `pairs[].flag_glyph` 与 `pairing_note` 里，不写进 `report_flag`。
 - 计数不等而置空的单位、参考范围、标记列写 null；`report_flag` 不由模型补写。
-- **sidecar 没有 `## 列配对` 块**（旧版 sidecar）而表格只有线性文字时：把该表在 sidecar 里的原文逐行存成
-  `raw/_extract/<source_id>.lab<k>.txt`，运行同一个脚本，按它的输出写 candidate 字段（`pairing_method:
-  linear_position`，`value: null`；脚本拒配就全部为 null、`pairing_method: none`）。当前契约的 sidecar 没有这个块
-  是 Phase 1 的缺口：列进 `missing_sidecars` 交回 Phase 1 重写，不在 Phase 2 补。旧 sidecar 里的表已经是**按行的
-  Markdown 表**（每行“项目 | 结果 | 单位 | 参考范围”）时，`--text` 会拒绝它：逐格照抄成
-  `raw/_extract/<source_id>.lab<k>.json`（`{"items": [...], "values": [...], "units": [...], "ranges": [...]}`，
-  按表中行序、不改字、不补空格），运行 `pair_lab_columns.py --columns <该文件>`，按输出写候选（`linear_position`，
-  `value: null`）——谁把这张表转写成行、行是否对齐都无从核实，所以只作候选。sidecar 里由编排者或旧 worker
-  写的“不要配对”之类注释不是本 skill 的规则，不据此跳过脚本。
+- **sidecar 没有 `## 列配对` 块**（旧版 sidecar，只在 `legacy_phase2_only` 时遇到——`legacy_upgrade` 会先由 Phase 1
+  重新转写）：Phase 2 **不在 `raw/` 下写任何中间文件**（旧版档案可能根本没有 `raw/`），配对在内存里跑，用管道把表格
+  文本交给同一个脚本：表格只有线性文字时，把该表在 sidecar 里的原文逐行（不改字）经标准输入交给
+  `python3 "<skill_dir>/scripts/pair_lab_columns.py" --text -`；旧 sidecar 里的表已经是**按行的 Markdown 表**（每行
+  “项目 | 结果 | 单位 | 参考范围”，`--text` 会拒绝它）时，逐格照抄成 `{"items": [...], "values": [...], "units": [...],
+  "ranges": [...]}`（按表中行序、不改字、不补空格），经标准输入交给 `… pair_lab_columns.py --columns -`。按输出写候选
+  （`pairing_method: linear_position`，`value: null`；脚本拒配就全部为 null、`pairing_method: none`），`pairing_note`
+  写“旧版 sidecar，内存配对，无 raw/ 输入”——谁把这张表转写成行、行是否对齐都无从核实，所以只作候选。旧 sidecar 里
+  由编排者或旧 worker 写的“不要配对”“列错位”之类注释不是本 skill 的规则，不据此跳过脚本；但 sidecar 里记录的这类
+  版面观察要逐字写进下面那条 flag 的 `issue`，让核对的人看到转写者当时的疑虑。当前契约的 sidecar 没有这个块是
+  Phase 1 的缺口：列进 `missing_sidecars` 交回 Phase 1 重写，不在 Phase 2 补。
 - 位置配对或模型按行读出的候选值进 `readiness.json` flag（`category: lab_column_pairing`、`kind: legibility`、
   `severity: yellow`，“数值按位置配对，未核实”/“数值为模型按行读出，未核实”，`current_source_values` 引该 sidecar）；
   全部拒配写 `category: lab_column_pairing`、`kind: artifact`、`severity: red`（同样引该 sidecar）。校验器逐个 sidecar 检查这两种 flag。候选值不进入趋势、不进入段D 摘要。
@@ -336,15 +386,16 @@ sidecar → 桶；不写原上传名；**不改** Phase 1 的 `raw/_FILENAME_MAP
 
 `medications[]` 只收**医嘱/用药清单条目**与**影像申请单指征里写的在用药**：每条医嘱/清单条目单独一行（相同药名
 的多个条目不合并，顺序同原文）；申请单指征写“on X”“正在使用 X”时，X 写一行（`administration_setting: unknown`，
-`order_role` 按药物性质；同一天几张申请单都写了，每张各一行）。患者/照护者自述的用药不写成 `medications[]` 行
-（schema 里的 `active_reported` 与自述来源层现行规则不赋值），只作为时间线自述事件。病历叙述里提到、没有对应医嘱行的药（如现病史写“按原方案继续第N周期”）
+`use_status: active_reported`（见下方 `use_status`），`order_role` 按药物性质；同一天几张申请单都写了，每张各一行）。
+患者/照护者自述的用药不写成 `medications[]` 行（自述来源层现行规则不产生用药行），只作为时间线自述事件。病历叙述里提到、没有对应医嘱行的药（如现病史写“按原方案继续第N周期”）
 **不进** `medications[]`，抗肿瘤药只写进 treatment_lines 的 episode（§5.3）。每行写：
 
 - `medication_id`：每行一个，`MED-001` 起顺序编号；`treatment_lines.json` 的 `medication_refs` 只列这些编号；
 
 - `administration_setting`（必填），只有两条判定规则：
-  1. 页面科室/病区为“日间病房”“日间治疗中心”等日间单元，且该条目途径为静脉或肌注，或带“配”/配伍
-     标记 → `day_ward`；
+  1. 页面科室/病区为日间单元，且该条目途径为静脉或肌注，或带“配”/配伍标记 → `day_ward`。日间单元 = 科室/病区名里
+     写明“日间”的给药单元：“日间病房”“日间治疗中心”“日间化疗”（含“某科日间化疗”这种挂在专科下的写法）、
+     “day ward”“day-chemo unit”；只写专科名（如“肿瘤内科”）或“门诊”不算；
   2. 条目位于“出院带药”**标题**之下 → `discharge`（嘱托或备注里顺带提到带药的一句话不是标题，它下面的行仍是
      `unknown`）；
   3. 其余一律 `unknown`。`inpatient`、`long_term` 是保留值，现行规则不赋值。
@@ -356,7 +407,9 @@ sidecar → 桶；不写原上传名；**不改** Phase 1 的 `raw/_FILENAME_MAP
   `diluent`；原文标明输注前给药或列在预处理栏的抗过敏、止吐、激素 → `premedication`；其余对症支持用药——护胃、保肝、
   止吐、止泻、抗过敏、皮疹外用药等，不论途径、是否“必要时”——→ `supportive`；长期基础病用药 → `chronic`；
   拿不准 → `unknown`；
-- `use_status` 照旧只按来源用语：日间单次给药不等于 `active_confirmed`。
+- `use_status` 照旧只按来源用语：日间单次给药不等于 `active_confirmed`。影像申请单指征写“on X”“正在使用 X”的行
+  **一律 `active_reported`**——医生文书说患者在用，但它不是给药记录：不写 `active_confirmed`（夸大），也不写
+  `unknown`（丢掉了原文的“在用”）。
 
 抗肿瘤药（含“赠药”）的用药行同时由 treatment_lines 的 episode 通过 `medication_refs` 链接（§5.3：同一方案的
 各周期是**同一个** episode，各周期的用药行都列进它的 `medication_refs`），不产生线次。
@@ -408,7 +461,9 @@ episode：`started_at` 取首程日期，`regimen` 逐字（取原文写法；�
   相邻文件或治疗日期去补一个日期；这是 `ongoing` 允许 `status_as_of` 为 null 的唯一情形。未注明日期的自述说的是
   已停（`stopped`）或没说在用还是已停（`unknown`，如“经过4个周期治疗”这样的过去式叙述、原文没写停或换）时，同样
   写 `status_as_of: null` + `undated_self_report`；不是未注明日期的自述就不写 `status_as_of_precision`。累计次数
-  （“已经做了4个周期”）不是某一周期的写法，不写 `cycle_label_verbatim`。这时 `profile.json.latest_status.as_of`（§5.7）与
+  （“已经做了4个周期”）不是某一周期的写法，不写 `cycle_label_verbatim`。“截止现在/到目前已经做了N个周期”同样是
+  累计次数：“现在”锚定的是计数截止的时点，不是“还在继续”，按 `unknown` 写；只有原文另说了在用或继续（“现在还在用”
+  “接下来继续做”）才是 `ongoing`。这时 `profile.json.latest_status.as_of`（§5.7）与
   `patient_summary.json.current_status.as_of` 同样写 null（`current_status.provenance_layer` 按陈述者写
   `patient_reported` / `caregiver_reported`）。
 - `line_number` 只在来源明写线次（“二线”“second-line”）时填整数，其余为 null。
@@ -443,16 +498,25 @@ episode：`started_at` 取首程日期，`regimen` 逐字（取原文写法；�
 事件字段照旧，另加：`conflict_group`（§2.4，没有则 null）、`acute_finding_id`（§5.5，没有则 null）——
 这两个键**每个事件都写**，不适用时写 null，不省略；一个 `conflict_group` 至少有两个事件（只有一个事件的组
 校验失败）。`category` 可取 `acute_finding`。影像事件的 `detail` 摘要不得遗漏报告编号诊断条目中的急性发现
-（它们另有独立事件）。`timeline.md` 每行以 `[[src:…]]` 锚点结尾。
+（它们另有独立事件；`legacy_phase2_only` 时没有独立事件，`detail` 就是它们在时间线上唯一的位置，§4.0）。
+`timeline.md` 每行以 `[[src:…]]` 锚点结尾。
 
 ### 5.7 人口学与 profile
 
 - `patient_summary.json.demographics`：照 §2.1–§2.3 写 `sex`、`age`、`age_as_of`、
   `performance_status_verbatim` 等；它是权威来源，整块 `provenance_layer: source_reported`，所以只收原件里的值：
-  患者/家属自述的功能描述、年龄、体重不写进这里（`function_description` 只收医生原文），作为时间线自述事件保留。
+  患者/家属自述的功能描述、年龄、体重不写进这里，作为时间线自述事件（`provenance_layer: patient_reported` /
+  `caregiver_reported`）保留。`function_description` 只收医生文书里对功能状态的原文（如“生活可自理，可下床活动”），
+  必须逐字出现在 `demographics.source_refs` 所引的某份原件里（不是 `conversation:` 锚点、不是 `14_患者自管补充/`；
+  校验器核对）；没有这样的原文就写 null。
 - `profile.json.demographics`：`{sex, age, age_as_of, performance_status_verbatim[], provenance_layer, source_refs}`，
   从 `patient_summary.json` 原样复制，不另行抽取；年龄是准标识项，只作档案内部字段，导出时按
   最小必要原则处理。
+- `profile.json.summary.current_regimen`：去掉下述来源标记前缀后等于 `latest_status.regimen`（没有在治 episode 时 null）。`summary` 整块只有
+  一个 `provenance_layer`（通常是 `source_reported`，取决于诊断等字段），所以在治依据是自述（该 episode 的
+  `provenance_layer` 为 `patient_reported` / `caregiver_reported`）时，`current_regimen` **保留**来源标记前缀：
+  患者说的写“患者自述：<方案>”，家属/照护者说的写“家属自述：<方案>”——不能让自述方案以 `source_reported` 的面目
+  出现（校验器核对）。`treatment_lines.json` 与 `latest_status.regimen` 不加前缀（它们自带来源层）。
 - `profile.json.latest_status`：`regimen` 取 `status: ongoing` 的 episode（没有则 null），`as_of` 为其
   `status_as_of`（未注明日期的自述为 null），`status_basis` 为该 episode 的 `status_basis` 原样（如
   `order_or_indication_only`、`patient_reported`；没有在治 episode 时 null）——只读 profile 的下游据此知道“在治”
@@ -464,6 +528,10 @@ episode：`started_at` 取首程日期，`regimen` 逐字（取原文写法；�
 - 现有档案缺口照旧只写“档案里没找到的既有文书”，不推荐检查。checklist 的癌种 slug 不确定时用
   unknown，不做 closest-fit。每条缺口都必填 `severity`：普通缺口（`not_in_archive` / `unknown` /
   `patient_declined_to_add`）写 `info`，`requested_by_clinician` 写 `yellow`，`missing_pages` 写 `red`。
+  档案里的医生文书写明要做某项检查/复查（如门诊嘱托“复查血常规”），而档案里没有它的结果时，这条缺口是
+  `requested_by_clinician`（`yellow`），`clinician_request_source_refs` 引那句嘱托；`not_in_archive` 只用于没有医生
+  嘱托、按 checklist 列出的缺口——带 `clinician_request_source_refs` 的缺口不能写成 `not_in_archive`。这只记录医生
+  已经写下的要求，不是本 skill 推荐检查。
 - **缺页**：§4.5 搬迁完成、§4.6 写出 `source_inventory.json` 之后，运行
   `python3 "<skill_dir>/scripts/page_completeness.py" <patient_dir> --json`（它读桶内 sidecar 头部的 `PAGE_LABEL`，
   搬迁前运行会读不到）。脚本按“日期 + 桶内文书类型目录 + 文件名中的机构段 + 印刷总页数”分组检查页号
@@ -483,6 +551,13 @@ episode：`started_at` 取首程日期，`regimen` 逐字（取原文写法；�
 只写进既往史（timeline 的历史事件、既往治疗 episode、既往病理/分子/检验结果）；**不得**写进
 `current_status`、`latest_status`、`summary.current_regimen`，不得支撑 `status: ongoing` 的 episode 或
 `use_status: active*` 的用药行，不得作为急性发现，不得与本次原件合并成一个值（校验器对这些位置逐条检查）。
+**一条记录只有一个来源层，所以摘录与原件不混在一条记录里**：带 `provenance_layer` 的块（如
+`patient_summary.diagnosis`、`demographics`、`profile.summary`）是 `source_reported` 时，它的 `source_refs` 不引摘录；
+只有摘录写了的字段（如组织学、诊断日期）在这个块里写 null，摘录的说法另写成 `prior_archive` 的时间线历史事件
+（或既往 episode / 既往分子、检验结果行）。条目自带 `provenance_layer` 的列表（如 `performance_status_verbatim[]`）
+可以在 `source_reported` 块里放一条 `prior_archive` 条目，但块的 `source_refs` 仍不引摘录。
+`profile.summary.one_line_condition` 只由本次原件的事实拼成（它会被复制进 AGENTS.md），不含摘录里的基因、
+诊断或治疗。校验器核对：引了摘录的记录必须是 `prior_archive`。
 只引用摘录 sidecar 的记录一律 `provenance_layer: prior_archive`，`prior_archive` 记录也必须引用摘录 sidecar。与本次原件冲突时并列保留（§2）。旧会诊推荐、试验评分、旧线次编号不作为当前事实写入。
 摘录 sidecar 必须在 `既往档案摘录` 子桶、inventory 行 `source_kind: prior_archive_digest`（§4.2）；没有 12 键头部的
 旧摘录是旧版 sidecar，按 §4.1 交回 Phase 1 重写，不当作摘录使用。
@@ -516,8 +591,9 @@ episode：`started_at` 取首程日期，`regimen` 逐字（取原文写法；�
 | 高风险字段（分期、免疫组化、方案等）只有患者/照护者自述，没有原件 | `other` | `yellow` |
 | 疑似跨患者、忠实度复核不通过、锚点缺口 | `other` | `red` |
 | 机构待核实、文件名与内容不符 | `other` | `yellow` |
-| 外文报告只有中文转述、没有原句（`category: foreign_language_paraphrase`，每份 sidecar 一条，`acute-findings.md` §2.4） | `other` | `yellow` |
+| 外文报告只有中文转述、没有原句（`category: foreign_language_paraphrase`，每份这样的 sidecar 一条——影像、检验、HLA 等都算，不只是登记了发现的那份；`acute-findings.md` §2.4） | `other` | `yellow` |
 | **仅旧版档案**：旧结构化文件里的值在本次 sidecar 中找不到原文支持（如只在旧 JSON 里的性别；`category: legacy_value_unsupported`）——值保留、不删、不另编，等 `legacy_upgrade` 或 Phase 2.5 核对 | `other` | `yellow` |
+| **仅旧版档案**：内容像旧档案摘录、但没有任何摘录标记的 sidecar（`category: prior_archive_digest_unrecognised`，每份一条；它的事实不写进结构化记录，§4.0） | `other` | `yellow` |
 | 不可信内容标记（`UNTRUSTED-*`，由 `scan_untrusted_markers.py` 生成、校验器并入，§9） | `other` | 脚本定：最高命中为 high → `yellow`，其余 `info` |
 
 - **分级只看字段类别与旁证，不投票**：高风险字段（phase1 §2 的清单）的读数不一致，不按“多数通道一致”或“明显是某个
@@ -582,6 +658,17 @@ episode：`started_at` 取首程日期，`regimen` 逐字（取原文写法；�
 - `review_flags.md`：有 flag 时写。先写一句“以下分级表示整理时的读取与完整性不确定程度，不是病情
   严重程度”，再按 `red` → `yellow` → `info` 分组，组内按 `kind` 分小节（字迹不清 / 版面异常 /
   文书删改 / 来源不一致 / 缺页与资料时效 / 其他），每条写受影响字段、各来源读法和锚点。
+- **段D 过期提示**（`legacy_phase2_only` 在内的每种运行）：`acute_findings.json` 有 emergent/urgent 发现，而现有的 段D
+  渲染没有写入其中某些（`.case_summary_data.json` 的 `case_summary_narrative` 首句没有逐条写到它们的 `label` 与日期；或
+  只有 `病情简要总结.html`、没有 `.case_summary_data.json`，无从确认）时，你在 `review_summary.md` 开头（资料时效之前）与
+  `readiness.json.warnings[]` 各写一条，都以下面这句**原样**开头，后接每条没写入的发现“<label>（<日期>）”，用“；”分隔：
+
+  ```text
+  本次登记了需要尽快告知治疗团队的发现，登记时现有的病情简要总结.html 还没有写入它们（该文件若未在本次之后重新生成，请以 acute_findings.json 为准）：
+  ```
+
+  这句话在重新渲染之后仍然属实，不必回头删除。重新渲染是编排者的必做步骤（SKILL.md Step 12），你不渲染、不改
+  `.case_summary_data.json`；校验器在渲染过期时核对这两处提示（§9）。
 - `review_summary.md`（总是写）：开头依次写资料时效（最新资料日期与天数）、缺页组、急性发现条数；
   随后是诊断与分期、当前治疗（含 `status` 与依据原文）、分子、检验、既往治疗、合并症与用药、基本
   信息、本次产出的结构化文件清单，每项带锚点；最后是请用户核对的要点（药名、剂量、分期前缀、分子
@@ -630,9 +717,12 @@ episode：`started_at` 取首程日期，`regimen` 逐字（取原文写法；�
 PII、字段分层、sidecar 头部、急性发现链接、缺页与时效等）。`readiness.json` 为 `2.1` 时档案已按当前契约
 严格校验（`organize_meta.json` 由编排者收尾时再写）。此时唯一可以留下的错误是 `AGENTS.md missing`
 （它在 Step 13 才生成）。上一次的 段D 渲染（`.case_summary_data.json`）不归你管：本次改了急性发现、而它的病情概要首句
-没有写到新的 emergent/urgent 发现时，校验器只报 WARN（`段D stale`，它记录的 `acute_findings_sha256` 与现在的文件不同），
-由编排者的新鲜度门处理——不要为此改动它。校验器需要 `jsonschema>=4.18`：它缺席时当前契约档案直接失败，不是“通过”。结构与绑定错误由你修正自己写的产物后重跑；验证失败
-则不生成患者摘要；涉及临床值的错误进入 review queue，不让模型自行修正临床值。这次运行（不带 `--readonly`）会把
+没有写到新的 emergent/urgent 发现时，校验器要求 §7 的“段D 过期提示”同时出现在 `review_summary.md` 与
+`readiness.json.warnings[]`（缺任一处即 ERROR，旧版档案同样），两处都在时只报 WARN（`段D stale`），重新渲染由编排者
+做——不要为此改动 `.case_summary_data.json`。校验器需要 `jsonschema>=4.18`：它缺席时当前契约档案直接失败，不是“通过”。结构与绑定错误由你修正自己写的产物后重跑；验证失败
+则不生成患者摘要；涉及临床值的错误进入 review queue，不让模型自行修正临床值。你的这次运行（每种 `run_mode`，
+`legacy_phase2_only` 在内）**不带 `--readonly`**——除 Step 17 终态门外，它是唯一不带 `--readonly` 的一次（SKILL.md
+Step 17）——它会把
 不可信内容 flag（`UNTRUSTED-*`）并进 `readiness.json`：**校验通过后再写（或重写）`review_flags.md`，并按合并后的
 `readiness.json` 计算 §10 的 flag 计数**，编排者展示的 `review_flags.md` 才与 `readiness.json` 一致。
 
@@ -642,21 +732,29 @@ PII、字段分层、sidecar 头部、急性发现链接、缺页与时效等）
 
 ```text
 {
-  "role": "phase2_worker", "worker_id": "p2-1", "elapsed_s": 900, "timed_out": false,
+  "role": "phase2_worker", "worker_id": "p2-1", "run_mode": "full", "elapsed_s": 900, "timed_out": false,
   "patient_dir": "<绝对路径>", "files_classified": 21, "md_sidecars_relocated": 21,
   "coverage_complete": true, "missing_sidecars": [], "bucket_precheck_rejections": [],
   "disposition_refused": [],
-  "documentation_coverage": {}, "document_gaps": 3, "missing_pages_groups": 1,
+  "documentation_coverage": {}, "document_gaps": 3, "missing_pages_groups": 1, "page_continuity_checked": true,
   "latest_source_date": "2030-01-05", "days_since_latest": 19,
   "acute_findings_total": 2, "acute_findings_urgent_or_emergent": 2,
   "acute_findings_urgent": [{"finding_id": "AF-001", "label": "…", "acuity": "urgent", "date": "2030-01-12",
-                             "source_ref": "05_影像/CT/…md#L14"}],
+                             "source_ref": "05_影像/CT/…md#L14", "verbatim_text": "…",
+                             "verbatim_is_translation": false}],
+  "case_summary_rerender_required": true,
   "warnings": [], "review_flags_total": 9, "review_flags_red": 2, "review_flags_yellow": 5,
   "review_flags_info": 2, "review_flags_by_kind": {"legibility": 4, "artifact": 1, "conflict": 2, "completeness": 2},
   "review_summary_path": "<…/review_summary.md>", "source_inventory_path": "<…/source_inventory.json>",
   "update_log_path": "<…/update_log.json>"
 }
 ```
+
+- `run_mode`：照抄 Call parameters，编排者据此知道这是哪种运行（旧版档案上只重跑 Phase 2 就是 `legacy_phase2_only`）。
+- `acute_findings_urgent[]`：每条 emergent/urgent 发现，带 `verbatim_text` 与 `verbatim_is_translation`（`acute_findings.json`
+  原样），编排者在 Step 7.5 直接逐条展示，不必再打开文件；`verbatim_is_translation: true` 的要标“中文转述，非报告原句”。
+- `case_summary_rerender_required`：你写了 §7 的“段D 过期提示”时为 true——编排者据此必做 Step 12 重新渲染，不再询问。
+- `missing_pages_groups` / `page_continuity_checked`：页码无法检查（旧 sidecar 没有 `PAGE_LABEL`，§4.0）时分别为 null / false。
 
 ## 11. 忠实度修订模式（`run_mode: faithfulness_patch`）
 

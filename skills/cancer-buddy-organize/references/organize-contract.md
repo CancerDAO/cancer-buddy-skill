@@ -21,7 +21,9 @@ does not authorize clinical interpretation.
 6. **Render**: deterministic templates only; no treatment path, response, stage, ECOG, severity, or
    prognosis inference. The `severity` on a review flag grades extraction/archive-completeness
    uncertainty, not clinical severity; the `acuity` of an acute finding is a fixed class table applied to
-   source wording, not triage.
+   source wording, not triage. A new or changed emergent/urgent finding makes the summary re-render
+   mandatory (never a question; non-interactive hosts and legacy archives too); until it happens a pinned
+   stale notice stands in `review_summary.md` and `readiness.json.warnings[]`.
 7. **Validate/export**: schema, anchors, hashes, PII, conflict preservation, and share-policy gates.
 
 ## Clinical truth invariants
@@ -29,7 +31,8 @@ does not authorize clinical interpretation.
 - `source_reported`, `patient_reported`, `caregiver_reported`, `system_normalized`, and `prior_archive`
   never overwrite each other. `prior_archive` (an explicitly authorized digest of an earlier organized
   archive) supports history only, never current status or recommendations.
-- Source strings remain available. Validated normalization and translation are additive.
+- Source strings remain available. Validated normalization and translation are additive; a quote that is a
+  translation of a foreign-language report (`verbatim_is_translation`) is labelled as one wherever it is shown.
 - Stage, ECOG, response, treatment line, laboratory values, molecular results, and clinician plan are
   copied only from attributable sources.
 - Conflicts remain `disputed`; patient confirmation cannot clear them.
@@ -40,7 +43,8 @@ does not authorize clinical interpretation.
   pathology, or treatment reasoning.
 - Writers are an allow-list (SKILL.md invariant 3). Phase 1 workers write sidecars and their own `raw/`
   files; Phase 2 and 段C workers write the structured JSON and `INDEX.md` / `case_text.md` / `timeline.md` /
-  `review_*.md`, and 段C workers also write the conversation records `<bucket>/conversation_notes/*.md`; the 段D worker writes `.case_summary_data.json` and the HTML. The orchestrator dispatches,
+  `review_*.md` (under `raw/` Phase 2 writes only `_SIDECAR_MAP.md` and moves legacy outputs into
+  `_legacy_<ts>/`; a script's intermediate text is piped, never saved there), and 段C workers also write the conversation records `<bucket>/conversation_notes/*.md`; the 段D worker writes `.case_summary_data.json` and the HTML. The orchestrator dispatches,
   monitors liveness and redispatches, and writes under the patient directory only through fixed actions:
   `inventory_hash.py --mapping-out`, the `library/index.json` seed, appending dispatch events to
   `raw/_dispatch_log.jsonl`, `record_gap_ask.py`, `fill_agents_md.py`, `write_organize_meta.py`, the terminal

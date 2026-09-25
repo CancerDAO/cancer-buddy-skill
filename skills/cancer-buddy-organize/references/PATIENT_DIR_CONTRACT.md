@@ -187,8 +187,12 @@ One-line purpose each (producer writes all of these; the conditional ones only w
 - **(f) Acute findings.** `acuity` is a fixed class table applied to source wording, not organize's
   triage; emergent/urgent rows are for the consumer to surface to the treating team. A missing
   `acute_findings.json` means "not checked", never "none". It is written on every pass, a Phase-2-only
-  pass on a legacy archive included (it is a safety surface, not a current-contract marker); on a legacy
-  archive `timeline_event_id` may be null until `legacy_upgrade` adds the timeline events.
+  pass on a legacy archive (`run_mode: legacy_phase2_only`) included (it is a safety surface, not a
+  current-contract marker); on a legacy archive `timeline_event_id` may be null until `legacy_upgrade` adds the
+  timeline events. A row with `verbatim_is_translation: true` quotes a Chinese rendering of a foreign-language
+  report: present it as a translation ("中文转述，非报告原句"), never as the report's own words. A new or changed
+  emergent/urgent row makes `病情简要总结.html` stale until 段D re-renders (mandatory); meanwhile
+  `review_summary.md` and `readiness.json.warnings[]` carry organize's pinned stale notice naming the rows.
 - **(g) Severity is not clinical severity.** `readiness.json.review_flags[].severity` and
   `missing_items.json` gap `severity` grade extraction/archive-completeness uncertainty only.
 - **(h) Treatment status.** `status: ongoing` rests on the recorded `status_basis` (also copied to
@@ -211,7 +215,7 @@ One-line purpose each (producer writes all of these; the conditional ones only w
   re-transcription from `raw/` (`run_mode: legacy_upgrade`), which moves the old buckets, the old-shape
   `update_log.json` and the rewritten top-level files into `raw/_legacy_<ts>/` (kept inside the access-controlled
   vault, never an anchor target, not read by consumers) and starts a new `schema_version: "1"` `update_log.json`; a
-  Phase-2-only rerun on a legacy archive keeps every file at its old version and writes no marker (the archive stays
+  Phase-2-only rerun on a legacy archive (`legacy_phase2_only`) keeps every file at its old version and writes no marker (the archive stays
   legacy and validates with warnings until that upgrade). Update diffs use
   the last v1 entry with a non-empty `inputs[]` (conversation entries carry `inputs: []`) plus
   `source_inventory.json.skipped_inputs[]`; an archive without one is treated as all-new.

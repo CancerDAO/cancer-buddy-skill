@@ -32,6 +32,8 @@ Two inputs, both deterministic — the model never pairs a number to an analyte 
                    (refused_reason = ambiguous_inequality_token).
   --columns FILE  JSON {"items": [...], "values": [...], "units": [...], "ranges": [...],
                "flags": [...]} when columns were split upstream (linear_position rules).
+  `--text -` / `--columns -` read stdin: a Phase 2 worker pairing a LEGACY sidecar's table (no `## 列配对`
+  record, phase2 §5.1) pipes the table in and writes nothing under raw/.
 
 Token classification (structural — no analyte or clinical lexicon):
   number      `150.20`, `402.6小`, `118.2个` (a trailing 小/个 is an OCR rendering of an arrow glyph:
@@ -534,7 +536,7 @@ def main(argv: list[str] | None = None) -> int:
     src = ap.add_mutually_exclusive_group(required=True)
     src.add_argument("--text", help="linear OCR text file ('-' = stdin)")
     src.add_argument("--tsv", help="tesseract TSV (word boxes) of the lab table page")
-    src.add_argument("--columns", help="JSON file with pre-split columns")
+    src.add_argument("--columns", help="JSON file with pre-split columns ('-' = stdin)")
     ap.add_argument("--out", help="also write the JSON report here (raw/_extract/<source_id>.lab<k>.pairing.json)")
     args = ap.parse_args(argv)
     try:
@@ -544,7 +546,8 @@ def main(argv: list[str] | None = None) -> int:
         elif args.tsv:
             rep = pair_tsv(Path(args.tsv).read_text(encoding="utf-8"))
         else:
-            rep = pair(columns_from_json(json.loads(Path(args.columns).read_text(encoding="utf-8"))))
+            raw = sys.stdin.read() if args.columns == "-" else Path(args.columns).read_text(encoding="utf-8")
+            rep = pair(columns_from_json(json.loads(raw)))
     except (OSError, ValueError) as exc:
         print(f"ERROR: cannot read input: {exc}", file=sys.stderr)
         return 2

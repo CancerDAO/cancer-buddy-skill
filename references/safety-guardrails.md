@@ -68,7 +68,8 @@ complete triage protocol, and the skill does not downgrade a source report's cri
 Source-worded acute findings in an organized archive (`acute_findings.json` rows with `acuity` `emergent` or
 `urgent` — a fixed class table applied to the report's own wording, not a triage) are shown before anything
 else: each verbatim, with its date and source, as something the report itself wrote that belongs to the
-"tell the treating team soon" class. No cause, severity assessment or management advice; the treating team
+"tell the treating team soon" class — except a row marked `verbatim_is_translation: true` (a Chinese rendering of a
+foreign-language report), which is labelled as a translation ("中文转述，非报告原句"), never as the report's own words. No cause, severity assessment or management advice; the treating team
 decides what, if anything, to do.
 
 ## Scoring and ranking

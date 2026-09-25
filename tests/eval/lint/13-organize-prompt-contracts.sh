@@ -42,6 +42,9 @@
 #      raw/ vault (legacy_upgrade), so the only directory a clean-up may remove is an archive's temp
 #      `unpack_dir` (SKILL.md Steps 1 and 17). Only the command's argument tokens are checked, so prose
 #      that names `$src` or raw/ next to a command does not trip it.
+#   M. one 段D stale notice: phase2 §7 carries validate_structured_outputs.CASE_SUMMARY_STALE_NOTICE verbatim
+#      in a ```text block — the validator looks for that sentence in review_summary.md and readiness warnings[]
+#      whenever the 段D render predates emergent/urgent findings, so the prompt must teach exactly it.
 #   I. phase1 §3 table rows READ_MODE / ADAPTER / MODALITY list exactly the validator's
 #      SIDECAR_READ_MODES / SIDECAR_ADAPTERS / SIDECAR_MODALITIES (checked on the header itself, so
 #      a sidecar without an inventory row cannot carry free text there).
@@ -341,6 +344,20 @@ except ImportError as e:
 row_k = next((l for l in p2.splitlines() if l.startswith("| 不可信内容标记")), None)
 if emits and (row_k is None or "high → `yellow`" not in row_k or "`info`" not in row_k):
     fail("phase2 §6.1 has no 不可信内容标记 row stating the scanner's grading (worst hit high → yellow, else info)")
+
+# ---- M. the pinned 段D stale notice ↔ validate_structured_outputs.CASE_SUMMARY_STALE_NOTICE
+try:
+    import validate_structured_outputs as vso_m
+    notice_m = vso_m.CASE_SUMMARY_STALE_NOTICE
+except Exception as e:
+    fail(f"validate_structured_outputs.py has no CASE_SUMMARY_STALE_NOTICE: {e}")
+    notice_m = None
+if notice_m is not None:
+    sec_m = re.search(r"^## 7\. .*?$(.*?)^## 8\. ", p2, re.S | re.M)
+    blocks_m = re.findall(r"```text\n(.*?)```", sec_m.group(1), re.S) if sec_m else []
+    if not any(notice_m in b for b in blocks_m):
+        fail("organizer-prompt-phase2-synthesis.md §7 has no ```text block holding "
+             f"validate_structured_outputs.CASE_SUMMARY_STALE_NOTICE verbatim ({notice_m!r})")
 
 sys.exit(min(bad, 100))
 PY

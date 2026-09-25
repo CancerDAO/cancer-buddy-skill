@@ -59,7 +59,9 @@ SVG 坐标仍由确定性脚本生成，模型不得造点或手算坐标。
     （“<label>（<日期1>、<日期2>）”）；其后才是原有的病情概要句子（验收门检查这一句：以该前缀开头，逐条含每个
     emergent/urgent 发现的 `label` 与日期）；
   - caveats 最前面逐条写完整原文：“报告原文：<verbatim_text>（<日期>，<来源文书>）——请尽快告知治疗
-    团队”；incidental 发现只在 caveats 写原文与日期，不进病情概要。
+    团队”；`verbatim_is_translation: true` 的发现是外文报告的中文转述，写成“报告（外文）中文转述，非报告原句：
+    <verbatim_text>（<日期>，<来源文书>）——请尽快告知治疗团队”，不称“报告原文”（`acute-findings.md` §2.4）；
+    incidental 发现只在 caveats 写原文与日期（转述同样标明），不进病情概要。
   - 不解释病因、不评估严重程度、不给处理建议。不改 `one_line_condition`（它会被复制进 `AGENTS.md`）。
 - 旧档案摘录（`provenance_layer: prior_archive`）的事实只可出现在既往史相关内容中，并逐项标注
   “来自既往摘要，原件未在本次资料中”（与 `PATIENT_DIR_CONTRACT.md` §5 (e) 同一句）；不得出现在当前方案、当前
@@ -111,8 +113,9 @@ python3 "<skill_dir>/../cancer-buddy-charts/scripts/render_chart.py" \
 ```
 
 3. **盖戳、渲染与验证**：先给渲染数据盖上它读到的急性发现版本（`acute_findings_sha256` = 此刻 `acute_findings.json`
-   的 sha256，脚本写入；不要手填）。之后的运行改了急性发现而没有重渲染时，校验器靠它把“过期”（WARN）与“读到了却
-   没写进首句”（ERROR）分开，终态门 `--final` 也要求它存在。
+   的 sha256，脚本写入；不要手填）。之后的运行改了急性发现而没有重渲染时，校验器靠它把“过期”（有 Phase 2 的过期提示时 WARN）与
+   “读到了却没写进首句”（ERROR）分开，终态门 `--final` 也要求它存在。新登记或改动了 emergent/urgent 发现后，编排者
+   必派你重新渲染（旧版档案同样：你照读现有 JSON，不升级档案）。
 
 ```bash
 python3 "<skill_dir>/scripts/stamp_case_summary_sources.py" "<patient_dir>"

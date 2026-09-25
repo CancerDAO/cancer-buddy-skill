@@ -265,23 +265,15 @@ d, (errs, _) = run(af(lambda f: f.__setitem__("timeline_event_id", None)))
 check("R1 current archive: timeline_event_id null → ERROR (the event is required there)",
       any("has no timeline.json event" in e for e in errs), str(errs))
 
-# ---- the 段D narrative lead: stale on a legacy Phase-2-only pass (WARN), still an ERROR on current
-def stale_narrative(d):
-    synlib.save(d, ".case_summary_data.json", {"case_summary_narrative": "病情概要。"})
-
-
-lg = legacy_with_acute("legacy_stale_summary")
-stale_narrative(lg)
-e2, w2 = [], []
-vso.gate_case_summary_html(lg, e2, w2)
-check("R1 legacy archive: a 段D narrative that does not lead with the urgent finding → WARN (re-render asked)",
-      not any("case_summary_narrative" in e for e in e2) and any("case_summary_narrative" in w for w in w2), str(e2 + w2))
-
-# ---- S1: current archive — the render's acute_findings_sha256 stamp separates "段D stale" (WARN: the
-# file changed after 段D rendered; the freshness question decides) from "段D left it out" (ERROR).
+# ---- the 段D narrative lead. A render that predates emergent/urgent findings (stale / unstamped, or an HTML
+# with no render data) makes the re-render mandatory; until then Phase 2's pinned stale notice must stand in
+# review_summary.md AND readiness.json warnings[] naming the missing findings — ERROR without it (legacy
+# archives too), WARN with it; --final ERRORs on any stale lead; a fresh render that omits a finding is an ERROR.
 import subprocess
 STAMP = [sys.executable, str(synlib.SCRIPTS / "stamp_case_summary_sources.py")]
 LEAD = vso.ACUTE_SUMMARY_LEAD + "左肺上叶舌段肺动脉分支充盈缺损（肺栓塞可能）（2030-01-12）。其后是病情概要。"
+AF1_LABEL = "左肺上叶舌段肺动脉分支充盈缺损（肺栓塞可能）"
+AF2_LABEL = "肝实质未见明确占位"
 
 
 I18N_KEYS = ("html_lang", "doc_title", "disclaimer", "report_date_label", "sec_identity", "lbl_sex_age", "lbl_hwbmi",
@@ -301,6 +293,17 @@ def render(narrative, stamp=True):
     return fn
 
 
+def notice(labels, review=True, readiness=True):
+    """Phase 2's pinned stale notice (phase2 §7) naming `labels`, in review_summary.md and/or readiness warnings."""
+    line = vso.CASE_SUMMARY_STALE_NOTICE + "；".join(f"{lb}（2030-01-12）" for lb in labels) + "。"
+    def fn(d):
+        if review:
+            (d / "review_summary.md").write_text(line + "\n\n资料时效：示例。\n", encoding="utf-8")
+        if readiness:
+            synlib.edit_json(d, "readiness.json", lambda doc: doc.setdefault("warnings", []).append(line))
+    return fn
+
+
 def ref_of(d, rel, needle):
     lines = (d / rel).read_text(encoding="utf-8").splitlines()
     return f"{rel}#L{next(i for i, l in enumerate(lines, start=1) if needle in l)}"
@@ -311,7 +314,7 @@ def later_urgent(d):
     synlib.edit_text(d, synlib.SIDE_CT, lambda s: s.replace("肝实质未见明确占位。", "肝实质未见明确占位，尽快。"))
     def fn(doc):
         f2 = dict(doc["findings"][0])
-        f2.update({"finding_id": "AF-002", "timeline_event_id": "E-099", "label": "肝实质未见明确占位",
+        f2.update({"finding_id": "AF-002", "timeline_event_id": "E-099", "label": AF2_LABEL,
                    "finding_class": "other_source_flagged", "acuity": "urgent", "acuity_basis": "source_wording_escalation",
                    "acuity_basis_text": "尽快", "verbatim_text": "肝实质未见明确占位，尽快",
                    "source_ref": ref_of(d, synlib.SIDE_CT, "肝实质未见明确占位，尽快")})
@@ -330,18 +333,56 @@ def incremental_entry(d):
         note="incremental run: one new report")))
 
 
+def both(*fns):
+    return lambda d: [f(d) for f in fns]
+
+
 def gate(d, final=False):
     e, w = [], []
     vso.gate_case_summary_html(d, e, w, final=final)
-    return [x for x in e if "case_summary_narrative" in x], [x for x in w if "case_summary_narrative" in x]
+    keep = ("case_summary_narrative", "段D stale", vso.CASE_SUMMARY_HTML_NAME)
+    return [x for x in e if any(k in x for k in keep)], [x for x in w if any(k in x for k in keep)]
 
+
+lg = legacy_with_acute("legacy_stale_summary")
+render("病情概要。", stamp=False)(lg)
+e2, w2 = gate(lg)
+check("R1 legacy archive: 段D narrative without the urgent lead and no stale notice → ERROR (a safety surface: "
+      "legacy archives too)", any("stale notice" in e and "AF-001" in e for e in e2), str(e2 + w2))
+notice([AF1_LABEL])(lg)
+e2, w2 = gate(lg)
+check("R1 legacy archive: …with the stale notice in review_summary.md and readiness warnings → WARN only",
+      not e2 and any("legacy archive" in w and "段D stale" in w for w in w2), str(e2 + w2))
+rc, all_errs, _ = synlib.validate(lg)
+check("R1 legacy archive with the notice: the whole validator stays rc 0", rc == 0, str(all_errs[:3]))
+lg = legacy_with_acute("legacy_fresh_omits")
+render("病情概要。")(lg)
+e2, _ = gate(lg)
+check("R1 legacy archive: a FRESH render (re-rendered on the legacy archive) that omits the finding → ERROR",
+      any("this render read the current acute_findings.json" in e for e in e2), str(e2))
 
 cur = synlib.make(tmp / "s1_unstamped", render("病情概要。", stamp=False))
 e2, w2 = gate(cur)
-check("S1 unstamped render (e.g. the old one a legacy_upgrade leaves) + missing lead → WARN 段D stale, not ERROR "
+check("S1 unstamped render + missing lead, no stale notice → ERROR naming both missing places",
+      any("review_summary.md and readiness.json warnings[]" in e for e in e2), str(e2 + w2))
+cur = synlib.make(tmp / "s1_unstamped_notice", both(render("病情概要。", stamp=False), notice([AF1_LABEL])))
+e2, w2 = gate(cur)
+check("S1 unstamped render + missing lead + stale notice in both places → WARN 段D stale, no ERROR "
       "(Phase 2 §9 stays passable)", not e2 and any("段D stale (unstamped" in w for w in w2), str(e2 + w2))
-e2, w2 = gate(cur, final=True)
-check("S1 unstamped render + missing lead at --final → ERROR", any("carries no acute_findings_sha256" in e for e in e2), str(e2))
+e2, _ = gate(cur, final=True)
+check("S1 unstamped render + missing lead at --final → ERROR even with the notice (the re-render is mandatory)",
+      any("terminal gate" in e for e in e2), str(e2))
+cur = synlib.make(tmp / "s1_notice_review_only", both(render("病情概要。", stamp=False), notice([AF1_LABEL], readiness=False)))
+e2, _ = gate(cur)
+check("S1 stale notice only in review_summary.md → ERROR naming readiness.json warnings[]",
+      any("missing from readiness.json warnings[]" in e for e in e2), str(e2))
+cur = synlib.make(tmp / "s1_notice_readiness_only", both(render("病情概要。", stamp=False), notice([AF1_LABEL], review=False)))
+e2, _ = gate(cur)
+check("S1 stale notice only in readiness warnings → ERROR naming review_summary.md",
+      any("missing from review_summary.md" in e for e in e2), str(e2))
+cur = synlib.make(tmp / "s1_notice_wrong_label", both(render("病情概要。", stamp=False), notice(["别的所见"])))
+e2, _ = gate(cur)
+check("S1 stale notice that does not name the missing finding → ERROR", any("stale notice" in e for e in e2), str(e2))
 cur = synlib.make(tmp / "s1_fresh_omits", render("病情概要。"))
 e2, w2 = gate(cur)
 check("S1 fresh render (stamp = current acute_findings.json) that omits the urgent finding → ERROR",
@@ -351,25 +392,45 @@ check("S1 fresh render that leads with the urgent finding → no message (positi
 check("S1 …and the same at --final", gate(cur, final=True) == ([], []), str(gate(cur, final=True)))
 st = synlib.make(tmp / "s1_stale_full", lambda d: (render(LEAD)(d), later_urgent(d)))
 e2, w2 = gate(st)
-check("S1 stale render (a later run added AF-002) → WARN 段D stale naming AF-002, no ERROR",
+check("S1 stale render (a later run added AF-002), no stale notice → ERROR naming AF-002",
+      any("AF-002" in e and "stale notice" in e for e in e2), str(e2 + w2))
+st = synlib.make(tmp / "s1_stale_notice", lambda d: (render(LEAD)(d), later_urgent(d), notice([AF2_LABEL])(d)))
+e2, w2 = gate(st)
+check("S1 stale render + a notice naming AF-002 only (AF-001 is already in the lead) → WARN naming AF-002, no ERROR",
       not e2 and any("AF-002" in w and "段D stale (stale" in w for w in w2), str(e2 + w2))
 e2, _ = gate(st, final=True)
-check("S1 stale render at --final when the last ingest run is full → ERROR (Step 12 renders after Phase 2 there)",
-      any("a full / legacy_upgrade run renders 段D after Phase 2" in e for e in e2), str(e2))
-st = synlib.make(tmp / "s1_stale_incr", lambda d: (render(LEAD)(d), later_urgent(d), incremental_entry(d)))
+check("S1 stale render at --final after a full run → ERROR", any("terminal gate" in e for e in e2), str(e2))
+st = synlib.make(tmp / "s1_stale_incr", lambda d: (render(LEAD)(d), later_urgent(d), incremental_entry(d),
+                                                   notice([AF2_LABEL])(d)))
 e2, w2 = gate(st, final=True)
-check("S1 stale render at --final after an incremental run → WARN only (the re-render waits for the freshness answer)",
-      not e2 and any("AF-002" in w for w in w2), str(e2 + w2))
+check("S1 stale render at --final after an incremental run → ERROR (new urgent finding: re-render is mandatory, "
+      "never left to the freshness question)", any("terminal gate" in e and "AF-002" in e for e in e2), str(e2 + w2))
 st2 = synlib.make(tmp / "s1_stale_restore", lambda d: (render(LEAD)(d), later_urgent(d), synlib.edit_json(
     d, "update_log.json", lambda doc: doc["entries"].append(dict(
         doc["entries"][-1], at="2030-01-20T12:00:00Z", run_mode="relevance_disposition", added=[], removed=[],
         degradations=[], note="restore: one quarantined report")))))
 e2, w2 = gate(st2, final=True)
-check("S1 stale render at --final after a Step 14 restore that followed the full run → WARN only (the restore "
-      "rewrote the findings after Step 12)", not e2 and any("AF-002" in w for w in w2), str(e2 + w2))
+check("S1 stale render at --final after a Step 14 restore → ERROR (back to Step 12 before Step 17)",
+      any("terminal gate" in e for e in e2), str(e2 + w2))
 rc, all_errs, all_warns = synlib.validate(st)
-check("S1 whole validator (Phase 2 §9 form) on that incremental archive: rc 0, the stale lead is a WARN",
+check("S1 whole validator (Phase 2 §9 form) on the incremental archive with the notice: rc 0, stale lead a WARN",
       rc == 0 and any("段D stale" in w for w in all_warns), str(all_errs[:3]))
+st3 = synlib.make(tmp / "s1_stale_incr_nonotice", lambda d: (render(LEAD)(d), later_urgent(d), incremental_entry(d)))
+rc, all_errs, _ = synlib.validate(st3)
+check("S1 whole validator on the same archive WITHOUT the notice → rc 1", rc == 1 and any("stale notice" in e for e in all_errs),
+      str(all_errs[:3]))
+# an older 段D that left only the HTML: nothing shows it carries the finding
+html_only = synlib.make(tmp / "s1_html_only", lambda d: (d / vso.CASE_SUMMARY_HTML_NAME).write_text(
+    "<!doctype html><title>x</title>", encoding="utf-8"))
+e = []
+vso.gate_case_summary_html(html_only, e, [])
+check("S1 病情简要总结.html without .case_summary_data.json + an urgent finding + no notice → ERROR",
+      any("stale notice" in x and "unverifiable" in x for x in e), str(e))
+notice([AF1_LABEL])(html_only)
+e, w = [], []
+vso.gate_case_summary_html(html_only, e, w)
+check("S1 …with the notice → no stale ERROR (WARN)", not any("stale notice" in x for x in e)
+      and any("段D stale (unverifiable" in x for x in w), str(e + w))
 
 # ---- stamp_case_summary_sources.py
 d = synlib.make(tmp / "stamp_ok", render("x", stamp=False))
