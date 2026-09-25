@@ -10,7 +10,16 @@ LABS="$ORG/references/schemas/labs.schema.json"
 TX="$ORG/references/schemas/treatment_lines.schema.json"
 INV="$ORG/references/schemas/source_inventory.schema.json"
 
-grep -q '"schema_version": { "const": "2" }' "$READY" || fail "readiness schema is not v2"
+# readiness v2.1 (schemas/README.md version policy): the schema pins the current version; legacy "2" archives
+# are read leniently by validate_structured_outputs.py (LEGACY_SCHEMA_VERSIONS), so the
+# pinned literal moved from "2" to "2.1" and the legacy path must stay registered.
+grep -q '"schema_version": { "const": "2.1" }' "$READY" || fail "readiness schema is not v2.1"
+grep -q '"readiness.json": {"2":' "$ORG/scripts/validate_structured_outputs.py" \
+  || fail "validator lost the legacy readiness v2 read path"
+grep -q '"severity"' "$READY" && grep -q '"kind"' "$READY" \
+  || fail "readiness review_flags lack severity/kind grading"
+grep -qi 'NOT a clinical severity\|NOT clinical severity' "$READY" \
+  || fail "readiness severity is not declared an extraction-uncertainty grade (not clinical)"
 grep -q 'documentation_coverage' "$READY" || fail "readiness lacks documentation coverage"
 grep -Eq '"grade"|"blocking_gaps"|"suggested_value"|"user_confirmed"' "$READY" \
   && fail "readiness schema resurrected score/patient-adjudication fields" || true

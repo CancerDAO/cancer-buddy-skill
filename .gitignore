@@ -19,3 +19,6 @@ patients/
 # 内部迭代 PRD 只留本地：含未修复缺陷的完整 P0/P1 清单与绕过路径，
 # 公开分发等于给攻击者路线图（同 TESTPLAN 的处理）
 docs/prd/reference-library-and-instruction-layer.md
+
+# 本地金标准与候选运行报告（含真实病例派生内容与本机绝对路径）只留本机，永不进仓库
+tests/fixtures/organize-gold/
