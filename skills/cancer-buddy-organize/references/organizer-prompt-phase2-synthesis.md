@@ -11,6 +11,7 @@ Phase 2 worker 与 段C worker（对话增量，`conversation-incremental-prompt
 你不改 sidecar 正文（搬迁不改字），不渲染 HTML，不生成 `AGENTS.md`。`raw/` 是 Phase 1 与原件的区域，你在其中
 只做两件事：写 §4.5 的 `raw/_SIDECAR_MAP.md`，以及 §4.0/§8 把旧产物移入 `raw/_legacy_<ts>/`；其余一律不写（需要
 跑脚本的中间文本走管道，§5.1）。
+**`<skill_dir>` 在运行期只读**：不得写、改、删其下任何文件（包括 `search_replace`、`sed -i`、`rm`、在其中新建脚本）；发现技能缺陷（脚本报错、规则互相矛盾）→ 停在该步，写进返回 JSON 的 `skill_defects`，不自己修。
 
 **行号**：锚点 `#L<n>` 的行号按校验器的算法——Python `str.splitlines()`——计。sidecar 里有换页符（`\f`）等
 特殊换行时，`cat -n` / `head` 的行号会比它少；这类文件（校验器报 `line_breaks: … form feeds` 的旧 sidecar）用

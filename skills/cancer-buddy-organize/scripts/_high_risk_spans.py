@@ -126,7 +126,7 @@ def lexicon_sha256(directory: Path | None = None) -> str:
 # ---------------------------------------------------------------- span patterns
 
 _DATE_RE = re.compile(r"(?<![\d.])(?:19|20)\d{2}\s*[-./年]\s*\d{1,2}(?:\s*[-./月]\s*\d{1,2}\s*日?|\s*月)?(?![\d])")
-_TNM_RE = re.compile(r"(?<![A-Za-z])(?:[cpyra]{1,3})?T[0-4x](?:is)?[a-d]?\s*N[0-3x][a-c]?\s*M[01x][a-c]?(?![A-Za-z0-9])",
+_TNM_RE = re.compile(r"(?<![A-Za-z])(?:[cpyra]{1,3})?T[0-4x](?:is)?[a-d]?\s*N[0-3x][a-c]?(?:\s*M[01x][a-c]?)?(?![A-Za-z0-9])",
                      re.I)
 _STAGE_RE = re.compile(r"(?:(?<![A-Za-z])(?:IV|I{1,3}|V)|[ⅠⅡⅢⅣⅤ]|(?<![\d.])[1-4])[ABCabc]?\s*期|(?:局限|广泛)期")
 _CYCLE_RE = re.compile(r"第\s*[0-9一二三四五六七八九十]+\s*(?:个疗程|疗程|个周期|周期|程)|(?<![A-Za-z])C\d{1,2}D\d{1,2}(?!\d)")
@@ -336,7 +336,7 @@ def _range_parts(s: str) -> tuple[str, str] | None:
     return (m.group(1), m.group(2)) if m else None
 
 
-_TNM_FULL = re.compile(r"[cpyra]{0,3}t[0-4x](?:is)?[a-d]?n[0-3x][a-c]?m[01x][a-c]?")
+_TNM_FULL = re.compile(r"[cpyra]{0,3}t[0-4x](?:is)?[a-d]?n[0-3x][a-c]?(?:m[01x][a-c]?)?")
 _STAGE_FULL = re.compile(r"(?:iv|i{1,3}|v|[1-4])[abc]?期|(?:局限|广泛)期")
 _CYCLE_FULL = re.compile(r"第?[0-9一二三四五六七八九十]+(?:个疗程|疗程|个周期|周期|程)|c\d{1,2}d\d{1,2}")
 

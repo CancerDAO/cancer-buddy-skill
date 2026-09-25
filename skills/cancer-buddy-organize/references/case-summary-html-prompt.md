@@ -92,7 +92,8 @@ SVG 坐标仍由确定性脚本生成，模型不得造点或手算坐标。
 
 ## 段D 管线（段D worker 在自己的上下文内完成，返回 `template_sha`）
 
-下面的命令都相对本 skill 目录：Call parameters 的 `skill_dir` 是它的绝对路径（你的工作目录不是它）。先 `cd "<skill_dir>"` 再运行；脚本一律写成 `"<skill_dir>/scripts/…"`，图表脚本写成 `"<skill_dir>/../cancer-buddy-charts/scripts/…"`（同级 skill，不依赖工作目录）。
+Call parameters 的 `skill_dir` 是本 skill 目录的绝对路径（你的工作目录不是它，也不要 `cd` 进去）：在 `<patient_dir>` 下运行，脚本一律写成 `"<skill_dir>/scripts/…"`，图表脚本写成 `"<skill_dir>/../cancer-buddy-charts/scripts/…"`（同级 skill，不依赖工作目录）。
+**`<skill_dir>` 在运行期只读**：不得写、改、删其下任何文件（包括 `search_replace`、`sed -i`、`rm`、在其中新建脚本）；发现技能缺陷（脚本报错、规则互相矛盾）→ 停在该步，写进返回 JSON 的 `skill_defects`，不自己修。
 
 段D worker 拥有整条管线，返回值只能是 `{status:"ok", template_sha:"<64-hex>"}`（验证通过）或
 `{status:"failed", reason, exit_code}`，永不返回内联 HTML。它是 `.case_summary_data.json` 的唯一写入者。
@@ -129,10 +130,10 @@ python3 "<skill_dir>/../cancer-buddy-charts/scripts/render_chart.py" \
 ```bash
 python3 "<skill_dir>/scripts/stamp_case_summary_sources.py" "<patient_dir>"
 python3 "<skill_dir>/scripts/render_html_template.py" \
-  --template references/templates/case-summary.template.html \
+  --template "<skill_dir>/references/templates/case-summary.template.html" \
   --data <patient_dir>/.case_summary_data.json --out <patient_dir>/病情简要总结.html
 python3 "<skill_dir>/scripts/validate_case_summary_html.py" --html <patient_dir>/病情简要总结.html \
-  --template references/templates/case-summary.template.html \
+  --template "<skill_dir>/references/templates/case-summary.template.html" \
   --profile <patient_dir>/profile.json --data <patient_dir>/.case_summary_data.json
 ```
 

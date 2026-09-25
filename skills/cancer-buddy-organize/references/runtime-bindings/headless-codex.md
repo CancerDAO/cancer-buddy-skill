@@ -101,3 +101,14 @@ Any share action additionally requires host authentication, explicit confirmatio
 of recipient/scope/purpose/expiry, data minimization, residual-risk disclosure,
 and an export that excludes `raw/`. A generated patient code or role file is not
 authorization.
+
+## Turn discipline (a long one-shot task)
+
+organize runs for about 1.5–2 hours and has one end point: Step 17's `--final` OK line. Until then the host
+never emits a message without a tool call: before one, it runs
+`python3 "<skill_dir>/scripts/validate_structured_outputs.py" <patient_dir> --can-stop` and continues with the
+printed next step while that exits 5. Anything for the user (the acute-findings notice, review_summary, the
+recency sentence, a progress line) goes out together with the next tool call and again in the final report.
+Background calls are awaited by blocking on their output; nothing wakes the host when they finish. The only
+legitimate early end is a real block (missing credentials, a user decision, a skill defect), reported with its
+reason and the resume command. The skill directory is read-only during a run: a defect is reported, never patched.

@@ -192,6 +192,10 @@ check("tesseract confidence scale (49 < 50) → no signal",
       hrs.classify("date", "2030-01-08", "2030-01-03", 49, "tesseract", lex)[0] == "no_signal")
 check("tesseract confidence 80 → conflict", hrs.classify("date", "2030-01-08", "2030-01-03", 80, "tesseract", lex)[0] == "conflict")
 
+spans = hrs.derive_spans(["病理分期：pT2N0（示例）", "临床分期：cT3N2M0"], 1, lex)
+check("TNM with and without the M component are stage spans (pT2N0 / cT3N2M0)",
+      [s["text"] for s in spans if s["field_class"] == "stage"] == ["pT2N0", "cT3N2M0"], str(spans))
+
 # ---- chart ticks are not spans; a result on its own line is
 spans = hrs.derive_spans(["CA 19-9", "2,401", "U/mL", "Normal range: 0 - 35", "0", "35"], 1, lex)
 check("chart tick lines (0 / 35 under a Normal range line) are not spans",

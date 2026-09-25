@@ -6,6 +6,37 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Added — organize 编排纪律：`--can-stop` 回合闸、技能目录运行期只读并在终态门复核、grok 运行时绑定 (2026-09-25)
+
+三例 grok E2E：2/3 例在 headless 下用“阶段小结”结束回合，整个进程随之退出（case1 停在 SMTB 3.5、case3 停在 plan）；
+3 例里有 3 起运行期改技能代码（case3 改 `inventory_hash.py`、case1 改 `facts.py`、case1 在技能根目录写又删了一个脚本），
+而 organize_meta 仍记 `skill_dirty: false`；case1 的 段D 子代理按提示词 `cd "<skill_dir>"` 在技能目录里工作。
+
+- **`validate_structured_outputs.py --can-stop <patient_dir>`**（X-P0-05 organize 半）：无状态——当前契约档案上
+  `organize_meta.json` 不存在 → exit 5 并打印下一步（Step 17）；存在则以 `--final --readonly` 跑全部门，有错 → exit 5 并列出
+  前 3 处；全绿 → exit 0。只读，不写任何文件。旧版档案（`legacy_phase2_only` 不写 meta）按门的结果放行并提示仍需升级。
+  SKILL.md 抗压缩不变量新增第 6 条“回合纪律”（发出不带工具调用的消息前先跑 `--can-stop`；给用户的内容与下一次工具调用
+  同条发出；后台 worker 只阻塞等待），Steps 7.5–11.4 前加一句同条输出；细则进 runtime-bindings 新的“回合纪律”一节
+  （claude-code / headless-codex / _template）。D3（上游运行时展示是否延后）待用户拍板，本节**未**实现延后。
+- **技能目录运行期只读并在终态门复核**（X-P1-01 organize 半）：SKILL.md 不变量第 7 条；phase1 / phase2 / phase2_5 /
+  pii-rescan / case-summary-html / conversation-incremental 六份 worker 提示词各加同一句“`<skill_dir>` 在运行期只读……发现
+  技能缺陷写进 `skill_defects`，不自己修”；段D 提示词不再 `cd "<skill_dir>"`（模板路径改为 `<skill_dir>/references/…`）。
+  `--final` 重算 `skill_fingerprint` 与 `skill_commit` / dirty，与 `organize_meta.json` 记录的不一致即 ERROR
+  `skill_changed_since_meta`。**收尾顺序保持“先写 meta、再跑 `--final`”**：计划原写“先 --final 再写 meta”，但终态门要读
+  meta 里的 `pii_layer1_scan`（DoD 3）且当前契约档案缺 meta 即失败，倒序是循环依赖；这一检查比对的是“写 meta 时”与“跑门时”两个时刻：
+  写 meta 之后的改动一定被抓；写 meta **之前**的改动会被 meta 如实记成改动后的指纹，本检查抓不到——那一段靠不变量 7 与
+  提示词约束，是残余风险（git 检出时 `skill_dirty` 会如实为 true）。
+- **grok 运行时绑定**（X-P1-03 organize 半）：新增 `references/runtime-bindings/grok-build.md`，按 `_template.md` 的段落写
+  `spawn_subagent(background=true)` + `get_command_or_subagent_output(task_ids, timeout_ms=900000)` 循环阻塞等待、`monitor`
+  按写入监测存活、`kill_command_or_subagent` 重派、没有 cwd 参数时一律绝对路径、临时文件放 `raw/_extract/`，以及“headless 下
+  回合结束就等于进程退出、没有唤醒”。SKILL.md 运行时一段列出该文件。
+- lint 13 新增 P 组：六份 worker 提示词都有只读句、SKILL.md 有回合纪律 + `--can-stop` 与只读句、grok 绑定存在且含模板全部
+  段落与四个要点；`organize-contract-lints.test.sh` 新增 6 个负例。`organize-meta.test.sh` 新增 7 项：无 meta → 5、完成档案
+  → 0、缺 INDEX.md → 5、未改技能 `--final` rc 0、在技能目录写入一个脚本 → `skill_changed_since_meta`（`--can-stop` 同样
+  拒绝）、改一个提示词文件 → 同上（负例在复制出的技能目录上跑，不依赖本仓库工作区是否干净）。`synlib.finish_final` 复用
+  Step 12–17 的收尾形状。SKILL.md 48,166 → 48,839 B（回合 427 B、只读 176 B、Step 4 幂等补第五条 47 B、绑定列表 16 B）。
+- 另：Step 4 的幂等条件补上第五条（已有脚本写的 `## 高风险字段复读` 块）；`_high_risk_spans.py` 的 TNM 允许省略 M（`pT2N0`）。
+
 ### Changed — organize 读取通道：照片与扫描页由模型整页转写为正文，确定性引擎作脚本第二读（一致 / 无信号 / 冲突）；born-digital 页不再跑 OCR (2026-09-25)
 
 三例 grok E2E 暴露：本分支让 tesseract 当像素页主通道，case1 的 21 份照片正文成了乱码（日期、分期、组织学整行读坏），

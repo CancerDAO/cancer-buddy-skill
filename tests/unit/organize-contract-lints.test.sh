@@ -293,6 +293,20 @@ expect "schema read_mode enum drifting from SIDECAR_READ_MODES" fail "$tmp/o4" "
 fresh o5; edit "$tmp/o5/$P1" 't.replace(" `model_vision_primary`（像素页", " （像素页", 1)'
 expect "phase1 §3 READ_MODE row without model_vision_primary" fail "$tmp/o5" "phase1 §3 READ_MODE values"
 
+# ---- P. orchestration discipline (X-P0-05 / X-P1-01 / X-P1-03)
+fresh p1; edit "$tmp/p1/references/organizer-prompt-phase2-synthesis.md" 't.replace("`<skill_dir>` 在运行期只读", "`<skill_dir>` 可写", 1)'
+expect "phase2 prompt without the read-only skill-dir rule" fail "$tmp/p1" "organizer-prompt-phase2-synthesis.md does not tell"
+fresh p2; edit "$tmp/p2/references/pii-rescan-prompt.md" 't.replace("`<skill_dir>` 在运行期只读", "`<skill_dir>` 可写", 1)'
+expect "pii-rescan prompt without the read-only skill-dir rule" fail "$tmp/p2" "pii-rescan-prompt.md does not tell"
+fresh p3; edit "$tmp/p3/SKILL.md" 't.replace("--can-stop", "--final", 1)'
+expect "SKILL.md without --can-stop" fail "$tmp/p3" "turn-discipline invariant"
+fresh p4; edit "$tmp/p4/references/runtime-bindings/grok-build.md" 't.replace("## 4. 确认门", "## 4. 用户确认", 1)'
+expect "grok binding missing a _template section" fail "$tmp/p4" "grok-build.md lacks the _template.md section"
+fresh p5; rm "$tmp/p5/references/runtime-bindings/grok-build.md"
+expect "grok binding removed" fail "$tmp/p5" "grok-build.md is missing"
+fresh p6; edit "$tmp/p6/references/runtime-bindings/grok-build.md" 't.replace("回合结束就等于进程退出", "回合结束后会被唤醒", 1)'
+expect "grok binding without the no-wake-up rule" fail "$tmp/p6" "回合结束就等于进程退出"
+
 # ---- lint 07 (I-07): a pixel page's model transcription is never the only reading
 LINT07="$REPO_ROOT/tests/eval/lint/07-clinical-governance.sh"
 g07() {  # label, pass|fail, mutation (python over t) of the phase1 prompt in a copy of skills/

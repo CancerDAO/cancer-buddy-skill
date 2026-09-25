@@ -59,6 +59,10 @@
 #   O. read channel: phase1 §4 G runs python3 "<skill_dir>/scripts/second_read_align.py" --apply, §5.1 states the three
 #      states (一致 / 无信号 / 冲突) and the no-signal rule, §4 D keeps 「写正文之前不运行任何 OCR」, and
 #      source_inventory.schema.json's read_mode enum equals SIDECAR_READ_MODES (lint I binds the phase1 row to it).
+#   P. orchestration discipline: every worker prompt (phase1 / phase2 / phase2_5 / pii-rescan / case-summary-html /
+#      conversation-incremental) states 「`<skill_dir>` 在运行期只读」; SKILL.md carries 回合纪律 + --can-stop and 运行期只读;
+#      runtime-bindings/grok-build.md exists with every `## N.` section of _template.md and names spawn_subagent,
+#      get_command_or_subagent_output, --can-stop and 「回合结束就等于进程退出」.
 #   I. phase1 §3 table rows READ_MODE / ADAPTER / MODALITY list exactly the validator's
 #      SIDECAR_READ_MODES / SIDECAR_ADAPTERS / SIDECAR_MODALITIES (checked on the header itself, so
 #      a sidecar without an inventory row cannot carry free text there).
@@ -531,6 +535,39 @@ if not sec51 or not all(s in sec51.group(1) for s in ("**一致**", "**无信号
          "「不插 token、不建条目、不出 flag」")
 if "写正文之前不运行任何 OCR" not in p1:
     fail("phase1 §4 D lost the anti-anchoring rule 「写正文之前不运行任何 OCR」")
+
+# ---- P. orchestration discipline (X-P0-05 / X-P1-01 / X-P1-03)
+RO = "`<skill_dir>` 在运行期只读"
+for name in ("organizer-prompt-phase1-ocr.md", "organizer-prompt-phase2-synthesis.md",
+             "organizer-prompt-phase2_5-faithfulness.md", "pii-rescan-prompt.md", "case-summary-html-prompt.md",
+             "conversation-incremental-prompt.md"):
+    f = org / "references" / name
+    if not f.is_file() or RO not in f.read_text(encoding="utf-8"):
+        fail(f"{name} does not tell its worker that {RO} (write / edit / delete nothing under it; report a defect)")
+skill_md = (org / "SKILL.md").read_text(encoding="utf-8")
+if "--can-stop" not in skill_md or "回合纪律" not in skill_md:
+    fail("SKILL.md lacks the turn-discipline invariant (回合纪律 + validate_structured_outputs.py --can-stop)")
+if "运行期只读" not in skill_md:
+    fail("SKILL.md lacks the read-only skill-dir invariant (运行期只读)")
+
+
+def _binding_heads(path):
+    return [re.split(r"[（(]", h, 1)[0].strip() for h in
+            re.findall(r"^## (\d+\. .+)$", path.read_text(encoding="utf-8"), re.M)]
+
+
+tpl_heads = _binding_heads(org / "references" / "runtime-bindings" / "_template.md")
+grok = org / "references" / "runtime-bindings" / "grok-build.md"
+if not grok.is_file():
+    fail("references/runtime-bindings/grok-build.md is missing (the grok runtime binding)")
+else:
+    missing = [h for h in tpl_heads if h not in _binding_heads(grok)]
+    if missing:
+        fail(f"grok-build.md lacks the _template.md section(s) {missing}")
+    gtext = grok.read_text(encoding="utf-8")
+    for needle in ("spawn_subagent", "get_command_or_subagent_output", "--can-stop", "回合结束就等于进程退出"):
+        if needle not in gtext:
+            fail(f"grok-build.md does not state {needle!r}")
 
 sys.exit(min(bad, 100))
 PY

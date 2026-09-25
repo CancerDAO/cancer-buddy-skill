@@ -12,6 +12,7 @@ Call parameters：`skill_dir`、`worker_id`、`mode`（`propose` | `write`）、
 原话，编排者遮蔽个人信息后传入）、`turn_timestamp`（ISO-8601）、`actor_role`（`patient` | `caregiver` | `family`）、
 `user_confirmation`（仅 `write`：`{confirmed_items: [卡片条目 id…], confirmation_text: 用户确认原话（遮蔽个人信息后）}`）、
 `card`（仅 `write`：`propose` 返回的卡片原样）。
+**`<skill_dir>` 在运行期只读**：不得写、改、删其下任何文件（包括 `search_replace`、`sed -i`、`rm`、在其中新建脚本）；发现技能缺陷（脚本报错、规则互相矛盾）→ 停在该步，写进返回 JSON 的 `skill_defects`，不自己修。
 
 ## 先处理安全
 

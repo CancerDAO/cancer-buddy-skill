@@ -224,6 +224,46 @@ def downgrade_to_legacy(d: Path) -> None:
         p.write_text(p.read_text(encoding="utf-8").replace(SIDE_DIGEST, new_rel), encoding="utf-8")
 
 
+FINAL_I18N = {"html_lang": "zh-CN", "doc_title": "病情简要总结", "disclaimer": "来源型资料摘要，不作诊断、疗效或治疗判断",
+              "report_date_label": "报告日期", "sec_identity": "患者标识", "lbl_sex_age": "性别 / 年龄",
+              "lbl_hwbmi": "身高 / 体重 / BMI", "lbl_ecog": "ECOG（仅医生原文）", "sec_summary": "资料概要",
+              "sec_stage": "报告中的分期字符串", "sec_trend": "数值记录", "sec_lesions": "影像报告描述",
+              "sec_molecular": "分子报告原文", "sec_labs": "实验室报告结果", "sec_treatment": "治疗记录",
+              "sec_path": "治疗路径（本工具不生成）", "sec_caveats": "数据说明", "delta_title": "自上次摘要的数据变化",
+              "delta_vs": "对比", "delta_none": "与上次摘要相比，已展示字段无变化", "trend_none": "暂无两次可比的来源数据",
+              "val_male": "男", "val_female": "女", "val_pending": "资料中未找到", "val_to_start": "来源未写明",
+              "footer_doc": "病情简要总结"}
+
+
+def finish_final(d: Path, skill_dir: Path | None = None) -> None:
+    """Close a synthetic archive the way Step 12-17 does, so `--final` (and `--can-stop`) pass: 段D render with
+    its acute stamp, INDEX.md, review_summary.md, organize_meta.json with a clean Layer-1 scan (written by
+    `skill_dir`'s write_organize_meta.py — default: this repository's skill) and the Phase 2.5 ledger entry."""
+    import validate_structured_outputs as vso
+    org = Path(skill_dir) if skill_dir else ORG
+    d = Path(d)
+    data = {"i18n": FINAL_I18N, "fallbacks": {"__default__": "资料缺失"}, "one_line_condition": "示例肿瘤（合成夹具）",
+            "report_date": "2030-01-20",
+            "case_summary_narrative": vso.ACUTE_SUMMARY_LEAD + "左肺上叶舌段肺动脉分支充盈缺损（肺栓塞可能）（2030-01-12）。",
+            "trend_charts": [], "lab_trends": [], "lesions": [], "molecular_rows": [], "treatment_lines": [], "caveats": []}
+    (d / ".case_summary_data.json").write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+    subprocess.run([sys.executable, str(org / "scripts/stamp_case_summary_sources.py"), str(d)], check=True,
+                   capture_output=True)
+    subprocess.run([sys.executable, str(org / "scripts/render_html_template.py"), "--template",
+                    str(org / "references/templates/case-summary.template.html"), "--data",
+                    str(d / ".case_summary_data.json"), "--out", str(d / "病情简要总结.html")], check=True, capture_output=True)
+    (d / "INDEX.md").write_text("# patient_code: PT-5A1F0C\n", encoding="utf-8")
+    (d / "review_summary.md").write_text("# 核对摘要（合成夹具）\n", encoding="utf-8")
+    edit_json(d, "update_log.json", lambda doc: doc["entries"].append({
+        "at": "2030-01-20T10:00:00Z", "run_mode": "faithfulness_patch",
+        "workers": [{"worker_id": "p25-1", "phase": "phase2_5", "slice_id": None, "status": "done", "files": []},
+                    {"worker_id": "p2-2", "phase": "phase2", "slice_id": None, "status": "done", "files": []}],
+        "inputs": doc["entries"][-1]["inputs"], "added": [], "removed": [], "degradations": [],
+        "note": "Phase 2.5 found every checked value faithful; nothing rewritten"}))
+    subprocess.run([sys.executable, str(org / "scripts/write_organize_meta.py"), str(d), "--pii-layer1", "pii-1",
+                    "--generated-at", "2030-01-20T10:00:00Z"], check=True, capture_output=True)
+
+
 def make_legacy(dst: Path) -> Path:
     return make(dst, downgrade_to_legacy)
 

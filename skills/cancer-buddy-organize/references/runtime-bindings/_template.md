@@ -61,3 +61,14 @@
   PII shape 和 HTML form，不判断临床正常/异常。另需 Phase 2.5 来源忠实度与 PII 语义复扫。
   共享前还必须认证并确认 recipient/scope/purpose/expiry、执行最小化且排除 `raw/`；任一门不可用即
   fail closed。
+
+## 7. 回合纪律（长任务）
+
+- **契约要求**：organize 是一次性长任务（约 1.5–2 小时；作为 SMTB 上游时之后还有数小时）。终点只有一个：Step 17
+  `validate_structured_outputs.py <patient_dir> --final` 打印 OK 行。终点之前**不得发出不含工具调用的消息**：发之前先跑
+  `python3 "<skill_dir>/scripts/validate_structured_outputs.py" <patient_dir> --can-stop`，退出码非 0（5）就照它打印的下一步继续。
+- 给用户的一切内容——急症早报（Step 7.5）、review_summary、时效句、补料信号、进度——都与**下一次工具调用放在同一条消息里**，
+  最终报告再汇总一次；不要用一段“阶段小结”结束回合。
+- 有后台 worker 时只做阻塞等待（轮询它的输出或产物），**不依赖“完成后会被唤醒”**。
+- 唯一合法的提前结束：真的被阻塞（缺凭据、用户必须决定、技能缺陷），并在报告里写明原因与恢复命令。
+- **填法**：`<本宿主如何阻塞等待后台 worker；回合结束是否等于进程退出；是否提供 Stop hook 调 --can-stop>`。

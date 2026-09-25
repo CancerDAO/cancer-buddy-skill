@@ -111,6 +111,45 @@ try:
           rc == 1 and any("no pii_layer1_scan" in e for e in errs), str(errs[:3]))
     bad_id = subprocess.run([sys.executable, script, str(pd), "--pii-layer1", "orchestrator"], capture_output=True, text=True)
     check("--pii-layer1 refuses the orchestrator's reserved name (exit 2)", bad_id.returncode == 2, bad_id.stderr)
+    # ---- X-P0-05 `--can-stop`: a turn may end only when the run is finished
+    VAL = repo / "skills" / "cancer-buddy-organize" / "scripts" / "validate_structured_outputs.py"
+
+    def can_stop(d, validator=VAL):
+        q = subprocess.run([sys.executable, str(validator), "--can-stop", str(d)], capture_output=True, text=True)
+        return q.returncode, q.stdout + q.stderr
+    d = synlib.make(tmp / "cs_nometa")
+    rc, out = can_stop(d)
+    check("--can-stop without organize_meta.json → exit 5 and names the next step",
+          rc == 5 and "organize_meta.json 不存在" in out and "Step 17" in out, out)
+    d = synlib.make(tmp / "cs_ok", synlib.finish_final)
+    rc, out = can_stop(d)
+    check("--can-stop on a finished archive (meta + every --final gate green) → exit 0", rc == 0 and "可以结束" in out, out)
+    check("--can-stop writes nothing (readonly)", not (d / "readiness.json").read_text(encoding="utf-8").count("UNTRUSTED"), "")
+    d = synlib.make(tmp / "cs_noindex", lambda d: (synlib.finish_final(d), (d / "INDEX.md").unlink()))
+    rc, out = can_stop(d)
+    check("--can-stop with a --final gate failing (INDEX.md missing) → exit 5", rc == 5 and "未完成" in out and "INDEX.md" in out, out)
+
+    # ---- X-P1-01: --final re-checks the skill build organize_meta.json recorded
+    skill = tmp / "skillcopy" / "cancer-buddy-organize"
+    shutil.copytree(repo / "skills" / "cancer-buddy-organize", skill, ignore=shutil.ignore_patterns("__pycache__"))
+    d = synlib.make(tmp / "fp", lambda d: synlib.finish_final(d, skill_dir=skill))
+    q = subprocess.run([sys.executable, str(skill / "scripts" / "validate_structured_outputs.py"), str(d), "--final"],
+                       capture_output=True, text=True)
+    check("--final with the skill unchanged since organize_meta.json → rc 0", q.returncode == 0, q.stderr[-400:])
+    (skill / "scripts" / "build_helper_for_this_patient.py").write_text("print(1)\n", encoding="utf-8")
+    q = subprocess.run([sys.executable, str(skill / "scripts" / "validate_structured_outputs.py"), str(d), "--final"],
+                       capture_output=True, text=True)
+    check("--final after a file was written into the skill dir → ERROR skill_changed_since_meta",
+          q.returncode == 1 and "skill_changed_since_meta" in q.stderr, q.stderr[-400:])
+    rc, out = can_stop(d, skill / "scripts" / "validate_structured_outputs.py")
+    check("…and --can-stop refuses to end the turn", rc == 5 and "skill_changed_since_meta" in out, out)
+    (skill / "scripts" / "build_helper_for_this_patient.py").unlink()
+    src = skill / "references" / "organizer-prompt-phase1-ocr.md"
+    src.write_text(src.read_text(encoding="utf-8") + "\n", encoding="utf-8")
+    q = subprocess.run([sys.executable, str(skill / "scripts" / "validate_structured_outputs.py"), str(d), "--final"],
+                       capture_output=True, text=True)
+    check("--final after a prompt file was edited → ERROR skill_changed_since_meta",
+          q.returncode == 1 and "skill_changed_since_meta" in q.stderr, q.stderr[-400:])
 except ImportError:
     print("SKIP: jsonschema not installed (schema half)", file=sys.stderr)
 

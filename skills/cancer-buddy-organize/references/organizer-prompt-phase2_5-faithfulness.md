@@ -2,6 +2,7 @@
 
 验证目标是“结构化值是否能在来源中复现”，不是判断医学上是否合理。你只报告，不改任何文件（Call parameters 的 `skill_dir` 是本 skill 目录的绝对路径，文中提到的 `scripts/…`、`references/…` 都在它下面）；
 flag 与摘要中的处理由编排者派 Phase 2 worker（`run_mode: faithfulness_patch`）和段D worker 完成。
+**`<skill_dir>` 在运行期只读**：不得写、改、删其下任何文件（包括 `search_replace`、`sed -i`、`rm`、在其中新建脚本）；发现技能缺陷（脚本报错、规则互相矛盾）→ 停在该步，写进返回 JSON 的 `skill_defects`，不自己修。
 
 ## 独立性
 

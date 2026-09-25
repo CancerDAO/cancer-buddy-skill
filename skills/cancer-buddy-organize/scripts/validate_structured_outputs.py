@@ -4297,6 +4297,21 @@ def gate_final_outputs(patient_dir: Path, errors: list, warnings: list | None = 
         if left:
             errors.append(f"final: ocr/ still holds {len(left)} file(s) ({', '.join(left[:5])}) — a sidecar that was not "
                           "placed never reached the structured files; re-run Phase 2 before finishing")
+    # X-P1-01: the skill directory is read-only while a run is in flight — the build that finishes the archive is
+    # the one organize_meta.json recorded (written just before this gate, Step 17). A skill file changed,
+    # added or removed since then, or a commit / dirty state that moved, means the run edited the skill.
+    meta = _load_json_quiet(patient_dir / ORGANIZE_META_NAME)
+    if isinstance(meta, dict):
+        import write_organize_meta as wom
+        fp = wom.skill_fingerprint(REPO_ROOT)
+        if meta.get("skill_fingerprint") and meta["skill_fingerprint"] != fp:
+            errors.append(f"final: skill_changed_since_meta — the skill files now hash to {fp[:19]}…, organize_meta.json "
+                          f"recorded {str(meta['skill_fingerprint'])[:19]}…: the skill directory was modified after "
+                          "write_organize_meta.py (the skill dir is read-only during a run; SKILL.md invariant 7)")
+        commit, dirty = wom.skill_commit(REPO_ROOT)
+        if (meta.get("skill_commit"), meta.get("skill_dirty")) != (commit, dirty):
+            errors.append(f"final: skill_changed_since_meta — skill commit / dirty state is now {commit!r} / {dirty!r}, "
+                          f"organize_meta.json recorded {meta.get('skill_commit')!r} / {meta.get('skill_dirty')!r}")
     entries = [e for e in (_update_log_entries(patient_dir) or []) if isinstance(e, dict)]
     last_ingest = max((i for i, e in enumerate(entries) if e.get("run_mode") in INGEST_RUN_MODES), default=None)
     if last_ingest is not None and not any(
@@ -4318,7 +4333,9 @@ def _run_gate(name: str, fn, errors: list, *args, **kwargs) -> None:
 
 
 USAGE = ("usage: validate_structured_outputs.py <patient_dir> [--readonly] [--final]\n"
-         "       validate_structured_outputs.py --generation <patient_dir>   # prints current | legacy")
+         "       validate_structured_outputs.py --generation <patient_dir>   # prints current | legacy\n"
+         "       validate_structured_outputs.py --can-stop <patient_dir>     # exit 0 only when the run may end its turn")
+CAN_STOP_EXIT = 5
 
 
 def main() -> int:
@@ -4326,7 +4343,12 @@ def main() -> int:
     readonly = "--readonly" in args
     want_generation = "--generation" in args
     final = "--final" in args
-    args = [a for a in args if a not in ("--readonly", "--generation", "--final")]
+    # X-P0-05: before a message without a tool call, the orchestrator asks whether the run is really over —
+    # organize_meta.json written and every --final gate passing (checked read-only; nothing is written).
+    can_stop = "--can-stop" in args
+    if can_stop:
+        readonly = final = True
+    args = [a for a in args if a not in ("--readonly", "--generation", "--final", "--can-stop")]
     if len(args) != 1 or args[0].startswith("-"):
         print(USAGE, file=sys.stderr)
         return 2
@@ -4338,6 +4360,10 @@ def main() -> int:
 
     markers = generation_markers(patient_dir)
     generation = "current" if markers else "legacy"
+    if can_stop and generation == "current" and not (patient_dir / ORGANIZE_META_NAME).is_file():
+        print(f"未完成 — organize 还没有收尾：{ORGANIZE_META_NAME} 不存在。不要结束回合；下一步：SKILL.md Step 17 "
+              f"（write_organize_meta.py，然后 validate_structured_outputs.py <patient_dir> --final）。")
+        return CAN_STOP_EXIT
     if want_generation:
         # SKILL.md Step 1 routes on this one predicate: current → update run (sha256 diff),
         # legacy → run_mode legacy_upgrade. Read-only; nothing else runs.
@@ -4396,6 +4422,17 @@ def main() -> int:
 
     for w in warnings:
         print(f"WARN: {w}", file=sys.stderr)
+
+    if can_stop:
+        if errors:
+            print(f"未完成 — 终态门还有 {len(errors)} 处错误（前 3 处见下），不要结束回合；修好后重跑 "
+                  "validate_structured_outputs.py <patient_dir> --final。")
+            for e in errors[:3]:
+                print(f"  - {e}")
+            return CAN_STOP_EXIT
+        print("可以结束：organize_meta.json 已写、--final 全部通过"
+              + ("（旧版档案：仍需一次 legacy_upgrade）" if generation == "legacy" else "") + "。")
+        return 0
 
     if errors:
         for e in errors:

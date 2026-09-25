@@ -80,3 +80,15 @@
 - 来源临床字符串保持不变；翻译/规范化只能作为带标签的派生字段，不能覆盖来源。
 - `source_inventory.json` 覆盖每个输入源,每条 content unit 带 `raw_path` + 文本脱敏 sidecar。
 - LLM 可生成带来源跨度的候选结构、叙述和 HTML 前置数据，但不得覆盖 native/OCR 原始字符层；确定性 HTML 渲染和 PII shape rescan 由脚本执行。
+
+## 7. 回合纪律（长任务）
+
+- **契约要求**：organize 是一次性长任务（约 1.5–2 小时；作为 SMTB 上游时之后还有数小时）。终点只有一个：Step 17
+  `validate_structured_outputs.py <patient_dir> --final` 打印 OK 行。终点之前**不得发出不含工具调用的消息**：发之前先跑
+  `python3 "<skill_dir>/scripts/validate_structured_outputs.py" <patient_dir> --can-stop`，退出码非 0（5）就照它打印的下一步继续。
+- 给用户的一切内容——急症早报（Step 7.5）、review_summary、时效句、补料信号、进度——都与**下一次工具调用放在同一条消息里**，
+  最终报告再汇总一次；不要用一段“阶段小结”结束回合。
+- 有后台 worker 时只做阻塞等待（轮询它的输出或产物），**不依赖“完成后会被唤醒”**。
+- 唯一合法的提前结束：真的被阻塞（缺凭据、用户必须决定、技能缺陷），并在报告里写明原因与恢复命令。
+- **Claude Code 填法**：后台 `Agent` 用输出文件或 `ls -lt <patient_dir>/ocr` 轮询；交互会话里用户可能插话，但编排者自己不提前收尾。
+  可选：配一个 Stop hook 运行 `--can-stop`，非 0 时阻止结束。

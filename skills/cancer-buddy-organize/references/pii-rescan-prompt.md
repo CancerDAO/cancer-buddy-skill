@@ -7,6 +7,7 @@ dispatch 时机：Phase-1 槽位 gate（`organizer-prompt-phase1-ocr.md` §9.2�
 由 `write_organize_meta.py --pii-layer1 <worker_id>` 记进 `organize_meta.json`）**、段C 增量、export 前——每个门点都在
 跑 shape 兜底的同时跑本层。Call parameters：`worker_id`（`pii-<n>`）、`patient_dir`、`surfaces`（要扫的相对路径列表）、
 `skill_dir`。
+**`<skill_dir>` 在运行期只读**：不得写、改、删其下任何文件（包括 `search_replace`、`sed -i`、`rm`、在其中新建脚本）；发现技能缺陷（脚本报错、规则互相矛盾）→ 停在该步，写进返回 JSON 的 `skill_defects`，不自己修。
 
 ## 你的任务
 
