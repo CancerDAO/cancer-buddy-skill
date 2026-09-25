@@ -34,7 +34,8 @@
         {"zh": "出院小结", "en": "discharge_summary"},
         {"zh": "病程记录", "en": "progress_notes"},
         {"zh": "门诊病历", "en": "outpatient_notes"},
-        {"zh": "主诉首程", "en": "chief_complaint"}
+        {"zh": "主诉首程", "en": "chief_complaint"},
+        {"zh": "既往档案摘录", "en": "prior-archive-digest", "note": "digest of an earlier organize archive (source_inventory source_kind=prior_archive_digest); history only, never current status"}
       ]
     },
     {

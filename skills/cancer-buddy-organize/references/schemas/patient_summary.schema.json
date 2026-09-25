@@ -2,19 +2,19 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://cancerdao.org/schemas/cancer-buddy/patient_summary.schema.json",
   "title": "PatientSummary",
-  "description": "Source-preserving rollup. Extraction confidence is not clinical verification.",
+  "description": "Source-preserving rollup. Extraction confidence is not clinical verification. v2.2 adds demographics.performance_status_verbatim[] (required, may be empty): performance-status wording exactly as written, never converted between scales. Legacy schema_version \"2\" / \"2.1\" archives are read leniently by validate_structured_outputs.py (WARN, not FAIL).",
   "type": "object",
   "required": ["patient_code", "schema_version", "generated_at", "demographics", "diagnosis", "current_status"],
   "additionalProperties": false,
   "properties": {
     "patient_code": { "type": "string", "pattern": "^PT-[A-F0-9]+(_\\d+)?$", "description": "Storage locator, not authentication." },
-    "schema_version": { "const": "2.1" },
+    "schema_version": { "const": "2.2" },
     "generated_at": { "type": "string", "format": "date-time" },
     "alias": { "type": ["string", "null"], "description": "Optional user-chosen non-clinical label; do not embed diagnosis or identifiers." },
     "demographics": {
       "type": "object",
       "description": "Only sex is time-invariant. Age, anthropometrics and ECOG are point-in-time observations: each scalar carries its own `_as_of` source date, and differing values across different `_as_of` dates are normal evolution, NOT a source conflict.",
-      "required": ["sex", "sex_normalized", "age", "age_as_of", "age_observations", "birth_year", "height_cm", "height_cm_as_of", "weight_kg", "weight_kg_as_of", "ecog", "ecog_as_of", "function_description", "provenance_layer", "verification_status", "source_refs"],
+      "required": ["sex", "sex_normalized", "age", "age_as_of", "age_observations", "birth_year", "height_cm", "height_cm_as_of", "weight_kg", "weight_kg_as_of", "ecog", "ecog_as_of", "function_description", "performance_status_verbatim", "provenance_layer", "verification_status", "source_refs"],
       "additionalProperties": false,
       "properties": {
         "sex": { "type": ["string", "null"], "description": "Source wording." },
@@ -30,6 +30,7 @@
         "ecog": { "type": ["integer", "null"], "minimum": 0, "maximum": 5, "description": "Clinician-reported only; never inferred." },
         "ecog_as_of": { "type": ["string", "null"], "format": "date", "description": "Source date of `ecog`. Required whenever `ecog` is non-null. A later ECOG differing from an earlier one is a change in status, not a disputed value." },
         "function_description": { "type": ["string", "null"], "description": "Patient/caregiver description kept separate from ECOG." },
+        "performance_status_verbatim": { "type": "array", "items": { "$ref": "#/$defs/ps_verbatim" }, "description": "Every performance-status statement as written (PS=1, ECOG 2, KPS 80 …) with its date and the scale label the source prints, oldest first. Never converted between scales; `ecog` stays null unless a clinician source literally writes ECOG. profile.json.demographics carries the same list." },
         "provenance_layer": { "$ref": "#/$defs/provenance_layer" },
         "verification_status": { "$ref": "#/$defs/verification_status" },
         "source_refs": { "$ref": "#/$defs/source_refs" }
@@ -87,7 +88,19 @@
         "verification_status": { "$ref": "#/$defs/verification_status" }
       }
     },
-    "provenance_layer": { "enum": ["source_reported", "patient_reported", "caregiver_reported", "system_normalized"] },
+    "ps_verbatim": {
+      "type": "object",
+      "required": ["text", "as_of", "scale_label", "source_ref"],
+      "additionalProperties": false,
+      "properties": {
+        "text": { "type": "string", "minLength": 1, "pattern": "[^\\s.…。，、,;；:：!！?？\"'“”‘’()（）【】《》\\[\\]-]{2}", "description": "Verbatim wording, e.g. PS=1 (bound to the cited line; an ellipsis-only quote is rejected)." },
+        "as_of": { "type": ["string", "null"], "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$", "description": "Date (YYYY-MM-DD) of the source that states it; null only when that source is undated." },
+        "scale_label": { "enum": ["PS", "ECOG", "KPS", "Zubrod", "unlabeled"], "description": "The scale label the source itself prints; unlabeled when it prints none. Never inferred." },
+        "source_ref": { "type": "string" },
+        "provenance_layer": { "$ref": "#/$defs/provenance_layer", "description": "Optional; absent = the demographics block's layer. prior_archive for a statement restated from a prior-archive digest (history only — never the current performance status); it must then cite the digest." }
+      }
+    },
+    "provenance_layer": { "enum": ["source_reported", "patient_reported", "caregiver_reported", "system_normalized", "prior_archive"], "description": "prior_archive = restated from a prior_archive_digest source (earlier organize archive, original not in this packet); history only, never current status." },
     "verification_status": { "enum": ["unverified", "clinician_verified", "disputed"] }
   }
 }

@@ -72,6 +72,10 @@ REQUIRED_ROUTING = [
     "`longitudinal_observations.json`",
     "`missing_items.json`",
     "`readiness.json.review_flags`",
+    # acute findings: read-order step 6 AND the domain-map row. The bare "`acute_findings.json`"
+    # literal occurs on both lines, so each anchor names its own line (removing either fails).
+    "`acute_findings.json` first",
+    "| `acute_findings.json` |",
 ]
 
 # The three inlined red lines (§6.3 mitigation (b)). If any of these is missing the

@@ -4,6 +4,15 @@
 The transform copies dated values from labs.json. Badge text comes only from the
 reporting laboratory's own report_flag/critical_flag on the latest result. It
 never compares a value with a range, invents H/L, or assigns severity.
+
+A result whose column binding was not confirmed (labs v2.1 pairing_method
+`linear_position` = position-paired candidate, `none` = pairing refused, or any row that
+carries a candidate_value) is never displayed: its raw string is not bound to this
+analyte, so showing it would present a candidate as the patient's value. This holds for
+rows 段D already wrote too: an existing lab_trends row whose analyte has no confirmed
+result, or whose newest result is unconfirmed, gets its current_value cleared (the
+series is kept; compute_sparklines.py --labs rejects any series point or numeric
+current_value that is not a confirmed value).
 """
 from __future__ import annotations
 
@@ -27,11 +36,22 @@ def _source_badge(result: dict) -> tuple[str, str]:
     return "", ""
 
 
+UNCONFIRMED_PAIRING = ("linear_position", "none")
+
+
+def is_unconfirmed(result: dict) -> bool:
+    """A result whose value-to-analyte binding is only a candidate (or was refused)."""
+    return result.get("pairing_method") in UNCONFIRMED_PAIRING or result.get("candidate_value") is not None
+
+
 def _panel_to_row(panel: dict) -> dict | None:
     analyte = panel.get("analyte")
     if not analyte:
         return None
-    values = [item for item in (panel.get("values") or []) if isinstance(item, dict)]
+    all_values = [item for item in (panel.get("values") or []) if isinstance(item, dict)]
+    values = [item for item in all_values if not is_unconfirmed(item)]
+    if all_values and not values:
+        return None  # only unconfirmed candidates: nothing may be displayed for this analyte
     values.sort(key=lambda item: str(item.get("date") or ""))
     series = [
         {"t": str(item["date"]), "v": item["value"]}
@@ -57,6 +77,12 @@ def backfill(data: dict, labs: dict) -> int:
     panels = [item for item in (labs.get("panels") or []) if isinstance(item, dict)] if isinstance(labs, dict) else []
     source_rows = [row for row in (_panel_to_row(panel) for panel in panels) if row]
     by_name = {row["lab_name"]: row for row in source_rows}
+    # analytes whose newest result is unconfirmed (or that have no confirmed result at all)
+    unconfirmed_latest: set[str] = set()
+    for panel in panels:
+        vals = [v for v in (panel.get("values") or []) if isinstance(v, dict)]
+        if panel.get("analyte") and vals and is_unconfirmed(_latest(vals)):
+            unconfirmed_latest.add(str(panel["analyte"]))
 
     if not data.get("lab_trends"):
         data["lab_trends"] = source_rows
@@ -67,9 +93,16 @@ def backfill(data: dict, labs: dict) -> int:
     for row in data.get("lab_trends") or []:
         if not isinstance(row, dict):
             continue
-        source = by_name.get(str(row.get("lab_name") or ""))
+        name = str(row.get("lab_name") or "")
+        source = by_name.get(name)
         row["status_class"] = source.get("status_class", "") if source else ""
         row["status_label"] = source.get("status_label", "") if source else ""
+        # A position-paired candidate must never surface as the displayed value: if the
+        # newest result for this analyte is unconfirmed, show the latest CONFIRMED value
+        # (or nothing when there is none). Rows naming no labs.json analyte are left to
+        # the compute_sparklines --labs anti-fabrication gate.
+        if name in unconfirmed_latest:
+            row["current_value"] = source["current_value"] if source else ""
     return 0
 
 

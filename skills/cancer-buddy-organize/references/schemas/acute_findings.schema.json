@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cancerdao.org/schemas/cancer-buddy/acute_findings.schema.json",
+  "title": "AcuteFindings",
+  "description": "Acute and incidental findings the SOURCE itself reports (thrombus/embolism, fracture, perforation, obstruction, hemorrhage, large or increasing effusion, suspected drug pneumonitis/ILD, critical-result flags, 'please correlate clinically'). Always written — `findings: []` when a run found none, so absence of the file never reads as 'none found'. acuity comes from the fixed finding_class → default table in references/acute-findings.md, adjusted only by the source's own critical flag / urgency wording / chronic wording; it is a filing of source wording, not a clinical triage, and it does not change or replace the treating team. Written on every pass, a Phase-2-only pass on a legacy archive included: it is a safety surface, not a current-contract marker. On a current-contract archive every finding has exactly one timeline.json event with category acute_finding; on a legacy archive timeline_event_id may be null.",
+  "type": "object",
+  "required": ["patient_code", "schema_version", "generated_at", "findings"],
+  "additionalProperties": false,
+  "properties": {
+    "patient_code": { "type": "string", "pattern": "^PT-[A-F0-9]+(_\\d+)?$" },
+    "schema_version": { "const": "1" },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["finding_id", "finding_class", "label", "verbatim_text", "exam_date", "report_date", "source_ref", "acuity", "acuity_basis", "acuity_basis_text", "change_vs_prior", "timeline_event_id", "provenance_layer", "verification_status"],
+        "additionalProperties": false,
+        "properties": {
+          "finding_id": { "type": "string", "pattern": "^AF-[0-9]{3,}$" },
+          "finding_class": {
+            "enum": ["thrombus_embolism", "fracture_cortical_break", "perforation_free_air", "obstruction", "hemorrhage", "effusion_large_or_increasing", "pneumonitis_ild_suspected", "critical_result_flag", "clinical_correlation_requested", "other_source_flagged"]
+          },
+          "label": { "type": "string", "minLength": 1, "description": "Short label in the source's own terms." },
+          "verbatim_text": { "type": "string", "minLength": 1, "pattern": "[^\\s.…。，、,;；:：!！?？\"'“”‘’()（）【】《》\\[\\]-]{2}", "description": "Source sentence(s) verbatim; an elision is written as …… and every remaining segment must appear on the cited sidecar line(s). An ellipsis-only quote binds nothing and is rejected." },
+          "exam_date": { "type": ["string", "null"], "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" },
+          "report_date": { "type": ["string", "null"], "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" },
+          "source_ref": { "type": "string", "pattern": "#L[0-9]+(-L[0-9]+)?$", "description": "Bucket-relative sidecar anchor with a line (range), e.g. 05_影像/CT/2030-01-12_胸部CT_示例医院.md#L12." },
+          "acuity": { "enum": ["emergent", "urgent", "incidental"] },
+          "acuity_basis": {
+            "enum": ["class_default", "source_critical_flag", "source_wording_escalation", "source_wording_chronic"],
+            "description": "class_default = the fixed table value; source_critical_flag = the report prints a critical-value / critical-result mark (→ emergent); source_wording_escalation = the report's own urgency wording raises the class default; source_wording_chronic = the report states old/chronic and unchanged and already known (→ incidental)."
+          },
+          "acuity_basis_text": { "type": ["string", "null"], "pattern": "[^\\s.…。，、,;；:：!！?？\"'“”‘’()（）【】《》\\[\\]-]{2}", "description": "Verbatim source wording behind a non-default acuity_basis, quoted from the cited line(s) (source_ref, or acuity_basis_ref) and holding one of that adjustment's pinned words (acute-findings.md §4.1); null for class_default." },
+          "acuity_basis_ref": { "type": ["string", "null"], "pattern": "^[0-9]{2}_[^\\s#]+\\.md#L[0-9]+(-L[0-9]+)?$", "description": "Optional: when the adjustment wording (a critical-flag note, say) sits on another line of the SAME report, its line anchor; acuity_basis_text is then bound to these lines instead of source_ref's." },
+          "change_vs_prior": {
+            "type": "object",
+            "required": ["verbatim", "direction", "prior_date_stated"],
+            "additionalProperties": false,
+            "properties": {
+              "verbatim": { "type": ["string", "null"], "pattern": "[^\\s.…。，、,;；:：!！?？\"'“”‘’()（）【】《》\\[\\]-]{2}", "description": "The source's own comparison wording (较前增多 / 无显著变化 …), on the finding's cited line(s)." },
+              "direction": {
+                "enum": ["new", "increased", "stable", "decreased", "resolved", "not_stated"],
+                "description": "Literal mapping of the source wording only; never summarised into progression / improvement."
+              },
+              "prior_date_stated": { "type": ["string", "null"], "description": "Date of the comparison study as the source states it, verbatim." }
+            },
+            "allOf": [
+              {
+                "if": { "properties": { "direction": { "enum": ["new", "increased", "stable", "decreased", "resolved"] } }, "required": ["direction"] },
+                "then": { "properties": { "verbatim": { "type": "string", "minLength": 1 } } }
+              }
+            ]
+          },
+          "timeline_event_id": { "type": ["string", "null"], "minLength": 1, "description": "event_id of the timeline.json event (category acute_finding) that registers this finding. null ONLY on a legacy archive (a Phase-2-only pass before legacy_upgrade adds no acute_finding event to the legacy timeline); on a current-contract archive the validator requires the event and the two-way link." },
+          "provenance_layer": { "enum": ["source_reported", "patient_reported", "caregiver_reported", "system_normalized", "prior_archive"] },
+          "verification_status": { "enum": ["unverified", "clinician_verified", "disputed"] }
+        },
+        "allOf": [
+          {
+            "if": { "properties": { "acuity_basis": { "const": "class_default" } }, "required": ["acuity_basis"] },
+            "else": { "properties": { "acuity_basis_text": { "type": "string", "minLength": 1 } } }
+          },
+          {
+            "if": { "properties": { "acuity_basis": { "const": "source_critical_flag" } }, "required": ["acuity_basis"] },
+            "then": { "properties": { "acuity": { "const": "emergent" } } }
+          },
+          {
+            "if": { "properties": { "acuity_basis": { "const": "source_wording_chronic" } }, "required": ["acuity_basis"] },
+            "then": { "properties": { "acuity": { "const": "incidental" } } }
+          }
+        ]
+      }
+    }
+  }
+}

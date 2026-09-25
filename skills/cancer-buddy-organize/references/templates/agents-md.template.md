@@ -68,7 +68,10 @@ executed**.
 2. Read `profile.json` only as an index; inspect provenance layer and verification status.
 3. Read the relevant domain JSON and follow `source_refs` to the exact sidecar span.
 4. Use `source_inventory.json` to locate the immutable raw source when authorized.
-5. Check `readiness.json.review_flags` and unresolved `disputed` fields before using any value.
+5. Check `readiness.json.review_flags` and unresolved `disputed` fields before using any value. A flag's
+   `severity` grades extraction/archive-completeness uncertainty, not clinical severity.
+6. Check `acute_findings.json` first when answering about current condition: emergent/urgent rows are
+   source-worded findings to bring to the treating team, quoted verbatim with their date.
 
 ## Domain map
 
@@ -80,6 +83,7 @@ executed**.
 | labs | `labs.json` | use each result's unit/range/date/source; no universal grading |
 | symptoms/observations | `longitudinal_observations.json` | preserve patient/device/clinical layers; not response |
 | document gaps | `missing_items.json` | existing-document inventory only; never order tests |
+| acute/incidental findings | `acute_findings.json` | quote verbatim with date; never triage, explain or downgrade |
 
 ## Non-negotiable rules
 
@@ -88,6 +92,8 @@ executed**.
 - Conflicts remain disputed until a formal amendment or authorized clinician attestation.
 - Preserve source text; normalization/translation is additive and validated.
 - Every factual statement needs a resolvable source anchor. Missing source means omit or label unknown.
+- A field containing `[OCR_UNCERTAIN:U-nnn]`, or flagged `document_intent` and unresolved, is never a premise
+  for stage, pathology or treatment reasoning; `prior_archive` facts are history only.
 - Cite each fact through its own `source_refs[]`. Never fabricate a hospital, clinician, date or document name.
 - The three red lines above are complete as written and apply with no skill loaded. When the cancer-buddy
   skill is loaded, its bundled safety-guardrails and clinical-content-governance contracts (resolved from

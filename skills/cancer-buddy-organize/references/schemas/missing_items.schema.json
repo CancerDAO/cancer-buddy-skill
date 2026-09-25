@@ -2,13 +2,13 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://cancerdao.org/schemas/cancer-buddy/missing_items.schema.json",
   "title": "DocumentGaps",
-  "description": "Compatibility filename for existing-document inventory gaps. Absence never means that a test is clinically indicated.",
+  "description": "Compatibility filename for existing-document inventory gaps. Absence never means that a test is clinically indicated. v2.1 adds per-gap severity (archive-completeness grade, not clinical) and the missing_pages gap type with its page bookkeeping (scripts/page_completeness.py). Legacy schema_version \"2\" archives are read leniently (WARN, not FAIL).",
   "type": "object",
   "required": ["patient_code", "schema_version", "inventory_mode", "document_gaps", "disclaimer"],
   "additionalProperties": false,
   "properties": {
     "patient_code": { "type": "string", "pattern": "^PT-[A-F0-9]+(_\\d+)?$" },
-    "schema_version": { "const": "2" },
+    "schema_version": { "const": "2.1" },
     "generated_at": { "type": "string", "format": "date-time" },
     "inventory_mode": { "const": "existing_document_inventory_only" },
     "cancer_type": { "type": ["string", "null"] },
@@ -16,17 +16,28 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["document_category", "gap_type", "reason_for_artifact"],
+        "required": ["document_category", "gap_type", "reason_for_artifact", "severity"],
         "additionalProperties": false,
         "properties": {
           "document_category": { "type": "string" },
-          "gap_type": { "enum": ["not_in_archive", "unknown", "requested_by_clinician", "patient_declined_to_add"] },
+          "gap_type": { "enum": ["not_in_archive", "unknown", "requested_by_clinician", "patient_declined_to_add", "missing_pages"] },
+          "severity": { "enum": ["red", "yellow", "info"], "description": "Archive-completeness grade; not clinical severity. missing_pages gaps are red." },
+          "group_key": { "type": "string", "minLength": 1, "description": "Document group key printed by scripts/page_completeness.py (date|folder|institution|page_total)." },
+          "pages_present": { "type": "array", "items": { "type": "integer", "minimum": 1 } },
+          "pages_missing": { "type": "array", "items": { "type": "integer", "minimum": 1 } },
+          "page_total": { "type": "integer", "minimum": 1 },
           "reason_for_artifact": { "type": "string", "description": "Why the existing document would help the requested organizational artifact; never a test recommendation." },
           "clinician_request_source_refs": {
             "type": "array",
             "items": { "type": "string" }
           }
-        }
+        },
+        "allOf": [
+          {
+            "if": { "properties": { "gap_type": { "const": "missing_pages" } }, "required": ["gap_type"] },
+            "then": { "required": ["group_key", "pages_present", "pages_missing", "page_total"], "properties": { "pages_missing": { "minItems": 1 }, "severity": { "const": "red" } } }
+          }
+        ]
       }
     },
     "disclaimer": { "const": "Document inventory only; not a test or treatment recommendation." }

@@ -2,13 +2,13 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://cancerdao.org/schemas/cancer-buddy/molecular.schema.json",
   "title": "Molecular",
-  "description": "Source-preserving molecular/pathology results. No drug matching or clinical interpretation.",
+  "description": "Source-preserving molecular/pathology results. No drug matching or clinical interpretation. v2.1 adds hla_typing[] (required, may be empty): HLA alleles exactly as reported, which downstream uses to screen HLA-restricted trials. Legacy schema_version \"2\" archives are read leniently (WARN, not FAIL).",
   "type": "object",
-  "required": ["patient_code", "schema_version", "reports", "variants", "ihc", "msi_results", "mmr_results"],
+  "required": ["patient_code", "schema_version", "reports", "variants", "ihc", "msi_results", "mmr_results", "hla_typing"],
   "additionalProperties": false,
   "properties": {
     "patient_code": { "type": "string", "pattern": "^PT-[A-F0-9]+(_\\d+)?$" },
-    "schema_version": { "const": "2" },
+    "schema_version": { "const": "2.1" },
     "generated_at": { "type": "string", "format": "date-time" },
     "reports": {
       "type": "array",
@@ -56,11 +56,34 @@
     "ihc": { "type": "array", "items": { "$ref": "#/$defs/simple_result" } },
     "msi_results": { "type": "array", "items": { "$ref": "#/$defs/simple_result" }, "description": "Separate assay results; conflicts are preserved." },
     "mmr_results": { "type": "array", "items": { "$ref": "#/$defs/simple_result" }, "description": "Separate IHC/other results; do not collapse into MSI." },
-    "tmb_results": { "type": "array", "items": { "$ref": "#/$defs/simple_result" } }
+    "tmb_results": { "type": "array", "items": { "$ref": "#/$defs/simple_result" } },
+    "hla_typing": { "type": "array", "items": { "$ref": "#/$defs/hla_allele" }, "description": "One row per reported allele, copied verbatim; a locus the report types only as 杂合/纯合 (no allele printed) is one row with allele null + zygosity; empty when the archive holds no HLA typing." }
   },
   "$defs": {
     "source_refs": { "type": "array", "minItems": 1, "items": { "type": "string" } },
-    "provenance": { "enum": ["source_reported", "patient_reported", "caregiver_reported", "system_normalized"] },
+    "provenance": { "enum": ["source_reported", "patient_reported", "caregiver_reported", "system_normalized", "prior_archive"], "description": "prior_archive = restated from a prior_archive_digest source (earlier organize archive, original not in this packet); history only, never current status." },
+    "hla_allele": {
+      "type": "object",
+      "required": ["locus", "allele", "resolution", "method", "source_refs", "provenance_layer", "verification_status"],
+      "additionalProperties": false,
+      "properties": {
+        "locus": { "type": "string", "pattern": "^[A-Z]{1,4}[0-9]?$", "description": "Bare locus letters (A, B, C, DRB1, DQB1, DPB1 …) — never the HLA- prefix or an allele (organizer-prompt-phase2-synthesis.md §5.4)." },
+        "allele": { "type": ["string", "null"], "minLength": 1, "description": "Allele exactly as printed, e.g. A*02:01. null ONLY when the report prints no allele for the locus, only its zygosity — then zygosity is required, and downstream (SMTB) skips the row for HLA-restricted matching." },
+        "report_date": { "type": ["string", "null"], "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$", "description": "Optional: the typing report's own date (YYYY-MM-DD, taken from the report — its filename date or a date printed on it; the validator checks). null or absent when the report states none; never borrowed from another document. Downstream uses it as the observation date of this germline result." },
+        "zygosity": { "type": ["string", "null"], "minLength": 1, "description": "Optional verbatim zygosity wording (杂合 / 纯合 / heterozygous …). Required (non-null) when allele is null." },
+        "resolution": { "type": ["string", "null"], "description": "Field count of the printed allele, filled mechanically (1-field … 4-field, e.g. A*02:01 → 2-field); null when allele is null or not in field notation." },
+        "method": { "type": ["string", "null"], "description": "Typing method as printed; null when not stated." },
+        "provenance_layer": { "$ref": "#/$defs/provenance" },
+        "verification_status": { "enum": ["unverified", "clinician_verified", "disputed"] },
+        "source_refs": { "$ref": "#/$defs/source_refs" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "allele": { "type": "null" } }, "required": ["allele"] },
+          "then": { "required": ["zygosity"], "properties": { "zygosity": { "type": "string" } } }
+        }
+      ]
+    },
     "simple_result": {
       "type": "object",
       "required": ["label", "report_id", "source_refs", "provenance_layer", "verification_status"],

@@ -28,6 +28,19 @@ There are two anchor kinds:
 - Paths are case-sensitive and use `/` separators (never `\`).
 - No whitespace allowed inside the anchor.
 
+#### Line numbering (one rule for writers, readers and the validator)
+
+- `L<n>` is 1-based and counts lines exactly as Python `str.splitlines()` splits the sidecar text. Every
+  line number in the archive uses this count: `#L` anchors, the `line:` of a `## 不确定字段` entry, and the
+  line the validator reads for `verbatim_text` / PS text binding (`validate_structured_outputs.py`
+  `anchor_line_binding`, `validate-profile-schema.sh`).
+- `str.splitlines()` also breaks at a form feed `\f` (and `\v`, `\x1c`–`\x1e`, `\x85`, U+2028/U+2029, a lone
+  `\r`), which `cat -n` / `grep -n` / `sed -n` do not. So a sidecar never contains those characters: Phase 1
+  writes a page break from a text layer (`pdftotext` emits `\f` between pages) as a newline. Then every
+  line-oriented tool and the validator count the same lines. On a current-contract archive the validator
+  rejects a sidecar written under the current contract that still contains one (`line_breaks:`);
+  carried-over legacy sidecars are one WARN.
+
 ### 1b. Conversation anchor
 
 - Form: `[[src:conversation:<ISO8601>]]` where `<ISO8601>` is the timestamp of the chat turn the patient/caregiver statement was confirmed for archiving.
@@ -39,7 +52,7 @@ There are two anchor kinds:
 Every **factual sentence** in narrative output must carry at least one anchor. Examples:
 
 ```
-- 主要诊断: 乙状结肠癌 (cT4N1M1) [[src:04_诊断与分期/病理报告/2019-04-09_病理报告_中山六院.md#L4-L8]]
+- 主要诊断: 乙状结肠癌 (cT4N1M1) [[src:04_诊断与分期/病理报告/2029-04-09_病理报告_示例医院.md#L4-L8]]
 - KRAS G12C 突变 (VAF 0.32) [[src:06_分子与组学/NGS报告/2024-03-15_NGS_华大基因.md#L22-L29]]
 - 患者口述近一周乏力加重，活动时间减少 [[src:conversation:2026-06-07T14:32:05Z]]（不得转成 ECOG 分数）
 ```
@@ -87,4 +100,4 @@ The first alternative matches a bucket-relative `.md` path (leading `NN_` bucket
 - **Patient verifiability** — every fact in the patient-facing summary card can be inspected by clicking through to the redacted bucket sidecar (file anchor) or the confirmed chat turn (conversation anchor).
 - **Audit trail** — when a regulator or treating physician asks "where did this molecular result come from", the chain is in the file itself.
 
-Failure to honor this contract is a P0 bug — surfaced as a `🔴 red` flag in `review_flags.md` with `category: anchor_coverage_gap`.
+Failure to honor this contract is a P0 bug — surfaced as a review flag in `readiness.json.review_flags[]` (and listed in `review_flags.md`) with `kind: other`, `category: anchor_coverage_gap`, and `severity: red` (the anchor-gap row of the flag table in [`organizer-prompt-phase2-synthesis.md`](../organizer-prompt-phase2-synthesis.md) §6.1; `validate_structured_outputs.py` rejects any other kind or severity for this category on a current-contract archive). `severity` grades extraction / archive-integrity uncertainty — whether the value can be used as confirmed — not how serious the bug is; there is no emoji or colour-only marker.

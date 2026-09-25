@@ -2,12 +2,12 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://cancerdao.org/schemas/cancer-buddy/source_inventory.schema.json",
   "title": "SourceInventory",
-  "description": "Canonical source inventory. It preserves native/deterministic extraction provenance, separates raw text from LLM-assisted proposals, and links each derived sidecar to an access-controlled original. It is not an authorization record or a claim of anonymity.",
+  "description": "Canonical source inventory. It preserves native/deterministic extraction provenance, separates raw text from LLM-assisted proposals, and links each derived sidecar to an access-controlled original. It is not an authorization record or a claim of anonymity. v2.1 (`schema: source_inventory_v2.1`) adds per-file sha256/size/page provenance, the worker that wrote the sidecar, the second-read channel and whether that reread was independent, the prior-archive digest source kind, and the top-level skipped_inputs[] ledger. Legacy `source_inventory_v2` inventories are read leniently by validate_structured_outputs.py (WARN, not FAIL).",
   "type": "object",
-  "required": ["schema", "patient_dir", "generated_at", "files"],
+  "required": ["schema", "patient_dir", "generated_at", "files", "skipped_inputs"],
   "additionalProperties": false,
   "properties": {
-    "schema": { "const": "source_inventory_v2" },
+    "schema": { "const": "source_inventory_v2.1" },
     "patient_dir": { "type": "string", "description": "Relative path or placeholder for <patient_dir> (e.g. \".\" or the patient-dir basename) — not an absolute path, so the inventory stays portable and never leaks a host filesystem path. All relative paths below resolve under this directory." },
     "generated_at": { "type": "string", "format": "date-time" },
     "files": {
@@ -15,55 +15,142 @@
       "minItems": 1,
       "items": {
         "type": "object",
-        "required": ["file_id", "source_id", "original_path", "raw_path", "page_range", "sidecar_path", "modality", "read_mode", "extractor_provenance", "high_risk_review_status", "adapter", "persist"],
+        "required": ["file_id", "source_id", "original_path", "raw_path", "page_range", "sidecar_path", "modality", "read_mode", "extractor_provenance", "high_risk_review_status", "adapter", "persist", "sha256", "size_bytes", "page_count", "page_label", "source_kind", "second_read_channel", "independent_reread"],
         "additionalProperties": false,
         "properties": {
           "file_id": { "type": "string", "description": "Stable id of this content unit (1:1 with the sidecar/MD), e.g. f001. N content units may share one source_id when a single upload yields multiple sidecars. See bucket-taxonomy.md §4." },
-          "source_id": { "type": "string", "description": "Stable per-upload id, e.g. s001. 1:1 with an uploaded original in raw/; N content units may share it." },
+          "source_id": { "type": "string", "description": "Stable per-upload id, e.g. s001. 1:1 with an uploaded original in raw/; N content units may share it. Must equal the sidecar header FILE_ID." },
           "original_path": { "type": "string", "description": "De-identified raw handle (the Phase-1 de-id raw filename / source_id) recorded for audit; never used as an anchor. MUST be relative/de-identified — never a host-absolute path (/Users/...), cloud URL, email-attachment path, OR an identity-bearing upload basename (e.g. NOT '张测试-报告.pdf'). The verbatim upload filename is preserved only in raw/_FILENAME_MAPPING.md (inside raw/, excluded from export). source_inventory.json is a delivered/shared surface; the delivered-surface PII rescan (pii_rescan.py) hard-fails name/path leaks here." },
-          "raw_path": { "type": "string", "pattern": "^raw/.+", "description": "Protected relative path to the uploaded original. Access requires host authorization; the path is never an anchor or an export default." },
-          "page_range": { "type": ["string", "null"], "description": "Which pages of a multi-document source this content unit covers, e.g. \"3-5\". Null when the sidecar covers the whole file." },
+          "raw_path": {
+            "type": ["string", "null"],
+            "pattern": "^raw/.+",
+            "description": "Protected relative path to the uploaded original. Access requires host authorization; the path is never an anchor or an export default. Null ONLY for source_kind=prior_archive_digest (there is no original in this packet; never write a placeholder pointer file)."
+          },
+          "page_range": { "type": ["string", "null"], "description": "Which pages of a multi-document source this content unit covers, e.g. \"3-5\". Null when the sidecar covers the whole file. Not a page label — see page_label." },
           "bucket_path": { "type": ["string", "null"], "description": "Canonical bucket-relative path of the text-masked .md SIDECAR after Phase2 classification (clinical domain 01_…14_). The original is NOT copied here — it stays once in raw/ (see raw_path). Null before classification or for isolated unrelated files." },
           "sidecar_path": { "type": "string", "pattern": "^[0-9]{2}_[^\\s/]+(/[^\\s/]+)*\\.md$", "description": "Bucket-relative source-attributed, text-masked MD sidecar. The leading NN_ bucket segment is required." },
           "modality": {
             "type": "string",
             "enum": ["text", "image", "structured", "omics_raw", "timeseries", "binary_other"],
-            "description": "Orthogonal data-nature tag (independent of the clinical-domain bucket) driving ingest-parser dispatch. text=prose/OCR doc; image=imaging/scan stub; structured=tabular numeric report; omics_raw=parseable omics payload (VCF / annotated TSV / expression-methylation matrix); timeseries=wearable/PRO/longitudinal stream → longitudinal_observations.json; binary_other=opaque/unsupported binary, incl. BAM/FASTQ/DICOM/proprietary (stub + [INGESTION_BLOCKED], never silently dropped). See bucket-taxonomy.md §2 and ingest-adapters.md."
+            "description": "Orthogonal data-nature tag (independent of the clinical-domain bucket) driving ingest-parser dispatch. text=prose/OCR doc; image=imaging/scan stub; structured=tabular numeric report; omics_raw=parseable omics payload (VCF / annotated TSV / expression-methylation matrix); timeseries=wearable/PRO/longitudinal stream → longitudinal_observations.json; binary_other=opaque/unsupported binary, incl. BAM/FASTQ/DICOM/proprietary (stub + [INGESTION_BLOCKED], never silently dropped). See bucket-taxonomy.md §2 and ingest-adapters.md. Must equal the sidecar header MODALITY."
           },
           "read_mode": {
             "type": "string",
-            "enum": ["native_text", "deterministic_ocr", "table_parser", "barcode_parser", "hybrid_verified", "model_vision_assist", "stub_unreadable"],
-            "description": "Primary character-extraction mode. Model vision may assist but is never the only truth layer for high-risk fields."
+            "enum": ["native_text", "deterministic_ocr", "table_parser", "barcode_parser", "hybrid_verified", "model_vision_assist", "stub_unreadable", "prior_archive_digest"],
+            "description": "Primary character-extraction mode. Model vision may assist but is never the only truth layer for high-risk fields. Must equal the sidecar header READ_MODE (hybrid_verified only when INDEPENDENT_REREAD is true)."
           },
           "extractor_provenance": {
             "type": "object",
-            "required": ["engine", "version", "raw_output_ref", "llm_role"],
+            "required": ["engine", "version", "raw_output_ref", "llm_role", "worker_id"],
             "additionalProperties": false,
             "properties": {
               "engine": { "type": "string", "minLength": 1 },
               "version": { "type": ["string", "null"] },
               "raw_output_ref": { "type": ["string", "null"], "description": "Protected relative reference to preserved native/OCR character output; never a public export default." },
-              "llm_role": { "type": "string", "enum": ["none", "layout_assist", "candidate_correction", "semantic_label", "review"] }
+              "llm_role": { "type": "string", "enum": ["none", "layout_assist", "candidate_correction", "semantic_label", "review"] },
+              "worker_id": { "$ref": "#/$defs/worker_id" }
             }
           },
           "high_risk_review_status": {
             "type": "string",
             "enum": ["not_applicable", "passed_independent_reread", "needs_human_review"],
-            "description": "Status of the independent reread for identifiers, dates, drug/dose/frequency, laboratory values/units/ranges, stage, variants/VAF and accession numbers."
+            "description": "Status of the independent reread for identifiers, dates, drug/dose/frequency, laboratory values/units/ranges, stage, variants/VAF and accession numbers. passed_independent_reread requires independent_reread=true."
           },
           "adapter": {
             "type": "string",
             "enum": ["none", "temp_raster", "pdf_pages", "docx_payload", "spreadsheet_payload", "text_payload", "archive_unpacked", "unsupported_stub"],
-            "description": "Format adapter used to make the source extractable and independently reviewable; it does not create a new clinical source."
+            "description": "Format adapter used to make the source extractable and independently reviewable; it does not create a new clinical source. Must equal the sidecar header ADAPTER."
           },
           "adapter_provenance": {
             "type": ["string", "null"],
             "description": "Short provenance such as decode_tool=sips;rotation=90 or pdftoppm pages=3. Temporary paths are allowed only as provenance, never as anchors."
           },
           "persist": { "type": "boolean", "description": "Whether this source file is selected for final archive/persist. Medical sources cited by formal outputs (timeline/case_text/review outputs/structured JSON source_refs) must be true; false is reserved for isolated unrelated/non-persisted sources." },
-          "notes": { "type": ["string", "null"] }
+          "notes": { "type": ["string", "null"] },
+          "sha256": {
+            "type": ["string", "null"],
+            "pattern": "^[0-9a-f]{64}$",
+            "description": "sha256 of the uploaded original bytes (scripts/inventory_hash.py). Must equal the sidecar header SHA256. Null only for prior_archive_digest rows."
+          },
+          "size_bytes": { "type": ["integer", "null"], "minimum": 0, "description": "Byte size of the uploaded original. Null only for prior_archive_digest rows." },
+          "page_count": { "type": ["integer", "null"], "minimum": 1, "description": "Pages in the original (image = 1, PDF = page count); null when not determinable." },
+          "page_label": { "type": ["string", "null"], "description": "Page label printed on the document, verbatim (e.g. \"第2页，共3页\" / \"共1页/第1页\"); a sidecar covering several printed pages lists every page's label in page order, separated by \"；\" (\"第1页，共3页；第2页，共3页；第3页，共3页\"); null when the document prints none. Parsed by scripts/page_completeness.py (parse_page_labels). Must equal the sidecar header PAGE_LABEL (header `none` ↔ null)." },
+          "source_kind": {
+            "enum": ["upload", "prior_archive_digest"],
+            "description": "upload = an original in this packet (raw_path required). prior_archive_digest = a digest of an earlier organize archive; usable for history only, never for current status or recommendations."
+          },
+          "digest_of": {
+            "type": "object",
+            "required": ["archive_ref", "archive_generated_at", "sidecar_refs"],
+            "additionalProperties": false,
+            "properties": {
+              "archive_ref": { "type": "string", "minLength": 1, "pattern": "^PT-[A-Za-z0-9]+(?:_[0-9]+)?(?:@[0-9]{4}-[0-9]{2}-[0-9]{2})?$", "description": "De-identified reference to the earlier archive: its patient_code, optionally @ its run date (PT-5A1F0C@2029-06-01). Never a path, a folder name or anything name-derived." },
+              "archive_generated_at": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}", "description": "Date (or date-time) the earlier archive was generated." },
+              "sidecar_refs": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 }, "description": "Sidecar paths inside the earlier archive the digest was taken from." }
+            }
+          },
+          "superseded_by": {
+            "type": ["string", "null"],
+            "minLength": 1,
+            "description": "Optional (upload reconciliation, 替换): the file_id of the later upload the user chose to prefer. The superseded sidecar stays in its bucket with every anchor intact (originals and anchors are never moved, remapped or deleted — upload-reconciliation.md); this is only a relation. Must name another files[] row."
+          },
+          "second_read_channel": {
+            "type": ["string", "null"],
+            "pattern": "^(text_layer|table_parser|deterministic_ocr:[A-Za-z0-9_.-]+|barcode|human|llm_vision|prior_archive_sidecar|none)$",
+            "description": "Channel of the second read: a fixed channel category, and for deterministic OCR the engine after a colon (`deterministic_ocr:<engine>`): text_layer, table_parser, deterministic_ocr:tesseract, barcode, human, llm_vision, prior_archive_sidecar (digest rows only), none. The engine part stays open; the categories are pinned (organizer-prompt-phase1-ocr.md §2). Must equal the sidecar header SECOND_READ_CHANNEL."
+          },
+          "independent_reread": {
+            "type": "boolean",
+            "description": "true only when the two read channels are of different categories AND neither is llm_vision. A model reading the image is never an independent reread."
+          }
+        },
+        "allOf": [
+          {
+            "if": { "properties": { "source_kind": { "const": "prior_archive_digest" } }, "required": ["source_kind"] },
+            "then": {
+              "required": ["digest_of"],
+              "properties": { "raw_path": { "type": "null" }, "adapter": { "const": "none" } }
+            },
+            "else": {
+              "properties": {
+                "raw_path": { "type": "string", "pattern": "^raw/.+" },
+                "sha256": { "type": "string" },
+                "size_bytes": { "type": "integer" }
+              }
+            }
+          },
+          {
+            "if": { "properties": { "second_read_channel": { "type": "string", "pattern": "^llm_vision" } }, "required": ["second_read_channel"] },
+            "then": { "properties": { "independent_reread": { "const": false } } }
+          },
+          {
+            "if": { "properties": { "high_risk_review_status": { "const": "passed_independent_reread" } }, "required": ["high_risk_review_status", "independent_reread"] },
+            "then": { "properties": { "independent_reread": { "const": true } } }
+          }
+        ]
+      }
+    },
+    "skipped_inputs": {
+      "type": "array",
+      "description": "Inputs that were received but not ingested, each with a reason. input_ref is a de-identified handle (scripts/inventory_hash.py `skip-NNN`), never the original upload name. Unsupported/corrupt formats are NOT skipped — they get a stub sidecar + [INGESTION_BLOCKED].",
+      "items": {
+        "type": "object",
+        "required": ["input_ref", "reason", "sha256", "size_bytes"],
+        "additionalProperties": false,
+        "properties": {
+          "input_ref": { "type": "string", "pattern": "^(?:(?:skip|in)-[0-9]{3,}|s[0-9]{3,}(?:-[0-9]+)?)$", "description": "A de-identified handle only: skip-NNN / in-NNN (scripts/inventory_hash.py) or the source_id sNNN of an ingested file later quarantined / excluded — never an upload name (a pinyin name would pass a filename-shape check)." },
+          "reason": { "enum": ["ds_store", "macosx", "empty", "duplicate_sha256", "archive_container", "user_excluded", "quarantined_irrelevant", "symlink"] },
+          "sha256": { "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$" },
+          "size_bytes": { "type": ["integer", "null"], "minimum": 0 }
         }
       }
+    }
+  },
+  "$defs": {
+    "worker_id": {
+      "type": "string",
+      "pattern": "^(?!(orchestrator|main|manual|host|self|user)$)(?!.*[0-9]{11})[A-Za-z][A-Za-z0-9_.:-]{1,63}$",
+      "description": "Id of the subagent/worker that wrote the sidecar (update_log workers[].worker_id). Reserved orchestrator names are rejected: the orchestrator never writes sidecars."
     }
   }
 }

@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cancerdao.org/schemas/cancer-buddy/update_log.schema.json",
+  "title": "UpdateLog",
+  "description": "Append-only run ledger of an organize archive. Each entry records which workers ran (the sidecar header EXTRACTOR must be one of them — the orchestrator never writes sidecars or structured JSON), the input hashes the run saw, what was added/removed, and every degraded/redispatched worker. Freshness is judged by content hashes, never by file mtimes. Not to be confused with library/update_log.json (reference-library ledger, different shape).",
+  "type": "object",
+  "required": ["schema_version", "entries"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "const": "1" },
+    "patient_code": { "type": "string", "pattern": "^PT-[A-F0-9]+(_\\d+)?$" },
+    "entries": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["at", "run_mode", "workers", "inputs"],
+        "additionalProperties": false,
+        "properties": {
+          "at": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T", "description": "When the run wrote this entry, UTC ISO-8601 (…Z). readiness.as_of_run_date is the LOCAL run date, so the two may differ by one calendar day; the validator allows ±1 day." },
+          "run_mode": { "type": "string", "minLength": 1, "description": "As the organize flow names the run: full / legacy_upgrade (an archive written under an earlier contract brought to the current one: EVERY original re-transcribed by Phase 1 under the 12-key header, then Phase 2 — a partial upgrade does not exist; an older ledger may record the same run as full) / incremental / upload_reconciliation / faithfulness_patch / relevance_disposition (段E decisions, recorded in removed[] + note by the Phase 2 worker) / conversation_incremental. Open string so a host-specific mode does not fail the ledger. Sidecar scoping distinguishes full and legacy_upgrade (every sidecar is held to the current header) from everything else. A Phase-2-only rewrite of a legacy archive keeps the legacy schema_version numbers and writes no organize_meta.json, so the archive stays legacy (read leniently, WARN)." },
+          "workers": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["worker_id", "phase", "slice_id", "status", "files"],
+              "additionalProperties": false,
+              "properties": {
+                "worker_id": { "$ref": "#/$defs/worker_id" },
+                "phase": { "type": "string", "minLength": 1, "description": "phase1 / phase1_retry / phase1_digest / stub / phase2 / phase2_5 / segment_c / segment_d … (open string)." },
+                "slice_id": { "type": ["string", "null"] },
+                "status": { "enum": ["done", "timeout", "killed", "retried", "blocked"] },
+                "files": { "type": "array", "items": { "type": "string" }, "description": "source_id / file_id / sidecar paths this worker was given or wrote." }
+              }
+            }
+          },
+          "inputs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["source_id", "sha256"],
+              "additionalProperties": false,
+              "properties": {
+                "source_id": { "type": "string", "minLength": 1 },
+                "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+              }
+            },
+            "description": "Every input the run reconciled, keyed by the same sha256 as source_inventory.files[].sha256."
+          },
+          "added": { "type": "array", "items": { "type": "string" } },
+          "removed": { "type": "array", "items": { "type": "string" } },
+          "degradations": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["worker_id", "reason", "redispatched_as"],
+              "additionalProperties": false,
+              "properties": {
+                "worker_id": { "$ref": "#/$defs/worker_id" },
+                "reason": { "type": "string", "minLength": 1, "description": "timeout / no_progress / context_full / crashed …" },
+                "redispatched_as": { "type": "array", "items": { "$ref": "#/$defs/worker_id" } }
+              }
+            }
+          },
+          "outputs": {
+            "type": "array",
+            "description": "Optional: sha256 of each structured output as the flow wrote it. A later mismatch means the file was edited outside the organize flow.",
+            "items": {
+              "type": "object",
+              "required": ["file", "sha256"],
+              "additionalProperties": false,
+              "properties": {
+                "file": { "type": "string", "pattern": "^[^/][^\\s]*$" },
+                "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+              }
+            }
+          },
+          "note": { "type": ["string", "null"] }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "worker_id": {
+      "type": "string",
+      "pattern": "^(?!(orchestrator|main|manual|host|self|user)$)(?!.*[0-9]{11})[A-Za-z][A-Za-z0-9_.:-]{1,63}$"
+    }
+  }
+}
