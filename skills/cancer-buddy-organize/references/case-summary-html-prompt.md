@@ -6,9 +6,18 @@
 
 ## 只读输入
 
-读取脱敏后的 `profile.json`、结构化 JSON、`case_text.md` 和模板。不得读取未授权明文 PII，
-不得从原图重新解释临床内容。任何存在忠实度、OCR、身份或来源冲突的值在患者摘要中置
-`null` 并列入 caveats；原始分层数据保留以供复核。
+读取脱敏后的 `profile.json`、结构化 JSON（含 `acute_findings.json`）、`case_text.md` 和模板。不得读取
+未授权明文 PII，不得从原图重新解释临床内容。任何存在忠实度、OCR（含 `[OCR_UNCERTAIN:U-nnn]`）、
+未确认的 `document_intent`、身份或来源冲突的值不得作为确定值显示，并列入 caveats；原始分层数据保留
+以供复核。显示方式分两种：
+
+- **核心单值字段**（`stage`）：不置 null（来源里有分期、摘要里却空着，会被核心完整性检查判为丢失），
+  而是写成待核对字样：OCR 不确定或未确认的 `document_intent` → `待核对（字面读作 X）`，X 是去掉
+  `[OCR_UNCERTAIN:U-nnn]` 标记后的字面读数；`unfaithful_values` 中的值 → `待核对（整理值与原件不一致，
+  请以原件为准）`，不复述该值。分子与治疗数组照下文“段D 管线”第 1 步保留元素、只清空值字段。
+- **其他字段**：置 `null`（模板显示“资料缺失”）。
+
+Call parameters 中的 `unfaithful_values` 逐项按上面两种方式处理（见下文“段D 管线”）。
 
 ## 临床真值红线
 
@@ -31,12 +40,33 @@ SVG 坐标仍由确定性脚本生成，模型不得造点或手算坐标。
 - 患者标识：只显示最小必要字段；`patient_code` 不是身份认证。
 - 年龄/体重/身高：**必须连同其 `_as_of` 日期一起显示**（"52 岁（2024-03-11 报告）"），裸数字等于把旧快照当现况。`birth_year` 非空时可在旁边补一个明确标注"约"的现龄，不替换带日期的快照。跨年份的取值差异是时间演变，**不置 null、不进 caveats、不标 `disputed`**（见 `organizer-prompt-phase2-synthesis.md` §2.1）；只有同日期矛盾或与时间跨度冲突才按 §上文冲突规则处理。
 - 诊断/分期：原文 + source_ref + verification_status；缺失为 null。
-- ECOG：clinician-reported only；否则显示患者功能描述，不转成分数。
+- ECOG：clinician-reported only；否则显示患者功能描述，不转成分数。医生书写的体能状态原文（`performance_status_verbatim`，
+  如“PS=2”）不填进 ECOG 栏，写进 caveats：“体能状态原文：PS=2（2030-01-05 报告，原文未注明量表），未换算为 ECOG”。
 - 病灶：逐份报告的描述与日期；不合成 progression/response。
 - 分子：精确变异、方法、样本、日期、质量/限制；不连接药物。
-- 治疗史：按事件和来源列出；不自动计算“线”，维持/巩固/围手术期保留原标签。
-- 实验室：每个结果自己的单位、参考范围、报告 flag 和 source_ref。
-- caveats：缺失、来源冲突、OCR、单位/方法不兼容、患者自述与正式报告差异。
+- 治疗史：按事件和来源列出；不自动计算“线”，维持/巩固/围手术期保留原标签；同一方案的各周期是一个事件，
+  周期写法（`cycle_label_verbatim`，如“第4程”）照原文附在方案旁，不写成线次。
+- 当前治疗：取 `status: ongoing` 的事件，连同依据写出（如“2030-01-05 门诊记录：继续原方案”“影像申请单写明正在
+  使用 X”）；`status_as_of_precision: "undated_self_report"` 时写“家属陈述（未注明日期）正在接受 X”，不配日期。
+- 实验室：每个结果自己的单位、参考范围、报告 flag 和 source_ref。只用 `value` 非 null 的结果；
+  `candidate_value`（按位置配对、未核实）和拒绝配对的项目不显示为数值、不进入趋势，只在 caveats 说明
+  “该日检验单的数值未能可靠对应到项目，请以原件为准”。
+- 急性/附带发现：模板没有专门区块，而 caveats 渲染在页面最底部的脚注里，不够醒目。因此：
+  - 有 emergent/urgent 发现时，`case_summary_narrative`（页面上方的“病情概要”）**第一句**写：
+    “资料中有报告原文写到需要尽快告知治疗团队的发现：<label>（<日期>）；<label>（<日期>）。”
+    只用 `label` 与日期，不加判断词，不写 `finding_class` 的类名（它是路由桶，不是报告的话，如
+    `pneumonitis_ild_suspected` 不能写成“疑似药物性肺炎”）；几份报告各登记的同一个 `label` 合写一次、列出全部日期
+    （“<label>（<日期1>、<日期2>）”）；其后才是原有的病情概要句子（验收门检查这一句：以该前缀开头，逐条含每个
+    emergent/urgent 发现的 `label` 与日期）；
+  - caveats 最前面逐条写完整原文：“报告原文：<verbatim_text>（<日期>，<来源文书>）——请尽快告知治疗
+    团队”；incidental 发现只在 caveats 写原文与日期，不进病情概要。
+  - 不解释病因、不评估严重程度、不给处理建议。不改 `one_line_condition`（它会被复制进 `AGENTS.md`）。
+- 旧档案摘录（`provenance_layer: prior_archive`）的事实只可出现在既往史相关内容中，并逐项标注
+  “来自既往摘要，原件未在本次资料中”（与 `PATIENT_DIR_CONTRACT.md` §5 (e) 同一句）；不得出现在当前方案、当前
+  状态或病情概要的现况描述里。
+- caveats：缺失、缺页、资料时效（`days_since_latest` 超过 14 天时照抄 `readiness.json.warnings[]` 中
+  `source_freshness.py` 写的那一句，不改写）、
+  来源冲突、OCR、单位/方法不兼容、患者自述与正式报告差异。
 
 ## i18n 与术语
 
@@ -48,3 +78,57 @@ SVG 坐标仍由确定性脚本生成，模型不得造点或手算坐标。
 显示生成时间、工具版本、输入 hash、来源清单和：
 
 > 本页是资料索引，不替代主诊医生的判断，不包含疗效、分期重判或治疗建议。冲突与缺失项需由原报告机构或主诊团队核对。
+
+## 段D 管线（段D worker 在自己的上下文内完成，返回 `template_sha`）
+
+下面的命令都相对本 skill 目录：Call parameters 的 `skill_dir` 是它的绝对路径（你的工作目录不是它）。先 `cd "<skill_dir>"` 再运行；脚本一律写成 `"<skill_dir>/scripts/…"`，图表脚本写成 `"<skill_dir>/../cancer-buddy-charts/scripts/…"`（同级 skill，不依赖工作目录）。
+
+段D worker 拥有整条管线，返回值只能是 `{status:"ok", template_sha:"<64-hex>"}`（验证通过）或
+`{status:"failed", reason, exit_code}`，永不返回内联 HTML。它是 `.case_summary_data.json` 的唯一写入者。
+
+1. **组装数据**：按上文“数据映射”生成 `<patient_dir>/.case_summary_data.json`。`unfaithful_values`
+   中的每个值按“只读输入”一节处理（`stage` 写待核对字样，其余置 null，模板显示“资料缺失”），病情概要
+   里也不得复述；数组元素（`labs[]` /
+   `molecular_rows[]` / `treatment_lines[]`）只置空值字段、保留元素，并把同级 `*_class`
+   字段（`lab_class` / `line_marker_class` / `line_badge_class`）写成显式 `""`，不得省略。
+2. **富化**：
+
+```bash
+mkdir -p "<patient_dir>/case_summary_versions"
+prev=$(ls -1 "<patient_dir>/case_summary_versions/case_summary_data_"*.json 2>/dev/null | sort | tail -1)
+if [ -n "$prev" ]; then
+  python3 "<skill_dir>/scripts/compute_version_delta.py" --data "<patient_dir>/.case_summary_data.json" --prev "$prev"
+else
+  python3 "<skill_dir>/scripts/compute_version_delta.py" --data "<patient_dir>/.case_summary_data.json"
+fi
+python3 "<skill_dir>/scripts/backfill_lab_trends.py" \
+  --data "<patient_dir>/.case_summary_data.json" --labs "<patient_dir>/labs.json" --profile "<patient_dir>/profile.json"
+long_arg=""; [ -f "<patient_dir>/longitudinal_observations.json" ] && long_arg="--longitudinal <patient_dir>/longitudinal_observations.json"
+python3 "<skill_dir>/../cancer-buddy-charts/scripts/render_chart.py" \
+  --data "<patient_dir>/.case_summary_data.json" $long_arg --labs "<patient_dir>/labs.json"
+# exit 3 = 画出的点在源库查无 → 修数据后重跑，绝不绕过；exit 4 = 读图说明含疗效/病情判决词 → 改写成读图指引。
+# 未随包安装 cancer-buddy-charts 时退回 scripts/compute_sparklines.py（功能等价，无参考区间带）。
+```
+
+3. **盖戳、渲染与验证**：先给渲染数据盖上它读到的急性发现版本（`acute_findings_sha256` = 此刻 `acute_findings.json`
+   的 sha256，脚本写入；不要手填）。之后的运行改了急性发现而没有重渲染时，校验器靠它把“过期”（WARN）与“读到了却
+   没写进首句”（ERROR）分开，终态门 `--final` 也要求它存在。
+
+```bash
+python3 "<skill_dir>/scripts/stamp_case_summary_sources.py" "<patient_dir>"
+python3 "<skill_dir>/scripts/render_html_template.py" \
+  --template references/templates/case-summary.template.html \
+  --data <patient_dir>/.case_summary_data.json --out <patient_dir>/病情简要总结.html
+python3 "<skill_dir>/scripts/validate_case_summary_html.py" --html <patient_dir>/病情简要总结.html \
+  --template references/templates/case-summary.template.html \
+  --profile <patient_dir>/profile.json --data <patient_dir>/.case_summary_data.json
+```
+
+验证通过（exit 0，含核心完整性检查：来源中存在的分期、驱动基因、当前方案不得在摘要中丢失），并且
+`python3 "<skill_dir>/scripts/validate_structured_outputs.py" <patient_dir> --readonly` 的输出里没有以
+`ERROR: .case_summary_data.json` 开头的行（盖戳后首句漏写 emergent/urgent 发现在这里报错；其他文件的错误不归你），才返回
+`template_sha`。趋势图只填该次报告自带的参考区间，禁止套用通用参考值。
+
+4. **版本快照**（编排者在收到通过的 `template_sha` 后执行，不属于段D worker）：把根目录
+   `病情简要总结.html` 与 `.case_summary_data.json` 复制为 `case_summary_versions/病情简要总结_<日期>.html`
+   与 `case_summary_data_<日期>.json`（同日重复生成加 `_2`、`_3`）；根目录文件始终是最新版，旧快照不可改。

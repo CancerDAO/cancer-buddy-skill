@@ -2,16 +2,20 @@
 
 PII 门的**主扫层**（泛化）。与 `scripts/pii_rescan.py` 的**确定性 shape 兜底**并联，两层任一命中即 fail-closed 拦截交付（trust-but-verify：Phase-1 masker 是判断式打码，本层是独立的语义复检，shape 兜底是独立的零网络形状复检）。
 
-dispatch 时机：Phase-1 槽位 gate（phase1-ocr.md §2.5）、Phase-2 验收门、段C 增量、export 前——每个门点都在跑 shape 兜底的同时跑本层。
+dispatch 时机：Phase-1 槽位 gate（`organizer-prompt-phase1-ocr.md` §9.2，原 §2.5）、**整理收尾前（SKILL.md Step 12.5：
+编排者派 `pii-<n>` 子代理扫 sidecar + 合成面 + 交付面，含段D HTML；DoD 3 就是这一次返回 `clean=true`，其 `worker_id`
+由 `write_organize_meta.py --pii-layer1 <worker_id>` 记进 `organize_meta.json`）**、段C 增量、export 前——每个门点都在
+跑 shape 兜底的同时跑本层。Call parameters：`worker_id`（`pii-<n>`）、`patient_dir`、`surfaces`（要扫的相对路径列表）、
+`skill_dir`。
 
 ## 你的任务
 
 读给定面的文本，**按含义**标记任何残留的可识别个人信息（PII）。这是开放式判断——**不要套固定类别清单**，凡是能（单独或与其它字段组合）定位到某个具体自然人的信息都算。
 
 ### 扫描对象
-- **sidecar MD 正文**：`<patient_dir>` 下各 `NN_` 桶内 `*.md` 的正文（Phase-1 阶段则是 `<patient_dir>/ocr/*.md`）。**跳过** sidecar 头块（`SOURCE:`/`READ_MODE:`/`ADAPTER:`/`ADAPTER_PROVENANCE:`/`CONFIDENCE:`/`FILE_ID:`/`MODALITY:`/旧 `ORIGINAL:`）与 `## PII` 尾注——它们是 provenance，不是临床正文。
+- **sidecar MD 正文**：`<patient_dir>` 下各 `NN_` 桶内 `*.md` 的正文（Phase-1 阶段则是 `<patient_dir>/ocr/*.md`）。sidecar 头块（文件顶部连续的 12 个 `KEY: value` 行：`SOURCE:`/`FILE_ID:`/`EXTRACTOR:`/`PRIMARY_CHANNEL:`/`SECOND_READ_CHANNEL:`/`INDEPENDENT_REREAD:`/`READ_MODE:`/`ADAPTER:`/`CONFIDENCE:`/`SHA256:`/`PAGE_LABEL:`/`MODALITY:`）的**值也要扫**：这些值只该是枚举值、worker 标识、哈希或页码原文，出现姓名、电话、编号即为命中（形状层同样扫头块的值，只豁免十六进制的 `SHA256`）。`## 高风险字段复读`、`## 列配对`、`## 不确定字段` 三个附录块与最后的 `## PII` 尾注**照常扫描**：附录里的引擎读数不得含个人信息；尾注只列遮蔽了哪几类，写出了具体值即为命中。
 - **已交付面**（整文件扫，无头块豁免）：`INDEX.md`、`source_inventory.json`、`.rename_plan.json`、`.phase1_sources.json`、`update_log.json`、`病情简要总结.html`、`就诊准备包.html`、`AGENTS.md`。
-- **合成下游正文面**（整文件扫）：`case_text.md`、`timeline.md`、`profile.json`、`patient_summary.json`、`review_summary.md`、`review_flags.md`。它们由 sidecar 合成，下游/患者向读它们、且 export 会打包它们。**两层都扫这些**：Layer 2（`pii_rescan.py` 的 `SYNTHESIZED_SURFACES`）跑确定性 shape 兜底（身份证/手机/座机/住院号-shape/email——抓真实漏出的 shape-PII，但对去标识原件名里的紧凑时间戳 `微信图片_<14位>.jpg` 抑制 `numeric_id` 以免误杀）；本层（Layer 1）负责"按含义才认得出"的 PII（出生地/籍贯/职业/民族/家属名…）——这些没有 shape 签名，**只有本层能拦**。这正是 sidecar masker 漏过、case_text/profile 泄漏的根因面，两层互补覆盖。
+- **合成下游正文面**（整文件扫）：`case_text.md`、`timeline.md`、`profile.json`、`patient_summary.json`、`acute_findings.json`、`review_summary.md`、`review_flags.md`。它们由 sidecar 合成，下游/患者向读它们、且 export 会打包它们。**两层都扫这些**：Layer 2（`pii_rescan.py` 的 `SYNTHESIZED_SURFACES`）跑确定性 shape 兜底（身份证/手机/座机/住院号-shape/email——抓真实漏出的 shape-PII，但对去标识原件名里的紧凑时间戳 `微信图片_<14位>.jpg` 抑制 `numeric_id` 以免误杀）；本层（Layer 1）负责"按含义才认得出"的 PII（出生地/籍贯/职业/民族/家属名…）——这些没有 shape 签名，**只有本层能拦**。这正是 sidecar masker 漏过、case_text/profile 泄漏的根因面，两层互补覆盖。
 - 值已是 `[PII_MASKED]` 的（标签在、值已遮）→ 干净，跳过。
 
 ### 算 PII（举例，非穷举——按含义判断，不限于此表）
@@ -30,13 +34,13 @@ dispatch 时机：Phase-1 槽位 gate（phase1-ocr.md §2.5）、Phase-2 验收�
 
 ```json
 {
+  "worker_id": "pii-1",
   "scanned": ["<surface 相对路径>", "..."],
   "findings": [
     {
       "surface": "<相对路径>",
       "line": <行号 int 或 null>,
       "category": "<自由文本类别，如 出生地 / 职业 / 家属姓名 / 检验号>",
-      "snippet": "<命中片段 ≤ 24 字，不要回贴整段>",
       "suggested_action": "mask | relativize | coarse-grain | remove-at-producer"
     }
   ],
@@ -44,9 +48,11 @@ dispatch 时机：Phase-1 槽位 gate（phase1-ocr.md §2.5）、Phase-2 验收�
 }
 ```
 
+- findings **不回贴命中的值**（姓名、号码都不写）：只写面、行号和类别——这份返回会进入编排者的对话与运行日志。
+
 - `clean=false`（findings 非空）→ **fail-closed**：门不放行。
-- sidecar 正文命中 → 回交 Phase-1/段C producer 把该 PII token 遮成 `[PII_MASKED]`（只动 PII 字符，临床字符不动），复扫至 `clean=true`。
-- 已交付面命中 → 在 **producer 端**修（用去标识 handle / 相对路径 / 机构粗粒度化），不是回去改 sidecar；真名永不进 INDEX/source_inventory/dotfiles/HTML。
+- sidecar 正文命中 → 回交 Phase-1/段C producer（该原件的单文件 Phase 1 worker）把该 PII token 遮成 `[PII_MASKED]`（只动 PII 字符，临床字符不动），复扫至 `clean=true`。
+- 合成面 / 已交付面命中 → 在 **producer 端**修：编排者以 `run_mode: pii_remask` 重派 Phase 2（phase2 §13；段D HTML 由段D 子代理重新渲染），不是回去改 sidecar；真名永不进 INDEX/source_inventory/dotfiles/HTML。修完再派一次本扫描，直到 `clean=true`。
 - 你是**检测器不是改写器**：标出位置与建议动作，重新打码由 producer 在上下文里做（避免误吃相邻临床字符）。
 
 ## 网络 / headless

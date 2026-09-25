@@ -51,14 +51,16 @@ Every gated decision is presented as one compact, plain-language diff card befor
 
 ## Provenance — record every gated action in `update_log.json`
 
-Every gated run appends one entry to `update_log.json` so confirmed writes and irreversible deletions are auditable. The entry carries:
+Every gated run that writes or deletes appends one entry to `update_log.json` so confirmed writes and irreversible deletions are auditable. The entry has exactly the shape pinned by `update_log.schema.json` (closed; no other keys):
 
-- `run_mode` — the caller's mode (`conversation_incremental` | `upload_reconciliation` | `full` | …).
-- `ts` — ISO-8601 of the triggering turn / upload.
-- `triggered_by` — `actor_role`.
-- the gated outcomes — confirmed field(s) / row(s) written with provenance layer, candidates deferred, explicitly confirmed deletions in an irreversible-action ledger, and quarantined files carried forward.
+- `at` — ISO-8601 of the triggering turn / upload (formerly `ts`).
+- `run_mode` — the caller's mode (`conversation_incremental` | `upload_reconciliation` | `relevance_disposition` | `full` | …).
+- `workers[]` — the worker that executed the confirmed writes/deletions (`{worker_id, phase, slice_id, status, files[]}`). **The orchestrator never writes `update_log.json`**; it collects the user's decisions and hands them to the executing worker.
+- `inputs[]` — every original the archive holds after the run (carried over from the previous entry, minus deletions, plus new uploads), by `sha256`.
+- `added[]` / `removed[]` — handles of originals added or deleted (explicitly confirmed deletions appear here).
+- `note` — the gated outcomes in one line: `actor_role` (formerly `triggered_by`), confirmed field(s) / row(s) written with their provenance layer, candidates deferred, each deletion/replacement with the user's item-specific confirmation text (personal identifiers masked).
 
-Each caller's doc specifies the exact field set for its `run_mode`; the requirement here is that **no gated write or delete happens without a matching `update_log.json` entry**. Provenance on the written field itself uses the source-appropriate anchor (conversation anchor for 段C, file anchor for a file-sourced write — see each caller's doc and [`../skills/cancer-buddy-organize/references/schemas/anchor-contract.md`](../skills/cancer-buddy-organize/references/schemas/anchor-contract.md)).
+A decision that writes nothing (a deferral, "先不写", declining a summary refresh) needs no entry. Each caller's doc specifies how its `run_mode` fills these fields; the requirement here is that **no gated write or delete happens without a matching `update_log.json` entry**. Provenance on the written field itself uses the source-appropriate anchor (conversation anchor for 段C, file anchor for a file-sourced write — see each caller's doc and [`../skills/cancer-buddy-organize/references/schemas/anchor-contract.md`](../skills/cancer-buddy-organize/references/schemas/anchor-contract.md)).
 
 ## What stays in the caller's doc
 

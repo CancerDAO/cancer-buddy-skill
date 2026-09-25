@@ -65,6 +65,12 @@ team's treatment-specific threshold and contact route; if those are unavailable,
 health/oncology guidance rather than inventing a universal threshold. This list is a routing floor, not a
 complete triage protocol, and the skill does not downgrade a source report's critical flag.
 
+Source-worded acute findings in an organized archive (`acute_findings.json` rows with `acuity` `emergent` or
+`urgent` — a fixed class table applied to the report's own wording, not a triage) are shown before anything
+else: each verbatim, with its date and source, as something the report itself wrote that belongs to the
+"tell the treating team soon" class. No cause, severity assessment or management advice; the treating team
+decides what, if anything, to do.
+
 ## Scoring and ranking
 
 - Do NOT score or rank treatment options in external-facing reports.
@@ -125,7 +131,7 @@ data-governance actions that require authentication, authorization, audit, and a
 during organization” is not a promise of indefinite retention.
 
 **Text masking occurs at the sidecar layer.** Phase 1 masks direct identifiers in the `.md` sidecar body
-(`organizer-prompt-phase1-ocr.md §2.4`) and `pii_rescan.py` applies a deterministic residue check. Derived
+(`organizer-prompt-phase1-ocr.md` §9.1) and `pii_rescan.py` applies a deterministic residue check. Derived
 artifacts may still contain dates, institutions, rare diagnoses, genomics and other quasi-identifiers, so
 they remain sensitive and potentially re-identifiable; a clean scan is not proof of anonymity. Direct
 identity attributes needed for record-collision review stay in a separately protected mapping or host

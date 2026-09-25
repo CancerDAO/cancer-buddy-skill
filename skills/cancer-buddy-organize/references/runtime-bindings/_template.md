@@ -17,26 +17,28 @@
 - **契约要求**:所有源文件/content unit 都有 sidecar 后才能进入 Phase2。
 - **填法**:`<描述该 host 如何遍历、切片、重试、保证 coverage>`。
 - **自检**:Phase1 只写 text-masked MD sidecar(`<patient_dir>/ocr/`)+ 逐字原件(`<patient_dir>/raw/`);不写全局产物。
+- **worker 标识与存活**:`<填法: 如何生成 worker 标识；如何观测“10 分钟无新产物写入或连续 30 次只读工具调用”；如何终止并重派单文件 worker；stub worker 如何写 [INGESTION_BLOCKED: timeout]>`。契约要求：编排者/宿主管线从不自己写 sidecar 或结构化 JSON；每次派发、终止、重派都进入 `update_log.json` 的 `workers[]`/`degradations[]`。
 
 ## 2. 来源保真抽取
 
 - **契约要求**:图片/扫描件使用适用的确定性 OCR/表格/条码抽取；born-digital 文件保留原生
   文本/单元格。保存引擎、版本、原始输出、source span 和文件 hash。
-- **填法**:`<描述原始字符层、第二独立读取、LLM 版面/语义复核和人工复核如何衔接>`。
+- **填法**:`<描述原始字符层、第二次读取、LLM 版面/语义复核和人工复核如何衔接；列出本宿主可用的通道值（text_layer / table_parser / deterministic_ocr:<engine> / barcode / human / llm_vision）>`。
+- **独立性**:`INDEPENDENT_REREAD: true` 仅当两次读取的通道类别不同且都不是 `llm_vision`；模型看图永远不是独立复读。
 - **禁止**:LLM 不得成为唯一字符真值；候选纠错不得覆盖 `raw_text`。高风险字段两次读取不一致
   时必须 `needs_human_review`，不得进入 settled-fact surface。
-- **`[HEADER]` sidecar 头字段集**:SOURCE / READ_MODE / ADAPTER / ADAPTER_PROVENANCE / CONFIDENCE / FILE_ID (stable source_id, rename-survivable) / optional MODALITY / ORIGINAL。
+- **`[HEADER]` sidecar 头字段集**:恰好 12 个键，按序 SOURCE / FILE_ID / EXTRACTOR / PRIMARY_CHANNEL / SECOND_READ_CHANNEL / INDEPENDENT_REREAD / READ_MODE / ADAPTER / CONFIDENCE / SHA256 / PAGE_LABEL / MODALITY（`organizer-prompt-phase1-ocr.md` §3）；头部块不做 PII 扫描，出现其他键即校验错误；`EXTRACTOR` 是 worker 标识，不能是 orchestrator/main/manual/host/self/user。
 
 ## 3. 格式适配
 
 - **契约要求**:adapter 保留可审计的原生/OCR 字符层和 provenance；LLM 视图是辅助输入。
 - **填法**:`<HEIC/HEIF → raster; scanned PDF → rendered pages; DOCX → payload; spreadsheet → table payload; archive → unpacked children>`。
-- **自检**:sidecar `ORIGINAL`/`raw_path` 指向 `raw/` 下的逐字原件;临时 raster/page/payload 只写在 `ADAPTER_PROVENANCE`。
+- **自检**:`source_inventory.json.raw_path` 指向 `raw/` 下的逐字原件;临时 raster/page/payload 只记在 `adapter_provenance`。
 
 ## 4. 确认门
 
 - **契约要求**:未确认不写正式字段;任何不可逆删除都必须逐项显式确认。沉默不删除。
-- **填法**:`<inline card 或 confirm-as-product JSON + UI + 回灌>`。
+- **填法**:`<inline card 或 confirm-as-product JSON + UI + 回灌>`。开跑前的“是否已有比本次更新的资料”也走这里；非交互宿主做成不阻塞的待确认项。
 - **自检**:关键字段矛盾并列展示且保持 disputed；患者确认不晋升临床真值；所有 no-confirm 文件均保留/隔离。
 
 ## 5. 存储
@@ -54,7 +56,7 @@
 - `source_inventory.json` 覆盖每个输入源,每条 content unit 带 `raw_path` + 文本脱敏 sidecar。
 - HTML 在文本脱敏 MD/JSON 后生成。
 - 来源临床字符串保留；派生翻译/规范化带标签且不覆盖来源；schema/anchor/PII gates 通过。
-- **`[GATE]` 验收门**:`validate_structured_outputs.py` 检查 schema、anchor、source-shape、inventory、
+- **`[GATE]` 验收门**:`write_organize_meta.py` 之后运行 `validate_structured_outputs.py`（审计与下游检查加 `--readonly`），检查 schema、anchor、source-shape、sidecar 头部、inventory、
   PII shape 和 HTML form，不判断临床正常/异常。另需 Phase 2.5 来源忠实度与 PII 语义复扫。
   共享前还必须认证并确认 recipient/scope/purpose/expiry、执行最小化且排除 `raw/`；任一门不可用即
   fail closed。

@@ -5,21 +5,30 @@ does not authorize clinical interpretation.
 
 ## Pipeline
 
-1. **Ingest**: retain authorized originals, hash bytes, create immutable source IDs, classify modality.
+1. **Ingest**: retain authorized originals, hash bytes (sha256, size, page count), create immutable source
+   IDs, classify modality, and record every skipped input with a reason.
 2. **Extract**: deterministic OCR/parser first where available; LLM-assisted layout/semantics second;
-   independent verification for high-risk fields.
-3. **Synthesize**: write schema v2 with provenance layer and verification status; preserve conflicts.
+   independent verification for high-risk fields. Two reads are independent only when their channel
+   classes differ and neither is `llm_vision` (a model looking at the image is never an independent
+   reread). Uncertain fields carry engine readings and lexicon-constrained candidates; candidates are
+   readings, never corrected values.
+3. **Synthesize**: write the versioned schemas (`references/schemas/`: `2.1`, `patient_summary` `2.2`,
+   `source_inventory_v2.1`, `acute_findings`/`update_log` `1`) with provenance layer and verification status;
+   preserve conflicts.
 4. **Confirm archive actions**: confirmation allows a patient-reported note or explicit deletion; it does
    not establish clinical truth.
 5. **Faithfulness gate**: verify every patient-visible value against source spans.
 6. **Render**: deterministic templates only; no treatment path, response, stage, ECOG, severity, or
-   prognosis inference.
+   prognosis inference. The `severity` on a review flag grades extraction/archive-completeness
+   uncertainty, not clinical severity; the `acuity` of an acute finding is a fixed class table applied to
+   source wording, not triage.
 7. **Validate/export**: schema, anchors, hashes, PII, conflict preservation, and share-policy gates.
 
 ## Clinical truth invariants
 
-- `source_reported`, `patient_reported`, `caregiver_reported`, and `system_normalized` never overwrite
-  each other.
+- `source_reported`, `patient_reported`, `caregiver_reported`, `system_normalized`, and `prior_archive`
+  never overwrite each other. `prior_archive` (an explicitly authorized digest of an earlier organized
+  archive) supports history only, never current status or recommendations.
 - Source strings remain available. Validated normalization and translation are additive.
 - Stage, ECOG, response, treatment line, laboratory values, molecular results, and clinician plan are
   copied only from attributable sources.
@@ -27,6 +36,18 @@ does not authorize clinical interpretation.
 - Existing-document inventories do not recommend tests.
 - Longitudinal observations are not response trajectories.
 - Missing/failed extraction yields null and review flags, never a plausible value.
+- Unconfirmed `document_intent` fields and `[OCR_UNCERTAIN:U-nnn]` fields are not premises for staging,
+  pathology, or treatment reasoning.
+- Writers are an allow-list (SKILL.md invariant 3). Phase 1 workers write sidecars and their own `raw/`
+  files; Phase 2 and 段C workers write the structured JSON and `INDEX.md` / `case_text.md` / `timeline.md` /
+  `review_*.md`, and 段C workers also write the conversation records `<bucket>/conversation_notes/*.md`; the 段D worker writes `.case_summary_data.json` and the HTML. The orchestrator dispatches,
+  monitors liveness and redispatches, and writes under the patient directory only through fixed actions:
+  `inventory_hash.py --mapping-out`, the `library/index.json` seed, appending dispatch events to
+  `raw/_dispatch_log.jsonl`, `record_gap_ask.py`, `fill_agents_md.py`, `write_organize_meta.py`, the terminal
+  `validate_structured_outputs.py` (it merges untrusted-content flags), the dated 段D snapshot copy and the
+  Step 17 clean-up (stray `.DS_Store`, an empty `ocr/`, and an archive's temp `unpack_dir` — never `$src`, `raw/` or
+  the user's input folder). Nothing else, however small.
+- Bucket paths are checked against the pinned taxonomy before any directory is created.
 
 ## Irreversible actions
 
@@ -42,8 +63,10 @@ state.
 
 ## Output set
 
-The patient directory contains the source inventory, raw vault, clinical-domain sidecars, schema-v2 JSON,
-timeline, neutral record summary, review flags, document gaps, update log, and deterministic HTML. All
+The patient directory contains the source inventory, raw vault, clinical-domain sidecars, schema-versioned JSON
+(including `acute_findings.json`, always written), timeline, neutral record summary, review flags, document
+gaps (including missing pages), update log with worker and degradation records, `organize_meta.json`, and
+deterministic HTML. All
 artifacts share one patient directory; `patient_code` is a locator, not authentication.
 
 ## Host responsibilities
