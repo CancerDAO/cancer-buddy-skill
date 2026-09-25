@@ -2593,6 +2593,8 @@ def gate_sidecar_headers(patient_dir: Path, errors: list, warnings: list | None 
         # read is independent of the model's transcription; the model re-reading its own image is not) and — for a
         # second read the script ran (a `## 高风险字段复读` block with an `engine:` line) — the engine read ≥ 1 span.
         sr_table = _gate_second_read.table_of(text)
+        if sr_table is not None and sr_table.get("engine") == "text_layer_identity":
+            sr_table = None  # a born-digital identity check has no rows: the channel rules below apply as without a table
         sr_signal, sr_nosignal = _gate_second_read.signal_rows(sr_table)
         if indep == "true":
             if c2 in ("", "none", "null"):

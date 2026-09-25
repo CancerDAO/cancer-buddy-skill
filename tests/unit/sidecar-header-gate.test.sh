@@ -461,6 +461,61 @@ n += 1
 errs, warns = synlib.gate(SR, synlib.make(tmp / f"h{n}", lambda d: synlib.edit_text(d, ORD, lambda t: t.replace("卡铂 300 mg", "卡铂 30 mg", 1)), with_raw=False))
 check("…and a body edit is still caught there", any("body_sha256" in e for e in errs), str(errs))
 
+# ---- phase1 §6: the one born-digital second read — an engine read of a layout-anomaly region backing a document
+# intent. The family-note fixture (text_layer / native_text) gets its identity check, then a struck-through phrase.
+SELF = synlib.SIDE_SELF
+SELF_STEM = Path(SELF).stem
+
+
+def born_digital_intent(region=True, intent="deleted", engine_text="外院检查提示肝转移"):
+    def fn(d):
+        import subprocess as sp
+        layer = d / "raw" / "_extract" / f"{SELF_STEM}.text_layer.txt"
+        layer.parent.mkdir(parents=True, exist_ok=True)
+        layer.write_text("家属自述：2029-11 外院检查提示肝转移。\n", encoding="utf-8")
+        p = sp.run([sys.executable, str(synlib.SCRIPTS / "second_read_align.py"), "--apply", str(d / SELF),
+                    "--patient-dir", str(d), "--text-layer", str(layer)], capture_output=True, text=True)
+        assert p.returncode == 0, p.stderr
+        lines = (d / SELF).read_text(encoding="utf-8").splitlines()
+        ln = next(i for i, l in enumerate(lines, 1) if "肝转移" in l)
+        def edit(text):
+            text = text.replace("提示肝转移。", "提示肝转移[OCR_UNCERTAIN:U-001]。", 1)
+            text = text.replace("SECOND_READ_CHANNEL: none", "SECOND_READ_CHANNEL: deterministic_ocr:apple_vision", 1)
+            text = text.replace("INDEPENDENT_REREAD: false", "INDEPENDENT_REREAD: true", 1)
+            text = text.replace("CONFIDENCE: medium", "CONFIDENCE: low", 1)
+            entry = ("## 不确定字段\n\n- id: U-001\n  line: %d\n  field_class: diagnosis_text\n  readings:\n"
+                     "    - {channel: text_layer, text: \"肝转移\", confidence: null}\n"
+                     "    - {channel: \"deterministic_ocr:apple_vision\", text: \"肝转移\", confidence: 0.9}\n"
+                     "  candidates: []\n  cross_doc_supported: {status: none, refs: []}\n  layout: strikethrough\n"
+                     "  layout_intent: %s\n\n" % (ln, intent))
+            return text.replace("## PII", entry + "## PII", 1)
+        synlib.edit_text(d, SELF, edit)
+        inv_row(SELF, lambda r: r.update({"second_read_channel": "deterministic_ocr:apple_vision", "independent_reread": True}))(d)
+        synlib.edit_json(d, "readiness.json", lambda doc: doc["review_flags"].append(
+            {"id": "RF-009", "category": "extraction_fidelity", "affected_field": "timeline.liver",
+             "current_source_values": [{"value": "肝转移", "source_ref": f"{SELF}#L{ln}"}],
+             "issue": "文本层与区域引擎读都显示“肝转移”被划去。", "resolution_status": "unresolved",
+             "severity": "yellow", "kind": "document_intent", "uncertain_ids": ["U-001"]}))
+        if region:
+            (d / "raw" / "_extract" / f"{SELF_STEM}.region.json").write_text(json.dumps({
+                "tool": "run_ocr_engine", "version": "1", "engine": "apple_vision", "channel": "deterministic_ocr:apple_vision",
+                "pages": [{"page": 1, "lines": [{"text": engine_text, "confidence": 0.9}]}]}, ensure_ascii=False), encoding="utf-8")
+    return fn
+
+
+for gate_name in ("gate_sidecar_headers", "gate_second_read", "gate_review_flag_semantics"):
+    errs, _ = run(gate_name, born_digital_intent())
+    check(f"born-digital document intent backed by a region engine read passes {gate_name}",
+          not any(SELF in e for e in errs), str([e for e in errs if SELF in e]))
+errs, _ = run("gate_second_read", born_digital_intent(region=False))
+check("…without the region engine output → ERROR", any(SELF in e and "without its region engine read" in e for e in errs), str(errs))
+errs, _ = run("gate_second_read", born_digital_intent(intent="null"))
+check("…with no document-intent entry → ERROR (the engine read exists only to back one)",
+      any(SELF in e and "exists only to back a document intent" in e for e in errs), str(errs))
+errs, _ = run("gate_second_read", born_digital_intent(engine_text="外院检查提示肺转移"))
+check("…when the entry's engine reading is not in the region output → ERROR",
+      any(SELF in e and "exists only to back a document intent" in e for e in errs), str(errs))
+
 # ---- legacy archive: the missing-EXTRACTOR condition is one WARN, never an ERROR
 legacy = synlib.make_legacy(tmp / "legacy")
 errs, warns = synlib.gate("gate_sidecar_headers", legacy)

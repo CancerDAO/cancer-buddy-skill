@@ -120,10 +120,15 @@ def _sha_file(p: Path) -> str | None:
         return None
 
 
-def prompt_problems(ledger: dict, skill_dir: Path) -> list[str]:
+def prompt_problems(ledger: dict, skill_dir: Path, ingest_modes: tuple = ()) -> list[str]:
+    """Only the current run is compared with the current skill files: entries from the last ingest run onward (all
+    entries when there is none). The ledger is append-only across runs while the skill is updated between them, so
+    an earlier run's hashes legitimately name earlier prompt files."""
     out: list[str] = []
     cache: dict[str, str | None] = {}
-    for entry in ledger.get("entries") or []:
+    entries = [e for e in ledger.get("entries") or [] if isinstance(e, dict)]
+    last = max((i for i, e in enumerate(entries) if e.get("run_mode") in ingest_modes), default=0)
+    for entry in entries[last:]:
         for w in (entry.get("workers") or []) if isinstance(entry, dict) else []:
             if not isinstance(w, dict) or not w.get("prompt_file_sha256"):
                 continue
@@ -160,5 +165,5 @@ def gate_provenance(patient_dir: Path, errors: list, warnings: list | None = Non
             not any(isinstance(e, dict) and "prev_sha256" in e for e in ledger["entries"]):
         warnings.append("update_log.json: no entry carries prev_sha256 — Phase 2 appends its entry through "
                         "scripts/update_log_append.py so a later edit of an earlier entry is detectable (phase2 §8)")
-    for p in prompt_problems(ledger, vso.REPO_ROOT):
+    for p in prompt_problems(ledger, vso.REPO_ROOT, vso.INGEST_RUN_MODES):
         add(p)

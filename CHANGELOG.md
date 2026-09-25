@@ -6,6 +6,23 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Fixed — organize：提示词哈希只比对本次运行；born-digital 页的文书意图可以真正通过校验 (2026-09-26)
+
+独立复核指出前几节的两处缺口（合成数据）。
+
+- **提示词哈希只比对当前运行**：账本跨运行只追加，技能却会在两次运行之间更新；此前 `provenance` 门拿**所有**条目的
+  `prompt_file_sha256` 与当前技能文件比对，第一次运行记下的哈希在技能更新后的下一次增量运行里全部报错。现在只比对最后一个
+  输入对账条目（`full` / `legacy_upgrade` / `incremental` / `upload_reconciliation`）及其之后的条目。新增正例：旧运行记着旧
+  提示词的哈希、之后有一次新运行 → 不报错（本次运行里的不符照旧 ERROR）。
+- **born-digital 文书意图的路径打通**（ORG-P0-03 第 5 项）：phase1 §6 让 worker 在 born-digital 页的版面异常处补一次区域引擎读，
+  并写 `SECOND_READ_CHANNEL: deterministic_ocr:<引擎>` + `INDEPENDENT_REREAD: true`；但同一 sidecar 的同一性核对块会让
+  `second_read` 门要求 `none/false`，头部门又因“表里没有信号行”拒绝 true——文书意图实际上无法通过。现在：同一性核对块在头部门
+  按“没有脚本复读表”处理（通道规则照旧：文本层 + 引擎、类别不同 → 必须 true）；`second_read` 门在头部写了引擎时要求
+  `raw/_extract/<stem>.region.json` 存在、是该引擎的 `run_ocr_engine` 输出，且至少一条 `layout_intent` 为 deleted/amended、文本层与
+  该引擎读数一致、引擎读数出自该文件的条目，否则 ERROR。phase1 §5.1 写明这是 worker 唯一手写的条目，§6 写明须在最后一次
+  `--apply --text-layer` 之后做（重跑会重写头部与条目）。测试：`sidecar-header-gate.test.sh` 新增 6 项（三个门的正例；缺区域输出、
+  没有意图条目、引擎读数不在区域输出中三个负例）。
+
 ### Added — organize：文本层字形损坏的急症原文保持原样，另有可检索的规整字段 (2026-09-26)
 
 case3 的外院英文报告文本层里有 `le!t`（left）与夹在拉丁字母里的 `İ`，急症原文照抄后既对不上检索、又不能改原文（ORG-P0-03 第 4 项）。

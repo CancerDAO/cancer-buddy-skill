@@ -226,7 +226,7 @@ masked: none
 
 ### 5.1 谁写、写在哪
 
-`[OCR_UNCERTAIN:U-nnn]` 与 `## 不确定字段` 条目**只由 `second_read_align.py` 写**：一个 token 紧跟在冲突 span（或你补报的
+`[OCR_UNCERTAIN:U-nnn]` 与 `## 不确定字段` 条目**只由 `second_read_align.py` 写**（唯一例外是 §6 born-digital 页的文书意图条目，由你手写）：一个 token 紧跟在冲突 span（或你补报的
 不可读/版面异常 span）的**转写字面**之后，例如 `CK2O[OCR_UNCERTAIN:U-002]（+）`——正文保留你的转写，token 只遮住它
 覆盖的那一段；编号在同一份 sidecar 内从 `U-001` 起连续。判定规则（脚本照此执行，你不用手算）：
 
@@ -324,10 +324,13 @@ masked: none
 - 只有两个**独立**读取（§2.3 定义）都显示同一意图时，才可写 `layout_intent: deleted` 或 `amended`。机械条件（校验器照此检查）：
   该 sidecar 头部 `INDEPENDENT_REREAD: true`，且这条条目的 `readings` 里有两个**不同类别、都不是 `llm_vision`** 的通道给出同一读数。
   像素页上唯一的非模型读数是 OCR 引擎，所以像素页**永远**只写 `layout` 并照字面转写；大模型看图说“有删除线”永远不够。
-  只有 born-digital 页上确有版面异常时可以补一个非模型读数：把该区域 `pdftoppm -r 300` 渲染后运行
+  只有 born-digital 页上确有版面异常时可以补一个非模型读数：在该 sidecar 最后一次 `second_read_align.py --apply --text-layer`
+  **之后**（重跑它会重写头部与条目），把该区域 `pdftoppm -r 300` 渲染后运行
   `python3 "<skill_dir>/scripts/run_ocr_engine.py" read <区域图> --out <patient_dir>/raw/_extract/<stem>.region.json`，
-  条目 `readings` 写文本层读数（`channel: text_layer`）与引擎读数（`deterministic_ocr:<引擎>`，照抄输出），头部
-  `SECOND_READ_CHANNEL` 写该引擎、`INDEPENDENT_REREAD: true`。这是你自己运行引擎的唯一情形（正文此时是文本层，不存在锚定）。
+  在正文该处写 token，`## 不确定字段` 条目的 `readings` 写文本层读数（`channel: text_layer`）与引擎读数（`deterministic_ocr:<引擎>`，
+  照抄输出），`layout_intent` 写 `deleted` / `amended`（两读一致才写），头部 `SECOND_READ_CHANNEL` 写该引擎、
+  `INDEPENDENT_REREAD: true`、`CONFIDENCE: low`。这是你自己运行引擎、也是你手写条目的唯一情形（正文此时是文本层，不存在锚定）；
+  校验器核对 region 文件存在、引擎一致、至少一条这样的条目且引擎读数出自该文件。
 
 ## 7. 检验表列配对（确定性优先）
 

@@ -655,9 +655,13 @@ def check(sidecar: Path, pd: Path, lex_dir: Path | None = None) -> tuple[list[st
         errs.append(f"{rel}: the body differs from the one the engine was run against by more than PII masking — "
                     "the transcription was edited after the second read")
     if rec.get("mode") == IDENTITY_ENGINE or sec.get("engine") == IDENTITY_ENGINE:
-        if hdr.get("SECOND_READ_CHANNEL") != "none" or hdr.get("INDEPENDENT_REREAD") != "false":
-            errs.append(f"{rel}: a born-digital identity check is not a second read — SECOND_READ_CHANNEL none, "
-                        "INDEPENDENT_REREAD false")
+        second = hdr.get("SECOND_READ_CHANNEL", "")
+        if second == "none" and hdr.get("INDEPENDENT_REREAD") == "false":
+            return errs, warns
+        # phase1 §6: the one born-digital second read — an engine read of a layout-anomaly region, backing a
+        # document intent (text layer + engine agreeing). It needs the region's engine output and such an entry.
+        stem = Path(str(rec.get("sidecar") or sidecar.name)).stem  # the Phase-1 name the raw/_extract files use
+        errs += region_read_problems(stem, pd, text, hdr, rel)
         return errs, warns
     engine_doc = None
     if rec.get("engine_output"):
@@ -754,6 +758,36 @@ def check(sidecar: Path, pd: Path, lex_dir: Path | None = None) -> tuple[list[st
         if isinstance(img, str) and (pd / img).is_file() and sha256_file(pd / img) != page.get("image_sha256"):
             errs.append(f"{rel}: engine page image {img} does not hash to the recorded image_sha256")
     return errs, warns
+
+
+def region_read_problems(stem: str, pd: Path, text: str, hdr: dict, rel: str) -> list[str]:
+    import validate_structured_outputs as vso
+    out = []
+    second = hdr.get("SECOND_READ_CHANNEL", "")
+    if not second.startswith("deterministic_ocr:") or hdr.get("INDEPENDENT_REREAD") != "true":
+        return [f"{rel}: a born-digital identity check is not a second read — SECOND_READ_CHANNEL none and "
+                "INDEPENDENT_REREAD false, unless a layout-anomaly region was read by an engine (phase1 §6)"]
+    engine = second.split(":", 1)[1]
+    reg = pd / "raw" / "_extract" / f"{stem}.region.json"
+    if not reg.is_file():
+        return [f"{rel}: SECOND_READ_CHANNEL {second} on a born-digital page without its region engine read "
+                f"raw/_extract/{stem}.region.json (run_ocr_engine.py read, phase1 §6)"]
+    doc = json.loads(reg.read_text(encoding="utf-8"))
+    if doc.get("tool") != "run_ocr_engine" or doc.get("engine") != engine:
+        out.append(f"{rel}: {reg.name} is not a run_ocr_engine.py document of engine {engine}")
+    region_text = engine_stream(doc)[0] if isinstance(doc, dict) else ""
+    block, _ = vso._uncertain_block(text)
+    backed = []
+    for e in vso.parse_uncertain_entries(block):
+        if e.get("layout_intent") in ("deleted", "amended") and vso._agreeing_independent_reads(e):
+            eng = [r for r in e.get("readings") or [] if isinstance(r, dict) and r.get("channel") == second]
+            if eng and isinstance(eng[0].get("text"), str) and hrs._base(eng[0]["text"]) in hrs._base(region_text):
+                backed.append(e.get("id"))
+    if not backed:
+        out.append(f"{rel}: an engine second read on a born-digital page exists only to back a document intent — no "
+                   "`## 不确定字段` entry has layout_intent deleted/amended with the text layer and the region read "
+                   f"({second}, found in {reg.name}) agreeing (phase1 §6)")
+    return out
 
 
 def main(argv: list[str] | None = None) -> int:

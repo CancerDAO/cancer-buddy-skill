@@ -174,6 +174,20 @@ errs, _ = run(ledger(lambda doc: worker(doc, "p1-s001-1").__setitem__("prompt_fi
 check("a worker that read the shipped phase1 prompt → passes", errs == [], str(errs))
 errs, _ = run(ledger(lambda doc: worker(doc, "p1-s001-1").__setitem__("prompt_file_sha256", "0" * 64)))
 check("a worker that read another (edited / abridged) prompt file → ERROR", any("not the skill's references/organizer-prompt-phase1-ocr.md" in e for e in errs), str(errs))
+
+
+
+def stale_then_new_run(doc):
+    worker(doc, "p1-s001-1")["prompt_file_sha256"] = "0" * 64  # an earlier run read an earlier prompt file
+    doc["entries"].append({"at": "2030-02-01T09:00:00Z", "run_mode": "incremental",
+                           "workers": [{"worker_id": "p2-9", "phase": "phase2", "slice_id": None, "status": "done", "files": [],
+                                        "prompt_file_sha256": hashlib.sha256((REPO / "skills/cancer-buddy-organize/references/organizer-prompt-phase2-synthesis.md").read_bytes()).hexdigest()}],
+                           "inputs": doc["entries"][0]["inputs"], "added": [], "removed": [], "degradations": [], "note": "later run"})
+
+
+errs, _ = run(ledger(stale_then_new_run))
+check("an earlier run's hash of an earlier prompt file, followed by a new ingest run → no ERROR (only the current run is compared)",
+      not any("read a prompt file" in e for e in errs), str(errs))
 check("schema accepts prompt_file_sha256 and prev_sha256",
       synlib.schema_errors("update_log.schema.json", synlib.load(d, "update_log.json")) == [])
 
