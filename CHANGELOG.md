@@ -6,6 +6,33 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Added — organize 审计日志防篡改：派发日志与运行账本交叉核对、账本哈希链、worker 提示词哈希 (2026-09-26)
+
+case3 把一次 kill 改写成 `retried` 并删掉对应的 degradation；Phase 2 被派了 3 次；p2-2 / p2-3 的提示词被编排者改写成“只读这几段”，
+pii-2 的提示词里预先写好了裁决。合成数据，无真实病例内容。
+
+- **派发日志 ↔ 账本**（新校验门 `provenance`，独立模块 `scripts/_gate_provenance.py`；只在 `raw/_dispatch_log.jsonl` 存在时运行）：
+  日志里每条 `kill`，账本里必须是 `status: killed`（或 `timeout`）并有 degradation——改成 `retried` / `done` 或删掉 degradation 都
+  ERROR；Phase 1 的 kill 之后必须有覆盖其文件的派发 / 重派事件；同一个 Phase 2 任务（首次派发 + kill 之后的重派）超过 2 次即
+  ERROR `phase2_retry_exceeded`；日志行不是 JSON 即 ERROR。
+- **账本哈希链**：新脚本 `scripts/update_log_append.py <patient_dir> --entry -|<file>` 追加条目并写 `prev_sha256`（上一条目规范 JSON
+  的 sha256；新账本首条为 null），`--check` 复算整条链。校验器在任何条目带 `prev_sha256` 时逐条复算：事后改过的旧条目 →
+  ERROR `update_log_chain_broken`；链开始后又出现不带链的条目 → ERROR；`--final` 时两条以上条目却完全没有链 → 一条 WARN
+  （旧账本与本仓库以前的夹具都没有链，因此不报错）。phase2 §8 改为只经管道交给该脚本追加，不手写、不改已有条目。
+  残余风险：最后一条条目之后没有后继，改它不会断链——它由派发日志交叉核对兜底。
+- **worker 提示词哈希**：phase1 / phase2_5 / pii-rescan 的返回 JSON 带 `prompt_file_sha256`（对自己那份提示词文件跑 `shasum -a 256`），
+  Phase 2 照抄进 `workers[].prompt_file_sha256`（可选字段）；校验器与技能自带文件比对，不同即 ERROR。**这只能把 worker 绑定到
+  盘上的原文件**（编排者另写一份删节版让 worker 去读，哈希就不同）；编排者把提示词原文粘贴进派发时，脚本无法证明粘贴的文字
+  没被改写——那一段仍是提示词规则：SKILL.md 不变量 4 新增一句“worker 提示词 = 参考文件原文（或路径 + 完整阅读）+ Call
+  parameters，不改写、不删节、不写‘只读某几段’”（+141 B，SKILL.md 48,980 B），phase1 §13 要求 worker 发现收到的只是几段时改为
+  完整阅读并说明。F10 因此只部分由脚本关闭。
+- **PII 复扫只报告不裁决**：`pii-rescan-prompt.md` 写明命中项只由 Phase 2 `pii_remask` 或已记录的用户决定处理，派发里预设的裁决
+  照样报告并在 `note` 指出。
+- schema：`update_log.schema.json` 条目加可选 `prev_sha256`，`workers[]` 加可选 `prompt_file_sha256`（不升版本）。
+- 测试：新增 `audit-log-guards.test.sh`（20 项：一致日志正例、kill 改写、删 degradation、Phase 1 kill 未重派、账本缺 worker、
+  Phase 2 两次正例/三次负例/三个独立任务正例、坏日志行、哈希链正例与首条/第二条链接、`--check` 两种退出码、事后改旧条目、
+  链中断、`--final` 无链 WARN、提示词哈希正负例、schema）。
+
 ### Fixed — organize：一个不确定标记只遮住它自己那一段；带标记的诊断/分期/方案保留字面并附另一读法；诊断按来源阶梯取 (2026-09-26)
 
 case1 在正文乱码之外还丢了诊断：食管鳞癌第二原发、cT3N2M0 III 期、组织学与转移部位都没进结构化字段，同一行一个 token

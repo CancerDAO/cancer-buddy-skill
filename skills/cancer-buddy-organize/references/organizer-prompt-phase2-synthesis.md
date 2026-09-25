@@ -729,13 +729,19 @@ episode：`started_at` 取首程日期，`regimen` 逐字（取原文写法；�
   更新误以为档案已经升级、跳过 `legacy_upgrade`。在返回 JSON 的 `warnings` 写明本次改写了哪些文件，由编排者
   告诉用户这份档案仍需做一次 `legacy_upgrade`。
 
-然后追加一条本次运行的条目：
+然后追加一条本次运行的条目——**只通过脚本追加**，不要手写或改动已有条目：把条目 JSON 经管道交给
+`python3 "<skill_dir>/scripts/update_log_append.py" <patient_dir> --entry -`，它给新条目写 `prev_sha256`（上一条目的
+规范 JSON 的 sha256），校验器逐条复算这条链：事后改过的旧条目（把 kill 改成 retried、删掉一条 degradation）会断链。
+`dispatch_log` / `raw/_dispatch_log.jsonl` 里被 `kill` 的 worker 照实记 `status: killed`（或 `timeout`）并写 degradation，
+Phase 1 被杀后的单文件重派照实列出（校验器拿派发日志逐条核对）。条目内容：
 
 - `at`（UTC ISO 时间，如 `2030-01-20T01:30:00Z`；`as_of_run_date` 是本地日期，两者日期可以差一天，校验器
   容许 ±1 天）、`run_mode`（`legacy_upgrade` 与 `full` 一样表示全部 sidecar 由本契约的 worker 重新写出）；
-- `workers[]`：`{worker_id, phase, slice_id, status, files[]}`，来自 `dispatch_log`、`phase1_summary`
+- `workers[]`：`{worker_id, phase, slice_id, status, files[], prompt_file_sha256}`，来自 `dispatch_log`、`phase1_summary`
   与你自己（`phase` 取 `phase1|phase1_retry|stub|phase1_digest|phase2|phase2_5|pii_rescan`，`status` 取
-  `done|timeout|killed|retried|blocked`）。`files` **只列这个 worker 被派到或亲手写出的来源**（`source_id`）：
+  `done|timeout|killed|retried|blocked`；`prompt_file_sha256` 照抄该 worker 返回 JSON 里的值，没有就省略；你自己的是
+  `shasum -a 256 "<skill_dir>/references/organizer-prompt-phase2-synthesis.md"` 的结果——校验器拿它与技能自带的提示词
+  文件比对，不同说明这个 worker 读的不是原文）。`files` **只列这个 worker 被派到或亲手写出的来源**（`source_id`）：
   Phase 1 worker 列它切片里的 `source_id`，摘录 worker 列它写的摘录 sidecar 的 `source_id`，你自己（Phase 2
   综合 worker）不写 sidecar，列 `[]`——不要把档案里全部来源都列上，校验器用这个字段判断哪些 sidecar 是
   本契约的 worker 写的；

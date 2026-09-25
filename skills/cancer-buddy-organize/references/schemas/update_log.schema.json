@@ -30,7 +30,8 @@
                 "phase": { "type": "string", "minLength": 1, "description": "phase1 / phase1_retry / phase1_digest / stub / phase2 / phase2_5 / segment_c / segment_d … (open string)." },
                 "slice_id": { "type": ["string", "null"] },
                 "status": { "enum": ["done", "timeout", "killed", "retried", "blocked"] },
-                "files": { "type": "array", "items": { "type": "string" }, "description": "source_id / file_id / sidecar paths this worker was given or wrote." }
+                "files": { "type": "array", "items": { "type": "string" }, "description": "source_id / file_id / sidecar paths this worker was given or wrote." },
+                "prompt_file_sha256": { "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$", "description": "Optional: sha256 of the prompt file the worker read (it reports it in its return JSON). The validator compares it with the skill's own file for that phase: a worker handed an edited or abridged copy reports another hash." }
               }
             }
           },
@@ -75,7 +76,8 @@
               }
             }
           },
-          "note": { "type": ["string", "null"] }
+          "note": { "type": ["string", "null"] },
+          "prev_sha256": { "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$", "description": "Optional hash-chain link written by scripts/update_log_append.py: sha256 of the previous entry's canonical JSON (keys sorted, no whitespace, UTF-8); null on the first entry of a new ledger. Once an entry carries it, every later entry must, and the validator re-computes each link: an earlier entry edited afterwards breaks the chain." }
         }
       }
     }

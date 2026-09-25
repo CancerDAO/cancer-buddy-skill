@@ -48,7 +48,7 @@ flag 与摘要中的处理由编排者派 Phase 2 worker（`run_mode: faithfulne
 
 ```text
 {
-  "role": "phase2_5_worker", "worker_id": "p25-1", "values_checked": 47, "sidecars_read": 9,
+  "role": "phase2_5_worker", "worker_id": "p25-1", "prompt_file_sha256": "<本提示词文件的 sha256>", "values_checked": 47, "sidecars_read": 9,
   "counts": {"faithful": 41, "not_faithful": 2, "needs_human_review": 3, "disputed": 1},
   "results": [
     {"file": "labs.json", "json_path": "$.panels[3].values[2].value", "value": 4.68,

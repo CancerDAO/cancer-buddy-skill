@@ -202,6 +202,8 @@ import _high_risk_spans as _hrs  # noqa: E402 — VALUE_CLASSES: the uncertain f
 gate_second_read = _gate_second_read.gate_second_read
 import _gate_readings  # noqa: E402 — token scope / alt_readings / one_line_condition (ORG-P1-02), its own module
 gate_readings = _gate_readings.gate_readings
+import _gate_provenance  # noqa: E402 — dispatch log ↔ ledger, the ledger hash chain, worker prompt hashes (ORG-P1-09)
+gate_provenance = _gate_provenance.gate_provenance
 
 STRUCTURED_FILES = {
     "patient_summary.json": "patient_summary.schema.json",
@@ -4409,6 +4411,7 @@ def main() -> int:
     _run_gate("uncertainty", gate_review_flag_semantics, errors, patient_dir, errors, warnings, g)
     _run_gate("second_read", gate_second_read, errors, patient_dir, errors, warnings, g)
     _run_gate("readings", gate_readings, errors, patient_dir, errors, warnings, g)
+    _run_gate("provenance", gate_provenance, errors, patient_dir, errors, warnings, g, final=final)
     _run_gate("lab_pairing", gate_lab_pairing, errors, patient_dir, errors, warnings, g)
     _run_gate("page_completeness", gate_page_completeness, errors, patient_dir, errors, warnings, g)
     _run_gate("source_freshness", gate_source_freshness, errors, patient_dir, errors, warnings, g)

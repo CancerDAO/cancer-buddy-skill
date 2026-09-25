@@ -489,8 +489,9 @@ JSON 的 `timeout_risk_files`，置 `timed_out: true`，继续下一个文件。
   `true`，此时 `timeout_risk_files` 列出这些文件的 `source_id`。
 - `second_read[]` 每个非 stub sidecar 一条，照抄 `second_read_align.py` 打印的 `second_read_summary` 与
   `high_risk_review_status`（Phase 2 照抄进 `source_inventory.json`）。
-- `prompt_file_sha256`：对你收到的本提示词文件运行 `shasum -a 256 <skill_dir>/references/organizer-prompt-phase1-ocr.md`
-  的结果；提示词是编排者按原文转给你的，你据此核对没有被改写或删节。
+- `prompt_file_sha256`：`shasum -a 256 "<skill_dir>/references/organizer-prompt-phase1-ocr.md"` 的结果。编排者把本文件原文
+  （或它的路径并要求完整阅读）交给你；校验器拿这个值与技能自带的文件比对。你收到的提示词若只是其中几段、或写着“只读某几节”，
+  改为完整阅读这个文件，并在返回 JSON 的 `note` 里说明。
 - `pii_rescan_passed` 为 `true` 才能报告 `continuation_needed: false`。
 - 上下文将满时，写完手上的文件后返回 `continuation_needed: true`，`continuation_resume_from` 写下一个
   未处理的 `source_id`；续跑的 worker 跳过已有 sidecar 的文件。
