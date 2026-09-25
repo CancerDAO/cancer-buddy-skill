@@ -1,0 +1,86 @@
+{
+  "patient_code": "PT-5A1F0C",
+  "schema_version": "2.1",
+  "generated_at": "2030-01-20T09:00:00Z",
+  "documentation_coverage": {
+    "pathology_documents": "not_in_archive",
+    "imaging_reports": "present"
+  },
+  "warnings": [],
+  "latest_source_date": "2030-01-15",
+  "days_since_latest": 5,
+  "as_of_run_date": "2030-01-20",
+  "review_flags": [
+    {
+      "id": "RF-001",
+      "category": "extraction_fidelity",
+      "affected_field": "diagnosis.stage",
+      "current_source_values": [
+        {
+          "value": "[OCR_UNCERTAIN:U-001]",
+          "source_ref": "03_病程与叙事文书/门诊病历/2030-01-10_门诊病历_示例医院_s001.md#L22"
+        }
+      ],
+      "issue": "分期用字未能确定，两个读取通道一致读作「晚」但置信度低，他页没有清楚读法；不作为分期依据。",
+      "resolution_status": "unresolved",
+      "severity": "red",
+      "kind": "legibility",
+      "cross_doc_supported": {
+        "status": "none",
+        "refs": []
+      },
+      "uncertain_ids": [
+        "U-001"
+      ]
+    },
+    {
+      "id": "RF-002",
+      "category": "cross_source_conflict",
+      "affected_field": "timeline.liver",
+      "current_source_values": [
+        {
+          "value": "外院检查提示肝转移（家属自述）",
+          "source_ref": "14_患者自管补充/患者补充/undated_家属自述.md#L16"
+        },
+        {
+          "value": "肝实质未见明确占位",
+          "source_ref": "05_影像/CT/2030-01-12_胸部CT_示例医院.md#L19"
+        }
+      ],
+      "issue": "家属自述与 2030-01-12 CT 原文不一致，并列保留（conflict_group CG-001）。",
+      "resolution_status": "unresolved",
+      "severity": "yellow",
+      "kind": "conflict"
+    },
+    {
+      "id": "RF-003",
+      "category": "missing_pages",
+      "affected_field": "03_门诊病历 2030-01-10",
+      "current_source_values": [
+        {
+          "value": "第1页，共2页",
+          "source_ref": "03_病程与叙事文书/门诊病历/2030-01-10_门诊病历_示例医院_s001.md#L20"
+        }
+      ],
+      "issue": "该次门诊病历缺第 2 页。",
+      "resolution_status": "unresolved",
+      "severity": "red",
+      "kind": "completeness"
+    },
+    {
+      "id": "RF-004",
+      "category": "lab_column_pairing",
+      "affected_field": "labs.肿瘤标志物",
+      "current_source_values": [
+        {
+          "value": "项目 8 / 数值 8 / 单位 7 / 参考范围 7（按位置配对的候选值）",
+          "source_ref": "07_检验/肿瘤标志物/2030-01-15_肿瘤标志物_示例医院.md#L18-L55"
+        }
+      ],
+      "issue": "检验表为线性文字（无坐标），数值按位置配对为候选值，未核实；单位、参考范围列计数不等未配对。",
+      "resolution_status": "unresolved",
+      "severity": "yellow",
+      "kind": "legibility"
+    }
+  ]
+}

@@ -1,0 +1,54 @@
+{
+  "patient_code": "PT-5A1F0C",
+  "schema_version": "2.1",
+  "generated_at": "2030-01-20T09:00:00Z",
+  "episodes": [
+    {
+      "episode_id": "EP-001",
+      "sequence_index": 0,
+      "documented_line_label": null,
+      "phase_or_intent_source": null,
+      "regimen": "示例方案A",
+      "started_at": null,
+      "ended_at": null,
+      "clinician_reported_response": null,
+      "reason_for_change_source": null,
+      "provenance_layer": "prior_archive",
+      "verification_status": "unverified",
+      "source_refs": [
+        "03_病程与叙事文书/既往档案摘录/2029-06-01_既往档案摘录.md#L16"
+      ],
+      "status": "stopped",
+      "status_basis": "dates_only",
+      "status_basis_text": "2029-03 起曾接受示例方案A，共 4 程",
+      "status_as_of": null,
+      "line_number": null
+    },
+    {
+      "episode_id": "EP-002",
+      "sequence_index": 1,
+      "documented_line_label": null,
+      "cycle_label_verbatim": "第2周期",
+      "phase_or_intent_source": null,
+      "regimen": "示例方案B",
+      "started_at": null,
+      "ended_at": null,
+      "clinician_reported_response": null,
+      "reason_for_change_source": null,
+      "provenance_layer": "source_reported",
+      "verification_status": "unverified",
+      "source_refs": [
+        "03_病程与叙事文书/门诊病历/2030-01-10_门诊病历_示例医院_s001.md#L20",
+        "03_病程与叙事文书/门诊病历/2030-01-10_门诊病历_示例医院_s001.md#L23"
+      ],
+      "status": "ongoing",
+      "status_basis": "clinician_note_current",
+      "status_basis_text": "本次为示例方案B第2周期，今日入日间治疗中心给药",
+      "status_as_of": "2030-01-10",
+      "line_number": null,
+      "medication_refs": [
+        "MED-001"
+      ]
+    }
+  ]
+}

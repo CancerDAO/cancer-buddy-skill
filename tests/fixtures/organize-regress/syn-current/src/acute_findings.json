@@ -1,0 +1,27 @@
+{
+  "patient_code": "PT-5A1F0C",
+  "schema_version": "1",
+  "generated_at": "2030-01-20T09:00:00Z",
+  "findings": [
+    {
+      "finding_id": "AF-001",
+      "finding_class": "thrombus_embolism",
+      "label": "左肺上叶舌段肺动脉分支充盈缺损（肺栓塞可能）",
+      "verbatim_text": "左肺上叶舌段肺动脉分支充盈缺损……请结合临床",
+      "exam_date": "2030-01-12",
+      "report_date": "2030-01-12",
+      "source_ref": "05_影像/CT/2030-01-12_胸部CT_示例医院.md#L20",
+      "acuity": "urgent",
+      "acuity_basis": "class_default",
+      "acuity_basis_text": null,
+      "change_vs_prior": {
+        "verbatim": null,
+        "direction": "not_stated",
+        "prior_date_stated": null
+      },
+      "timeline_event_id": "E-005",
+      "provenance_layer": "source_reported",
+      "verification_status": "unverified"
+    }
+  ]
+}

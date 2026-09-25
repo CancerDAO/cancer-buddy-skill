@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# demographics time-anchor gate (patient_summary schema v2.1)
+# demographics time-anchor gate (patient_summary schema v2.1 anchors; current schema v2.2)
 #
 # Root cause this guards: age was modelled as a bare scalar next to `sex`, so two
 # reports from different years stating different ages landed in one slot, were read
@@ -29,7 +29,7 @@ validator = jsonschema.Draft202012Validator(schema, format_checker=jsonschema.Fo
 
 BASE = {
     "patient_code": "PT-A1B2",
-    "schema_version": "2.1",
+    "schema_version": "2.2",
     "generated_at": "2026-08-05T00:00:00Z",
     "demographics": {
         "sex": "女",
@@ -48,6 +48,9 @@ BASE = {
         "ecog": 1,
         "ecog_as_of": "2026-03-11",
         "function_description": None,
+        "performance_status_verbatim": [
+            {"text": "PS=1", "as_of": "2026-03-11", "scale_label": "PS", "source_ref": "04_诊断与分期/b.md#L3"},
+        ],
         "provenance_layer": "source_reported",
         "verification_status": "unverified",
         "source_refs": ["04_诊断与分期/b.md"],
@@ -128,6 +131,26 @@ case("invented age_basis rejected", "fail",
 #    has to be re-organized rather than silently read as if current.
 case("pre-fix schema_version 2 rejected", "fail",
      lambda d: d.__setitem__("schema_version", "2"))
+
+# 8b. v2.2 (schemas/README.md version policy): the strict schema pins the CURRENT version; a v2.1 document is
+#     read leniently only by validate_structured_outputs.py (WARN), never by the schema.
+case("schema_version 2.1 rejected by the strict v2.2 schema", "fail",
+     lambda d: d.__setitem__("schema_version", "2.1"))
+
+# 8c. performance status is kept verbatim (O-08): required list, pinned scale labels,
+#     never converted between scales.
+case("missing performance_status_verbatim rejected", "fail",
+     lambda d: demo(d).pop("performance_status_verbatim"))
+case("empty performance_status_verbatim allowed (no PS in any source)", "pass",
+     lambda d: demo(d).__setitem__("performance_status_verbatim", []))
+case("invented scale label rejected", "fail",
+     lambda d: demo(d)["performance_status_verbatim"][0].__setitem__("scale_label", "ECOG-converted"))
+case("PS entry without verbatim text rejected", "fail",
+     lambda d: demo(d)["performance_status_verbatim"][0].__setitem__("text", ""))
+case("PS as_of must be a day", "fail",
+     lambda d: demo(d)["performance_status_verbatim"][0].__setitem__("as_of", "2026-03"))
+case("prior_archive provenance accepted", "pass",
+     lambda d: demo(d).__setitem__("provenance_layer", "prior_archive"))
 
 # 9. Ages stay integers as the source stated them — no recomputed fractional age.
 case("fractional age rejected", "fail",

@@ -1,0 +1,114 @@
+{
+  "schema_version": "1",
+  "patient_code": "PT-5A1F0C",
+  "entries": [
+    {
+      "at": "2030-01-20T09:00:00Z",
+      "run_mode": "full",
+      "workers": [
+        {
+          "worker_id": "p1-s0-1",
+          "phase": "phase1",
+          "slice_id": "s0",
+          "status": "timeout",
+          "files": [
+            "s001",
+            "s002",
+            "s003",
+            "s005"
+          ]
+        },
+        {
+          "worker_id": "p1-s001-1",
+          "phase": "phase1_retry",
+          "slice_id": null,
+          "status": "done",
+          "files": [
+            "s001"
+          ]
+        },
+        {
+          "worker_id": "p1-s002-1",
+          "phase": "phase1_retry",
+          "slice_id": null,
+          "status": "done",
+          "files": [
+            "s002"
+          ]
+        },
+        {
+          "worker_id": "p1-s003-1",
+          "phase": "phase1_retry",
+          "slice_id": null,
+          "status": "done",
+          "files": [
+            "s003"
+          ]
+        },
+        {
+          "worker_id": "p1-s005-1",
+          "phase": "phase1_retry",
+          "slice_id": null,
+          "status": "done",
+          "files": [
+            "s005"
+          ]
+        },
+        {
+          "worker_id": "p1digest-1",
+          "phase": "phase1_digest",
+          "slice_id": null,
+          "status": "done",
+          "files": [
+            "prior-20290601"
+          ]
+        },
+        {
+          "worker_id": "p2-1",
+          "phase": "phase2",
+          "slice_id": null,
+          "status": "done",
+          "files": []
+        }
+      ],
+      "inputs": [
+        {
+          "source_id": "s001",
+          "sha256": "c7a35116faf2d2179574268a6cf9a720f076845d7983219f1002f9e02be4fe5f"
+        },
+        {
+          "source_id": "s002",
+          "sha256": "6ca6df22c867cba40d9d4ff657c6c349880e65eb41370caf357b97f5f54bd260"
+        },
+        {
+          "source_id": "s003",
+          "sha256": "6ae67499d85e25365567c05e981fad1271e08ddef5e6a52431039416e4d71fc8"
+        },
+        {
+          "source_id": "s005",
+          "sha256": "f22c7dfd46d33e310bb6818e2e39072109d95c9616878dc2fd0e7af07d5caa34"
+        }
+      ],
+      "added": [
+        "s001",
+        "s002",
+        "s003",
+        "s005"
+      ],
+      "removed": [],
+      "degradations": [
+        {
+          "worker_id": "p1-s0-1",
+          "reason": "timeout",
+          "redispatched_as": [
+            "p1-s001-1",
+            "p1-s002-1",
+            "p1-s003-1",
+            "p1-s005-1"
+          ]
+        }
+      ],
+      "note": null
+    }
+  ]
+}

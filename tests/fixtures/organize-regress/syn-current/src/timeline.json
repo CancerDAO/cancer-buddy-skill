@@ -1,0 +1,109 @@
+{
+  "patient_code": "PT-5A1F0C",
+  "schema_version": "2.1",
+  "generated_at": "2030-01-20T09:00:00Z",
+  "events": [
+    {
+      "event_id": "E-001",
+      "date": "2029-03",
+      "date_precision": "month",
+      "category": "systemic_therapy",
+      "title": "既往示例方案A（来自既往档案摘录）",
+      "detail": null,
+      "institution": null,
+      "provenance_layer": "prior_archive",
+      "verification_status": "unverified",
+      "supersedes_event_id": null,
+      "conflict_group": null,
+      "acute_finding_id": null,
+      "source_refs": [
+        "03_病程与叙事文书/既往档案摘录/2029-06-01_既往档案摘录.md#L16"
+      ]
+    },
+    {
+      "event_id": "E-002",
+      "date": "2029-11",
+      "date_precision": "month",
+      "category": "diagnosis",
+      "title": "家属自述：外院检查提示肝转移",
+      "detail": null,
+      "institution": null,
+      "provenance_layer": "caregiver_reported",
+      "verification_status": "unverified",
+      "supersedes_event_id": null,
+      "conflict_group": "CG-001",
+      "acute_finding_id": null,
+      "source_refs": [
+        "14_患者自管补充/患者补充/undated_家属自述.md#L16"
+      ]
+    },
+    {
+      "event_id": "E-003",
+      "date": "2030-01-10",
+      "date_precision": "day",
+      "category": "systemic_therapy",
+      "title": "示例方案B 第2周期（日间治疗中心）",
+      "detail": null,
+      "institution": "示例医院",
+      "provenance_layer": "source_reported",
+      "verification_status": "unverified",
+      "supersedes_event_id": null,
+      "conflict_group": null,
+      "acute_finding_id": null,
+      "source_refs": [
+        "03_病程与叙事文书/门诊病历/2030-01-10_门诊病历_示例医院_s001.md#L20"
+      ]
+    },
+    {
+      "event_id": "E-004",
+      "date": "2030-01-12",
+      "date_precision": "day",
+      "category": "imaging",
+      "title": "胸部CT：肝实质未见明确占位",
+      "detail": null,
+      "institution": "示例医院",
+      "provenance_layer": "source_reported",
+      "verification_status": "unverified",
+      "supersedes_event_id": null,
+      "conflict_group": "CG-001",
+      "acute_finding_id": null,
+      "source_refs": [
+        "05_影像/CT/2030-01-12_胸部CT_示例医院.md#L19"
+      ]
+    },
+    {
+      "event_id": "E-005",
+      "date": "2030-01-12",
+      "date_precision": "day",
+      "category": "acute_finding",
+      "title": "左肺上叶舌段肺动脉分支充盈缺损（肺栓塞可能）",
+      "detail": null,
+      "institution": "示例医院",
+      "provenance_layer": "source_reported",
+      "verification_status": "unverified",
+      "supersedes_event_id": null,
+      "conflict_group": null,
+      "acute_finding_id": "AF-001",
+      "source_refs": [
+        "05_影像/CT/2030-01-12_胸部CT_示例医院.md#L20"
+      ]
+    },
+    {
+      "event_id": "E-006",
+      "date": "2030-01-15",
+      "date_precision": "day",
+      "category": "lab",
+      "title": "肿瘤标志物（按位置配对的候选值，待核原件）",
+      "detail": null,
+      "institution": "示例医院",
+      "provenance_layer": "source_reported",
+      "verification_status": "unverified",
+      "supersedes_event_id": null,
+      "conflict_group": null,
+      "acute_finding_id": null,
+      "source_refs": [
+        "07_检验/肿瘤标志物/2030-01-15_肿瘤标志物_示例医院.md#L18-L55"
+      ]
+    }
+  ]
+}

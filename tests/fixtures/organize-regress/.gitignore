@@ -1,0 +1,11 @@
+# Defence in depth: this fixture tree is synthetic text only. Never commit originals,
+# images, PDFs or anything shaped like a real patient directory.
+raw/
+PT-*/
+patients/
+*.jpg
+*.jpeg
+*.png
+*.heic
+*.pdf
+*.dcm

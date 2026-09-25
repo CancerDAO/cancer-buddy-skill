@@ -232,24 +232,37 @@ echo "=== C. scan surface ==="
   && ok "clean conversation_notes file scanned with 0 findings" \
   || no "conversation_notes false positive"
 
-# readiness.json.review_flags[] shape (zero schema change: category is a free string)
-python3 - "$rep" <<'PY'
-import json, sys
+# readiness.json.review_flags[] shape — readiness schema v2.1 adds the required
+# `severity` (extraction/archive-integrity grade, NOT clinical) and `kind` keys.
+python3 - "$rep" "$REPO_ROOT/skills/cancer-buddy-organize/references/schemas/readiness.schema.json" <<'PY'
+import json, re, sys
 r = json.load(open(sys.argv[1], encoding="utf-8"))
-req = {"id", "category", "affected_field", "current_source_values", "issue", "resolution_status"}
+schema = json.load(open(sys.argv[2], encoding="utf-8"))
+item = schema["properties"]["review_flags"]["items"]
+req = {"id", "category", "affected_field", "current_source_values", "issue", "resolution_status", "severity", "kind"}
+assert set(item["required"]) == req, f"schema required {set(item['required'])} != {req}"
 flags = r["review_flags"]
 assert flags, "no review_flags emitted"
+anchor = re.compile(r"^[0-9]{2}_[^\s/]+(/[^\s/]+)*\.md#L[0-9]+$")
 for f in flags:
     assert set(f) == req, f"review_flag keys {set(f)} != {req} (schema is additionalProperties:false)"
     assert f["category"] == "untrusted_content_marker"
     assert f["resolution_status"] == "unresolved"
+    assert f["severity"] in ("yellow", "info"), f["severity"]
+    assert f["kind"] == "other", f["kind"]
     for v in f["current_source_values"]:
         assert set(v) == {"value", "source_ref"}
+        # only bucket sidecars are valid readiness anchors (ANCHOR_RE); any other
+        # anchor would make the NEXT validator run fail on the merged flag
+        assert anchor.match(v["source_ref"]), v["source_ref"]
+    if not re.match(r"^[0-9]{2}_", f["affected_field"]):
+        assert f["current_source_values"] == [], f
+        assert "#L" in f["issue"], "non-bucket hit locations must be named in issue"
 # the clean sidecar must NOT produce a flag
 assert not [f for f in flags if "血常规" in f["affected_field"]], "clean file got a review flag"
 print("review_flags OK:", len(flags))
 PY
-[ $? -eq 0 ] && ok "review_flags[] matches readiness.schema.json shape (no schema change needed)" \
+[ $? -eq 0 ] && ok "review_flags[] matches readiness.schema.json v2.1 shape (severity/kind; bucket-only anchors)" \
              || no "review_flags[] shape is wrong"
 
 # ===========================================================================

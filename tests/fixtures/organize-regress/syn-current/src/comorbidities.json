@@ -1,0 +1,29 @@
+{
+  "patient_code": "PT-5A1F0C",
+  "schema_version": "2.1",
+  "generated_at": "2030-01-20T09:00:00Z",
+  "conditions": [],
+  "medications": [
+    {
+      "name": "示例药B",
+      "normalized_name": null,
+      "dose": "100 mg",
+      "frequency": null,
+      "route": "静滴",
+      "indication_source": null,
+      "use_status": "unknown",
+      "as_of": "2030-01-10",
+      "medication_id": "MED-001",
+      "administration_setting": "day_ward",
+      "setting_basis": "病区：日间治疗中心",
+      "order_role": "antineoplastic",
+      "provenance_layer": "source_reported",
+      "verification_status": "unverified",
+      "source_refs": [
+        "03_病程与叙事文书/门诊病历/2030-01-10_门诊病历_示例医院_s001.md#L23",
+        "03_病程与叙事文书/门诊病历/2030-01-10_门诊病历_示例医院_s001.md#L17"
+      ]
+    }
+  ],
+  "allergies": []
+}
