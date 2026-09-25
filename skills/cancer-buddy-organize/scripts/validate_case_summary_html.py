@@ -364,10 +364,13 @@ def core_completeness_check(profile_path: str | None, data_path: str | None, err
             )
 
     # current regimen (best-effort): treatment_lines.json sibling of the profile.
+    # The schema key is `episodes` (treatment_lines.schema.json); `lines` was a stale
+    # key that made this check unreachable. Both are read for older archives.
     tl = _load_json(Path(profile_path).parent / "treatment_lines.json")
-    if isinstance(tl, dict) and tl.get("lines") and not _truthy(data.get("treatment_lines")):
+    if isinstance(tl, dict) and (tl.get("episodes") or tl.get("lines")) \
+            and not _truthy(data.get("treatment_lines")):
         errors.append(
-            "(j) core field 当前方案 present in source (treatment_lines.json lines) "
+            "(j) core field 当前方案 present in source (treatment_lines.json episodes) "
             "but treatment_lines empty in summary"
         )
 
