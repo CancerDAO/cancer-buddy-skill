@@ -108,6 +108,30 @@ errs, warns = run(lambda d: synlib.edit_text(d, ORD, lambda t: t.replace("| III�
 check("a consistently read stage that no structured field holds → completeness WARN",
       any("completeness" in w and "III期" in w for w in warns), str(warns))
 
+# ---- acute-findings.md §2.5: a damaged text-layer run is quoted as is, searched through verbatim_text_search
+CT = synlib.SIDE_CT
+
+
+def damaged(search=None):
+    def fn(d):
+        synlib.edit_text(d, CT, lambda t: t.replace("## PII", "## 文本层字形异常\n\n- L20：文本层「充盈缺!损」；看图读作「充盈缺损」\n\n## PII", 1))
+        def af(doc):
+            f = doc["findings"][0]
+            f["verbatim_text"] = "左肺上叶舌段肺动脉分支充盈缺!损……请结合临床"
+            if search is not None:
+                f["verbatim_text_search"] = search
+        synlib.edit_json(d, "acute_findings.json", af)
+    return fn
+
+
+errs, _ = run(damaged())
+check("acute verbatim quoting a listed damaged run without verbatim_text_search → ERROR",
+      any("add verbatim_text_search" in e for e in errs), str(errs))
+errs, _ = run(damaged("左肺上叶舌段肺动脉分支充盈缺损……请结合临床"))
+check("…with the recomputed verbatim_text_search → passes", errs == [], str(errs))
+errs, _ = run(damaged("左肺上叶舌段肺动脉分支充盈缺损"))
+check("…with a verbatim_text_search that is not the recomputation → ERROR", any("is not verbatim_text with the listed" in e for e in errs), str(errs))
+
 # ---- schema: the new fields are optional and closed
 ps = synlib.fixture_doc("patient_summary.json")
 ps["diagnosis"]["alt_readings"] = [ALT]

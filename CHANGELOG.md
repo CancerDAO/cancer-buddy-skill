@@ -6,6 +6,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Added — organize：文本层字形损坏的急症原文保持原样，另有可检索的规整字段 (2026-09-26)
+
+case3 的外院英文报告文本层里有 `le!t`（left）与夹在拉丁字母里的 `İ`，急症原文照抄后既对不上检索、又不能改原文（ORG-P0-03 第 4 项）。
+
+- `acute_findings.json` 发现新增可选字段 `verbatim_text_search`：`verbatim_text` 照抄文本层原样（锚点对得上），`verbatim_text_search`
+  = 把该 sidecar `## 文本层字形异常` 块列出的损坏字形换成看图读法后的文字，只用于检索与比对（`acute-findings.md` §2.5，phase2 §5.5）；
+  该 sidecar 另写一条 `artifact / info` flag（每份一条）。校验器（`readings` 门）按块重算：引用了列出的损坏字形却没写该字段、
+  或写的与重算不同 → ERROR。schema 加值不升版本。
+- 测试：`diagnosis-readings.test.sh` 新增 3 项（缺字段、正确、不符）。
+
 ### Changed — organize：读自己的提示词不算“空转”；不读脚本源码；所有账本写入者都经哈希链脚本追加 (2026-09-26)
 
 - **存活计数给读参考文件留余量**（ORG-P1-10 的非拆分部分）：case3 的 p2-1 在 7.5 分钟、57 次只读后被杀，p2-2 在 16.7 分钟被杀——

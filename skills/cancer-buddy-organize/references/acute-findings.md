@@ -119,6 +119,14 @@ sidecar 的发现必须 `verbatim_is_translation: true`，写了 true 的发现�
 转述的发现写成“<label>（<日期>，中文转述）”，caveats 里它单独一条，引文前写“中文转述，非报告原句：”，这一条不出现
 “报告原文”等称原文的说法（`case-summary-html-prompt.md`「急性/附带发现」；校验器核对这两处，caveats 按条核对）。
 
+### 2.5 文本层字形损坏
+
+born-digital 报告的文本层偶尔把字形存坏（`le!t` 实为 left、拉丁字母里夹一个 `İ`）。sidecar 正文照抄文本层，Phase 1 把看图读出的
+这几行写在 `## 文本层字形异常` 块里（`- L<行号>：文本层「le!t」；看图读作「left」`）。登记发现时 `verbatim_text` **照抄文本层原样**
+（含损坏字形，锚点才对得上）；另写 `verbatim_text_search` = `verbatim_text` 里每一段列出的损坏字形换成看图读法后的文字，只用于
+检索与比对，不替代原文、不进任何展示面的“原文”。校验器按该块重算它：块里列出的损坏字形出现在 `verbatim_text` 中而没有写
+`verbatim_text_search`，或写的与重算不同，都是错误。该 sidecar 另有一条 `kind: artifact`、`severity: info` 的 flag（每份一条）。
+
 ## 3. finding_class 与默认 acuity（固定表）
 
 `finding_class` 枚举：`thrombus_embolism` `fracture_cortical_break` `perforation_free_air`

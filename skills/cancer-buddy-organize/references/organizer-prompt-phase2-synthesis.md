@@ -502,6 +502,8 @@ episode：`started_at` 取首程日期，`regimen` 逐字（取原文写法；�
 
 ### 5.5 急性与附带发现（`acute_findings.json`）
 
+文本层字形损坏的 born-digital 报告：`verbatim_text` 照抄文本层原样，另写 `verbatim_text_search`（`acute-findings.md` §2.5）；该 sidecar 的 `## 文本层字形异常` 块另写一条 `kind: artifact`、`severity: info` 的 flag（每份一条）。
+
 按 `acute-findings.md` 逐份报告登记：类别与默认 `acuity` 只用该文件的固定表，只允许三种来源用词
 调整；`change_vs_prior` 只做逐字映射；每条发现在 `timeline.json` 有恰好一条 `category: "acute_finding"`
 事件并双向链接（事件的 `acute_finding_id` = `finding_id`，发现的 `timeline_event_id` = 该事件 `event_id`）。

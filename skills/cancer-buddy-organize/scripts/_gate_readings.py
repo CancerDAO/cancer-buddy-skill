@@ -12,7 +12,9 @@ into the value. Checked mechanically:
          a null primary is written 诊断资料缺失 / 资料缺失);
   WARN   diagnosis.primary set without diagnosis_basis (the source ladder is judged in phase2 §5.7);
   WARN   a sidecar's second-read table read a diagnosis consistently (diagnosis_text 是) while diagnosis.primary is null;
-  WARN   a stage / diagnosis read consistently in a sidecar appears in no structured field (readiness completeness hint).
+  WARN   a stage / diagnosis read consistently in a sidecar appears in no structured field (readiness completeness hint);
+  ERROR  an acute finding quoting a damaged text-layer run (the sidecar's `## 文本层字形异常` block) without the recomputed
+         verbatim_text_search (acute-findings.md §2.5).
 
 The source ladder itself (pathology > discharge/clinic > order/imaging indication > NGS clinical box > self-report) is
 judgment and lives in the phase2 prompt, not here.
@@ -90,6 +92,43 @@ def _structured_text(patient_dir: Path) -> str:
     return "\n".join(parts)
 
 
+_GLYPH_LINE_RE = re.compile(r"^- L(\d+)：文本层「(.+?)」；看图读作「(.+?)」")
+
+
+def glyph_pairs(text: str) -> list[tuple[str, str]]:
+    """(damaged run, by-eye reading) pairs of a sidecar's `## 文本层字形异常` block (phase1 §4 D)."""
+    m = re.search(r"^## 文本层字形异常\s*$(.*?)(?=^## |\Z)", text, re.S | re.M)
+    if not m:
+        return []
+    return [(g.group(2), g.group(3)) for g in (_GLYPH_LINE_RE.match(l.strip()) for l in m.group(1).splitlines()) if g]
+
+
+def acute_search_problems(patient_dir: Path) -> list[str]:
+    """acute-findings.md §2.5: verbatim_text keeps the damaged text layer; verbatim_text_search is it with every listed
+    damaged run replaced by the by-eye reading — recomputed here."""
+    out = []
+    doc = _load(patient_dir / "acute_findings.json")
+    for f in (doc or {}).get("findings") or [] if isinstance(doc, dict) else []:
+        if not isinstance(f, dict) or not isinstance(f.get("verbatim_text"), str):
+            continue
+        rel = str(f.get("source_ref") or "").split("#", 1)[0]
+        sc = patient_dir / rel
+        pairs = glyph_pairs(sc.read_text(encoding="utf-8", errors="replace")) if rel and sc.is_file() else []
+        hits = [(bad, good) for bad, good in pairs if bad in f["verbatim_text"]]
+        want = f["verbatim_text"]
+        for bad, good in hits:
+            want = want.replace(bad, good)
+        got = f.get("verbatim_text_search")
+        fid = f.get("finding_id")
+        if hits and got is None:
+            out.append(f"acute_findings {fid}: verbatim_text holds the damaged text-layer run {hits[0][0]!r} listed in "
+                       f"{rel}'s `## 文本层字形异常` block — add verbatim_text_search {want!r} (acute-findings.md §2.5)")
+        elif got is not None and got != want:
+            out.append(f"acute_findings {fid}: verbatim_text_search {got!r} is not verbatim_text with the listed damaged "
+                       f"runs replaced ({want!r})")
+    return out
+
+
 def gate_readings(patient_dir: Path, errors: list, warnings: list | None = None,
                   generation: str | None = None) -> None:
     import validate_structured_outputs as vso
@@ -116,6 +155,8 @@ def gate_readings(patient_dir: Path, errors: list, warnings: list | None = None,
             elif MISSING_DIAGNOSIS not in olc_s:
                 add(f"readings: diagnosis.primary is null but profile.summary.one_line_condition {olc!r} does not say "
                     "诊断资料缺失 (phase2 §5.7)")
+    for p in acute_search_problems(patient_dir):
+        add(f"readings: {p}")
     tl = _load(patient_dir / "treatment_lines.json")
     for k, ep in enumerate((tl or {}).get("episodes") or [] if isinstance(tl, dict) else []):
         if isinstance(ep, dict):
