@@ -6,6 +6,23 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Changed — organize：读自己的提示词不算“空转”；不读脚本源码；所有账本写入者都经哈希链脚本追加 (2026-09-26)
+
+- **存活计数给读参考文件留余量**（ORG-P1-10 的非拆分部分）：case3 的 p2-1 在 7.5 分钟、57 次只读后被杀，p2-2 在 16.7 分钟被杀——
+  Phase 2 提示词本身有 88 KB，读它就要几十次调用。SKILL.md 不变量 4、phase2 §0 与 claude-code / grok 绑定写明：读 worker 自己的
+  提示词文件与被点名的参考文件**不计入**“连续 30 次只读”（编排者按路径区分；+63 B，SKILL.md 49,043 B）。phase1 / phase2 §0 新增
+  “不读 `<skill_dir>/scripts/*.py` 源码（校验器在内），只运行、看输出”。卡住时唯一允许的“同一提示词重派一次，然后停下报告”已在
+  不变量 4，并由上一节的 `phase2_retry_exceeded` 机械核对。
+- **phase2 拆分暂缓**：计划 §I 规定 WP-O5（phase2 拆成 ≤200 行的分阶段文件）必须在 WP-O3 的 phase2 内容改动全部合入之后再做；
+  WP-O3（X-P0-01..04、ORG-P1-04/07/08、P2-01..06）尚未合入，现在拆会切断即将被改写的规则，并让 lint 13 的 F/G/K/M/N 与
+  `organize-contract-lints.test.sh` 里十余个按文件名/节号定位的变异测试改两次。拆分时要一并改指向的：phase2 §8 / §11 / §12 / §13
+  的账本写入句（lint 13 P 组按节核对）、SKILL.md Step 5 的“full content of …”。
+- **每个账本写入者都经 `update_log_append.py` 追加**：上一节只改了 phase2 §8 的主条目，`faithfulness_patch`（§11）、
+  `relevance_disposition` / `upload_reconciliation`（§12）、`pii_remask`（§13）与 段C（`conversation-incremental-prompt.md`）仍手写
+  追加——正确的运行会因“链开始后出现不带链的条目”而报 `update_log_chain_broken`。现在五处都写明经管道交给脚本；段C / 段D 的
+  返回 JSON 也带 `prompt_file_sha256`。lint 13 P 组新增：phase1 / phase2 的“不读脚本源码”句、phase2 §8/§11/§12/§13 与 段C 提示词
+  都点名 `update_log_append.py`；`organize-contract-lints.test.sh` 新增 3 个负例。
+
 ### Added — organize 审计日志防篡改：派发日志与运行账本交叉核对、账本哈希链、worker 提示词哈希 (2026-09-26)
 
 case3 把一次 kill 改写成 `retried` 并删掉对应的 degradation；Phase 2 被派了 3 次；p2-2 / p2-3 的提示词被编排者改写成“只读这几段”，

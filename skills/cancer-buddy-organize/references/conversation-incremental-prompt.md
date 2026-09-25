@@ -71,7 +71,7 @@ JSON 首先写 `urgent_escalation: true` 与触发的原话片段，编排者先
    current_source_values（两条：原件事件的 {value, source_ref: <原件锚点>} 与自述的 {value, source_ref:
    "conversation:<turn_timestamp>"}）, resolution_status: "unresolved"}`。自述对一份原件永远是 `yellow`（phase2 §2.4、
    §6.1；校验器核对）。自述里的数值不进 `labs.json`，不补检验表。
-4. **`update_log.json`**（仅当前契约档案）：追加一条条目，形状严格按 `update_log.schema.json`：`at`（`turn_timestamp`）、
+4. **`update_log.json`**（仅当前契约档案）：追加一条条目（经管道交给 `python3 "<skill_dir>/scripts/update_log_append.py" <patient_dir> --entry -` 追加（它写 `prev_sha256` 链接，phase2 §8；不要手写进文件）），形状严格按 `update_log.schema.json`：`at`（`turn_timestamp`）、
    `run_mode: "conversation_incremental"`、`workers: [{worker_id, phase: "segment_c", slice_id: null, status: "done",
    files: ["conversation:<turn_timestamp>"]}]`、`inputs: []`（对话不对账原件；空列表合法，`inputs` 为空的条目不会被当作最近
    一次输入对账，所以不要照抄旧条目的 `inputs`）、`added: []`、`removed: []`、`degradations: []`、`outputs`（你改写过的
@@ -86,7 +86,7 @@ JSON 首先写 `urgent_escalation: true` 与触发的原话片段，编排者先
 ## 返回 JSON（`write`）
 
 ```text
-{"role": "segment_c", "mode": "write", "worker_id": "c-2", "written_items": ["c1"],
+{"role": "segment_c", "mode": "write", "worker_id": "c-2", "prompt_file_sha256": "<本提示词文件的 sha256>", "written_items": ["c1"],
  "conversation_note": "07_检验/conversation_notes/2030-01-19_c-2.md", "timeline_events": ["E-020"],
  "conflict_groups": [], "update_log_entry": true, "legacy_upgrade_needed": false, "warnings": []}
 ```

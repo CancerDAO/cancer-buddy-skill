@@ -97,7 +97,7 @@ Call parameters 的 `skill_dir` 是本 skill 目录的绝对路径（你的工�
 **`<skill_dir>` 在运行期只读**：不得写、改、删其下任何文件（包括 `search_replace`、`sed -i`、`rm`、在其中新建脚本）；发现技能缺陷（脚本报错、规则互相矛盾）→ 停在该步，写进返回 JSON 的 `skill_defects`，不自己修。
 
 段D worker 拥有整条管线，返回值只能是 `{status:"ok", template_sha:"<64-hex>"}`（验证通过）或
-`{status:"failed", reason, exit_code}`，永不返回内联 HTML。它是 `.case_summary_data.json` 的唯一写入者。
+`{status:"failed", reason, exit_code}`，永不返回内联 HTML；两种都另带 `prompt_file_sha256`（对本文件运行 `shasum -a 256` 的结果）。它是 `.case_summary_data.json` 的唯一写入者。
 
 1. **组装数据**：按上文“数据映射”生成 `<patient_dir>/.case_summary_data.json`。`unfaithful_values`
    中的每个值按“只读输入”一节处理（`stage` 写待核对字样，其余置 null，模板显示“资料缺失”），病情概要

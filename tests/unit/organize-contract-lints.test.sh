@@ -307,6 +307,13 @@ expect "grok binding removed" fail "$tmp/p5" "grok-build.md is missing"
 fresh p6; edit "$tmp/p6/references/runtime-bindings/grok-build.md" 't.replace("回合结束就等于进程退出", "回合结束后会被唤醒", 1)'
 expect "grok binding without the no-wake-up rule" fail "$tmp/p6" "回合结束就等于进程退出"
 
+fresh p7; edit "$tmp/p7/references/organizer-prompt-phase2-synthesis.md" 't.replace("不读 `<skill_dir>/scripts/*.py` 源码", "可以读脚本源码", 1)'
+expect "phase2 without the do-not-read-script-source rule" fail "$tmp/p7" "scripts/*.py"
+fresh p8; edit "$tmp/p8/references/organizer-prompt-phase2-synthesis.md" '__import__("re").sub(r"(## 11\. .*?)经管道交给 `python3 \"<skill_dir>/scripts/update_log_append.py\" <patient_dir> --entry -` 追加", r"\1手工追加", t, count=1, flags=__import__("re").S)'
+expect "phase2 §11 appending to the ledger by hand" fail "$tmp/p8" "phase2 §11 appends to update_log.json without"
+fresh p9; edit "$tmp/p9/references/conversation-incremental-prompt.md" 't.replace("update_log_append.py", "hand_append.py")'
+expect "段C appending to the ledger by hand" fail "$tmp/p9" "conversation-incremental-prompt.md appends"
+
 # ---- lint 07 (I-07): a pixel page's model transcription is never the only reading
 LINT07="$REPO_ROOT/tests/eval/lint/07-clinical-governance.sh"
 g07() {  # label, pass|fail, mutation (python over t) of the phase1 prompt in a copy of skills/

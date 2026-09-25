@@ -59,7 +59,8 @@
 #   O. read channel: phase1 §4 G runs python3 "<skill_dir>/scripts/second_read_align.py" --apply, §5.1 states the three
 #      states (一致 / 无信号 / 冲突) and the no-signal rule, §4 D keeps 「写正文之前不运行任何 OCR」, and
 #      source_inventory.schema.json's read_mode enum equals SIDECAR_READ_MODES (lint I binds the phase1 row to it).
-#   P. orchestration discipline: every worker prompt (phase1 / phase2 / phase2_5 / pii-rescan / case-summary-html /
+#   P. orchestration discipline: phase1 / phase2 say 「不读 `<skill_dir>/scripts/*.py` 源码」; every ledger writer (phase2 §8 /
+#      §11 / §12 / §13, conversation-incremental) appends through update_log_append.py; every worker prompt (phase1 / phase2 / phase2_5 / pii-rescan / case-summary-html /
 #      conversation-incremental) states 「`<skill_dir>` 在运行期只读」; SKILL.md carries 回合纪律 + --can-stop and 运行期只读;
 #      runtime-bindings/grok-build.md exists with every `## N.` section of _template.md and names spawn_subagent,
 #      get_command_or_subagent_output, --can-stop and 「回合结束就等于进程退出」.
@@ -544,6 +545,16 @@ for name in ("organizer-prompt-phase1-ocr.md", "organizer-prompt-phase2-synthesi
     f = org / "references" / name
     if not f.is_file() or RO not in f.read_text(encoding="utf-8"):
         fail(f"{name} does not tell its worker that {RO} (write / edit / delete nothing under it; report a defect)")
+for name in ("organizer-prompt-phase1-ocr.md", "organizer-prompt-phase2-synthesis.md"):
+    if "不读 `<skill_dir>/scripts/*.py` 源码" not in (org / "references" / name).read_text(encoding="utf-8"):
+        fail(f"{name} does not tell its worker 「不读 `<skill_dir>/scripts/*.py` 源码」 (run the scripts, read their output)")
+p2_text = (org / "references" / "organizer-prompt-phase2-synthesis.md").read_text(encoding="utf-8")
+for sec_name, pat in (("§8", r"^## 8\. "), ("§11", r"^## 11\. "), ("§12", r"^## 12\. "), ("§13", r"^## 13\. ")):
+    m_sec = re.search(pat + r".*?$(.*?)(?=^## \d|\Z)", p2_text, re.S | re.M)
+    if not m_sec or "update_log_append.py" not in m_sec.group(1):
+        fail(f"phase2 {sec_name} appends to update_log.json without scripts/update_log_append.py (the hash chain would break)")
+if "update_log_append.py" not in (org / "references" / "conversation-incremental-prompt.md").read_text(encoding="utf-8"):
+    fail("conversation-incremental-prompt.md appends to update_log.json without scripts/update_log_append.py")
 skill_md = (org / "SKILL.md").read_text(encoding="utf-8")
 if "--can-stop" not in skill_md or "回合纪律" not in skill_md:
     fail("SKILL.md lacks the turn-discipline invariant (回合纪律 + validate_structured_outputs.py --can-stop)")

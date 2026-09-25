@@ -23,7 +23,7 @@ Phase 2 worker 与 段C worker（对话增量，`conversation-incremental-prompt
 `.rename_plan.json`、运行会写文件的脚本都算写入。所以按 §4 逐个读 sidecar、每读一个就把它的计划条目追加进
 `.rename_plan.json`；复核（§4.4）用一次 `head -n 30` 批量读多份并随即写回 `reviewed: true`；§5 每写完一个领域就
 立即写出那份文件，不要把全部 sidecar 读完再统一动笔。本提示词自包含，不必先通读 skill 的其他文件；需要查规则时只查
-被点名的那一节（如 `acute-findings.md`）。
+被点名的那一节（如 `acute-findings.md`）。读本提示词与被点名的参考文件不计入“连续只读”次数（编排者按路径区分）。**不读 `<skill_dir>/scripts/*.py` 源码**（校验器在内）：只运行脚本、看它打印的结果；要查规则只查本提示词或被点名的那一节。
 
 Call parameters：`skill_dir`（本 skill 目录的绝对路径——你的工作目录不是它：文中的 `scripts/…`、`references/…`、
 `schemas/…` 都在它下面，运行脚本写 `python3 "<skill_dir>/scripts/<脚本>"`）、`worker_id`、`patient_dir`、
@@ -815,7 +815,7 @@ Phase 2.5（`organizer-prompt-phase2_5-faithfulness.md`，worker `p25-<n>`）只
    `resolution_status: "unresolved"`），不写替换值；
 2. `not_faithful` 的值若被拼进 `profile.json.summary.one_line_condition`，重新拼接该字符串并去掉这一成分（写“资料缺失”
    或省略）；`summary.stage` 等细分字段保持原样并由 flag 标注（段D 对这些值显示“待核对”，`case-summary-html-prompt.md`）；
-3. 在 `update_log.json` **追加一条自己的条目**（§8 形状；不改以前的条目——日志只追加）：`run_mode: faithfulness_patch`，
+3. 在 `update_log.json` **追加一条自己的条目**（§8 形状；不改以前的条目——日志只追加；经管道交给 `python3 "<skill_dir>/scripts/update_log_append.py" <patient_dir> --entry -` 追加（它写 `prev_sha256` 链接，§8；不要手写进文件））：`run_mode: faithfulness_patch`，
    `workers[]` = Phase 2.5 worker（`phase: phase2_5`，`files: []`）+ 你自己（`phase: phase2`，`files: []`），`inputs[]` 照抄
    上一个 `inputs` 非空的条目，`added` / `removed` 为空，`outputs[]` 写你改写过的文件的新 `sha256`（没改就不写），`note`
    写“核对 N 项，M 项不一致”（不写值）。
@@ -846,7 +846,7 @@ actor_role}`。编排者不自己动这些文件，也不写 `update_log.json`�
    然后同第 2 条对新来源做增量综合。`coexist`：两份都留、不写关系；`ignore`：新上传按 `user_excluded` 记进
    `skipped_inputs`，不转写。
 4. `hold`：不动文件。
-5. 追加一条 `update_log.json` 条目（§8 形状）：`run_mode` 为本次的 `relevance_disposition` 或 `upload_reconciliation`，
+5. 追加一条 `update_log.json` 条目（§8 形状，经管道交给 `python3 "<skill_dir>/scripts/update_log_append.py" <patient_dir> --entry -` 追加（它写 `prev_sha256` 链接，§8；不要手写进文件））：`run_mode` 为本次的 `relevance_disposition` 或 `upload_reconciliation`，
    `workers[]` 为你自己（`phase: phase2`，`files` 列你处置过的项目句柄）加上本次转写新上传的 Phase 1 worker，`inputs[]`
    照抄上一个 `inputs` 非空的条目、加上移回临床桶或新入档的原件（同时列进 `added[]`），`removed[]` 列已删除项的句柄，
    `note` 逐项写“动作 + 句柄 + 确认原话（遮蔽个人信息后）+ actor_role”。删除项在 `source_inventory.json.skipped_inputs[]`
@@ -862,6 +862,6 @@ sidecar 正文上的发现不归你：编排者把那份原件重派给单文件
 1. 逐条回到该文件该行，按含义把个人信息遮蔽为 `[PII_MASKED]` 或删掉它所在的非临床短语，不动任何临床字符；
    `profile.json.summary.one_line_condition` 改了就在返回 JSON 写明（编排者据此重跑 Step 13）；
 2. 跑形状层 `python3 "<skill_dir>/scripts/pii_rescan.py" <patient_dir>`，直到它干净；
-3. 在 `update_log.json` 追加一条 §8 形状的条目：`run_mode: pii_remask`，`workers[]` 列你自己（`phase: phase2`）和
+3. 在 `update_log.json` 追加一条 §8 形状的条目（经管道交给 `python3 "<skill_dir>/scripts/update_log_append.py" <patient_dir> --entry -` 追加（它写 `prev_sha256` 链接，§8；不要手写进文件））：`run_mode: pii_remask`，`workers[]` 列你自己（`phase: phase2`）和
    派你之前的复扫 worker（`phase: pii_rescan`，`files: []`），`inputs[]` 照抄上一个 `inputs` 非空的条目，
    `outputs[]` 写你改过的文件的新 `sha256`，`note` 只写改了几处、哪几类（不写值）。

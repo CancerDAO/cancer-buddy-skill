@@ -23,7 +23,7 @@
 - **等待**：`get_command_or_subagent_output(task_ids=[…], timeout_ms=900000)` 循环调用，直到返回完成；两次调用之间不要发出
   不含工具调用的消息（§7）。
 - **存活**：用 `monitor` 跑一个只打印新写入的命令（Phase 1 看 `<patient_dir>/ocr/` 的新文件与修改时间，Phase 2 看
-  `<patient_dir>` 下 `.rename_plan.json` 与各 JSON）。**10 分钟无新产物写入，或连续 30 次只读工具调用** →
+  `<patient_dir>` 下 `.rename_plan.json` 与各 JSON）。**10 分钟无新产物写入，或连续 30 次只读工具调用**（读 worker 自己的提示词文件与被点名的参考文件不计入只读次数） →
   `kill_command_or_subagent(task_id=…)` → Phase 1 已写完的 sidecar 保留，其余每个文件派单文件 worker（`p1-<source_id>-<n>`）；
   再超时 → stub worker（`p1stub-<source_id>`）写 `[INGESTION_BLOCKED: timeout]`，然后停下报告。Phase 2 同一提示词重派一次，
   再失败即停下报告。每次派发、终止、重派都向 `<patient_dir>/raw/_dispatch_log.jsonl` 追加一行（`{at, event, worker_id, phase, files}`）。

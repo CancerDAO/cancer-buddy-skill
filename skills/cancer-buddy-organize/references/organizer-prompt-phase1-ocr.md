@@ -26,7 +26,7 @@ OCR 引擎（Apple Vision / tesseract）是它的**第二读**：由 `second_rea
 **`<skill_dir>` 在运行期只读**：不得写、改、删其下任何文件（包括 `search_replace`、`sed -i`、`rm`、在其中新建脚本）；
 发现技能缺陷（脚本报错、规则互相矛盾）→ 在该步停下，写进返回 JSON 的 `skill_defects`，不自己修。
 
-本提示词自包含：**不要先通读 skill 的其他文件**，处理完第一个文件就写出第一份 sidecar。
+本提示词自包含：**不要先通读 skill 的其他文件**，处理完第一个文件就写出第一份 sidecar。**不读 `<skill_dir>/scripts/*.py` 源码**（校验器在内）：只运行脚本、看它打印的结果；要查规则只查本提示词或被点名的那一节。
 
 ## 1. Call parameters
 
