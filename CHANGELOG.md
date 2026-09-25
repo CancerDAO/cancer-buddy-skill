@@ -6,6 +6,46 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Fixed — organize 第二轮复核：正确的渲染不再被转述检查卡死，缺失的 latest_status 不再让在治快照核对整体跳过 (2026-09-25)
+
+独立复核上一节后指出的 5 项逐条收口（合成数据，无真实病例内容）。
+
+- **转述引文只在引文位置核对**（P2，上一节引入的误报）：上一节的检查把转述发现的 `verbatim_text` 在全部 caveats 里做
+  子串计数，转述文字恰好是另一条原句发现正确写出的“报告原文：…”的一部分时（“充盈缺损”“胸腔积液”这类短语，同一档案
+  既有旧转述 sidecar 又有中文原件时就会发生），完全正确的新鲜渲染也被判 ERROR，没有任何写法能通过，段D 拿不到
+  `template_sha`。现在只看**引文位置**（常量 `ACUTE_CAVEAT_QUOTE_SLOT_RULE`：冒号或开引号之后，其后紧接“（”“；”“——”
+  “。”或该条结尾；按占满这个位置的最长一条发现原句计）：别的发现原句里含有这几个字、或句中顺带提到，不算引用；两条发现
+  原句一字不差时按引文后括号里的日期区分。引文位置上的转述前面必须紧挨着“中文转述，非报告原句：”（可隔一个开引号），
+  不论引导语是“报告原文：”“外院报告写道：”还是没有引导语——原有负例（“报告原文：”引转述、同一条既标转述又称原文、附带
+  发现）照旧报错；不再核对的只有引文位置之外的顺带提及。`case-summary-html-prompt.md` 与 phase2 §7 同步收窄。lint 13 N
+  不再只钉字符串：提示里须逐字（不计空白）含该规则句、不得再写“caveat 里出现转述发现的 verbatim_text 时”，并把提示自己的
+  两种 caveat 写法实例化后跑 `translated_caveat_problems`——转述写法通过、“报告原文”写法引转述被拒、转述文字嵌在另一条
+  原句里不算引用；提示与校验器任一侧漂移（含校验器退回子串计数）lint 即失败。
+- **缺失或为 null 的 `latest_status` 按 regimen null 核对，且为必填**（P2，早已存在）：上一节的相等关系和更早的在治快照
+  检查都只在 `latest_status` 是对象时才跑，删掉它就整体跳过——`current_regimen` 写成别的方案、另有在治 episode 也照样通过。
+  现在两者对称：缺失/null 的 `latest_status` 读作 `{regimen: null}`（在治 episode 存在时报“regimen null although … ongoing”，
+  `current_regimen` 非 null 时报 ≠），它本身在当前契约档案上报 ERROR（旧版档案 WARN）；`scripts/validate-profile-schema.sh`
+  同样要求它（当前契约档案缺失或 null 即失败，旧版 WARN）。`patient-profile-schema.md` 与 phase2 §5.7 写明；上一节“缺这个键
+  按 null 算”现在对两个键都成立。`validate-profile-schema.test.sh` 里当前契约档案的正例补上 `{"regimen": null, …}`。
+- **自述前缀按 episode 自己的说话人核对，单独的前缀不是 null**（P3）：`summary` 块本身是自述层时，写错说话人的前缀
+  （家属陈述的 episode 写“患者自述：…”）此前能通过；现在前缀必须对应在治 episode 的 `provenance_layer`，与 `summary`
+  块是哪一层无关。只有一个“患者自述：”、去掉后为空的 `current_regimen` 不再等同于 null，报错。
+- **资料卡同样标注转述**（P3）：`profile-card.md` 的急性/附带发现一条不再统称“报告原文写明的”，`verbatim_is_translation:
+  true` 的条目标“中文转述，非报告原句”；`acute-findings.md` §2.4 的展示面清单加上 Step 11 Profile Card。lint 13 N 钉住两处。
+- **按旧契约写成的渲染在流程内重渲染**（P3，迁移路径）：旧首句“资料中有报告原文写到…”的渲染带着仍然匹配的
+  `acute_findings_sha256` 戳会被判为新鲜渲染并报 ERROR，而此前只有新增/改动急性发现才强制 Step 12，增量或
+  `legacy_phase2_only` 运行会带着自己修不了的 ERROR 结束。现在：SKILL.md Step 12 在任何校验输出含
+  `ERROR: .case_summary_data.json` 时必做（不询问，新鲜度提问的安全例外同样覆盖）；phase2 §9 允许留下这类行（除了
+  “the pinned stale notice … is missing”——那是 Phase 2 自己的 §7 过期提示，必须补上），§10 此时返回
+  `case_summary_rerender_required: true`；`acute-findings.md` §11 同步。校验器对旧首句的 ERROR 写明“渲染早于当前 段D
+  契约，戳只证明数据不证明契约”（常量 `RETIRED_ACUTE_SUMMARY_LEAD`）。lint 13 N 钉住 Step 12 / §9（含例外）/ §10 三处。
+- 测试：`acute-findings-gate.test.sh` 新增 TL2 组（复核探针、只嵌在原句里、句中顺带提及、原句以转述文字加“（”开头、
+  开引号内的带前缀转述、原句与转述一字不差各 1 正 1 负，以及“报告原文：”“外院报告写道：“…””、句首裸引、无括号、转述自带
+  “（”等保留负例），`organize-provenance-guards.test.sh` 新增 R3 组（`latest_status` 缺失/null/旧版/无在治、说话人错配两向、
+  单独前缀两例），`validate-profile-schema.test.sh` 新增缺失/null 与旧版 WARN 三例，`organize-contract-lints.test.sh` 新增
+  n6–n15。在上一提交（93869c1）的代码上实测：TL2 的 6 个“此前被误报”的正例、R3 的 8 项、profile 的 4 项全部失败，
+  n6–n14 的 9 个 lint 负例在旧 lint 上失败（n15 针对本节新增的例外句）；保留负例在新旧代码上都报错。
+
 ### Fixed — organize 复核遗留：转述的急性发现不再被称为“报告原文”，自述与摘录的层级规则由校验器兑现 (2026-09-25)
 
 独立复核上一节后留下的矛盾与漏洞逐条收口（合成数据，无真实病例内容）。
@@ -13,14 +53,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 - **病情概要首句改为中性写法**（P1）：固定前缀由“资料中有报告原文写到需要尽快告知治疗团队的发现：”改为
   “资料中有报告写到需要尽快告知治疗团队的发现：”——`verbatim_is_translation: true` 的发现也在这个列表里，不能说成
   “报告原文”。转述的那一条写“<label>（<日期>，中文转述）”（无日期写“<label>（中文转述）”，不与原句登记的同名发现合写）；
-  caveats 引它时前面紧挨着“中文转述，非报告原句：”。校验器 `validate_structured_outputs.py` 的 段D 检查同时核对两处
+  caveats 在引文位置引它时前面紧挨着“中文转述，非报告原句：”（引文位置的定义见「第二轮复核」一节）。校验器 `validate_structured_outputs.py` 的 段D 检查同时核对两处
   （常量 `ACUTE_SUMMARY_LEAD` / `ACUTE_LEAD_TRANSLATION_MARK` / `ACUTE_CAVEAT_TRANSLATION_PREFIX`）：新鲜渲染出错即
   ERROR；过期渲染里的紧急发现走原有过期提示路径（没有提示 ERROR、有提示 WARN、`--final` ERROR），附带发现的转述标注在过期
   渲染上只 WARN（它不强制重渲染）。`validate_case_summary_html.py` 仍只查页面形状，不读急性发现。旧写法的首句在盖了新戳的
-  渲染上现在报错（“must start …”），重新运行 段D 即可；Phase 2 的过期提示把旧前缀的首句视为全部未写入。lint 13 新增 N：
+  渲染上现在报错（“must start …”），Step 12 据此在流程内重渲染（见「第二轮复核」一节）；Phase 2 的过期提示把旧前缀的首句视为全部未写入。lint 13 新增 N：
   `case-summary-html-prompt.md` 逐字含这三个常量、且不再教旧前缀，phase2 §7 引用的也是同一前缀。
 - **`current_regimen` 与 `latest_status.regimen` 的相等关系真正核对**：去掉“患者自述：/家属自述：”前缀后必须等于
-  `latest_status.regimen`（没有在治 episode 时两者都为 null；缺这个键按 null 算），不论 `summary` 块是哪一层；此前只在两者
+  `latest_status.regimen`（没有在治 episode 时两者都为 null；缺这个键按 null 算，缺 `latest_status` 同样按 regimen null 算，见「第二轮复核」一节），不论 `summary` 块是哪一层；此前只在两者
   恰好相同时才查前缀，措辞不同或干脆缺键的 `current_regimen` 都可以通过。反方向也核对：在治 episode 是原件时
   `current_regimen` 不带自述前缀。合成夹具的 `profile.summary` 补上 `current_regimen`（生成器与提交产物同步）。
 - **领域桶里的对话记录不算原件**：`03_病程与叙事文书/conversation_notes/…` 这类路径此前被当成原件——

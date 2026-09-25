@@ -89,6 +89,11 @@ current = (isinstance(r, dict) and r.get("schema_version") == READINESS_CURRENT)
 # optional status_basis, B7), or null. SMTB reads {regimen, as_of, status_basis} as a
 # current-status row, so the shape is pinned on a current archive (legacy: WARN). The binding to
 # the ongoing treatment_lines.json episode is validate_structured_outputs.gate_record_links.
+# latest_status is required (patient-profile-schema.md): an object — {"regimen": null, …} when nothing is
+# ongoing — on a current archive; a legacy archive without it only WARNs.
+if isinstance(p, dict) and not isinstance(p.get("latest_status"), dict):
+    (fail if current else warn)(f"latest_status {'is null' if 'latest_status' in p else 'missing'} — required: the ongoing "
+                                "episode's {regimen, as_of, status_basis} snapshot, or {\"regimen\": null, …} when nothing is ongoing")
 if isinstance(p, dict) and isinstance(p.get("latest_status"), dict):
     ls = p["latest_status"]
     if ls.get("regimen") is not None and not (isinstance(ls["regimen"], str) and ls["regimen"].strip()):

@@ -10,8 +10,9 @@ Profile Card 是资料索引，不是临床画像或决策面板。
   不配日期；
 - 医生明确记录的 ECOG/疗效（如有）；医生书写的体能状态原文（如“PS=2（2030-01-05）”），按原文标签显示，
   不换算成 ECOG；
-- 报告原文写明的急性/附带发现（`acute_findings.json`）：逐字（`label` / `verbatim_text`，不写类名）、带日期与来源，
-  emergent/urgent 条目放在最前，并提示尽快告知治疗团队；不解释病因、不评估严重程度；
+- 报告写明的急性/附带发现（`acute_findings.json`）：逐字（`label` / `verbatim_text`，不写类名）、带日期与来源，
+  emergent/urgent 条目放在最前，并提示尽快告知治疗团队；不解释病因、不评估严重程度；`verbatim_is_translation: true`
+  的条目是外文报告的中文转述，标“中文转述，非报告原句”，不称“报告原文”（`acute-findings.md` §2.4）；
 - 患者功能/症状描述，单独标 `patient_reported`；
 - 冲突、缺失、缺页、资料时效、OCR 和待人工核对状态。
 

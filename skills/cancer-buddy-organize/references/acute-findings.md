@@ -114,7 +114,7 @@ HTML 里，结构化 JSON 与 timeline 都没有，下游读不到就当作不�
 `legacy_upgrade` 提示并存。这条 flag 不限于登记了发现的 sidecar：检验、HLA 分型等任何只有中文转述的外文报告
 sidecar 都写一条。校验器核对每份 sidecar 至多一条、且为 other/yellow，并核对两者对应：引了带这条 flag 的
 sidecar 的发现必须 `verbatim_is_translation: true`，写了 true 的发现所引 sidecar 必须有这条 flag。
-**转述不是原文**：`verbatim_is_translation: true` 的发现在任何展示面（Step 7.5、§11、段D）都标明“中文转述，
+**转述不是原文**：`verbatim_is_translation: true` 的发现在任何展示面（Step 7.5、Step 11 Profile Card、§11、段D）都标明“中文转述，
 非报告原句”，不说成“报告原文写到”。段D 病情概要首句的前缀因此是中性的“资料中有报告写到需要尽快告知治疗团队的发现：”，
 转述的发现写成“<label>（<日期>，中文转述）”，caveats 里它的引文前写“中文转述，非报告原句：”
 （`case-summary-html-prompt.md`「急性/附带发现」；校验器核对这两处）。
@@ -329,4 +329,5 @@ finding 的 `timeline_event_id` 反向指向这条事件（旧版档案上只重
 “中文转述，非报告原句：”，说明写成“报告（外文）写到的发现，此处为中文转述”，不称其为报告原文（§2.4）。
 
 新登记或改动了 emergent/urgent 发现之后，现有的 `病情简要总结.html` 就过期了：重新生成 段D 是必做的安全步骤，
-不经过“要不要重新生成”的询问（SKILL.md「Case-summary freshness gate」）。
+不经过“要不要重新生成”的询问（SKILL.md「Case-summary freshness gate」）。发现没变、而渲染按旧契约写成（校验器报
+以 `ERROR: .case_summary_data.json` 开头的行，如首句仍是“资料中有报告原文写到…”）时同样必做（SKILL.md Step 12）。

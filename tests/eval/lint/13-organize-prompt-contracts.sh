@@ -49,6 +49,11 @@
 #      (the neutral 报告写到 — never the retired 报告原文写到 lead), the translated item form 「（<日期>，中文转述）」
 #      (ACUTE_LEAD_TRANSLATION_MARK) and the caveat prefix ACUTE_CAVEAT_TRANSLATION_PREFIX — the validator checks the
 #      narrative's first sentence and the caveats against exactly these strings; phase2 §7 quotes the same lead.
+#      The rule too: the prompt states ACUTE_CAVEAT_QUOTE_SLOT_RULE (not the retired "any occurrence" wording) and its
+#      own two caveat forms, run through translated_caveat_problems, pass / reject / ignore a nested quote as it says.
+#      Surfaces: profile-card.md labels a translation 中文转述，非报告原句 (acute-findings.md §2.4 lists Step 11), and
+#      SKILL.md Step 12, phase2 §9 and §10 route an 「ERROR: .case_summary_data.json」 line to the 段D re-render
+#      (§9 excepting the validator's 'the pinned stale notice … is missing' line: that is Phase 2's own notice).
 #   I. phase1 §3 table rows READ_MODE / ADAPTER / MODALITY list exactly the validator's
 #      SIDECAR_READ_MODES / SIDECAR_ADAPTERS / SIDECAR_MODALITIES (checked on the header itself, so
 #      a sidecar without an inventory row cannot carry free text there).
@@ -395,6 +400,87 @@ if lead_n is not None:
     if not sec_n7 or f"“{lead_n}”开头" not in sec_n7.group(1):
         fail("organizer-prompt-phase2-synthesis.md §7 段D 过期提示 does not quote "
              f"validate_structured_outputs.ACUTE_SUMMARY_LEAD verbatim ({lead_n!r}) as the lead a current render starts with")
+
+# ---- N (rule). The caveat check itself, not only its strings: the prompt states the validator's quotation-slot rule
+# (ACUTE_CAVEAT_QUOTE_SLOT_RULE, whitespace-insensitive) instead of the retired "any occurrence" wording, and the
+# prompt's own two caveat forms behave as the prompt says when run through translated_caveat_problems — the translated
+# form passes, the 报告原文 form rejects a translated quote, and a translated finding's words inside another finding's
+# correctly quoted original are no quote of it.
+def _ws(s):
+    return re.sub(r"\s+", "", s)
+
+
+if lead_n is not None and sec_n:
+    try:
+        slot_rule = vso_n.ACUTE_CAVEAT_QUOTE_SLOT_RULE
+        tcp = vso_n.translated_caveat_problems
+    except Exception as e:
+        fail(f"validate_structured_outputs.py has no ACUTE_CAVEAT_QUOTE_SLOT_RULE / translated_caveat_problems: {e}")
+        slot_rule = None
+    if slot_rule is not None:
+        wb = _ws(body_n)
+        if _ws(slot_rule) not in wb:
+            fail("case-summary-html-prompt.md 急性/附带发现 does not state the caveat quotation-slot rule "
+                 f"validate_structured_outputs.ACUTE_CAVEAT_QUOTE_SLOT_RULE ({slot_rule!r})")
+        if "caveat里出现转述发现的`verbatim_text`时" in wb:
+            fail("case-summary-html-prompt.md 急性/附带发现 still says every occurrence of a translated verbatim_text in a "
+                 "caveat needs the prefix — the validator checks quotation slots only (ACUTE_CAVEAT_QUOTE_SLOT_RULE)")
+        forms = re.findall(r"“([^“”]*<verbatim_text>[^“”]*)”", wb)
+        tr_forms = [f for f in forms if cav_n + "<verbatim_text>" in f]
+        orig_forms = [f for f in forms if "报告原文：<verbatim_text>" in f]
+        if not tr_forms or not orig_forms:
+            fail("case-summary-html-prompt.md 急性/附带发现 lacks a caveat form with 「" + cav_n + "<verbatim_text>」 or one with "
+                 "「报告原文：<verbatim_text>」 (the two forms the validator's caveat check is run on)")
+        else:
+            def inst(form, quote, day):
+                return form.replace("<verbatim_text>", quote).replace("<日期>", day).replace("<来源文书>", "示例报告")
+
+            q_tr, q_long = "示例充盈缺损", "示例左肺动脉分支示例充盈缺损待查"
+            f_tr = {"finding_id": "AF-T", "verbatim_text": q_tr, "verbatim_is_translation": True,
+                    "exam_date": "2030-01-05", "acuity": "incidental"}
+            f_orig = {"finding_id": "AF-O", "verbatim_text": q_long, "exam_date": "2030-01-12", "acuity": "urgent"}
+
+            def probs(findings, *caveats):
+                return tcp({"findings": findings}, {"caveats": [{"caveat_text": c} for c in caveats]})
+
+            if probs([f_tr], inst(tr_forms[0], q_tr, "2030-01-05")):
+                fail("the prompt's translated caveat form 「" + tr_forms[0] + "」 is rejected by translated_caveat_problems")
+            if not probs([f_tr], inst(orig_forms[0], q_tr, "2030-01-05")):
+                fail("the prompt's 报告原文 caveat form 「" + orig_forms[0] + "」 quoting a translated finding passes "
+                     "translated_caveat_problems")
+            if probs([f_tr, f_orig], inst(orig_forms[0], q_long, "2030-01-12"), inst(tr_forms[0], q_tr, "2030-01-05")):
+                fail("a translated finding's words inside another finding's 报告原文 quote (the prompt's form) are "
+                     "reported as a quote of the translated finding")
+
+# ---- N (surfaces). Every surface that shows acute findings labels a translation: profile-card.md (Step 11) says
+# 中文转述，非报告原句 and no longer calls every finding 「报告原文写明的」; acute-findings.md §2.4 lists Step 11 among the
+# surfaces. And a .case_summary_data.json ERROR routes to the 段D re-render: SKILL.md Step 12, phase2 §9 (the error
+# Phase 2 may leave) and phase2 §10 (case_summary_rerender_required) all name 「ERROR: .case_summary_data.json」.
+pc = (org / "references" / "profile-card.md").read_text(encoding="utf-8")
+pc_acute = next((b for b in re.split(r"\n(?=- )", pc) if "acute_findings.json" in b), "")
+if "中文转述，非报告原句" not in _ws(pc_acute):
+    fail("profile-card.md: the acute-findings bullet does not label a verbatim_is_translation finding "
+         "「中文转述，非报告原句」 (acute-findings.md §2.4)")
+if "报告原文写明的急性" in _ws(pc):
+    fail("profile-card.md still presents every acute finding as 「报告原文写明的」 — a translation is not the report's words")
+af_md = (org / "references" / "acute-findings.md").read_text(encoding="utf-8")
+m_sf = re.search(r"\*\*转述不是原文\*\*：.*?任何展示面（([^）]*)）", af_md, re.S)
+if not m_sf or "Step 11" not in m_sf.group(1):
+    fail("acute-findings.md §2.4 「转述不是原文」 does not list Step 11 (the Profile Card) among the display surfaces")
+ROUTE = "ERROR: .case_summary_data.json"
+vso_src = (org / "scripts" / "validate_structured_outputs.py").read_text(encoding="utf-8")
+step12 = next((l for l in (org / "SKILL.md").read_text(encoding="utf-8").splitlines() if l.startswith("12. ")), "")
+if ROUTE not in step12:
+    fail(f"SKILL.md Step 12 does not make a validator line 「{ROUTE}」 a 段D re-render trigger")
+sec9 = re.search(r"^## 9\. .*?$(.*?)^## 10\. ", p2, re.S | re.M)
+if not sec9 or ROUTE not in sec9.group(1):
+    fail(f"organizer-prompt-phase2-synthesis.md §9 does not name 「{ROUTE}」 lines as errors Phase 2 leaves for Step 12")
+elif "the pinned stale notice" not in sec9.group(1) or "the pinned stale notice" not in vso_src:
+    fail("organizer-prompt-phase2-synthesis.md §9 lets Phase 2 leave every .case_summary_data.json ERROR without "
+         "excepting the validator's 'the pinned stale notice … is missing' line — that one is Phase 2's own §7 notice")
+rr = next((l for l in p2.splitlines() if l.startswith("- `case_summary_rerender_required`")), "")
+if ROUTE not in rr:
+    fail(f"organizer-prompt-phase2-synthesis.md §10 case_summary_rerender_required is not true on a 「{ROUTE}」 line")
 
 sys.exit(min(bad, 100))
 PY

@@ -13,6 +13,8 @@
 #      disagree, never that its facts "would not be recognised"
 #   R  profile.summary.current_regimen keeps 患者自述：/ 家属自述： when the ongoing episode is a self-report;
 #      R2: minus its marker it equals latest_status.regimen (null ↔ null), and an original's regimen has no marker
+#      R3: an absent / null latest_status reads as regimen null (and is required: ERROR current, WARN legacy); the
+#      marker names the speaker whatever the summary block's layer; a marker alone is not a regimen
 #   F  patient_summary demographics.function_description is clinician wording found in a cited original;
 #      F2/C3: a conversation_notes/ record in a domain bucket is never an original (function_description,
 #      self-report-vs-original conflict grading)
@@ -272,6 +274,57 @@ check("R2 the fixture (current_regimen = latest_status.regimen = 示例方案B) 
 check("R2 summary.current_regimen key dropped while latest_status.regimen is set → ERROR (absent reads as null)",
       any("≠ latest_status.regimen" in m for m in reg_msgs(mk(lambda d: synlib.edit_json(
           d, "profile.json", lambda doc: doc["summary"].pop("current_regimen"))))))
+
+
+# R3 an absent / null latest_status reads as {regimen: null} — the mirror of an absent current_regimen — so dropping
+# it skips neither the snapshot check nor the equality; and it is required (ERROR current, WARN legacy)
+def drop_latest(value="drop"):
+    def fn(doc):
+        if value == "drop":
+            doc.pop("latest_status")
+        else:
+            doc["latest_status"] = None
+    return lambda d: synlib.edit_json(d, "profile.json", fn)
+
+
+def ls_msgs(d):
+    errs, warns = gate("gate_record_links", d)
+    return [m for m in errs if "latest_status" in m], [m for m in warns if "latest_status" in m]
+
+
+e, _ = ls_msgs(mk(drop_latest(), current_regimen("别的方案Z")))
+check("R3 latest_status dropped, current_regimen 「别的方案Z」, an ongoing episode → ERRORs: missing, null although "
+      "ongoing, ≠ (was silent)", any("latest_status is missing" in m for m in e)
+      and any("null although treatment_lines.json has ongoing" in m for m in e)
+      and any("summary.current_regimen '别的方案Z'" in m for m in e), str(e))
+e, _ = ls_msgs(mk(drop_latest("null")))
+check("R3 latest_status null with the fixture's ongoing episode → ERRORs: null, and regimen null although ongoing",
+      any("latest_status is null" in m for m in e) and any("null although" in m for m in e), str(e))
+e, _ = ls_msgs(mk(no_ongoing, drop_latest(), current_regimen(None)))
+check("R3 latest_status dropped with nothing ongoing and current_regimen null → only 'latest_status is missing' "
+      "(required), no regimen message", len(e) == 1 and "latest_status is missing" in e[0], str(e))
+e, w = ls_msgs(mk(drop_latest(), legacy=True))
+check("R3 legacy archive without latest_status → WARN, not ERROR", not e and any("latest_status is missing" in m for m in w),
+      str(e + w))
+check("R3 latest_status present (fixture) → no latest_status message (positive)", ls_msgs(mk()) == ([], []), str(ls_msgs(mk())))
+
+# R3 the marker names the speaker whatever the summary block's own layer; a marker alone is not a regimen
+self_block = lambda layer: (lambda d: synlib.edit_json(d, "profile.json",
+                                                       lambda doc: doc["summary"].__setitem__("provenance_layer", layer)))
+check("R3 caregiver_reported block + caregiver_reported episode + 「患者自述：示例方案B」 → ERROR (wrong speaker; was silent)",
+      any("carries the self-report marker 「患者自述：」" in m and "家属自述：" in m for m in reg_msgs(
+          mk(self_block("caregiver_reported"), episode_layer("caregiver_reported"), current_regimen("患者自述：示例方案B")))))
+check("R3 patient_reported block + patient_reported episode + 「家属自述：示例方案B」 → ERROR (wrong speaker)",
+      any("carries the self-report marker 「家属自述：」" in m for m in reg_msgs(
+          mk(self_block("patient_reported"), episode_layer("patient_reported"), current_regimen("家属自述：示例方案B")))))
+check("R3 caregiver_reported block + caregiver_reported episode + 「家属自述：示例方案B」 → no message (positive)",
+      reg_msgs(mk(self_block("caregiver_reported"), episode_layer("caregiver_reported"),
+                  current_regimen("家属自述：示例方案B"))) == [])
+check("R3 nothing ongoing, current_regimen 「患者自述：」 (a marker alone) → ERROR (was read as null)",
+      any("is the marker 「患者自述：」 alone" in m for m in reg_msgs(mk(no_ongoing, current_regimen("患者自述：")))))
+check("R3 an ongoing caregiver episode, current_regimen 「家属自述：」 alone → ERROR naming the bare marker",
+      any("is the marker 「家属自述：」 alone" in m for m in reg_msgs(mk(episode_layer("caregiver_reported"),
+                                                                     current_regimen("家属自述：")))))
 
 # ---- F. function_description is clinician wording from a cited original
 def fdesc(v, extra_ref=None):

@@ -24,7 +24,12 @@
 #      the archive unpack dir, with prose naming $src and raw/ beside it, passes (positive control)
 #   M. phase2 §7 段D stale notice with one character changed, or its ```text block removed → fail
 #   N. case-summary-html-prompt.md lead reverted to 「资料中有报告原文写到…」, the translated item form or the caveat
-#      prefix dropped / reworded, or phase2 §7 quoting another lead → fail
+#      prefix dropped / reworded, or phase2 §7 quoting another lead → fail; the prompt back to the any-occurrence
+#      caveat wording, the validator copy drifted back to a substring count, the translated caveat form without the
+#      prefix right before <verbatim_text>, profile-card.md without the translation label (or calling every finding
+#      报告原文), acute-findings.md §2.4 without Step 11, or SKILL.md Step 12 / phase2 §9 / §10 not routing an
+#      「ERROR: .case_summary_data.json」 line to the 段D re-render, or §9 letting Phase 2 leave the missing-stale-notice
+#      line too → fail
 set -uo pipefail
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 LINT="$REPO_ROOT/tests/eval/lint/13-organize-prompt-contracts.sh"
@@ -210,6 +215,43 @@ fresh n4; edit "$tmp/n4/$CSP" 't.replace("  - 有 emergent/urgent 发现时", " 
 expect "case-summary prompt reworded outside the pinned strings (positive)" pass "$tmp/n4"
 fresh n5; edit "$tmp/n5/references/organizer-prompt-phase2-synthesis.md" 't.replace("首句不以“资料中有报告写到需要尽快告知治疗团队的发现：”开头", "首句不以“资料中有报告原文写到需要尽快告知治疗团队的发现：”开头", 1)'
 expect "phase2 §7 quoting another lead than the validator's" fail "$tmp/n5" "§7 段D 过期提示"
+# N (rule): the prompt states the validator's quotation-slot rule, and its caveat forms behave as it says
+fresh n6; edit "$tmp/n6/$CSP" 't.replace("转述发现的 `verbatim_text` 出现在\n    引文位置", "caveat 里出现转述发现的 `verbatim_text` 时，\n    不论位置", 1)'
+expect "case-summary prompt back to the any-occurrence caveat wording" fail "$tmp/n6" "ACUTE_CAVEAT_QUOTE_SLOT_RULE"
+fresh n7
+python3 - "$tmp/n7/scripts/validate_structured_outputs.py" <<'PY2'
+import sys
+from pathlib import Path
+p = Path(sys.argv[1]); t = p.read_text(encoding="utf-8")
+head = 'def translated_caveat_problems(acute_doc, render_data) -> list[tuple[str, dict]]:\n'
+assert head in t
+# the validator drifts back to the substring count the prompt no longer describes
+t = t.replace(head, head + """    fs = (acute_doc or {}).get("findings") or []
+    cs = [_norm_text(c["caveat_text"]) for c in (render_data or {}).get("caveats") or []]
+    pre = _norm_text(ACUTE_CAVEAT_TRANSLATION_PREFIX)
+    return [("caveats quote " + str(f.get("finding_id")), f) for f in fs if f.get("verbatim_is_translation") is True
+            and any(c.count(_norm_text(f["verbatim_text"])) > c.count(pre + _norm_text(f["verbatim_text"])) for c in cs)]
+""", 1)
+p.write_text(t, encoding="utf-8")
+PY2
+expect "validator's caveat check drifted back to a substring count" fail "$tmp/n7" "inside another finding's 报告原文 quote"
+fresh n8; edit "$tmp/n8/$CSP" 't.replace("写成“报告（外文）中文转述，非报告原句：\n    <verbatim_text>", "写成“报告（外文）中文转述：\n    <verbatim_text>，非报告原句", 1)'
+expect "case-summary prompt translated caveat form without the prefix before the quote" fail "$tmp/n8" "中文转述，非报告原句：<verbatim_text>"
+# N (surfaces): Profile Card labels a translation; a .case_summary_data.json ERROR routes to Step 12
+fresh n9; edit "$tmp/n9/references/profile-card.md" 't.replace("- 报告写明的急性/附带发现", "- 报告原文写明的急性/附带发现", 1)'
+expect "profile-card.md back to 「报告原文写明的急性/附带发现」" fail "$tmp/n9" "profile-card.md still presents"
+fresh n10; edit "$tmp/n10/references/profile-card.md" 't.replace("标“中文转述，非报告原句”，不称“报告原文”", "照常显示", 1)'
+expect "profile-card.md acute bullet without the translation label" fail "$tmp/n10" "does not label a verbatim_is_translation"
+fresh n11; edit "$tmp/n11/references/acute-findings.md" 't.replace("（Step 7.5、Step 11 Profile Card、§11、段D）", "（Step 7.5、§11、段D）", 1)'
+expect "acute-findings.md §2.4 surfaces without Step 11" fail "$tmp/n11" "does not list Step 11"
+fresh n12; edit "$tmp/n12/SKILL.md" 't.replace("or its §9 run reported an `ERROR: .case_summary_data.json` line), and whenever any validator run reports such a line", "), and whenever any validator run reports a 段D error", 1)'
+expect "SKILL.md Step 12 without the .case_summary_data.json ERROR trigger" fail "$tmp/n12" "SKILL.md Step 12 does not make"
+fresh n13; edit "$tmp/n13/references/organizer-prompt-phase2-synthesis.md" 't.replace("以及以 `ERROR: .case_summary_data.json` 开头的行", "以及上一次 段D 渲染的错误", 1)'
+expect "phase2 §9 not naming the .case_summary_data.json lines it may leave" fail "$tmp/n13" "§9 does not name"
+fresh n15; edit "$tmp/n15/references/organizer-prompt-phase2-synthesis.md" 't.replace("；只有写着 “the pinned stale notice … is missing from …” 的那一行例外：它说的是你 §7 的过期提示没写全，补上后重跑", "", 1)'
+expect "phase2 §9 leaving every .case_summary_data.json ERROR, the missing stale notice included" fail "$tmp/n15" "Phase 2's own §7 notice"
+fresh n14; edit "$tmp/n14/references/organizer-prompt-phase2-synthesis.md" 't.replace("§9 的校验输出里有以 `ERROR: .case_summary_data.json` 开头的行时也为 true", "§9 报了 段D 错误时也为 true", 1)'
+expect "phase2 §10 case_summary_rerender_required not covering the ERROR line" fail "$tmp/n14" "§10 case_summary_rerender_required"
 
 echo "organize-contract-lints: pass=$pass fail=$fail"
 [[ "$fail" -eq 0 ]]

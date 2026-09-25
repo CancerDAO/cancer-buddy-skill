@@ -529,9 +529,11 @@ episode：`started_at` 取首程日期，`regimen` 逐字（取原文写法；�
   `provenance_layer` 为 `patient_reported` / `caregiver_reported`）时，`current_regimen` **保留**来源标记前缀：
   患者说的写“患者自述：<方案>”，家属/照护者说的写“家属自述：<方案>”——不能让自述方案以 `source_reported` 的面目
   出现；反过来，在治 episode 是原件时不加前缀。校验器核对三件事：去掉前缀后与 `latest_status.regimen` 相同（都为 null
-  也算相同）、自述 episode 带对应前缀、原件 episode 不带前缀。`treatment_lines.json` 与 `latest_status.regimen` 不加前缀
+  也算相同）、自述 episode 带对应前缀（按该 episode 自己的说话人，与 `summary` 块是哪一层无关）、原件 episode 不带前缀；
+  只有前缀没有方案（如单独一个“患者自述：”）不是 null，报错。`treatment_lines.json` 与 `latest_status.regimen` 不加前缀
   （它们自带来源层）。
-- `profile.json.latest_status`：`regimen` 取 `status: ongoing` 的 episode（没有则 null），`as_of` 为其
+- `profile.json.latest_status`（必写；没有在治 episode 时写 `{"regimen": null, …}`，缺失或写成 null 在当前契约档案上
+  报错，校验器按 regimen null 继续核对）：`regimen` 取 `status: ongoing` 的 episode（没有则 null），`as_of` 为其
   `status_as_of`（未注明日期的自述为 null），`status_basis` 为该 episode 的 `status_basis` 原样（如
   `order_or_indication_only`、`patient_reported`；没有在治 episode 时 null）——只读 profile 的下游据此知道“在治”
   依据的是给药记录、医生当次记录、申请单指征还是家属陈述，不会把申请单指征当成给药记录；`ecog`、`response`
@@ -675,7 +677,7 @@ episode：`started_at` 取首程日期，`regimen` 逐字（取原文写法；�
 - **段D 过期提示**（`legacy_phase2_only` 在内的每种运行）：`acute_findings.json` 有 emergent/urgent 发现，而现有的 段D
   渲染没有写入其中某些（`.case_summary_data.json` 的 `case_summary_narrative` 首句没有逐条写到它们的 `label` 与日期——
   首句不以“资料中有报告写到需要尽快告知治疗团队的发现：”开头时（包括旧写法“资料中有报告原文写到…”）全部都算没写入；
-  `verbatim_is_translation: true` 的发现在首句里没标“中文转述”、或 caveats 引它时前面不是“中文转述，非报告原句：”，也算没写入；
+  `verbatim_is_translation: true` 的发现在首句里没标“中文转述”、或 caveats 在引文位置引它时前面不是“中文转述，非报告原句：”（`case-summary-html-prompt.md`「急性/附带发现」），也算没写入；
   或只有 `病情简要总结.html`、没有 `.case_summary_data.json`，无从确认）时，你在 `review_summary.md` 开头（资料时效之前）与
   `readiness.json.warnings[]` 各写一条，都以下面这句**原样**开头，后接每条没写入的发现“<label>（<日期>）”，用“；”分隔：
 
@@ -731,15 +733,17 @@ episode：`started_at` 取首程日期，`regimen` 逐字（取原文写法；�
 
 写完全部产物后运行 `python3 "<skill_dir>/scripts/validate_structured_outputs.py" <patient_dir>`（不带 `--final`；JSON schema、来源锚点、hash、
 PII、字段分层、sidecar 头部、急性发现链接、缺页与时效等）。`readiness.json` 为 `2.1` 时档案已按当前契约
-严格校验（`organize_meta.json` 由编排者收尾时再写）。此时唯一可以留下的错误是 `AGENTS.md missing`
-（它在 Step 13 才生成）。上一次的 段D 渲染（`.case_summary_data.json`）不归你管：本次改了急性发现、而它的病情概要首句
+严格校验（`organize_meta.json` 由编排者收尾时再写）。此时可以留下的错误只有两类：`AGENTS.md missing`
+（它在 Step 13 才生成），以及以 `ERROR: .case_summary_data.json` 开头的行（上一次 段D 渲染自己的问题，例如按旧契约
+渲染、首句仍是“资料中有报告原文写到…”——盖戳只证明它读的是当前数据，不证明它按当前契约写成；这类行由 Step 12
+重新渲染消除，你留下它，并在 §10 返回 `case_summary_rerender_required: true`；只有写着 “the pinned stale notice … is missing from …” 的那一行例外：它说的是你 §7 的过期提示没写全，补上后重跑）。上一次的 段D 渲染（`.case_summary_data.json`）不归你管：本次改了急性发现、而它的病情概要首句
 没有写到新的 emergent/urgent 发现时，校验器要求 §7 的“段D 过期提示”同时出现在 `review_summary.md` 与
 `readiness.json.warnings[]`（缺任一处即 ERROR，旧版档案同样），两处都在时只报 WARN（`段D stale`），重新渲染由编排者
-做——不要为此改动 `.case_summary_data.json`。校验器需要 `jsonschema>=4.18`：它缺席时当前契约档案直接失败，不是“通过”。结构与绑定错误由你修正自己写的产物后重跑；验证失败
+做——不要为此改动 `.case_summary_data.json`。校验器需要 `jsonschema>=4.18`：它缺席时当前契约档案直接失败，不是“通过”。结构与绑定错误由你修正自己写的产物后重跑；验证失败（除上面可以留下的两类之外仍有错误）
 则不生成患者摘要；涉及临床值的错误进入 review queue，不让模型自行修正临床值。你的这次运行（每种 `run_mode`，
 `legacy_phase2_only` 在内）**不带 `--readonly`**——除 Step 17 终态门外，它是唯一不带 `--readonly` 的一次（SKILL.md
 Step 17）——它会把
-不可信内容 flag（`UNTRUSTED-*`）并进 `readiness.json`：**校验通过后再写（或重写）`review_flags.md`，并按合并后的
+不可信内容 flag（`UNTRUSTED-*`）并进 `readiness.json`：**校验通过（只剩上面可以留下的两类）后再写（或重写）`review_flags.md`，并按合并后的
 `readiness.json` 计算 §10 的 flag 计数**，编排者展示的 `review_flags.md` 才与 `readiness.json` 一致。
 
 ## 10. 返回 JSON
@@ -769,7 +773,7 @@ Step 17）——它会把
 - `run_mode`：照抄 Call parameters，编排者据此知道这是哪种运行（旧版档案上只重跑 Phase 2 就是 `legacy_phase2_only`）。
 - `acute_findings_urgent[]`：每条 emergent/urgent 发现，带 `verbatim_text` 与 `verbatim_is_translation`（`acute_findings.json`
   原样），编排者在 Step 7.5 直接逐条展示，不必再打开文件；`verbatim_is_translation: true` 的要标“中文转述，非报告原句”。
-- `case_summary_rerender_required`：你写了 §7 的“段D 过期提示”时为 true——编排者据此必做 Step 12 重新渲染，不再询问。
+- `case_summary_rerender_required`：你写了 §7 的“段D 过期提示”时为 true，§9 的校验输出里有以 `ERROR: .case_summary_data.json` 开头的行时也为 true——编排者据此必做 Step 12 重新渲染，不再询问。
 - `missing_pages_groups` / `page_continuity_checked`：页码无法检查（旧 sidecar 没有 `PAGE_LABEL`，§4.0）时分别为 null / false。
 
 ## 11. 忠实度修订模式（`run_mode: faithfulness_patch`）

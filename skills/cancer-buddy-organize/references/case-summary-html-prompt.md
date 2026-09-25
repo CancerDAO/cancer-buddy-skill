@@ -65,8 +65,11 @@ SVG 坐标仍由确定性脚本生成，模型不得造点或手算坐标。
     团队”；`verbatim_is_translation: true` 的发现是外文报告的中文转述，写成“报告（外文）中文转述，非报告原句：
     <verbatim_text>（<日期>，<来源文书>）——请尽快告知治疗团队”，不称“报告原文”（`acute-findings.md` §2.4）；
     incidental 发现只在 caveats 写原文与日期（转述同样标明），不进病情概要。验收门（`validate_structured_outputs.py`
-    的 段D 检查；`validate_case_summary_html.py` 只查页面形状）核对：caveat 里出现转述发现的 `verbatim_text` 时，
-    它前面紧挨着“中文转述，非报告原句：”。
+    的 段D 检查；`validate_case_summary_html.py` 只查页面形状）核对：转述发现的 `verbatim_text` 出现在
+    引文位置（冒号或开引号之后，其后紧接“（”“；”“——”“。”或该条结尾；按占满这个位置的最长一条发现原句计）时，
+    它前面紧挨着“中文转述，非报告原句：”（中间可隔一个开引号），不论引导语写的是“报告原文：”还是别的说法；
+    别的发现的原句里恰好含有这几个字、或句中顺带提到它们，不算引用它。两条发现原句一字不差时，按引文后括号里的
+    日期区分，所以括号里照写该发现自己的日期。
   - 不解释病因、不评估严重程度、不给处理建议。不改 `one_line_condition`（它会被复制进 `AGENTS.md`）。
 - 旧档案摘录（`provenance_layer: prior_archive`）的事实只可出现在既往史相关内容中，并逐项标注
   “来自既往摘要，原件未在本次资料中”（与 `PATIENT_DIR_CONTRACT.md` §5 (e) 同一句）；不得出现在当前方案、当前
@@ -134,7 +137,7 @@ python3 "<skill_dir>/scripts/validate_case_summary_html.py" --html <patient_dir>
 
 验证通过（exit 0，含核心完整性检查：来源中存在的分期、驱动基因、当前方案不得在摘要中丢失），并且
 `python3 "<skill_dir>/scripts/validate_structured_outputs.py" <patient_dir> --readonly` 的输出里没有以
-`ERROR: .case_summary_data.json` 开头的行（盖戳后首句漏写 emergent/urgent 发现、转述的发现没标“中文转述”或 caveats 把转述称作“报告原文”，都在这里报错；其他文件的错误不归你），才返回
+`ERROR: .case_summary_data.json` 开头的行（盖戳后首句漏写 emergent/urgent 发现、首句仍是旧写法“资料中有报告原文写到…”、转述的发现没标“中文转述”或 caveats 在引文位置把转述当作报告原句，都在这里报错；其他文件的错误不归你），才返回
 `template_sha`。趋势图只填该次报告自带的参考区间，禁止套用通用参考值。
 
 4. **版本快照**（编排者在收到通过的 `template_sha` 后执行，不属于段D worker）：把根目录
