@@ -15,6 +15,10 @@
 #      R2: minus its marker it equals latest_status.regimen (null ↔ null), and an original's regimen has no marker
 #      R3: an absent / null latest_status reads as regimen null (and is required: ERROR current, WARN legacy); the
 #      marker names the speaker whatever the summary block's layer; a marker alone is not a regimen
+#      R4: a self-reported ongoing regimen without its marker is reported whatever the summary block's layer
+#      R5: an absent / null profile.summary is required (ERROR current, WARN legacy) and reads as {} — current_regimen
+#      null — so the equality still runs; a non-object summary is a type error on every archive
+#      R6: a non-object latest_status is named as such (never "is null"); {} reports the missing regimen key
 #   F  patient_summary demographics.function_description is clinician wording found in a cited original;
 #      F2/C3: a conversation_notes/ record in a domain bucket is never an original (function_description,
 #      self-report-vs-original conflict grading)
@@ -325,6 +329,85 @@ check("R3 nothing ongoing, current_regimen 「患者自述：」 (a marker alone
 check("R3 an ongoing caregiver episode, current_regimen 「家属自述：」 alone → ERROR naming the bare marker",
       any("is the marker 「家属自述：」 alone" in m for m in reg_msgs(mk(episode_layer("caregiver_reported"),
                                                                      current_regimen("家属自述：")))))
+
+# R4 (third verifier pass) the missing-marker check runs whatever the summary block's layer — a patient_reported /
+# caregiver_reported block holding a self-reported regimen without its marker gave rc 0 before
+for blk, eplayer, mark in (("patient_reported", "patient_reported", "患者自述："),
+                           ("caregiver_reported", "caregiver_reported", "家属自述："),
+                           ("patient_reported", "caregiver_reported", "家属自述：")):
+    d = mk(self_block(blk), episode_layer(eplayer), current_regimen("示例方案B"))
+    msgs = reg_msgs(d)
+    check(f"R4 {blk} block + {eplayer} episode + marker-less 「示例方案B」 → ERROR asking for 「{mark}」 (was silent)",
+          any("without its marker" in m and f"「{mark}」" in m for m in msgs), str(msgs))
+    rc, errs, _ = synlib.validate(d)
+    check(f"R4 …whole validator rc 1 ({blk} block, {eplayer} episode; was rc 0)",
+          rc == 1 and any("summary.current_regimen" in e and "without its marker" in e for e in errs), str(errs[:3]))
+d = mk(self_block("patient_reported"), episode_layer("patient_reported"), current_regimen("患者自述：示例方案B"))
+check("R4 patient_reported block + patient_reported episode + 「患者自述：示例方案B」 → no message (positive)",
+      reg_msgs(d) == [], str(reg_msgs(d)))
+rc, errs, _ = synlib.validate(d)
+check("R4 …whole validator rc 0 (positive)", rc == 0, str(errs[:3]))
+check("R4 a wrong marker is reported once (the speaker line), not also as marker-less",
+      len(reg_msgs(mk(self_block("caregiver_reported"), episode_layer("caregiver_reported"),
+                      current_regimen("患者自述：示例方案B")))) == 1)
+
+
+# R5 a missing / null profile.summary is required and reads as {} — its current_regimen null — so the equality with
+# latest_status.regimen still runs (it skipped every regimen and marker check before); a non-object is a type error
+def summary_is(value="drop"):
+    def fn(doc):
+        if value == "drop":
+            doc.pop("summary")
+        else:
+            doc["summary"] = value
+    return lambda d: synlib.edit_json(d, "profile.json", fn)
+
+
+def prof_msgs(d):
+    errs, warns = gate("gate_record_links", d)
+    keys = ("profile.json: summary", "summary.current_regimen", "latest_status")
+    return [m for m in errs if any(k in m for k in keys)], [m for m in warns if any(k in m for k in keys)]
+
+
+e, _ = prof_msgs(mk(summary_is()))
+check("R5 summary dropped with the fixture's ongoing episode → ERRORs: summary is missing, and current_regimen None ≠ "
+      "latest_status.regimen (was silent)", any("profile.json: summary is missing" in m for m in e)
+      and any("summary.current_regimen None" in m and "≠ latest_status.regimen" in m for m in e), str(e))
+rc, errs, _ = synlib.validate(mk(summary_is(None)))
+check("R5 summary null → whole validator rc 1 naming 'summary is null' and the ≠ (was rc 0)",
+      rc == 1 and any("profile.json: summary is null" in x for x in errs)
+      and any("≠ latest_status.regimen" in x for x in errs), str(errs[:4]))
+e, _ = prof_msgs(mk(no_ongoing, summary_is()))
+check("R5 summary dropped with nothing ongoing → only 'summary is missing' (required), no regimen message",
+      len(e) == 1 and "summary is missing" in e[0], str(e))
+e, w = prof_msgs(mk(summary_is(), legacy=True))
+check("R5 legacy archive without summary → WARNs, not ERROR", not e and any("summary is missing" in m for m in w), str(e + w))
+d = mk(legacy=True)
+summary_is("示例方案B")(d)  # after make(): fill_agents_md.py reads summary as an object
+e, w = prof_msgs(d)
+check("R5 summary a string → ERROR 'is a JSON string, not an object' even on a legacy archive",
+      any("summary is a JSON string, not an object" in m for m in e), str(e + w))
+check("R5 summary present (fixture) → no message (positive)", prof_msgs(mk()) == ([], []), str(prof_msgs(mk())))
+
+
+# R6 a latest_status that is neither an object nor null is named as such (it read 'latest_status is null'), on every
+# archive; {} is an object without the regimen key and says so
+def latest_is(value):
+    return lambda d: synlib.edit_json(d, "profile.json", lambda doc: doc.__setitem__("latest_status", value))
+
+
+for label, value, want in (("a string", "示例方案B", "is a JSON string, not an object"), ("an array", [], "is a JSON array, not an object")):
+    e, w = ls_msgs(mk(latest_is(value), legacy=True))
+    check(f"R6 latest_status {label} → ERROR 'latest_status {want}' on a legacy archive too, never 'is null'",
+          any(f"latest_status {want}" in m for m in e) and not any("latest_status is null" in m for m in e + w), str(e + w))
+e, _ = ls_msgs(mk(latest_is({})))
+check("R6 latest_status {} with the fixture's ongoing episode → ERRORs: regimen is missing, and null although ongoing",
+      any("latest_status.regimen is missing" in m for m in e) and any("null although" in m for m in e), str(e))
+e, _ = ls_msgs(mk(no_ongoing, latest_is({}), current_regimen(None)))
+check("R6 latest_status {} with nothing ongoing → only 'latest_status.regimen is missing'",
+      len(e) == 1 and "latest_status.regimen is missing" in e[0], str(e))
+e, _ = ls_msgs(mk(no_ongoing, current_regimen(None)))
+check("R6 {\"regimen\": null, …} with nothing ongoing → no latest_status message (positive)", e == [], str(e))
 
 # ---- F. function_description is clinician wording from a cited original
 def fdesc(v, extra_ref=None):

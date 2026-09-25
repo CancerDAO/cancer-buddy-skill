@@ -136,16 +136,21 @@ Gate sections (each contributes to one aggregated exit code):
       is clinician wording found in a cited original; a self-reported current regimen keeps its
       患者自述：/家属自述： marker in profile.summary. Added after the verifier's review of those
       replays: the 段D lead is neutral (报告写到, not 报告原文写到) and marks a translated finding
-      中文转述; a caveat quoting a translation starts 中文转述，非报告原句：; profile.summary.current_regimen
+      中文转述; a caveat quoting a translation carries 中文转述，非报告原句：; profile.summary.current_regimen
       minus its marker = latest_status.regimen, and a marker only on a self-reported ongoing
       episode; a conversation_notes/ record never counts as an original (function_description,
-      self-report-vs-original conflict grading). Added after the second verifier pass: a translated
-      quote is checked in the caveat's quotation slot only (after a colon / opening quote mark, the
-      longest finding quote filling it — never a substring of another finding's original); an absent
+      self-report-vs-original conflict grading). Added after the second verifier pass: an absent
       or null latest_status is required (ERROR current, WARN legacy) and reads as regimen null; the
       self-report marker names the speaker whatever the summary block's layer, and a marker alone is
       not a regimen; a retired-lead render is named as predating the 段D contract (SKILL.md Step 12
-      re-renders on any .case_summary_data.json ERROR). Each gate runs crash-safe (one ERROR line per crash).
+      re-renders on any .case_summary_data.json ERROR). Added after the third verifier pass: a
+      translated quote is checked per caveat ITEM (ACUTE_CAVEAT_ITEM_RULE — an item holding a
+      translated finding's words, outside another finding's longer original, carries 中文转述，非报告原句：
+      and none of ACUTE_CAVEAT_ORIGINAL_CLAIMS; colons and quote marks play no part); a self-reported
+      ongoing regimen without its marker is reported whatever the summary block's layer; an absent /
+      null / non-object profile.summary is required and reads as {} (current_regimen null); a
+      non-object latest_status is named as such, and one without a regimen key is reported.
+      Each gate runs crash-safe (one ERROR line per crash).
 
 Usage:
     python3 scripts/validate_structured_outputs.py <patient_dir> [--readonly]
@@ -1274,8 +1279,8 @@ def _logged_outputs(entries: list[dict]) -> dict[str, str]:
 # FIRST sentence is this lead followed by each finding's label and date (labels and dates only). The lead is
 # neutral — 「报告写到」, never 「报告原文写到」 — because a finding registered from a Chinese rendering of a
 # foreign-language report (verbatim_is_translation, acute-findings.md §2.4) is in the same list: its item carries
-# ACUTE_LEAD_TRANSLATION_MARK inside its date parentheses, 「<label>（<日期>，中文转述）」. A caveat quoting that
-# finding introduces the quote with ACUTE_CAVEAT_TRANSLATION_PREFIX, never 「报告原文：」.
+# ACUTE_LEAD_TRANSLATION_MARK inside its date parentheses, 「<label>（<日期>，中文转述）」. The caveat item quoting that
+# finding introduces the quote with ACUTE_CAVEAT_TRANSLATION_PREFIX, never 「报告原文：」 (ACUTE_CAVEAT_ITEM_RULE below).
 # tests/eval/lint/13 (check N) pins all three in case-summary-html-prompt.md.
 ACUTE_SUMMARY_LEAD = "资料中有报告写到需要尽快告知治疗团队的发现："
 ACUTE_LEAD_TRANSLATION_MARK = "中文转述"
@@ -1345,78 +1350,101 @@ def _lead_missing(acute_doc, render_data) -> tuple[list[str], list[dict]]:
     return out, missing
 
 
-# The quotation slot a caveat quotes a finding in (case-summary-html-prompt.md「急性/附带发现」: 「报告原文：<verbatim_text>
-# （<日期>，<来源文书>）——…」): right after a colon or an opening quote mark (or at the start of the caveat), and
-# followed — past an optional closing quote mark — by 「（」「；」「——」「。」 or the end of the caveat. The text in a slot
-# is the LONGEST verbatim_text of acute_findings.json that fills it, so a translated finding's words that happen to
-# sit inside another finding's correctly quoted original (「充盈缺损」 inside 「报告原文：…分支充盈缺损……」) are that
-# other finding's quote, and a phrase elsewhere in a sentence is no quote at all. tests/eval/lint/13 (check N) pins
-# this sentence in case-summary-html-prompt.md and runs the prompt's two caveat forms through translated_caveat_problems.
-ACUTE_CAVEAT_QUOTE_SLOT_RULE = ("引文位置（冒号或开引号之后，其后紧接“（”“；”“——”“。”或该条结尾；按占满这个位置的最长一条"
-                                "发现原句计）")
-_QUOTE_OPENERS = "「『“‘\"'"
-_QUOTE_CLOSERS = "」』”’\"'"
-_QUOTE_ENDS = ("(", ";", "—", "。")  # NFKC: （ → (, ； → ;
-
-
-def _slot_quote_len(t: str, p: int, q: str) -> int:
-    """len(q) when q fills the quotation slot starting at t[p] (see ACUTE_CAVEAT_QUOTE_SLOT_RULE), else 0."""
-    if not q or not t.startswith(q, p):
-        return 0
-    after = t[p + len(q):]
-    if after[:1] and after[:1] in _QUOTE_CLOSERS:
-        after = after[1:]
-    return len(q) if after == "" or after.startswith(_QUOTE_ENDS) else 0
+# The caveat check is ITEM-scoped (case-summary-html-prompt.md「急性/附带发现」): every verbatim_is_translation finding
+# has a caveat item of its own, 「报告（外文）中文转述，非报告原句：<verbatim_text>（<日期>，<来源文书>）——…」, and ANY caveat
+# item holding a translated finding's verbatim_text must carry ACUTE_CAVEAT_TRANSLATION_PREFIX and none of
+# ACUTE_CAVEAT_ORIGINAL_CLAIMS (the prefix's own 非报告原句 aside). Where a colon or a quote mark sits is irrelevant — the
+# retired quotation-slot parser could be walked past (「报告原文写明<转述>…」) and was tripped by a colon or quote mark
+# inside another finding's original (「报告原文：诊断意见：<转述的几个字>（…）」). Two escapes, both about ANOTHER finding's words:
+#   - an occurrence inside another finding's longer verbatim_text that contains it is that finding's quote (every such
+#     occurrence is blanked before the item is searched, so 「报告原文：<AF1>（…）<AF2>」 still holds AF-002's words);
+#   - an untranslated finding with the same words (a twin) owns the items that name its date and not the translated
+#     finding's; items the dates cannot tell apart (twins of the same date) are the twin's up to the twin count, and one
+#     more unlabelled item is the translated finding's.
+# tests/eval/lint/13 (check N) pins ACUTE_CAVEAT_ITEM_RULE in case-summary-html-prompt.md and runs the prompt's two caveat
+# forms, the verifier's bypass forms and colon / quote-mark originals through translated_caveat_problems.
+ACUTE_CAVEAT_ORIGINAL_CLAIMS = ("报告原文", "原文写", "报告写道", "报告写明", "报告原句")
+ACUTE_CAVEAT_ITEM_RULE = ("按条核对：一条 caveat 只要含有某条转述发现的 `verbatim_text`（嵌在别的发现更长的原句里的不算），"
+                          f"这一条就必须写有“{ACUTE_CAVEAT_TRANSLATION_PREFIX}”，并且除这句前缀外不得出现"
+                          + "".join(f"“{p}”" for p in ACUTE_CAVEAT_ORIGINAL_CLAIMS) + "，与冒号、引号写在哪里无关")
+_BLANK = "\x00"
 
 
 def translated_caveat_problems(acute_doc, render_data) -> list[tuple[str, dict]]:
-    """[(problem, finding)] for every verbatim_is_translation finding (any acuity) whose verbatim_text a render
-    caveat puts in a quotation slot (ACUTE_CAVEAT_QUOTE_SLOT_RULE) without ACUTE_CAVEAT_TRANSLATION_PREFIX right
-    before it — a Chinese rendering shown as the report's own words (「报告原文：…」「报告写道：…」, or bare).
-    The slot holds the longest finding quote that fills it; an untranslated finding whose verbatim_text is the same
-    words keeps its 「报告原文：」 quote unless the parentheses after it name only the translated finding's date."""
+    """[(problem, finding)] for every verbatim_is_translation finding (any acuity) whose verbatim_text a render caveat
+    item holds without ACUTE_CAVEAT_TRANSLATION_PREFIX, or next to one of ACUTE_CAVEAT_ORIGINAL_CLAIMS — a Chinese
+    rendering shown as the report's own words. Item-scoped (see ACUTE_CAVEAT_ITEM_RULE): an occurrence inside another
+    finding's longer verbatim_text is that finding's, and an untranslated finding with the same words owns the items
+    that name its date and not the translated one's (same-date twins: up to the twin count of unlabelled items)."""
     findings = [f for f in (acute_doc.get("findings") if isinstance(acute_doc, dict) else None) or []
                 if isinstance(f, dict) and isinstance(f.get("verbatim_text"), str) and _norm_text(f["verbatim_text"])]
-    caveats = render_data.get("caveats") if isinstance(render_data, dict) else None
-    texts = [_norm_text(c["caveat_text"]) for c in (caveats if isinstance(caveats, list) else [])
-             if isinstance(c, dict) and isinstance(c.get("caveat_text"), str)]
     if not any(f.get("verbatim_is_translation") is True for f in findings):
         return []
+    caveats = render_data.get("caveats") if isinstance(render_data, dict) else None
+    items = [(i, _norm_text(c["caveat_text"])) for i, c in enumerate(caveats if isinstance(caveats, list) else [])
+             if isinstance(c, dict) and isinstance(c.get("caveat_text"), str)]
     prefix = _norm_text(ACUTE_CAVEAT_TRANSLATION_PREFIX)
-    quotes = [(_norm_text(f["verbatim_text"]), f) for f in findings]
+    quotes = sorted({_norm_text(f["verbatim_text"]) for f in findings}, key=len, reverse=True)
 
     def day(f) -> str | None:
         d = f.get("exam_date") or f.get("report_date")
         return d if isinstance(d, str) and d else None
 
-    bad: list[dict] = []
-    for t in texts:
-        slots = {0} | {i + 1 for i, ch in enumerate(t) if ch == ":" or ch in _QUOTE_OPENERS}
-        for p in sorted(slots):
-            if t[p:p + 1] and t[p:p + 1] in _QUOTE_OPENERS:
-                continue  # the slot after this opening mark is checked on its own
-            fill = max((_slot_quote_len(t, p, q) for q, _ in quotes), default=0)
-            if not fill:
+    def claims_in(t: str) -> list[str]:
+        """the presented-as-original phrases of item t outside the prefix and outside every finding's quote"""
+        rest = t.replace(prefix, _BLANK)
+        for q in quotes:
+            rest = rest.replace(q, _BLANK)
+        return [p for p in ACUTE_CAVEAT_ORIGINAL_CLAIMS if _norm_text(p) in rest]
+
+    out: list[tuple[str, dict]] = []
+    for f in findings:
+        if f.get("verbatim_is_translation") is not True:
+            continue
+        q = _norm_text(f["verbatim_text"])
+        longer = [g for g in quotes if q in g and g != q]
+        twins = [g for g in findings if g is not f and g.get("verbatim_is_translation") is not True
+                 and _norm_text(g["verbatim_text"]) == q]
+        same_day = [g for g in twins if day(g) == day(f)]
+
+        def owned_by_twin(t: str) -> bool:
+            """a twin's item: it does not name this finding's date and names the twin's (or the twin has none)"""
+            if day(f) and day(f) in t:
+                return False
+            return any((day(g) in t) if day(g) else day(f) is not None for g in twins)
+
+        bad, ambiguous = [], []
+        for i, t in items:
+            rest = t
+            for lq in longer:
+                rest = rest.replace(lq, _BLANK)
+            if q not in rest:
+                continue  # no occurrence of its own: only inside another finding's longer original
+            if owned_by_twin(t):
                 continue
-            quoted = [f for q, f in quotes if len(q) == fill and _slot_quote_len(t, p, q)]
-            intro = t[:p][:-1] if t[p - 1:p] and t[p - 1:p] in _QUOTE_OPENERS else t[:p]
-            if intro.endswith(prefix):
-                continue  # labelled as a rendering
-            translated = [f for f in quoted if f.get("verbatim_is_translation") is True]
-            twins = [f for f in quoted if f.get("verbatim_is_translation") is not True]
-            after = t[p + fill:]
-            after = after[1:] if after[:1] and after[:1] in _QUOTE_CLOSERS else after
-            paren = after[1:after.find(")")] if after.startswith("(") and ")" in after else ""
-            # the same words registered from an original report too: it is that finding's quote unless the
-            # parentheses name the translated finding's date and not the original's
-            if twins and not all(day(f) and day(f) in paren and not any(day(g) and day(g) in paren for g in twins)
-                                 for f in translated):
+            why = []
+            if prefix not in t:
+                why.append(f"without 「{ACUTE_CAVEAT_TRANSLATION_PREFIX}」")
+            found = claims_in(t)
+            if found:
+                why.append("presenting it as the report's own words (「" + "」「".join(found) + "」)")
+            if not why:
                 continue
-            bad.extend(f for f in translated if not any(f is b for b in bad))
-    return [(f"caveats quote {f.get('finding_id')} (verbatim_is_translation: a Chinese rendering of a "
-             f"foreign-language report) without 「{ACUTE_CAVEAT_TRANSLATION_PREFIX}」 right before the quote — a "
-             "rendering is never introduced as 「报告原文：」 or quoted bare (case-summary-html-prompt.md 急性/附带发现, "
-             "acute-findings.md §2.4)", f) for f in bad]
+            # without the prefix, an item the dates cannot tell from a same-date twin's may be the twin's own
+            # 「报告原文：…」 item — counted below; with it, it is this finding's and must not also claim 原文
+            (ambiguous if same_day and prefix not in t else bad).append((i, why))
+        # items the dates cannot tell apart from a same-date twin's: the twins own one unlabelled item each
+        if len(ambiguous) > len(same_day):
+            bad.extend(ambiguous)
+        if bad:
+            i, why = min(bad)
+            out.append((f"caveats quote {f.get('finding_id')} (verbatim_is_translation: a Chinese rendering of a "
+                        f"foreign-language report) in caveats[{i}] {' and '.join(why)}"
+                        + (f" (+{len(bad) - 1} more item(s))" if len(bad) > 1 else "")
+                        + f" — a translated finding has its own caveat item, which carries 「{ACUTE_CAVEAT_TRANSLATION_PREFIX}」 "
+                        "and never 「" + "」「".join(ACUTE_CAVEAT_ORIGINAL_CLAIMS) + "」; another item never repeats its "
+                        "words (case-summary-html-prompt.md 急性/附带发现, acute-findings.md §2.4)", f))
+    return out
 
 
 def case_summary_acute_problems(acute_doc, render_data) -> list[str]:
@@ -1486,7 +1514,7 @@ def gate_case_summary_html(patient_dir: Path, errors: list, warnings: list | Non
     #     readiness.json warnings[] — ERROR when either is absent, WARN "段D stale" when both are there;
     #   --final → ERROR on any stale lead: the terminal gate asserts the mandatory re-render happened.
     # "Leads with" includes the translation labels (acute-findings.md §2.4): a verbatim_is_translation finding is
-    # marked 中文转述 in the lead, and a caveat quoting it starts ACUTE_CAVEAT_TRANSLATION_PREFIX — an urgent
+    # marked 中文转述 in the lead, and the caveat item holding it carries ACUTE_CAVEAT_TRANSLATION_PREFIX — an urgent
     # finding's caveat follows the lead's routing, an incidental one's is ERROR (fresh) / WARN (stale).
     current = _generation(patient_dir, generation)
     acute_doc = _load_json_quiet(patient_dir / ACUTE_FINDINGS_NAME)
@@ -3853,6 +3881,18 @@ SELF_REPORT_LAYERS = ("patient_reported", "caregiver_reported")
 SELF_REPORT_REGIMEN_MARKERS = {"patient_reported": "患者自述：", "caregiver_reported": "家属自述："}
 
 
+def _profile_block_state(prof: dict, key: str) -> str:
+    """How a required profile.json block that is not an object reads — the same words scripts/validate-profile-schema.sh
+    prints: 'is missing' / 'is null' / 'is a <type>, not an object'."""
+    if key not in prof:
+        return "is missing"
+    v = prof[key]
+    if v is None:
+        return "is null"
+    kind = {"str": "string", "list": "array", "bool": "boolean", "int": "number", "float": "number"}
+    return f"is a JSON {kind.get(type(v).__name__, type(v).__name__)}, not an object"
+
+
 def _is_conversation_note(ref: str) -> bool:
     """A conversation record — a `conversation:` anchor, or any file under a conversation_notes/ folder (段C writes
     them into the domain buckets too, e.g. 03_病程与叙事文书/conversation_notes/x.md): the patient's / caregiver's
@@ -3944,10 +3984,18 @@ def gate_record_links(patient_dir: Path, errors: list, warnings: list | None = N
     prof = _load_json_quiet(patient_dir / "profile.json")
     latest = prof.get("latest_status") if isinstance(prof, dict) else None
     if isinstance(prof, dict) and not isinstance(latest, dict):
-        add(f"profile.json: latest_status is {'null' if 'latest_status' in prof else 'missing'} — it is required: "
+        # missing / null: ERROR current, WARN legacy; a string or an array is a type error on every archive (as in
+        # scripts/validate-profile-schema.sh, whose line reads the same)
+        (add if latest is None else errors.append)(
+            f"profile.json: latest_status {_profile_block_state(prof, 'latest_status')} — it is required: "
             "the ongoing episode's {regimen, as_of, status_basis} snapshot, or {\"regimen\": null, …} when nothing "
             "is ongoing (patient-profile-schema.md; checked below as regimen null)")
         latest = {}
+    elif isinstance(latest, dict) and "regimen" not in latest:
+        # {} (or an object without the key) reads as regimen null, like an absent block — and says so, the same line
+        # scripts/validate-profile-schema.sh prints
+        add("profile.json: latest_status.regimen is missing — it is required: the ongoing episode's regimen, or null "
+            "when nothing is ongoing (patient-profile-schema.md; checked below as regimen null)")
     if isinstance(latest, dict) and isinstance(tx, dict) and isinstance(tx.get("episodes"), list):
         ongoing = [ep for ep in tx["episodes"] if isinstance(ep, dict) and ep.get("status") == "ongoing"]
         reg = latest.get("regimen")
@@ -3979,6 +4027,14 @@ def gate_record_links(patient_dir: Path, errors: list, warnings: list | None = N
     # (the ongoing episode is patient_reported / caregiver_reported) keeps its source marker there — a family
     # statement never reads as a source_reported regimen.
     summ = prof.get("summary") if isinstance(prof, dict) else None
+    if isinstance(prof, dict) and not isinstance(summ, dict):
+        # summary is required (patient-profile-schema.md): an absent / null / non-object block reads as {} — its
+        # current_regimen as null — so the equality with latest_status.regimen and the marker checks below still run
+        (add if summ is None else errors.append)(
+            f"profile.json: summary {_profile_block_state(prof, 'summary')} — it is required: the source-preserving "
+            "snapshot whose current_regimen is latest_status.regimen (patient-profile-schema.md; checked below as "
+            "current_regimen null)")
+        summ = {}
     cur_reg = summ.get("current_regimen") if isinstance(summ, dict) else None
     # phase2 §5.7 / patient-profile-schema.md: summary.current_regimen, once its source marker is stripped, IS
     # latest_status.regimen (null when there is no ongoing episode) — the same snapshot, never a separately
@@ -4018,23 +4074,21 @@ def gate_record_links(patient_dir: Path, errors: list, warnings: list | None = N
                     f"regimen rests on a {layer} statement; "
                     + (f"a {ep_layer} regimen is written 「{right}<方案>」" if right else
                        "an original's regimen is written without it") + " (phase2 §5.7)")
-    if isinstance(cur_reg, str) and cur_reg.strip() and isinstance(tx, dict) \
-            and summ.get("provenance_layer") not in SELF_REPORT_LAYERS:
-        bare = _norm_text(cur_reg)
-        for mark in SELF_REPORT_REGIMEN_MARKERS.values():
-            if bare.startswith(_norm_text(mark)):
-                bare = bare[len(_norm_text(mark)):]
-                break
+    # a self-reported ongoing episode's regimen carries the marker of that episode's own speaker — whatever the summary
+    # block's layer (a patient_reported / caregiver_reported block does not make the marker redundant: the block's layer
+    # need not be the episode's speaker, phase2 §5.7). A wrong marker is reported above; here, no marker at all.
+    bare = _norm_text(cur_reg) if isinstance(cur_reg, str) else ""
+    if bare and isinstance(tx, dict) \
+            and not any(bare.startswith(_norm_text(m)) for m in SELF_REPORT_REGIMEN_MARKERS.values()):
         for ep in tx.get("episodes") or []:
             if not isinstance(ep, dict) or ep.get("status") != "ongoing" \
                     or ep.get("provenance_layer") not in SELF_REPORT_LAYERS \
                     or _norm_text(str(ep.get("regimen") or "")) != bare:
                 continue
             mark = SELF_REPORT_REGIMEN_MARKERS[ep["provenance_layer"]]
-            if not _norm_text(cur_reg).startswith(_norm_text(mark)):
-                add(f"profile.json: summary.current_regimen {cur_reg!r} is the {ep['provenance_layer']} episode "
-                    f"{ep.get('episode_id')} under a {summ.get('provenance_layer')!r} summary block — a self-reported "
-                    f"regimen keeps its marker 「{mark}」 there (phase2 §5.7)")
+            add(f"profile.json: summary.current_regimen {cur_reg!r} is the {ep['provenance_layer']} episode "
+                f"{ep.get('episode_id')} without its marker — a self-reported regimen keeps 「{mark}」 there whatever "
+                f"the summary block's layer ({summ.get('provenance_layer')!r}) (phase2 §5.7)")
     # phase2 §5.7: demographics.function_description is a clinician's own wording, quoted from an original the
     # block cites — a patient / caregiver self-description stays a self-report event, never demographics.
     ps = _load_json_quiet(patient_dir / "patient_summary.json")

@@ -513,17 +513,18 @@ cur = synlib.make(tmp / "tl_inc_ok", both(translated(acuity="incidental"), rende
 check("TL incidental translated finding quoted 「中文转述，非报告原句：」 → no message (positive)",
       gate(cur) == ([], []), str(gate(cur)))
 
-# ---- TL2: the quotation slot (validate_structured_outputs.ACUTE_CAVEAT_QUOTE_SLOT_RULE). A caveat quotes a finding
-# right after a colon / an opening quote mark, closed by （ ； —— 。 or the end, and the slot holds the LONGEST finding
-# quote that fills it — a translated finding's words inside another finding's correctly quoted original, or mentioned
-# mid-sentence, are no quote of it (the substring count before made every render of such an archive an ERROR). A
-# translated quote in a slot without the prefix stays an ERROR, whatever the introducer.
+# ---- TL2: the caveat check is ITEM-scoped (validate_structured_outputs.ACUTE_CAVEAT_ITEM_RULE). A caveat item that
+# holds a translated finding's words — outside another finding's longer original, which owns the words inside it —
+# carries 中文转述，非报告原句： and none of ACUTE_CAVEAT_ORIGINAL_CLAIMS, wherever a colon or a quote mark sits: the
+# retired quotation-slot parser let 「报告原文写明<转述>」 through and was tripped by a colon inside another finding's
+# original. Identical words registered twice (an original twin) are told apart by the date the item names.
 AF2_TR = "充盈缺损"
 CAV_AF2_TR = f"报告（外文）中文转述，非报告原句：{AF2_TR}（2030-01-05，外院胸部CT报告）"
 
 
-def tr2(verbatim=AF2_TR, day="2030-01-05", af1_verbatim=None):
-    """AF-002: an incidental finding registered from a translation-only sidecar; optionally AF-001's quote reworded."""
+def tr2(verbatim=AF2_TR, day="2030-01-05", af1_verbatim=None, af1_undated=False):
+    """AF-002: an incidental finding registered from a translation-only sidecar; optionally AF-001's quote reworded
+    (and its dates dropped)."""
     def fn(d):
         def g(doc):
             f2 = dict(doc["findings"][0])
@@ -532,6 +533,8 @@ def tr2(verbatim=AF2_TR, day="2030-01-05", af1_verbatim=None):
             doc["findings"].append(f2)
             if af1_verbatim:
                 doc["findings"][0]["verbatim_text"] = af1_verbatim
+            if af1_undated:
+                doc["findings"][0]["exam_date"] = doc["findings"][0]["report_date"] = None
         synlib.edit_json(d, "acute_findings.json", g)
     return fn
 
@@ -546,7 +549,12 @@ check("TL2 probe: AF-002 「充盈缺损」 (translated) inside AF-001's correct
 e2, _ = tl2("tl2_probe_only", CAV_ORIG)
 check("TL2 …and with AF-002 not quoted at all (only inside AF-001's original) → no message", e2 == [], str(e2))
 e2, _ = tl2("tl2_mention", CAV_ORIG, CAV_AF2_TR, "来源冲突：两份报告对充盈缺损的范围写法不同（2030-01-05、2030-01-12）")
-check("TL2 the translated words mentioned mid-sentence in another caveat → no message (not a quote)", e2 == [], str(e2))
+check("TL2 the translated words repeated in another caveat item without the prefix → ERROR (item-scoped: the prompt "
+      "says another item never repeats them; the slot parser let this through)",
+      any("caveats quote AF-002" in e and "caveats[2]" in e for e in e2), str(e2))
+e2, _ = tl2("tl2_mention_ok", CAV_ORIG, CAV_AF2_TR, "来源冲突：2030-01-05 外文报告的那条转述发现与 2030-01-12 报告写法不同")
+check("TL2 another item naming the translated finding by date, not repeating its words → no message (positive)",
+      e2 == [], str(e2))
 e2, _ = tl2("tl2_longer_paren", "报告原文：充盈缺损（性质待定）（2030-01-12，胸部CT报告）——请尽快告知治疗团队", CAV_AF2_TR,
             af1_verbatim="充盈缺损（性质待定）")
 check("TL2 AF-001's quote 「充盈缺损（性质待定）」 starts with the translated words and a 「（」 → still AF-001's (longest) "
@@ -573,6 +581,42 @@ check("TL2 identical words, the original quoted 「报告原文：」 with its o
 e2, _ = tl2("tl2_twin_bad", "报告原文：充盈缺损（2030-01-05，外院胸部CT报告）", CAV_AF2_TR, **TWIN)
 check("TL2 identical words, 「报告原文：」 followed by the translated finding's date only → ERROR naming AF-002",
       any("caveats quote AF-002" in e for e in e2), str(e2))
+# identical words AND the same date: the dates cannot tell the items apart — the original twin owns one unlabelled item
+SAME_DAY = dict(af1_verbatim=AF2_TR, day="2030-01-12")
+e2, _ = tl2("tl2_twin_sameday_ok", "报告原文：充盈缺损（2030-01-12，胸部CT报告）",
+            "报告（外文）中文转述，非报告原句：充盈缺损（2030-01-12，外院胸部CT报告）", **SAME_DAY)
+check("TL2 same-date twins, the original 「报告原文：」 and the translation with the prefix → no message (positive: the "
+      "ruling's date exception alone would block this correct render)", e2 == [], str(e2))
+e2, _ = tl2("tl2_twin_sameday_bad", "报告原文：充盈缺损（2030-01-12，胸部CT报告）",
+            "报告原文：充盈缺损（2030-01-12，外院胸部CT报告）", **SAME_DAY)
+check("TL2 same-date twins, both written 「报告原文：」 → ERROR naming AF-002 (one unlabelled item more than twins)",
+      any("caveats quote AF-002" in e for e in e2), str(e2))
+e2, _ = tl2("tl2_twin_undated_ok", "报告原文：充盈缺损（胸部CT报告）", CAV_AF2_TR, af1_verbatim=AF2_TR, af1_undated=True)
+check("TL2 an undated original twin quoted 「报告原文：」 without a date, the dated translation with the prefix → "
+      "no message (positive)", e2 == [], str(e2))
+
+# ---- TL3 (third verifier pass). The bypass forms the quotation-slot parser let through (each was an ERROR at 93869c1
+# and silent at 4b97bc2), and originals holding a colon / quote mark before the translated words, whose prompt-form
+# 「报告原文：」 caveat the slot parser rejected — every one of them was blocking a correct render.
+for name, cav in (("tl3_xieming", "报告原文写明充盈缺损（2030-01-05，外院胸部CT报告）"),
+                  ("tl3_tishi", "外院报告原文提示充盈缺损（2030-01-05）"),
+                  ("tl3_af1_af2", f"报告原文：{AF1_VERBATIM}（2030-01-12，胸部CT报告）充盈缺损"),
+                  ("tl3_claim_and_prefix", "报告原文：中文转述，非报告原句：充盈缺损（2030-01-05，外院胸部CT报告）"),
+                  ("tl3_xiedao_and_prefix", "外院报告写道——中文转述，非报告原句：“充盈缺损”（2030-01-05）")):
+    e2, _ = tl2(name, CAV_ORIG, cav)
+    check(f"TL3 「{cav}」 → ERROR naming AF-002 (a rendering presented as the report's words)",
+          any("caveats quote AF-002" in e for e in e2), str(e2))
+for name, vt in (("tl3_zhenduan", "诊断意见：充盈缺损（考虑肺栓塞）"), ("tl3_yinxiang", "印象：充盈缺损。请结合临床"),
+                 ("tl3_jielun", "结论：充盈缺损；建议复查"), ("tl3_tishi_quote", "提示“充盈缺损”。请结合临床")):
+    e2, _ = tl2(name, f"报告原文：{vt}（2030-01-12，胸部CT报告）——请尽快告知治疗团队", CAV_AF2_TR, af1_verbatim=vt)
+    check(f"TL3 AF-001's original 「{vt}」 quoted as the prompt requires, AF-002 「充盈缺损」 with the prefix → no message "
+          "(positive: the colon / quote mark inside the original opens nothing)", e2 == [], str(e2))
+e2, _ = tl2("tl3_tr_colon_ok", CAV_ORIG, "报告（外文）中文转述，非报告原句：印象：充盈缺损（2030-01-05，外院胸部CT报告）",
+            verbatim="印象：充盈缺损")
+check("TL3 a translated verbatim that itself holds a colon, written with the prefix → no message (positive)",
+      e2 == [], str(e2))
+e2, _ = tl2("tl3_tr_colon_bad", CAV_ORIG, "报告原文：印象：充盈缺损（2030-01-05，外院胸部CT报告）", verbatim="印象：充盈缺损")
+check("TL3 …the same verbatim introduced 「报告原文：」 → ERROR", any("caveats quote AF-002" in e for e in e2), str(e2))
 
 # ---- stamp_case_summary_sources.py
 d = synlib.make(tmp / "stamp_ok", render("x", stamp=False))

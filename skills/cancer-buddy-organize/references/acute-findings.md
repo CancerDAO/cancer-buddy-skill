@@ -116,8 +116,8 @@ sidecar 都写一条。校验器核对每份 sidecar 至多一条、且为 other
 sidecar 的发现必须 `verbatim_is_translation: true`，写了 true 的发现所引 sidecar 必须有这条 flag。
 **转述不是原文**：`verbatim_is_translation: true` 的发现在任何展示面（Step 7.5、Step 11 Profile Card、§11、段D）都标明“中文转述，
 非报告原句”，不说成“报告原文写到”。段D 病情概要首句的前缀因此是中性的“资料中有报告写到需要尽快告知治疗团队的发现：”，
-转述的发现写成“<label>（<日期>，中文转述）”，caveats 里它的引文前写“中文转述，非报告原句：”
-（`case-summary-html-prompt.md`「急性/附带发现」；校验器核对这两处）。
+转述的发现写成“<label>（<日期>，中文转述）”，caveats 里它单独一条，引文前写“中文转述，非报告原句：”，这一条不出现
+“报告原文”等称原文的说法（`case-summary-html-prompt.md`「急性/附带发现」；校验器核对这两处，caveats 按条核对）。
 
 ## 3. finding_class 与默认 acuity（固定表）
 

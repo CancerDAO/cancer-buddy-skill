@@ -24,9 +24,11 @@
 #      the archive unpack dir, with prose naming $src and raw/ beside it, passes (positive control)
 #   M. phase2 §7 段D stale notice with one character changed, or its ```text block removed → fail
 #   N. case-summary-html-prompt.md lead reverted to 「资料中有报告原文写到…」, the translated item form or the caveat
-#      prefix dropped / reworded, or phase2 §7 quoting another lead → fail; the prompt back to the any-occurrence
-#      caveat wording, the validator copy drifted back to a substring count, the translated caveat form without the
-#      prefix right before <verbatim_text>, profile-card.md without the translation label (or calling every finding
+#      prefix dropped / reworded, or phase2 §7 quoting another lead → fail; the prompt back to the quotation-slot
+#      caveat wording, listing fewer presented-as-original phrases than ACUTE_CAVEAT_ORIGINAL_CLAIMS or not asking for one
+#      caveat item per finding, the validator copy drifted back to a substring count or to a quotation-slot reading or
+#      no longer rejecting a claim next to the prefix, the translated caveat form without the prefix right before
+#      <verbatim_text>, profile-card.md without the translation label (or calling every finding
 #      报告原文), acute-findings.md §2.4 without Step 11, or SKILL.md Step 12 / phase2 §9 / §10 not routing an
 #      「ERROR: .case_summary_data.json」 line to the 段D re-render, or §9 letting Phase 2 leave the missing-stale-notice
 #      line too → fail
@@ -216,8 +218,8 @@ expect "case-summary prompt reworded outside the pinned strings (positive)" pass
 fresh n5; edit "$tmp/n5/references/organizer-prompt-phase2-synthesis.md" 't.replace("首句不以“资料中有报告写到需要尽快告知治疗团队的发现：”开头", "首句不以“资料中有报告原文写到需要尽快告知治疗团队的发现：”开头", 1)'
 expect "phase2 §7 quoting another lead than the validator's" fail "$tmp/n5" "§7 段D 过期提示"
 # N (rule): the prompt states the validator's quotation-slot rule, and its caveat forms behave as it says
-fresh n6; edit "$tmp/n6/$CSP" 't.replace("转述发现的 `verbatim_text` 出现在\n    引文位置", "caveat 里出现转述发现的 `verbatim_text` 时，\n    不论位置", 1)'
-expect "case-summary prompt back to the any-occurrence caveat wording" fail "$tmp/n6" "ACUTE_CAVEAT_QUOTE_SLOT_RULE"
+fresh n6; edit "$tmp/n6/$CSP" 't.replace("按条核对：一条 caveat 只要含有某条转述发现的 `verbatim_text`（嵌在别的发现更长的原句里的不算），这一条就必须写有", "核对：转述发现的 `verbatim_text` 出现在引文位置（冒号或开引号之后，其后紧接“（”“；”“——”“。”或该条结尾；按占满这个位置的最长一条发现原句计）时，它前面必须紧挨着", 1)'
+expect "case-summary prompt back to the quotation-slot caveat wording" fail "$tmp/n6" "ACUTE_CAVEAT_ITEM_RULE"
 fresh n7
 python3 - "$tmp/n7/scripts/validate_structured_outputs.py" <<'PY2'
 import sys
@@ -235,7 +237,33 @@ t = t.replace(head, head + """    fs = (acute_doc or {}).get("findings") or []
 p.write_text(t, encoding="utf-8")
 PY2
 expect "validator's caveat check drifted back to a substring count" fail "$tmp/n7" "inside another finding's 报告原文 quote"
-fresh n8; edit "$tmp/n8/$CSP" 't.replace("写成“报告（外文）中文转述，非报告原句：\n    <verbatim_text>", "写成“报告（外文）中文转述：\n    <verbatim_text>，非报告原句", 1)'
+fresh n16
+python3 - "$tmp/n16/scripts/validate_structured_outputs.py" <<'PY2'
+import sys
+from pathlib import Path
+p = Path(sys.argv[1]); t = p.read_text(encoding="utf-8")
+head = 'def translated_caveat_problems(acute_doc, render_data) -> list[tuple[str, dict]]:\n'
+assert head in t
+# the validator drifts back to a quotation-slot reading: only a translated quote right after a colon that is not the
+# prefix's own is caught — 「报告原文写明<转述>」 walks past it, and a colon inside another finding's original trips it
+t = t.replace(head, head + """    import re as _re
+    fs = (acute_doc or {}).get("findings") or []
+    cs = [_norm_text(c["caveat_text"]) for c in (render_data or {}).get("caveats") or []]
+    pre = _norm_text(ACUTE_CAVEAT_TRANSLATION_PREFIX)
+    return [("caveats quote " + str(f.get("finding_id")), f) for f in fs if f.get("verbatim_is_translation") is True
+            and any(_re.search("(?<!" + _re.escape(pre[:-1]) + "):" + _re.escape(_norm_text(f["verbatim_text"])), c)
+                    for c in cs)]
+""", 1)
+p.write_text(t, encoding="utf-8")
+PY2
+expect "validator's caveat check drifted back to a quotation-slot reading" fail "$tmp/n16" "presents the translated finding as the report's own words"
+fresh n17; edit "$tmp/n17/scripts/validate_structured_outputs.py" 't.replace("            found = claims_in(t)\n", "            found = []\n", 1)'
+expect "validator no longer rejects a presented-as-original phrase next to the prefix" fail "$tmp/n17" "presents the translated finding as the report's own words"
+fresh n18; edit "$tmp/n18/$CSP" 't.replace("“报告原文”“原文写”“报告写道”“报告写明”“报告原句”", "“报告原文”“原文写”“报告写明”“报告原句”", 1)'
+expect "case-summary prompt listing fewer presented-as-original phrases than the validator" fail "$tmp/n18" "ACUTE_CAVEAT_ITEM_RULE"
+fresh n19; edit "$tmp/n19/$CSP" 't.replace("**一条发现单独一条 caveat**", "按发现逐条", 1)'
+expect "case-summary prompt without one caveat item per finding" fail "$tmp/n19" "one caveat item per finding"
+fresh n8; edit "$tmp/n8/$CSP" 't.replace("“报告（外文）中文转述，非报告原句：<verbatim_text>", "“报告（外文）中文转述：<verbatim_text>，非报告原句", 1)'
 expect "case-summary prompt translated caveat form without the prefix before the quote" fail "$tmp/n8" "中文转述，非报告原句：<verbatim_text>"
 # N (surfaces): Profile Card labels a translation; a .case_summary_data.json ERROR routes to Step 12
 fresh n9; edit "$tmp/n9/references/profile-card.md" 't.replace("- 报告写明的急性/附带发现", "- 报告原文写明的急性/附带发现", 1)'

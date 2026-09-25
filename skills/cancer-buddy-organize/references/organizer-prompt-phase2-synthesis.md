@@ -531,9 +531,9 @@ episode：`started_at` 取首程日期，`regimen` 逐字（取原文写法；�
   出现；反过来，在治 episode 是原件时不加前缀。校验器核对三件事：去掉前缀后与 `latest_status.regimen` 相同（都为 null
   也算相同）、自述 episode 带对应前缀（按该 episode 自己的说话人，与 `summary` 块是哪一层无关）、原件 episode 不带前缀；
   只有前缀没有方案（如单独一个“患者自述：”）不是 null，报错。`treatment_lines.json` 与 `latest_status.regimen` 不加前缀
-  （它们自带来源层）。
-- `profile.json.latest_status`（必写；没有在治 episode 时写 `{"regimen": null, …}`，缺失或写成 null 在当前契约档案上
-  报错，校验器按 regimen null 继续核对）：`regimen` 取 `status: ongoing` 的 episode（没有则 null），`as_of` 为其
+  （它们自带来源层）。`summary` 必写：缺失或写成 null 在当前契约档案上报错，校验器按 `current_regimen` 为 null 继续核对。
+- `profile.json.latest_status`（必写；没有在治 episode 时写 `{"regimen": null, …}`，缺失、写成 null 或写成没有 `regimen`
+  键的对象（`{}`）在当前契约档案上报错，校验器按 regimen null 继续核对）：`regimen` 取 `status: ongoing` 的 episode（没有则 null），`as_of` 为其
   `status_as_of`（未注明日期的自述为 null），`status_basis` 为该 episode 的 `status_basis` 原样（如
   `order_or_indication_only`、`patient_reported`；没有在治 episode 时 null）——只读 profile 的下游据此知道“在治”
   依据的是给药记录、医生当次记录、申请单指征还是家属陈述，不会把申请单指征当成给药记录；`ecog`、`response`
@@ -677,7 +677,7 @@ episode：`started_at` 取首程日期，`regimen` 逐字（取原文写法；�
 - **段D 过期提示**（`legacy_phase2_only` 在内的每种运行）：`acute_findings.json` 有 emergent/urgent 发现，而现有的 段D
   渲染没有写入其中某些（`.case_summary_data.json` 的 `case_summary_narrative` 首句没有逐条写到它们的 `label` 与日期——
   首句不以“资料中有报告写到需要尽快告知治疗团队的发现：”开头时（包括旧写法“资料中有报告原文写到…”）全部都算没写入；
-  `verbatim_is_translation: true` 的发现在首句里没标“中文转述”、或 caveats 在引文位置引它时前面不是“中文转述，非报告原句：”（`case-summary-html-prompt.md`「急性/附带发现」），也算没写入；
+  `verbatim_is_translation: true` 的发现在首句里没标“中文转述”、或 caveats 里含它原句的那一条没写“中文转述，非报告原句：”、或写了“报告原文”等称原文的说法（按条核对，`case-summary-html-prompt.md`「急性/附带发现」），也算没写入；
   或只有 `病情简要总结.html`、没有 `.case_summary_data.json`，无从确认）时，你在 `review_summary.md` 开头（资料时效之前）与
   `readiness.json.warnings[]` 各写一条，都以下面这句**原样**开头，后接每条没写入的发现“<label>（<日期>）”，用“；”分隔：
 

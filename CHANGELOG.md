@@ -6,11 +6,57 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Fixed — organize 第三轮复核：转述引文按条核对，冒号或引号既不能绕过也不再误报；自述前缀、缺失的 summary 与 latest_status 类型如文档所述核对 (2026-09-25)
+
+独立复核上一节后指出的 5 项逐条收口（合成数据，无真实病例内容）。
+
+- **转述引文改为按条核对**（P2 回归 + P2 误报，取代上一节的“引文位置”）：上一节的引文位置解析只看冒号或开引号之后的
+  位置，于是明着把转述当原文的写法——“报告原文写明充盈缺损（2030-01-05，外院胸部CT报告）”“外院报告原文提示充盈缺损
+  （2030-01-05）”“报告原文：<AF1 原句>（2030-01-12，…）充盈缺损”——全部静默通过（在 93869c1 上都报 ERROR）；反过来，
+  原句发现的 `verbatim_text` 自己在转述文字前带冒号或引号时（“诊断意见：充盈缺损（考虑肺栓塞）”“印象：充盈缺损。请结合
+  临床”“结论：充盈缺损；建议复查”“提示“充盈缺损”。请结合临床”），按提示词原样写的“报告原文：<原句>（日期，来源）”
+  也被判成引用了转述，正确的渲染过不了。现在 `translated_caveat_problems` 不再解析位置，而是**按条**核对（常量
+  `ACUTE_CAVEAT_ITEM_RULE` / `ACUTE_CAVEAT_ORIGINAL_CLAIMS`）：一条 caveat 只要含有某条转述发现的 `verbatim_text`，这一条就
+  必须写有“中文转述，非报告原句：”，并且除这句前缀外不得出现“报告原文”“原文写”“报告写道”“报告写明”“报告原句”。
+  两处例外都只关于**别的**发现的字：嵌在另一条发现更长原句里的出现属于那条（先把这些出现抹掉再查，所以
+  “<AF1>…<AF2>”里另写的一遍仍会被查到）；原句一字不差的原件发现（孪生）拥有写了它的日期、没写转述日期的那一条；
+  日期也相同、无法区分时，每条孪生可认领一条不带前缀的条目，多出一条即报错（只按日期例外会让这种正确渲染无法通过）。
+  `case-summary-html-prompt.md` 要求**一条发现单独一条 caveat**、转述那条不与别的发现合写，逐字写出该规则句，并写明别的
+  caveat 不复述转述原句（要提到就写“<日期>外文报告的那条转述发现”）；phase2 §7、acute-findings.md §2.4、README 同步。
+  取舍：句中顺带复述转述原句（上一节 TL2 当作正例的“来源冲突：两份报告对充盈缺损的范围写法不同”）现在报错——按条核对
+  下它与“报告原文写明…”无从区分，提示词已要求别的条目不复述；该用例改为负例，另加按日期指称的正例。
+  `validate_case_summary_html.py` 核实不重复这条规则（只查页面形状，不读急性发现），未改。
+- **lint 13 N 跟随改写**：提示词须逐字（不计空白）含 `ACUTE_CAVEAT_ITEM_RULE`（它由 `ACUTE_CAVEAT_ORIGINAL_CLAIMS` 拼成，
+  两侧名单不一致即失败）、须写“一条发现单独一条 caveat”、不得再写旧的引文位置规则；除原有三个实例化探针外，新增四个
+  “原句自带冒号/引号”的正向探针与八个绕过写法（上面三种 + 五个称原文短语各自紧挨前缀）的负向探针。
+  `organize-contract-lints.test.sh`：n6 改为“提示词退回引文位置写法”，新增 n16（校验器退回引文位置式读法）、n17（校验器
+  不再拒绝前缀旁的称原文短语）、n18（提示词少列一个短语）、n19（提示词不再要求一条一发现），n8 随提示词改行。
+- **自述前缀的缺失检查不再看 `summary` 块的层**（P3，文档与代码不符）：phase2 §5.7 与 `patient-profile-schema.md` 写的是
+  “按该 episode 自己的说话人，与 summary 块是哪一层无关”，但缺前缀检查只在 `summary.provenance_layer` 不是自述层时才跑，
+  `patient_reported` / `caregiver_reported` 块里不带前缀的自述方案整个校验 rc 0。现在去掉该条件（写错前缀仍由说话人检查
+  报一次，不重复报）。
+- **缺失或为 null 的 `profile.summary` 必填，且按 current_regimen null 核对**（P2/P3）：此前 `summary` 不是对象时相等关系与
+  全部前缀检查静默跳过，只有流程不调用的 `validate-profile-schema.sh` 会发现。现在与 `latest_status` 对称：缺失 / null
+  在当前契约档案上 ERROR（旧版 WARN），并读作 `{}`，在治 episode 存在时另报 “summary.current_regimen None ≠
+  latest_status.regimen”；字符串、数组等非对象在任何档案上都是类型错误。phase2 §5.7 与 `patient-profile-schema.md` 写明。
+- **`latest_status` 的类型提示两个校验器一致**（P3）：字符串或 `[]` 此前被两处都报成 “latest_status is null”，
+  `validate-profile-schema.sh` 还先后打印 “must be object or null” 与 “is null — required” 两句矛盾的话；`{}` 在该脚本里
+  直接 “profile schema OK”。现在两处用同一组措辞（`is missing` / `is null` / `is a JSON string|array, not an object`，
+  各一行），非对象在任何档案上都是错误；`{}` 与缺 `regimen` 键的对象报 “latest_status.regimen is missing”（当前契约
+  ERROR、旧版 WARN），并按 regimen null 继续核对。旧的 “latest_status missing” 措辞随之改为 “latest_status is missing”。
+- 测试：`acute-findings-gate.test.sh` 新增 TL3 组（五种绕过写法、四种自带冒号/引号的原句、自带冒号的转述原句正负各一）与
+  TL2 的同日孪生正负、无日期孪生正例、按日期指称正例，句中复述改为负例；`organize-provenance-guards.test.sh` 新增 R4（三种
+  块层 × 说话人组合的缺前缀，各含整个校验 rc 1；正例 rc 0；错前缀只报一次）、R5（summary 缺失/null/旧版/无在治/字符串）、
+  R6（latest_status 字符串/数组/`{}`）；`validate-profile-schema.test.sh` 新增类型措辞、`{}`（当前/旧版）、summary 缺失/null
+  共 13 项。在上一提交（4b97bc2）的代码上实测：TL2/TL3 11 项、R4–R6 15 项、profile 10 项（其中 2 项为措辞改名）失败；
+  把两个新常量补进旧校验器后，新 lint 在旧的引文位置实现上报 12 处违规（4 个冒号/引号探针 + 8 个绕过探针）。同日孪生正例
+  已核实：去掉计数、只按日期例外时它会报错。
+
 ### Fixed — organize 第二轮复核：正确的渲染不再被转述检查卡死，缺失的 latest_status 不再让在治快照核对整体跳过 (2026-09-25)
 
 独立复核上一节后指出的 5 项逐条收口（合成数据，无真实病例内容）。
 
-- **转述引文只在引文位置核对**（P2，上一节引入的误报）：上一节的检查把转述发现的 `verbatim_text` 在全部 caveats 里做
+- **转述引文只在引文位置核对**（P2，上一节引入的误报；已由「第三轮复核」一节改为按条核对——引文位置可被“报告原文写明…”绕过，也会被原句里的冒号误触发）：上一节的检查把转述发现的 `verbatim_text` 在全部 caveats 里做
   子串计数，转述文字恰好是另一条原句发现正确写出的“报告原文：…”的一部分时（“充盈缺损”“胸腔积液”这类短语，同一档案
   既有旧转述 sidecar 又有中文原件时就会发生），完全正确的新鲜渲染也被判 ERROR，没有任何写法能通过，段D 拿不到
   `template_sha`。现在只看**引文位置**（常量 `ACUTE_CAVEAT_QUOTE_SLOT_RULE`：冒号或开引号之后，其后紧接“（”“；”“——”
@@ -53,7 +99,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 - **病情概要首句改为中性写法**（P1）：固定前缀由“资料中有报告原文写到需要尽快告知治疗团队的发现：”改为
   “资料中有报告写到需要尽快告知治疗团队的发现：”——`verbatim_is_translation: true` 的发现也在这个列表里，不能说成
   “报告原文”。转述的那一条写“<label>（<日期>，中文转述）”（无日期写“<label>（中文转述）”，不与原句登记的同名发现合写）；
-  caveats 在引文位置引它时前面紧挨着“中文转述，非报告原句：”（引文位置的定义见「第二轮复核」一节）。校验器 `validate_structured_outputs.py` 的 段D 检查同时核对两处
+  caveats 里含它原句的那一条写有“中文转述，非报告原句：”（按条核对，见「第三轮复核」一节）。校验器 `validate_structured_outputs.py` 的 段D 检查同时核对两处
   （常量 `ACUTE_SUMMARY_LEAD` / `ACUTE_LEAD_TRANSLATION_MARK` / `ACUTE_CAVEAT_TRANSLATION_PREFIX`）：新鲜渲染出错即
   ERROR；过期渲染里的紧急发现走原有过期提示路径（没有提示 ERROR、有提示 WARN、`--final` ERROR），附带发现的转述标注在过期
   渲染上只 WARN（它不强制重渲染）。`validate_case_summary_html.py` 仍只查页面形状，不读急性发现。旧写法的首句在盖了新戳的

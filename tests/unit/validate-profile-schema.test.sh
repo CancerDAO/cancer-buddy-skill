@@ -102,13 +102,42 @@ run_case "unknown readiness version rejected" fail "$tmp/r3"
 mk21 r21_nols "{\"schema\":\"cancer_buddy_profile_v3\",\"patient_code\":\"PT-A6\",\"summary\":{},$DEMO}" "{$R21_TOP,\"review_flags\":[]}"
 run_case "current archive without latest_status rejected (required; absent is not 'nothing ongoing')" fail "$tmp/r21_nols"
 nols_out="$(bash "$SCRIPT" "$tmp/r21_nols" 2>&1 || true)"
-if grep -q "ERROR: latest_status missing" <<<"$nols_out"; then
-  pass=$((pass+1)); else echo "FAIL: a current archive without latest_status must print ERROR: latest_status missing" >&2; fail=$((fail+1)); fi
+if grep -q "ERROR: latest_status is missing" <<<"$nols_out"; then
+  pass=$((pass+1)); else echo "FAIL: a current archive without latest_status must print ERROR: latest_status is missing" >&2; fail=$((fail+1)); fi
 mk21 r21_lsnull "{\"schema\":\"cancer_buddy_profile_v3\",\"patient_code\":\"PT-A6\",\"summary\":{},\"latest_status\":null,$DEMO}" "{$R21_TOP,\"review_flags\":[]}"
 run_case "current archive with latest_status null rejected (write {regimen: null, …})" fail "$tmp/r21_lsnull"
 min_out="$(bash "$SCRIPT" "$tmp/minimal" 2>&1 || true)"
-if grep -q "WARN: latest_status missing" <<<"$min_out"; then
+if grep -q "WARN: latest_status is missing" <<<"$min_out"; then
   pass=$((pass+1)); else echo "FAIL: a legacy archive without latest_status must only WARN" >&2; fail=$((fail+1)); fi
+# one line per latest_status state, in validate_structured_outputs' words: a string / array is named as such (it
+# printed 'must be object or null' AND 'is null — required'), on a legacy archive too; {} lacks the regimen key
+has_line() {  # label, output, grep -F needle, [absent needle]
+  if grep -qF -- "$3" <<<"$2" && { [[ -z "${4:-}" ]] || ! grep -qF -- "$4" <<<"$2"; }; then pass=$((pass+1)); else
+    echo "FAIL: $1" >&2; echo "$2" | tail -4 >&2; fail=$((fail+1)); fi
+}
+mk21 r21_lsstr "{\"schema\":\"cancer_buddy_profile_v3\",\"patient_code\":\"PT-A6\",\"summary\":{},\"latest_status\":\"示例方案B\",$DEMO}" "{$R21_TOP,\"review_flags\":[]}"
+run_case "current archive with latest_status a string rejected" fail "$tmp/r21_lsstr"
+out="$(bash "$SCRIPT" "$tmp/r21_lsstr" 2>&1 || true)"
+has_line "latest_status a string: one line naming the type" "$out" "ERROR: latest_status is a JSON string, not an object" "is null"
+has_line "latest_status a string: no retired 'must be object or null' line" "$out" "latest_status is a JSON string" "must be object or null"
+mkdir "$tmp/ls_legacy_arr"
+echo '{"schema":"cancer_buddy_profile_v3","patient_code":"PT-A7","summary":{},"latest_status":[]}' > "$tmp/ls_legacy_arr/profile.json"
+run_case "legacy archive with latest_status an array rejected (a type error on every archive)" fail "$tmp/ls_legacy_arr"
+has_line "latest_status an array named as such" "$(bash "$SCRIPT" "$tmp/ls_legacy_arr" 2>&1 || true)" "ERROR: latest_status is a JSON array, not an object"
+mk21 r21_lsempty "{\"schema\":\"cancer_buddy_profile_v3\",\"patient_code\":\"PT-A6\",\"summary\":{},\"latest_status\":{},$DEMO}" "{$R21_TOP,\"review_flags\":[]}"
+run_case "current archive with latest_status {} rejected (was 'profile schema OK')" fail "$tmp/r21_lsempty"
+has_line "latest_status {} names the missing regimen key" "$(bash "$SCRIPT" "$tmp/r21_lsempty" 2>&1 || true)" "ERROR: latest_status.regimen is missing"
+mkdir "$tmp/ls_legacy_empty"
+echo '{"schema":"cancer_buddy_profile_v3","patient_code":"PT-A7","summary":{},"latest_status":{}}' > "$tmp/ls_legacy_empty/profile.json"
+run_case "legacy archive with latest_status {} only WARNs" pass "$tmp/ls_legacy_empty"
+has_line "legacy latest_status {} WARN line" "$(bash "$SCRIPT" "$tmp/ls_legacy_empty" 2>&1 || true)" "WARN: latest_status.regimen is missing"
+# summary: the same state words
+mk21 r21_nosumm "{\"schema\":\"cancer_buddy_profile_v3\",\"patient_code\":\"PT-A6\",$LS_NONE,$DEMO}" "{$R21_TOP,\"review_flags\":[]}"
+run_case "profile without summary rejected" fail "$tmp/r21_nosumm"
+has_line "missing summary line" "$(bash "$SCRIPT" "$tmp/r21_nosumm" 2>&1 || true)" "ERROR: summary is missing"
+mk21 r21_summnull "{\"schema\":\"cancer_buddy_profile_v3\",\"patient_code\":\"PT-A6\",\"summary\":null,$LS_NONE,$DEMO}" "{$R21_TOP,\"review_flags\":[]}"
+run_case "profile with summary null rejected" fail "$tmp/r21_summnull"
+has_line "null summary line" "$(bash "$SCRIPT" "$tmp/r21_summnull" 2>&1 || true)" "ERROR: summary is null"
 mk21 r21_nodemo '{"schema":"cancer_buddy_profile_v3","patient_code":"PT-A6","summary":{}}' "{$R21_TOP,\"review_flags\":[]}"
 run_case "current archive without profile.demographics rejected" fail "$tmp/r21_nodemo"
 mk21 r21_age_noasof "{\"schema\":\"cancer_buddy_profile_v3\",\"patient_code\":\"PT-A6\",\"summary\":{},$LS_NONE,$(echo "$DEMO" | sed 's/"age_as_of":"2030-01-10"/"age_as_of":null/')}" "{$R21_TOP,\"review_flags\":[]}"

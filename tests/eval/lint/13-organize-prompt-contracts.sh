@@ -49,8 +49,10 @@
 #      (the neutral 报告写到 — never the retired 报告原文写到 lead), the translated item form 「（<日期>，中文转述）」
 #      (ACUTE_LEAD_TRANSLATION_MARK) and the caveat prefix ACUTE_CAVEAT_TRANSLATION_PREFIX — the validator checks the
 #      narrative's first sentence and the caveats against exactly these strings; phase2 §7 quotes the same lead.
-#      The rule too: the prompt states ACUTE_CAVEAT_QUOTE_SLOT_RULE (not the retired "any occurrence" wording) and its
-#      own two caveat forms, run through translated_caveat_problems, pass / reject / ignore a nested quote as it says.
+#      The rule too: the prompt states ACUTE_CAVEAT_ITEM_RULE (item-scoped, listing ACUTE_CAVEAT_ORIGINAL_CLAIMS; not the
+#      retired quotation-slot rule) and one caveat item per finding; its own two caveat forms, run through
+#      translated_caveat_problems, pass / reject / ignore a nested quote (colon or quote mark before it included) as it
+#      says, and the bypass forms (报告原文写明…, 外院报告原文提示…, <AF1>…<AF2>, a listed claim next to the prefix) fail.
 #      Surfaces: profile-card.md labels a translation 中文转述，非报告原句 (acute-findings.md §2.4 lists Step 11), and
 #      SKILL.md Step 12, phase2 §9 and §10 route an 「ERROR: .case_summary_data.json」 line to the 段D re-render
 #      (§9 excepting the validator's 'the pinned stale notice … is missing' line: that is Phase 2's own notice).
@@ -401,30 +403,37 @@ if lead_n is not None:
         fail("organizer-prompt-phase2-synthesis.md §7 段D 过期提示 does not quote "
              f"validate_structured_outputs.ACUTE_SUMMARY_LEAD verbatim ({lead_n!r}) as the lead a current render starts with")
 
-# ---- N (rule). The caveat check itself, not only its strings: the prompt states the validator's quotation-slot rule
-# (ACUTE_CAVEAT_QUOTE_SLOT_RULE, whitespace-insensitive) instead of the retired "any occurrence" wording, and the
-# prompt's own two caveat forms behave as the prompt says when run through translated_caveat_problems — the translated
-# form passes, the 报告原文 form rejects a translated quote, and a translated finding's words inside another finding's
-# correctly quoted original are no quote of it.
+# ---- N (rule). The caveat check itself, not only its strings: the prompt states the validator's item-scoped rule
+# (ACUTE_CAVEAT_ITEM_RULE, whitespace-insensitive — it lists ACUTE_CAVEAT_ORIGINAL_CLAIMS) and one caveat item per
+# finding, not the retired quotation-slot rule; and the prompt's own two caveat forms behave as the prompt says when run
+# through translated_caveat_problems — the translated form passes, the 报告原文 form rejects a translated quote, a
+# translated finding's words inside another finding's correctly quoted original are no quote of it (also when that
+# original holds a colon or a quote mark before them), and every form that presents a rendering as the report's words
+# (报告原文写明…, 外院报告原文提示…, 报告原文：<AF1>（…）<AF2>, any listed claim next to the prefix) is rejected.
 def _ws(s):
     return re.sub(r"\s+", "", s)
 
 
 if lead_n is not None and sec_n:
     try:
-        slot_rule = vso_n.ACUTE_CAVEAT_QUOTE_SLOT_RULE
+        item_rule = vso_n.ACUTE_CAVEAT_ITEM_RULE
+        claims_n = vso_n.ACUTE_CAVEAT_ORIGINAL_CLAIMS
         tcp = vso_n.translated_caveat_problems
     except Exception as e:
-        fail(f"validate_structured_outputs.py has no ACUTE_CAVEAT_QUOTE_SLOT_RULE / translated_caveat_problems: {e}")
-        slot_rule = None
-    if slot_rule is not None:
+        fail("validate_structured_outputs.py has no ACUTE_CAVEAT_ITEM_RULE / ACUTE_CAVEAT_ORIGINAL_CLAIMS / "
+             f"translated_caveat_problems: {e}")
+        item_rule = None
+    if item_rule is not None:
         wb = _ws(body_n)
-        if _ws(slot_rule) not in wb:
-            fail("case-summary-html-prompt.md 急性/附带发现 does not state the caveat quotation-slot rule "
-                 f"validate_structured_outputs.ACUTE_CAVEAT_QUOTE_SLOT_RULE ({slot_rule!r})")
-        if "caveat里出现转述发现的`verbatim_text`时" in wb:
-            fail("case-summary-html-prompt.md 急性/附带发现 still says every occurrence of a translated verbatim_text in a "
-                 "caveat needs the prefix — the validator checks quotation slots only (ACUTE_CAVEAT_QUOTE_SLOT_RULE)")
+        if _ws(item_rule) not in wb:
+            fail("case-summary-html-prompt.md 急性/附带发现 does not state the item-scoped caveat rule "
+                 f"validate_structured_outputs.ACUTE_CAVEAT_ITEM_RULE ({item_rule!r})")
+        if "引文位置（冒号或开引号之后" in wb:
+            fail("case-summary-html-prompt.md 急性/附带发现 still states the retired quotation-slot rule — the validator "
+                 "checks each caveat item whole (ACUTE_CAVEAT_ITEM_RULE)")
+        if "一条发现单独一条caveat" not in wb:
+            fail("case-summary-html-prompt.md 急性/附带发现 does not require one caveat item per finding (「一条发现单独一条 "
+                 "caveat」) — the item-scoped check reads a caveat holding a translated finding's words as that finding's")
         forms = re.findall(r"“([^“”]*<verbatim_text>[^“”]*)”", wb)
         tr_forms = [f for f in forms if cav_n + "<verbatim_text>" in f]
         orig_forms = [f for f in forms if "报告原文：<verbatim_text>" in f]
@@ -451,6 +460,22 @@ if lead_n is not None and sec_n:
             if probs([f_tr, f_orig], inst(orig_forms[0], q_long, "2030-01-12"), inst(tr_forms[0], q_tr, "2030-01-05")):
                 fail("a translated finding's words inside another finding's 报告原文 quote (the prompt's form) are "
                      "reported as a quote of the translated finding")
+            # a colon or a quote mark inside that other finding's original opens nothing (the retired slot parser
+            # read one as a new quotation and rejected the prompt's own 报告原文 form)
+            for vt in ("诊断意见：示例充盈缺损（考虑示例）", "印象：示例充盈缺损。请结合临床", "结论：示例充盈缺损；建议复查",
+                       "提示“示例充盈缺损”。请结合临床"):
+                if probs([f_tr, dict(f_orig, verbatim_text=vt)], inst(orig_forms[0], vt, "2030-01-12"),
+                         inst(tr_forms[0], q_tr, "2030-01-05")):
+                    fail(f"the prompt's 报告原文 form quoting another finding's original 「{vt}」 (a colon / quote mark "
+                         "before the translated words) is reported as a quote of the translated finding")
+            # forms that present the rendering as the report's own words are rejected wherever the colon sits
+            bypass = [f"报告原文写明{q_tr}（2030-01-05，示例报告）", f"外院报告原文提示{q_tr}（2030-01-05）",
+                      inst(orig_forms[0], q_long, "2030-01-12") + q_tr]
+            bypass += [f"{c}：{cav_n}{q_tr}（2030-01-05，示例报告）" for c in claims_n]
+            for form in bypass:
+                if not probs([f_tr, f_orig], form):
+                    fail(f"「{form}」 presents the translated finding as the report's own words and passes "
+                         "translated_caveat_problems")
 
 # ---- N (surfaces). Every surface that shows acute findings labels a translation: profile-card.md (Step 11) says
 # 中文转述，非报告原句 and no longer calls every finding 「报告原文写明的」; acute-findings.md §2.4 lists Step 11 among the

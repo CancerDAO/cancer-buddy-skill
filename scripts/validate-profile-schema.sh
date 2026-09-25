@@ -26,6 +26,15 @@ STATUS_BASIS = {"administration_record", "clinician_note_current", "order_or_ind
                 "dates_only", "none"}
 LINE_ANCHOR = re.compile(r"#L(\d+)(?:-L(\d+))?$")
 def norm(text): return re.sub(r"\s+", "", unicodedata.normalize("NFKC", text))
+# The same words as validate_structured_outputs._profile_block_state: 'is missing' / 'is null' / 'is a JSON <type>, not an
+# object' — one line per state (a string or an array is a type error on every archive, never "null"); {} is an object
+# without the regimen key and says so (patient-profile-schema.md writes {"regimen": null, …} when nothing is ongoing).
+def block_state(doc, key):
+    if key not in doc: return "is missing"
+    v = doc[key]
+    if v is None: return "is null"
+    kind = {"str": "string", "list": "array", "bool": "boolean", "int": "number", "float": "number"}
+    return f"is a JSON {kind.get(type(v).__name__, type(v).__name__)}, not an object"
 def line_binding(ref, text):
     """None when every segment of text (elisions ……) is on the cited line(s); else a reason."""
     m = LINE_ANCHOR.search(ref)
@@ -52,7 +61,7 @@ def load(name):
 
 p = load("profile.json")
 if isinstance(p, dict):
-    for key in ("schema", "patient_code", "summary"):
+    for key in ("schema", "patient_code"):
         if key not in p: fail(f"missing required field: {key}")
     if p.get("schema") != "cancer_buddy_profile_v3":
         fail("schema must be 'cancer_buddy_profile_v3'")
@@ -61,7 +70,8 @@ if isinstance(p, dict):
         fail(f"invalid patient_code: {code!r}")
     summary = p.get("summary")
     if not isinstance(summary, dict):
-        fail("summary must be an object")
+        fail(f"summary {block_state(p, 'summary')} — required: the source-preserving snapshot whose current_regimen is "
+             "latest_status.regimen (patient-profile-schema.md)")
     else:
         # Missing clinical fields are valid unknowns; if present, they must not
         # be container values.
@@ -69,9 +79,7 @@ if isinstance(p, dict):
             if key in summary and summary[key] is not None and not isinstance(summary[key], str):
                 fail(f"summary.{key} must be string or null")
     latest = p.get("latest_status")
-    if latest is not None and not isinstance(latest, dict):
-        fail("latest_status must be object or null")
-    elif isinstance(latest, dict) and latest.get("ecog") is not None:
+    if isinstance(latest, dict) and latest.get("ecog") is not None:
         ecog = latest["ecog"]
         if isinstance(ecog, bool) or not isinstance(ecog, int) or not 0 <= ecog <= 5:
             fail("latest_status.ecog must be clinician-reported integer 0-5 or null")
@@ -91,11 +99,16 @@ current = (isinstance(r, dict) and r.get("schema_version") == READINESS_CURRENT)
 # the ongoing treatment_lines.json episode is validate_structured_outputs.gate_record_links.
 # latest_status is required (patient-profile-schema.md): an object — {"regimen": null, …} when nothing is
 # ongoing — on a current archive; a legacy archive without it only WARNs.
+LS_REQUIRED = ("the ongoing episode's {regimen, as_of, status_basis} snapshot, or {\"regimen\": null, …} when nothing "
+               "is ongoing (patient-profile-schema.md)")
 if isinstance(p, dict) and not isinstance(p.get("latest_status"), dict):
-    (fail if current else warn)(f"latest_status {'is null' if 'latest_status' in p else 'missing'} — required: the ongoing "
-                                "episode's {regimen, as_of, status_basis} snapshot, or {\"regimen\": null, …} when nothing is ongoing")
+    wrong_type = p.get("latest_status") is not None
+    (fail if current or wrong_type else warn)(f"latest_status {block_state(p, 'latest_status')} — required: {LS_REQUIRED}")
 if isinstance(p, dict) and isinstance(p.get("latest_status"), dict):
     ls = p["latest_status"]
+    if "regimen" not in ls:
+        (fail if current else warn)("latest_status.regimen is missing — required: the ongoing episode's regimen, or null "
+                                    "when nothing is ongoing (patient-profile-schema.md)")
     if ls.get("regimen") is not None and not (isinstance(ls["regimen"], str) and ls["regimen"].strip()):
         (fail if current else warn)("latest_status.regimen must be a non-empty string or null")
     if ls.get("as_of") is not None and not (isinstance(ls["as_of"], str) and ISO_DAY.match(ls["as_of"])):
