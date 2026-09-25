@@ -6,6 +6,449 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Fixed — organize 收尾不再删除患者原件；段D 过期与漏写分开；终态门与 段C 形状补齐 (2026-09-25)
+
+- **收尾删除范围**（P0）：此前 Step 17 的 `rm -rf "$src"` 在普通文件夹输入时会删掉用户自己的输入文件夹，在
+  `legacy_upgrade` 时会删掉档案的原件库 `raw/`，而且发生在终态门之前。现在 Step 1 只在解压压缩包时建
+  `unpack_dir=$(mktemp -d)`（并记下路径），Step 17 在 `--final` 之后只删这个目录，且只在它位于 `$TMPDIR`（或 `/tmp`）
+  下时删；路径丢了就留给系统清理，不猜、不通配。lint 13 新增 L：SKILL.md、`references/*.md` 与运行时绑定里任何
+  递归 `rm` 的参数含 `$src`、`raw` 路径或患者目录即失败（`organize-contract-lints.test.sh` 各配变异测试与正向对照）。
+- **段D 过期 vs 漏写**：段D 渲染前由新脚本 `stamp_case_summary_sources.py` 在 `.case_summary_data.json` 写入它读到的
+  `acute_findings.json` 的 sha256（`acute_findings_sha256`，schema 新增可选字段）。校验器据此区分：戳与当前文件一致而
+  病情概要首句漏写 emergent/urgent 发现 → ERROR（读到了却没写）；戳不同或没有戳 → WARN「段D stale」，由新鲜度提问决定
+  是否重渲染（非交互宿主不重渲染的规则不变）。`--final` 在没有戳、或最后一次改写急性发现的运行是 `full` / `legacy_upgrade`（这两种
+  运行的 Step 12 在 Phase 2 之后渲染）时仍报 ERROR，并要求渲染数据带戳。此前增量、上传对账、移回运行新增急性发现后，
+  Phase 2 §9 与终态门都无法通过。“最后一次改写急性发现的运行”把 段E 的移回（`relevance_disposition`，Step 14，在 Step 12
+  之后）也算在内：整理收尾时移回一份含紧急发现的报告，同样只报 WARN、等新鲜度提问。段D 管线第 3 步另跑一次 `--readonly`
+  校验，渲染自己的首句错误当场修。一次性代价：本契约下、盖戳之前渲染的档案，下次 `--final` 会因缺戳报错，重跑一次 段D 即可
+  （这类档案只来自本分支的开发运行）。
+- **终态门**：`--final` 另要求 `timeline.md` 与 `case_text.md`（phase2 §0 每次都写）；合成夹具补上这两份文件。
+- **段C 冲突 flag**：第 3 步逐键列出 readiness schema 要求的 8 个键（`id`、`category`、`affected_field`、`kind`、
+  `severity`、`issue`、`current_source_values`、`resolution_status`），不写其他键。校验器新增一行：一边是患者/照护者
+  自述（`conversation:` 锚点或 `SOURCE: patient_supplement` / `14_患者自管补充/` 的 sidecar）、另一边只有一份原件的
+  `conflict` flag 必须是 `yellow`；合成夹具里家属自述对 CT 的 flag 由 red 改为 yellow。
+- **写入者白名单**：不变量 3 与 `organize-contract.md` 写明 段C 另写 `<桶>/conversation_notes/*.md`；phase2 §0 改为
+  “结构化 JSON 只能由 Phase 2 与 段C worker 写”。
+- **图表脚本路径**：编排者与 段D 调用写成 `python3 "<skill_dir>/../cancer-buddy-charts/scripts/render_chart.py"`；lint 13 J
+  不再豁免 `../cancer-buddy-charts/`，只接受 `<skill_dir>/scripts/` 与 `<skill_dir>/../cancer-buddy-charts/scripts/`。
+- **评测场景** org-09 / org-21：写明页 B 先处理（Phase 1 在 sidecar 条目里引 `ocr/` 路径，Phase 2 的 flag 引桶内
+  sidecar），并接受页 B 后处理时只由 Phase 2 flag 记录旁证。
+- **公开仓卫生**：一条测试日志条目里的运行时间换成虚构值；`.gitignore` 忽略本机的 `tests/fixtures/organize-gold/`；
+  新增本地 pre-push 钩子 `tests/eval/hooks/pre-push-real-phrases.sh`（安装见 CONTRIBUTING.md）：推送前逐个检查尚未
+  发布的提交的新增内容与提交说明是否含私有短语清单里的短语，某次提交加入、后续提交删掉的短语同样拒绝；只报提交、
+  文件、行号与清单序号。测试：`tests/unit/pre-push-real-phrases.test.sh`、`acute-findings-gate.test.sh`（S1 组）、
+  `organize-round2-guards.test.sh`（Z1、C2 组）。
+
+### Changed — organize 提示词与流程：第二轮审查与三例回放的矛盾逐条定死 (2026-09-25)
+
+- **路径**：所有 worker 提示词、SKILL.md 与运行时绑定里的脚本一律写成 `python3 "<skill_dir>/scripts/…"`（子代理的
+  工作目录不是 skill 目录）；lint 13 新增 J（相对路径或绑定自带的基路径即失败）与 K（不可信内容 flag 的分级行与
+  `scan_untrusted_markers.py` 一致），`organize-contract-lints.test.sh` 各配变异测试。
+- **写入者白名单**（SKILL.md 不变量 3、`organize-contract.md`、`claude-code.md`）：Phase 1 / Phase 2 / 段C / 段D 各写
+  自己的产物；编排者只经固定动作写（清单脚本、`library/index.json` 初值、`raw/_dispatch_log.jsonl`、
+  `record_gap_ask.py`、`fill_agents_md.py`、`write_organize_meta.py`、终态门、段D 快照、收尾清理）。派发记录落盘到
+  `raw/_dispatch_log.jsonl`，上下文压缩后 Phase 2 仍能认出被终止 worker 的完整 sidecar。
+- **段C**：两次派发（`propose` 只返回差异卡、`write` 凭 `user_confirmation` 写入）；时间线事件按当前封闭形状写
+  （`conflict_group` / `acute_finding_id` 必写，不写 `speaker_role` 等），冲突用 `conflict_group` + conflict/yellow flag；
+  自述年龄不进 `age_observations`；旧版档案上只写记录与事件、不写日志条目。`legacy_upgrade` 带回的对话事件同样规整。
+- **上传对账“替换”**：旧 sidecar 与锚点原地不动，清单行写新增可选字段 `superseded_by`（校验器核对它指向另一行），
+  新事件写 `supersedes_event_id`，随后对新来源增量综合；`user_decisions` 增加 `replace` / `coexist` / `ignore`。
+- **段E 移回**：`restore` / `reclassify` 之后对移回的来源做增量综合（清单、各领域、急性发现、缺页、时效）。
+- **只问一次**：`gap_asks.json` 恢复为账本，新增 `gap_asks.schema.json` 与唯一写入者 `scripts/record_gap_ask.py`
+  （同日一次、拒绝后不再问、`pending` 隔 30 天最多再问一次）。
+- **存活**：定义“只读调用”；Phase 2 批量复核并写回 `reviewed: true`，每完成一个领域就写出；Phase 1 长文书分段写出，
+  缺 `## PII` 尾注的半成品由单文件 worker 续写。Phase 1 的他页候选只看本切片已写出的文件，PII 复扫只扫自己的 sidecar。
+- **旧版档案上只重跑 Phase 2**：不做头部检查与搬迁，无头部的旧摘录原地保留、事实标 `prior_archive`；按周期拆开的旧
+  episode 合并、方案名逐字重取；时效三字段照写（校验器旧版分支按 `as_of_run_date` 复算，不一致只 WARN）；旧值找不到
+  原文支持时保留并标 `legacy_value_unsupported`。旧版 `patient_summary` 的提示只列真正缺的时间锚字段。
+- **回放中两种读法的规则**（急性发现、分级、用药、治疗事件）：同一份报告的定义（同目录、同文件名日期、同机构段）；
+  每份原报告各自登记；连写印象不按位置猜归属；压缩性/非阻塞性肺不张、骨病灶描述、血管狭窄包绕、小叶间隔增厚不登记；
+  影像/检验报告针对所见的检查建议登记为 incidental，病理/分子的后续检测说明不登记；类名是路由桶，下游只展示
+  `label` / `verbatim_text`；不在比较表里的用语照写进 `verbatim`；侧别是时不变字段；高风险字段不按多数投票；原文用字
+  反常但各通道一致不算不确定；“他页”只算同一文书或同一标本；拆分旧 flag 的编号；“出院带药”嘱托句不是标题；
+  `order_role` 的支持用药范围；同日多张申请单各一行；照抄句先剔除再判同日冲突；手术与单纯放疗不成 episode；
+  月份精度的自述日期不进 `started_at`。
+- **其他**：只有压缩包解到 0700 的临时目录 `unpack_dir=$(mktemp -d)`，Step 17 在终态门之后只删这一个目录（`$src`、`raw/` 与用户的输入文件夹永不删除，见下节）；资料卡在 Phase 2.5 之后展示；新患者先建目录、再做
+  输入清单、再切片，旧档案摘录的 `source_id` 接在句柄之后；段D 的急性发现首句同一 label 合写全部日期；非交互宿主不
+  自动重渲染病情简要总结；公开代码与测试注释不再引用仓库外的设计文档；回放脚本跳过真实档案时不打印路径。
+  新测试：`organize-round2-flows.test.sh`、`regress-path-withheld.test.sh`；评测场景 org-23…org-25。
+
+### Fixed — organize 第二轮审查与回放：新增的机读守卫 (2026-09-25)
+
+每条都配“不加这道门就失败”的负向测试与正向对照（`tests/unit/organize-round2-guards.test.sh`，另见各门原有测试）：
+
+- **检验候选**：`labs.schema.json` 规定有 `candidate_value` 的行只能是 `linear_position` 或新增的 `llm_row_read`
+  （模型按行读表、没有确定性坐标：`value` 为 null、`pairing_confidence: low`）；`bbox` / `native_table` /
+  `single_value` 行不能带候选。`## 列配对` 记录写 `native_table` / `table_parser` 时 sidecar 头部必须有
+  `text_layer` / `table_parser` 通道，写 `llm_row_read` 时必须有 `llm_vision` 通道且全部 `value` 为 null，并配
+  legibility/yellow flag。旧 sidecar 的按行 Markdown 表改走 `pair_lab_columns.py --columns`，只出候选。
+- **未注明日期的自述**：`status_as_of_precision: undated_self_report` 时 `provenance_layer` 必须是
+  `patient_reported` / `caregiver_reported`（schema）；过去式、没写停或换的自述写 `status: unknown` 并同样标
+  `undated_self_report`；累计周期数不写 `cycle_label_verbatim`。
+- **HLA 分型日期**：`hla_typing[]` 新增可选 `report_date`（分型报告自己的日期，校验器核对它是所引报告的文件名日期
+  或印在报告上）。可选字段，不升版本。
+- **急性发现**：`provenance_layer` 只能是 `source_reported`，`source_ref` 不得指向旧档案摘录；
+  `change_vs_prior.prior_date_stated` 必须印在所引报告（任一行或同一份报告的另一页）上；紧急用词上调只沿 §3
+  写明的去向：`thrombus_embolism`（大面积/骑跨 → emergent）与 `other_source_flagged`（尽快/立即/急诊 → urgent；
+  “新发/较前加重”只对继发阻塞性改变）。`pneumonitis_ild_suspected` 等没有上调，“新发”只进
+  `change_vs_prior.direction`。`acute-findings.md` §4.1 的固定用词块改为逐类的上调路线，lint 13 同步核对。
+- **flag 类别**：`foreign_language_paraphrase`（外文报告只有中文转述，每份 sidecar 一条，other/yellow）；
+  `legacy_value_unsupported`（旧版档案里 sidecar 找不到原文支持的旧值，保留并标 other/yellow；当前契约档案上出现即
+  ERROR，那里是锚点缺口 other/red）。不可信内容标记的分级表按脚本写（最高命中 high → yellow，其余 info），
+  Phase 2 在校验器并入 `UNTRUSTED-*` 之后再写 `review_flags.md` 与计数。
+- **终态门 `--final`**（SKILL.md Step 17）：当前契约档案必须有 `organize_meta.json`、`INDEX.md`、`review_summary.md`、
+  AGENTS.md、`病情简要总结.html`，`ocr/` 为空，且最后一次入档运行之后的日志条目里有 `phase2_5` worker；OK 行回显
+  HTML 的 `template_sha256`。Phase 2 §9 仍不带 `--final`。
+- **Phase 2.5 留痕**：Step 11.5 每次都接一个 `faithfulness_patch`，它追加自己的日志条目（不再改写以前的条目），
+  `workers[]` 记 Phase 2.5 worker（`phase2_5`）与自己；旧版档案上不写条目，返回 warning。
+- **patient_code**：SKILL.md Step 2 钉死 `"PT-" + secrets.token_hex(5).upper()`（各 schema 只收大写十六进制）。
+
+### Changed — organize 急性发现是安全面，每次运行都写，旧版档案也写 (2026-09-25)
+
+- `acute_findings.json` 不再是当前契约的标记：旧版档案上只重跑 Phase 2 的运行同样写它（`timeline_event_id` 为
+  null，不往旧 timeline 加事件，事件随 `legacy_upgrade` 补上），写了也不会把档案判成当前契约。校验器对它的 schema、
+  固定 acuity 表、引文逐行绑定与日期在任何档案上都报 ERROR；只有“缺文件”（旧版 WARN）与“每条发现恰有一条
+  `acute_finding` 时间线事件”（只在当前契约档案上要求）随档案代际变化。旧版档案上 段D 叙述没有以急性发现开头
+  记 WARN（由新鲜度提问触发重渲染），当前契约档案上仍是 ERROR。
+- Phase 2 返回 JSON 增加 `acute_findings_urgent[]`；SKILL.md Step 7.5 在每种运行方式下（含旧版档案上只重跑
+  Phase 2）都先展示 emergent/urgent 发现。测试见 `tests/unit/acute-findings-gate.test.sh`（R1 组）。
+
+### Fixed — organize 公开仓只留虚构内容 (2026-09-25)
+
+公开仓里标为“合成”的评测场景、参考示例与夹具中，有若干句子和一张检验表是按真实病例原句照抄或只改了个别字、
+个别数字写成的（不含直接标识，但合在一起可被认出）。本节把它们全部换成新编的内容，语义与测试断言不变：
+
+- `tests/eval/scenarios/cancer-buddy-organize.md` org-07…org-22 的输入句（影像印象、病理签发语、NGS 免责句、
+  周期计划句、家属自述、免疫组化误读、淋巴结站别、HLA 行、剂量阴影）全部重写，部位、数字、日期与措辞均为新编；
+- `references/acute-findings.md` §2.1/§2.2/§5/§9 的示例、`treatment_lines.schema.json` 的自述示例、phase1/phase2
+  提示词里的若干示例改为新编写法；
+- 合成夹具的检验表换成另一组项目、顺序、参考范围、数值与版面（`make_syn_current.py` 重新生成 `syn-current/`，
+  `syn-lab-columns/src/linear.txt` 同步），门诊、CT、家属自述 sidecar 的句子重写；相关测试的期望值同步；
+- 新增 `tests/eval/lint/14-real-phrase-denylist.sh`：维护者把真实病例短语清单放在仓库之外，用 `CB_REAL_PHRASES_FILE`
+  指向它，lint 在 `skills/`、`references/`、`tests/` 与根目录文档中发现清单短语即失败（只报文件、行号与清单序号，
+  不回显短语）；未设置时 SKIP。`tests/unit/real-phrase-denylist.test.sh` 覆盖命中、未命中、空清单与缺文件。
+
+### Fixed — organize 三例迭代的独立审查：验收门不再能被降级、改写或绕过 (2026-09-25)
+
+独立审查（完整性 / 正确性 / 提示词三个视角）对本轮 organize 实现做对抗式探测，找到一批“写出来就能过门”的路径。
+逐条收紧，每条都配一个不加这道门就会失败的负向测试和一个正向对照（`tests/unit/organize-review-fixes.test.sh`
+100 例，另在各门原有测试中增补）。**三个真实病例的 O-01…O-08 验收仍待 E2E 重跑**——本节只在合成夹具与三份旧档案
+只读副本上验证过。
+
+- **当前/旧版判定**：`validate_structured_outputs.py` 只要看到任一当前契约标记——`organize_meta.json`、
+  `readiness.json` ≥ 2.1、任一结构化文件处于当前版本号、带 `workers[]` 的日志条目、带
+  `EXTRACTOR` 的 sidecar 头部——就按当前契约校验；写一个旧版本号或不写 `organize_meta.json` 不再能把全部 v2.1 门
+  降成 WARN。`--generation <dir>` 打印判定结果与所见标记，SKILL.md Step 1 用它决定“增量更新”还是 `legacy_upgrade`
+  （只含旧形状条目的 `schema_version: "1"` 日志仍判旧版）。三份真实旧档案副本仍判旧版、exit 0。
+- **终态门失败即关闭**：当前契约档案缺 `profile.json` / `readiness.json` / `patient_summary.json` / `timeline.json` /
+  `molecular.json` / `treatment_lines.json` / `labs.json` / `comorbidities.json` / `missing_items.json` 任一个即
+  ERROR（空领域写空数组）；缺 `jsonschema` 即 ERROR（此前只 WARN 并打印“all pass”）；每道门崩溃只记一条 ERROR、
+  其余门照常报告。
+- **AGENTS.md**：本仓库发布过的旧模板（`KNOWN_PRIOR_TEMPLATE_SHAS`）填出的 AGENTS.md 只差模板戳和后加的路由锚点时
+  记 WARN；旧版档案同理。此前三份真实旧档案因模板改动全部 exit 1。未知模板戳、stub、缺红线仍是 ERROR。
+- **引文绑定**：只含省略号的引文（`……` / `...`）不再能通过任何“逐段出现在原文”的检查（脚本 + schema pattern）。
+  `acuity_basis_text` 与 `change_vs_prior.verbatim` 绑定到发现所引的那几行（同一报告另一行用新增的可选
+  `acuity_basis_ref`），并须含 `acute-findings.md` 新增 §4.1 固定用词：“较前无显著变化”不能把血栓下调为 incidental，
+  血栓下调须“陈旧/慢性”加“较前无变化”，§3 表没有下调的类别不能用 `source_wording_chronic`。`exam_date` /
+  `report_date`、`treatment_lines` 的 `status_basis_text`、用药的 `setting_basis`（逐段）都须出现在所引来源里。
+  lint 13 新增 H（§4.1 块 ↔ 校验器常量）。
+- **sidecar**：没有 inventory 行的桶内 sidecar 即 ERROR（其头部值此前既不绑定也不扫 PII）；`READ_MODE` / `ADAPTER` /
+  `MODALITY` 与 `SHA256` 不依赖 inventory 行也校验（lint 13 新增 I）；`EXTRACTOR` 须是被派到该来源的 Phase 1 /
+  重派 / 摘录 / stub worker；`## PII` 恰好一个且是最后一节；正文印着页码而 `PAGE_LABEL` 写 null 即 ERROR。
+- **PII**：`pii_rescan.py` 扫头部的值（只豁免十六进制 `SHA256`）与 `## PII` 尾注，提前出现的 `## PII` 不再让其后
+  正文免扫；身份词表改为每个 Phase 1 worker 一份 `raw/_identity_denylist/<worker_id>.json`（整份写，不追加共享文件），
+  任一份无法解析即 ERROR（此前静默失效）；报错行只打印类别与遮蔽后的片段，不再回显号码或姓名。SKILL.md 新增
+  **Step 12.5**：整理收尾前派 `pii-rescan-prompt.md` 语义复扫（sidecar + 合成面 + 交付面），发现交 Phase 1 单文件重派或
+  Phase 2 新的 `run_mode: pii_remask`（phase2 §13），干净后由 `write_organize_meta.py --pii-layer1 <worker_id>` 记入
+  `organize_meta.json.pii_layer1_scan`，验收门检查它（DoD 3 可在磁盘上核对）。
+- **不确定字段**：`## 不确定字段` 条目 8 个键全写；`cross_doc_supported` 形状与 refs 一致；读数通道须是头部的通道；
+  候选列表由新脚本 `scripts/lexicon_candidates.py`（phase1 §5 规则 1–5）算出，校验器重算比对，规则 6 只许一个替换/追加
+  且须由 `cross_doc_supported` 所引的行支撑（此前部分读数的 `high` 上限 `medium` 也未执行）；每个
+  `[OCR_UNCERTAIN:U-nnn]` 都须有 flag 引用；高风险字段（`field_class` 非 `other`）的 legibility flag 没有他页支撑即须
+  red；schema 钉死 contradicted → red、`missing_pages` → completeness/red、`source_recency` → completeness/yellow；
+  一条 flag 只写一个字段。合成夹具的 U-001 改为 `stage`、RF-001 改为 red。
+- **检验列配对**：`pair_lab_columns.py` v2——`--tsv` 由脚本按词框坐标聚行、按表头定列（`bbox` 值只来自脚本）；带
+  ↑↓/H/L 的结果、滴度、阴性/阳性/2+、中文单位（个/HP、秒）可识别，印刷标记记为 `flag_glyph`、不进 `report_flag`；
+  数值区有无法归类的串即拒配；跨行项目名只在括号未闭合或下一行以括号/“数字（”开头时合并，单值只给一行未合并的项目；
+  合并改为线性（4 万行 0.1 秒）。新门 `gate_lab_pairing`：labs.json 逐项等于 sidecar `## 列配对` 记录（```json，脚本
+  输出 + `input`），`raw/` 在场时用脚本重算 `input`；位置配对须有 legibility/yellow flag、拒配须有 artifact/red flag。
+  合成夹具的检验 sidecar 补上记录与 flag（`raw/_extract` 输入由 `synlib.make` 写进测试副本，仓库忽略 `raw/`）。
+- **缺页、时效、日志、清单**：同一组内份数不均（第 1 页两份、第 2 页一份）报为缺页并说明可能是重复拍摄；页码语法
+  补上括号、頁、`x/y页`、`P x/y`、`页码：x/y`、无分号的多页标签；机构段去掉 `s004-1` / `in-003` / 行自身的 source_id；
+  每个缺页组须有 completeness/red flag，`pages_present` 一并核对。`as_of_run_date` 只能是本次（最后一次对账输入的）
+  运行日期，来源日期晚于它即 ERROR；超 14 天的提示须是整句原文并配 completeness/yellow flag。超时的 Phase 1 worker
+  须逐文件单独重派（夹具改为单文件 retry worker）。`skipped_inputs[].input_ref` 只收 `skip-` / `in-` 句柄或 `sNNN`，
+  `digest_of.archive_ref` 只收 `PT-` 代码；`inventory_hash.py` 只忽略钉死的 `raw/` 基础设施名、符号链接记为
+  `symlink` 跳过而不跟随、`.nii.gz` 等单文件压缩照常入库。桶白名单不再接受临床域下的 `raw/` `ocr/`、深于两级的目录
+  与桶内原件。
+- **文档**：phase1/phase2/段D/PII 提示词写入以上规则与 `skill_dir` 参数（worker 的工作目录不是 skill 目录）；
+  phase2 §4.0 写明旧版档案上的非升级运行不新建 `acute_findings.json`、v1 日志条目或 `organize_meta.json`；
+  `molecular.schema.json` 的 HLA 示例、phase2 的检验示例值、评测场景 org-09/org-10/org-12 改用虚构值与部位；段D
+  “病情概要首句列出 emergent/urgent 发现”现由校验器检查。
+
+### Changed — organize 三例回归迭代：不确定度分级、急性发现、检验列配对、缺页与资料时效、给药场景、旧档案摘录、执行纪律 (2026-09-25)
+
+三例真实病例回归暴露的共同根因不在措辞，而在数据模型与执行纪律：整理层只标“不确定”、不分类型、
+不给读数；急性/附带发现只留在 sidecar 正文；检验表一旦疑似错位就整表丢弃；缺页与资料时效没人检查；
+用药没有给药场景；更新型病例没有正式的旧档案入口；worker 卡住后编排者自己动手写 sidecar 和 JSON。
+本条目同时记录提示词、契约与文档侧，以及 schema、确定性脚本、验收门与测试侧。
+
+- **O-01 不确定度分级**：review flag 新增必填 `kind`（`legibility|artifact|document_intent|conflict|completeness|other`）
+  与 `severity`（`red|yellow|info`），可选 `cross_doc_supported`、`uncertain_ids`。**`severity` 是抽取与档案
+  完整性的不确定程度，不是临床严重度**（`profile-card.md`、`organize-contract.md`、`patient-profile-schema.md`
+  同步写明）。独立复读的定义钉死：两次读取的通道类别不同且都不是 `llm_vision`——大模型看图永远记
+  `INDEPENDENT_REREAD: false`，两个 OCR 引擎同类也不算独立。不确定字段写成 `字面读数[OCR_UNCERTAIN:U-nnn]`，
+  sidecar 的 `## 不确定字段` 块（位于 `## PII` 之前）记录各通道原始读数、只取自
+  `references/lexicons/*.txt` 的候选及其机械置信度、`cross_doc_supported`、`layout` / `layout_intent`；
+  候选是读数不是更正值，永不进结构化值位；个人信息字段不建条目。删除线等版面观察只有两次独立读取
+  一致才可记为 `document_intent`，否则降为 `artifact`：“版面异常，字面读作 X”。下游契约：未确认的
+  `document_intent` 与含 `[OCR_UNCERTAIN:*]` 的字段不得作为分期、病理、治疗推理的前提
+  （`PATIENT_DIR_CONTRACT.md` §5 (c)）。
+- **Sidecar 头部契约**：恰好 12 个键，按序 `SOURCE, FILE_ID, EXTRACTOR, PRIMARY_CHANNEL, SECOND_READ_CHANNEL,
+  INDEPENDENT_REREAD, READ_MODE, ADAPTER, CONFIDENCE, SHA256, PAGE_LABEL, MODALITY`；`EXTRACTOR` 是 worker
+  标识而不是引擎名；`CONFIDENCE` 按规则判定。原件路径与适配器临时文件不再写进头部。
+- **O-02 急性与附带发现**：新增 `references/acute-findings.md`（`finding_class` → 默认 `acuity` 固定表，只允许
+  三种来源用词调整：危急值标记上调、原文紧急用词上调、原文“陈旧/慢性”下调；单独的“无显著变化”不下调）。
+  `acute_findings.json` 每次运行都写（无发现为 `findings: []`），每条发现在 timeline 有一条
+  `category: "acute_finding"` 事件并双向链接；`change_vs_prior` 只做逐字映射，不归纳为进展或好转。
+  登记单位是“一个病灶/部位/血管的一个发现”：一句话写了两处血栓就登记两条，各自映射比较用语。
+  编排者在展示速查清单之前先展示 emergent/urgent 发现；段D 在页面上方“病情概要”首句列出它们
+  （只用标签与日期），完整原文放在 caveats 最前面。
+- **O-03 检验列配对（逐列解释）**：优先坐标或表格结构；只有线性文本时交给 `scripts/pair_lab_columns.py`，
+  规则按**逐列**解释：**项目数 = 数值数 → 数值按位置配对为 `candidate_value`（`pairing_method:
+  linear_position`，`value` 必须为 null）；单位、参考范围、标记三列各自计数，只有等于项目数才配，否则
+  该列整列置空并记录计数；项目数 ≠ 数值数 → 全部拒配。** 迭代文档原文“四列计数一致才配”若按四列
+  全等实现，会把“数值齐全、只少印一个单位”的检验单整表拒配，与迭代文档对这类检验单的验收期望（数值
+  全部给出）矛盾，因此采用逐列解释。对应的两条负向样本：缺一个数值（8/7）→ 全部拒配（即迭代文档“缺一列必须拒绝
+  配对”）；缺一个单位 → 数值照配、单位列置空并记计数。箭头误识字形不计入数值列；`raw_value` 只放原串，
+  说明写 `pairing_note`；候选值不进入趋势和患者摘要。
+- **O-04 缺页与资料时效**：`PAGE_LABEL` 逐字抄写（一份 sidecar 含多页时每页一条、以“；”分隔），Phase 2
+  在搬迁之后运行 `scripts/page_completeness.py <patient_dir>`，按“日期 + 文书类型目录 + 机构 + 印刷总页数”分组
+  检查印刷页码的连续性（同名 sidecar 以 `_<file_id>` 区分，不再用 `_2`，否则同一文书的几页会被拆成不同组），缺页写 `missing_items.json` `gap_type: missing_pages`（`severity: red`，`pages_present`、
+  `pages_missing`、`page_total`）并加 `completeness` flag；同页号重复是重复件不是缺页。`scripts/source_freshness.py`
+  以原件报告日期写 `latest_source_date` / `days_since_latest` / `as_of_run_date`，**超过 14 天**（恰好 14 天
+  不告警）写 warning 与 flag。开跑前必问“是否已有比本次更新的资料”，更新型病例按 sha256 与上一版输入
+  清单比对。询问话术仍按 `gap-followup.md`，不因 `severity` 改变。
+- **O-05 给药场景**：用药新增必填 `administration_setting`，本版只有两条判定规则——日间单元且静脉/肌注或
+  带“配”标记 → `day_ward`；“出院带药”标题之下 → `discharge`；其余一律 `unknown`（`inpatient` / `long_term`
+  为预留值）。`setting_basis` 逐字写依据，可选 `order_role`；抗肿瘤药同时写进 `treatment_lines`，不产生线次。
+  治疗事件新增 `status` / `status_basis` / `status_basis_text` / `status_as_of`，只按来源用语登记；`line_number`
+  只在原文写明线次时填写。
+- **O-06 旧档案摘录**：仅在用户明确授权后，由 Phase 1 摘录 worker 从旧档案已脱敏 sidecar 写一份摘录，
+  归入新 pinned 子桶 `03_病程与叙事文书/既往档案摘录`（en `prior-archive-digest`），`source_kind:
+  prior_archive_digest`、`raw_path: null`、`digest_of` 必填，事实层为 `prior_archive`，只作既往史，
+  不进当前状态、不作建议依据；摘录不是上传，不参与上传对账。
+- **O-07 输入清单与自述并列**：`source_inventory.json` 记录 sha256、字节数、页数、`page_label` 与
+  `skipped_inputs[]`（去标识句柄 + 原因）；患者自述与原件在时间线并列，共享 `conflict_group`，自述数值
+  不写进检验单。
+- **O-08 人口学**：`profile.json.demographics`（`sex`、`age`、`age_as_of`、`performance_status_verbatim[]`）
+  从 `patient_summary.json` 复制；体能状态逐字保留、按原文标签填 `scale_label`，不换算量表。
+  HLA 分型写入 `molecular.json.hla_typing[]`。
+- **O-09 执行纪律**：抗压缩不变量写明只有 Phase 1 worker 写 sidecar、只有 Phase 2 worker 写结构化 JSON，
+  编排者任何情况下不手写、不脚本批写；存活规则为 10 分钟无新产物写入或连续 30 次只读工具调用即终止，
+  Phase 1 改派单文件 worker、Phase 2 重派一次（从 `.rename_plan.json` 续做），再失败由 stub worker 写
+  `[INGESTION_BLOCKED: timeout]` 并停下报告，全部记入 `update_log.json` 的 `workers[]` / `degradations[]`。所有 stub
+  都以 `## PII` 尾注结束；worker 主动让出的 `in_progress_timeout_risk` stub 不算完成，一定改派单文件 worker；
+  头部不合规的 sidecar 不算完成，由 Phase 1 重新转写。扫描件的默认确定性通道为 tesseract TSV（本 skill 不附带
+  其他 OCR 脚本）。Phase 2 先写 `.rename_plan.json`，每条
+  路径经 `scripts/check_bucket_path.py` 预检后才 `mkdir`/`mv`。忠实度复核后的 flag 与摘要修订改由
+  Phase 2 `faithfulness_patch` 模式完成。收尾调用 `scripts/write_organize_meta.py` 写 `organize_meta.json`，
+  供 SMTB 记录上游版本。
+- **update_log 与确认门**：`update_log.json` 只有 `update_log.schema.json` 的条目形状；段C、段E、上传对账等确认门
+  的记录改由执行写入的 worker 追加（`at` 取代 `ts`，`note` 记 actor 与用户逐项确认的原话），编排者不写
+  update_log；段E 的删除与移回由新的 Phase 2 `relevance_disposition` 模式执行；“暂不重新生成病情简要总结”
+  不再写 `case_summary_stale`，下次会话按同一检测规则再问（`references/confirm-gate.md` 同步）。
+- **旧档案升级**：本轮之前整理的档案没有 v1 update_log，sidecar 也没有新头部。第一次更新时以 `run_mode: legacy_upgrade`
+  （最初写作 `run_mode: full` + 布尔参数 `legacy_upgrade`，见下方回放修复）从档案自己的 `raw/` 重新转写全部原件，旧桶、旧 update_log 与被重写的根目录产物整体移到
+  `raw/_legacy_<ts>/`（保留不删；放进受控的 `raw/`，因为旧的清单、日志与旧 sidecar 头部可能带原上传文件名），`conversation_notes/`、`alias` 与对话自述记录带回；此后按 sha256 做增量比对。
+  `source_inventory.json` 的版本键 `schema` 必须写 `source_inventory_v2.1`；当前契约档案里写成旧值是“混合版本档案”错误（不再是宽松读取）。
+- **分级细则**：sidecar 不确定条目带版面异常（`layout` 非 `none`）时，flag 只能是 `artifact` 或（两次独立读取一致时）
+  `document_intent`，不归入 `legibility`；词表候选改为规整后编辑距离（≤ 3 字符的条目阈值 1，其余 2）、按距离与
+  命中读数个数排序取前 3 的机械规则。段D 中带不确定标记的分期不再置空（否则核心完整性检查判为丢失），改写
+  “待核对（字面读作 X）”。用药行必填 `medication_id`（`MED-001` 起），普通文书缺口的 `severity` 为 `info`。
+- **契约与文档**：`PATIENT_DIR_CONTRACT.md` 把 smtb-skill 列为消费方并删去不存在的 vmtb 镜像声明，新增
+  消费方必须遵守的七条规则（§5 (c)–(i)）；三个阶段提示词写回被掏空的操作细则（恢复的只有与“确定性优先”一致的
+  部分：表格一行一绑定、剂量二读、规则化 CONFIDENCE、返回 JSON、覆盖检查、写前分桶计划、update_log；
+  “大模型是唯一字符来源”“按来源优先级裁决”“建议值/用户确认”等旧段落不恢复）。`SKILL.md`
+  68.6 KB → 40.4 KB（≤ 50 KiB；两轮审查修复后 44,717 字节，约 43.7 KiB），删去 11 处悬空引用。`CONTRIBUTING.md` 的一键测试循环不再无参调用
+  `scripts/validate-profile-schema.sh`。
+- **版本策略**：获得必填新字段的 schema 升为 `"2.1"`（`patient_summary` 为 `"2.2"`），新字段只对新版本必填；
+  旧版本号的档案校验只给 warning，不再判失败。
+- **Schema 版本清单**：`readiness` / `timeline` / `labs` / `comorbidities` / `treatment_lines` / `missing_items` /
+  `molecular` `"2"` → `"2.1"`；`patient_summary` `"2.1"` → `"2.2"`；`source_inventory` 的 `schema`
+  `source_inventory_v2` → `source_inventory_v2.1`；新增 `acute_findings.schema.json`（`"1"`）、封闭的
+  `update_log.schema.json`（`"1"`，可选顶层 `patient_code` 与条目 `outputs[{file, sha256}]`）、
+  `organize_meta.schema.json`；七个带来源层的 schema 的 `provenance_layer` 枚举加 `prior_archive`（加值不升版）。
+  旧版本号经 `validate_structured_outputs.LEGACY_SCHEMA_VERSIONS` 用内存中放宽的 schema 读取（只去掉后加的必填
+  字段，封闭形状、类型与枚举照旧），只报 WARN。档案一旦属于当前契约（`readiness.json` 为 `2.1`，或存在
+  `organize_meta.json`），v2.1 各项检查从 WARN 变为 FAIL，任何结构化文件残留旧版本号都是“混合版本档案”错误，
+  按新 schema 严格校验——不能靠写旧版本号绕过新必填字段。
+- **确定性脚本与验收门**：新增 `scripts/inventory_hash.py`（sha256 / 字节数 / 页数 / `skipped_inputs[]`，stdout 只有
+  `in-NNN` / `skip-NNN` 句柄，原名映射只写进 `--mapping-out` 指定的 `raw/_…` 文件）、`pair_lab_columns.py`（逐列
+  配对）、`page_completeness.py`（印刷页码分组与缺页）、`source_freshness.py`（资料时效）、`check_bucket_path.py`
+  （写前桶白名单，终态门导入同一函数）、`write_organize_meta.py`。`validate_structured_outputs.py` 新增 v2.1 门：
+  急性发现 ↔ timeline 事件一一对应、`source_ref` 行锚点逐字绑定、固定表核对 `acuity`；sidecar 头部封闭 12 键块、
+  `EXTRACTOR` 必须是 `update_log` 中的 worker 且不得是编排者保留名、`llm_vision` 复读永不独立、头部与 inventory
+  行一致；不确定度记账（`[OCR_UNCERTAIN:U-nnn]` ↔ `## 不确定字段` 条目、候选必须是词表整行、`document_intent`
+  须有两次一致的独立读取）；缺页全部登记；时效三字段按真实运行日期重算；每个原件入账或有跳过理由；旧档案摘录
+  不进当前状态；`update_log` 形状与超时/终止 worker 的降级记录；`conflict_group` 至少两个事件、
+  `medication_refs` 可解析、抗肿瘤用药同时是治疗事件；`profile.json.demographics` 与 `patient_summary` 一致。
+  新增 `--readonly`：非 organize 本身的检查（下游、审计、回放）不写档案。合成夹具在
+  `tests/fixtures/organize-regress/`（数值、日期、机构全部虚构），每个新门都有正向对照与单点突变的负向测试。
+- **经批准的行为变化**（相关旧测试随之调整）：`update_log` 新鲜度检查从文件 mtime 改为 sha256（`inputs[]` 对
+  `source_inventory.json`，可选 `outputs[]` 对产物），没有哈希的旧日志只 WARN；lint 07 钉死的 readiness 版本
+  字面量 `"2"` → `"2.1"`，并要求旧版读取路径仍然注册；不可信内容扫描门此前传错参数、实际从未运行，现在真正
+  运行并把命中合并进 `readiness.json.review_flags[]`（按 `category` + `affected_field` 去重，写前先过 schema）；
+  PII 形状复扫跳过 sidecar 头块（只认已知键，未知的 `KEY:` 行照正文扫描），扫描前遮蔽十六进制摘要（sha256
+  等），不再把哈希误报为长数字编号。
+- **集成期对齐（提示词与共享文档对照合并后的脚本复核）**：`PAGE_LABEL` 无页码统一写 `null`（多页 sidecar 中无
+  页码的那一段同样写 `null`，缺页检查记为部分无页码）；编排者用 `inventory_hash.py --mapping-out
+  <patient_dir>/raw/_INPUT_HANDLES_<ts>.json` 固定句柄表并作为 `input_handles` 交给 Phase 1（句柄按整次扫描编号，
+  worker 不再自行重跑对句柄）；`update_log` 条目的 `workers[].files` 只列该 worker 被派到或写出的来源（Phase 2
+  综合 worker 为 `[]`），`status: timeout|killed` 必有 degradation，建议记录 `outputs[]`；段C 对话条目写
+  `inputs: []`（不再照抄旧条目），比对“上一版输入”一律取最后一个 `inputs` 非空的条目；`source_freshness.py`
+  必须显式传 `--as-of <as_of_run_date>`，`as_of_run_date` 与本次条目 `at` 同日，超 14 天的 warning 原样照抄脚本
+  文字；治疗事件写明 schema 钉死的组合（`ongoing` ⇒ `status_as_of` 非空且依据不是 `none`；依据 `none` ⇒
+  `unknown`；四类依据须有原文），家属/本人陈述以陈述提交日期为 `status_as_of`；`document_intent` flag 的机械
+  条件（所引 sidecar 全部 `INDEPENDENT_REREAD: true`，`uncertain_ids` 指向有两次一致独立读取的条目）；增量运行
+  也要把残留旧版本号的结构化文件按当前 schema 重写；收尾先写 `organize_meta.json` 再跑终态验收门，终态门不加
+  `--readonly`，其余检查一律加；DoD 的 `template_sha` 改为取自段D 返回值（验收门本身不回显它）；根目录
+  `references/preflight.md` §4 写明未确认 `document_intent` / `[OCR_UNCERTAIN:U-nnn]` 字段不作推理前提、
+  `prior_archive` 只作既往史、flag `severity` 不是临床严重度，§5 把 `acute_findings.json` 的 emergent/urgent
+  行接到急症路由；`safety-guardrails.md` 同步急性发现的展示口径并更正失效的章节引用；
+  `patient-profile-schema.md` 写明 `demographics` 在当前契约档案上必填（两道门都会拒绝缺失或与
+  `patient_summary` 不一致）、`patient_summary` 版本为 `2.2`；`PATIENT_DIR_CONTRACT.md` §6 要求消费方以
+  `--readonly` 调用验收门。
+
+- **sidecar 头部门钉死取值（验收门）**：`validate_structured_outputs.py` 的 sidecar 头部门要求恰好 12 个钉死键、按序、
+  不重复、不混入旧键（`ADAPTER_PROVENANCE`、`ORIGINAL…` 等）；`SOURCE` 必须是 18 种文书类型之一；
+  `PRIMARY_CHANNEL` / `SECOND_READ_CHANNEL` 只能是 `text_layer|table_parser|deterministic_ocr:<engine>|barcode|human|
+  llm_vision|prior_archive_sidecar|none`；`INDEPENDENT_REREAD` 两个方向都按机械规则校验（该写 true 却写 false 同样报错）；
+  `CONFIDENCE` 只能是 `low|medium|high` 且按规则推导（有不确定字段或 stub → `low`；有独立复读 → 不得写 `medium`；
+  没有独立复读 → 不得写 `high`）；`READ_MODE: hybrid_verified` 必须有独立复读；`FILE_ID` 等于清单 `source_id`，
+  `READ_MODE` / `ADAPTER` / `MODALITY` / `PAGE_LABEL` 等于清单行（`PAGE_LABEL` 的 `none` ↔ `null`）；旧档案摘录行
+  `SOURCE` 为 `prior_archive_digest`、主通道为 `prior_archive_sidecar`，也只有摘录行可以这样写。`source_inventory.schema.json`
+  的描述同步写明这些头部 ↔ 清单绑定。
+- **`profile.latest_status` 绑定在治疗程**：必须等于 `status: ongoing` 疗程的 `regimen` + `status_as_of`，没有在治
+  疗程时为 null（`validate-profile-schema.sh` 同步钉死形状）。
+- **确定性脚本输出**：`pair_lab_columns.py` 新增 `single_value`（一个项目一个数值时直接给出 `value`）、顶层
+  `pairing_method` / `pairing_confidence`、`counts.results` 与逐列结论 `column_decisions`（`paired` /
+  `null_count_mismatch` / `refused_all`），sidecar 的 `## 列配对` 块照抄这些取值；`inventory_hash.py` 可以直接接收文件
+  列表（worker 的切片文件、旧档案的单个文件）。
+- **提示词契约 lint**：新增 `tests/eval/lint/13-organize-prompt-contracts.sh`（SKILL.md 体量 ≤ 50 KiB、词表每行一个
+  词、phase1 §3 头部 12 键顺序与 `SOURCE` 列表等于校验器、`acute-findings.md` §3 表 ↔ schema 枚举 ↔ 校验器固定表）
+  及其变异测试 `tests/unit/organize-contract-lints.test.sh`；评测场景 org-07…org-12；`tests/eval/README.md` 列出
+  lint 10/12/13。合成夹具的 sidecar 头部改写为钉死值并重新生成。以上新门只对当前契约档案生效，旧档案只 WARN。
+- **回放修复（LLM 回放暴露的提示词与契约缺口；organize 提示词与文档侧）**：三例 organize Phase 2 部分回放显示，同一份
+  提示词在几处可以被读成两种结果。逐条收紧（schema 与校验器侧的对应字段由同轮 schema/脚本改动提供，字段名与之
+  逐字一致）：
+  - **急性发现分类**（`acute-findings.md`）：内镜/活检中的“接触性出血”不登记；“梗阻/闭塞/完全阻塞”才是
+    `obstruction`，“阻塞性炎症/阻塞性肺不张”登记为 `other_source_flagged`（incidental，原文写新发或较前加重时按
+    `source_wording_escalation` 升为 urgent），食管/支气管“狭窄”未写梗阻不登记；积液写“大量”或“较前增多”才是
+    `effusion_large_or_increasing`，没写量也没比较、少量且稳定或较前减少的积液改为登记成 `other_source_flagged`
+    （**行为变化**：此前不登记，现在保证可见但不升级）；间质性改变、药物/免疫/放射相关肺炎、未写病原的双肺或多发
+    炎症 → `pneumonitis_ild_suspected`；“骨皮质扭曲”未写骨折 → `other_source_flagged`，“陈旧性”骨折按
+    `source_wording_chronic` 下调；“请结合临床”只登记影像/检验中依附于具体所见的那句，病理签发套话与胚系检测免责
+    建议不登记；“建议随访/复查/超声/CTA” → `other_source_flagged`；病历复述的报告结论只在原报告不在档案中时以病历为
+    来源登记一次（timeline 取病历日期、`date_precision: approximate`）；同一报告拆成几个 sidecar 算一份，复合部位
+    列举登记一条；病理只印收到/签发日期时 `exam_date` 为 null；单独登记的危急值/临床重要结果通知写
+    `acuity_basis: source_critical_flag`，不抄通知人姓名与电话；外文报告的 `verbatim_text` 取外文原句；比较用语表
+    `stable` 行补“无明显变化 / 未见明显变化 / 较前变化不大”。`finding_class` 枚举、默认 acuity 与 `acuity_basis` 枚举
+    不变。
+  - **治疗与用药**（phase2 §5.2/§5.3/§5.7）：周期不是线——同一方案的各周期合并为**一个** episode（`started_at` 取首程），
+    周期写法进可选 `cycle_label_verbatim`，`documented_line_label` 只收带“线”字的原文；在治判定只用当次就诊记录的
+    现病史/诊疗计划，不用后续病历照抄的旧句；同日几页周期序号矛盾写 conflict flag，状态仍可为 ongoing。**行为变化**：
+    没有落款日期的家属/本人自述（“这个方案现在还在用”）不再借用本次运行日期，改写 `status_as_of: null` +
+    `status_as_of_precision: "undated_self_report"`（`status_basis: patient_reported`）。叙述里提到、没有医嘱行的抗肿瘤药
+    只进 treatment_lines，不进 `medications[]`；影像申请单指征里的在用药照写用药行并链接疗程；`order_role` 给出判别
+    （冲管/溶媒 → `diluent`，输注前抗过敏/止吐 → `premedication`，“必要时”口服止吐/护胃 → `supportive`）；
+    `profile.json.latest_status` 新增 `status_basis`（原样复制在治疗程的 `status_basis`），只读 profile 的下游不会把
+    申请单指征当成给药记录。
+  - **不确定度与 flag**（phase1 §2/§5/§6，phase2 §2/§6.1）：`layout` 加 `shadow_stain_fold`（阴影/污迹/折痕/纸面弯曲，
+    归 `artifact`）；`field_class` 加 `diagnosis_text` / `regimen_connector` / `cycle_number`（都不给词表候选）；只读出
+    部分字符的读数写 `?`（如 `4L?`），此时候选置信度最高 `medium`；本切片他页的清楚读法若是词表条目必须进候选；
+    `cross_doc_supported` 以本处任一通道读数或候选为准判 supported，与全部读数和候选都不相容判 contradicted（red）；
+    一条 flag 只对应一个字段；`current_source_values[]` 的逐通道读数带可选 `channel`；高风险字段补方案连接符、周期
+    序号与病理申请单上的临床诊断；§6.1 补行——高风险字段只有自述来源 → `other`/yellow，不同日期原件对时不变字段
+    矛盾 → `conflict`/red，报告写明的对照检查不在档案 → `completeness`/info，方法学或护栏说明不写 flag、写进
+    `warnings[]`；`conflict_group` 也可用于原件对原件；**锚点缺口改为 `other`/red**（此前与机构待核实同为 yellow：
+    没有锚点的事实不能当作已确认值使用）。行号一律按 `str.splitlines()` 计，Phase 1 把换页符等断行字符写成换行；
+    外文原件按原文语言转写，正文不写 worker 评论。
+  - **运行模式与版本**：新 `run_mode: legacy_upgrade` 取代 `run_mode: full` + 布尔参数 `legacy_upgrade`（**行为变化**），
+    总是 Phase 1 全部重新转写 + Phase 2 全量运行；旧版档案上只重跑 Phase 2 时保持旧版本号、不转换旧日志、不写
+    `organize_meta.json`，不存在“只升一部分”的升级。旧版检验 sidecar 没有 `## 列配对` 块时，Phase 2 可对其线性
+    文本运行 `pair_lab_columns.py` 写候选值；sidecar 里编排者写的“不要配对”之类注释不是本 skill 的规则。资料时效
+    警示全仓只有一种写法：`source_freshness.py` 的 `STALE_WARNING_TEMPLATE`（phase2 §6.2、SKILL.md Step 8、段D caveat、
+    `patient-profile-schema.md` 示例同步）；`as_of_run_date` 是运行的本地日期，`update_log` 的 `at` 是 UTC，校验器容许
+    ±1 天。HLA 的 `locus` 一律写裸位点字母，报告只写“杂合/纯合”时写 `allele: null` + 逐字 `zygosity`（不参与试验
+    匹配）；体能状态条目可选 `provenance_layer`，旧档案摘录中的 ECOG 陈述登记为 `prior_archive`、永不作为当前体能；
+    旧档案摘录必须在 `既往档案摘录` 子桶且 `source_kind: prior_archive_digest`，头部 `SHA256` 一律写 `none`，无头部
+    的摘录按旧版 sidecar 重写；phase2 §4.6 写明头部 ↔ 清单逐项相同的全部字段。段D 与契约的旧档案引用标注统一为
+    “来自既往摘要，原件未在本次资料中”；Phase 1 §7 的 `## 列配对` 块改用脚本的 `column_decisions` 取值与
+    `counts.*` 计数。
+- **回放修复（schema 与校验器侧）**：上一条提示词侧字段的机读对应，只对当前契约档案报 ERROR，旧档案只 WARN。
+  - **schema 可选字段（不升版）**：`treatment_lines` 的 `cycle_label_verbatim`，以及 `status_as_of_precision`
+    （`day` | `undated_self_report`）——`status: ongoing` 且 `status_as_of: null` 只允许 `status_basis: patient_reported`
+    + `undated_self_report` 这一种组合，写了这个标记就必须是 null + `patient_reported`；`molecular.hla_typing[]` 的
+    `locus` 为裸位点字母（`A`、`DRB1`），`allele: null` 只能与逐字 `zygosity` 同时出现，`resolution` 按字段数机械填写；
+    `performance_status_verbatim[]` 条目可选 `provenance_layer`；readiness `current_source_values[]` 可选 `channel`
+    （钉死的读取通道取值）；`update_log` 的 `run_mode` 写明 `legacy_upgrade`；`comorbidities` 的 `inpatient` /
+    `long_term` 标为保留值。
+  - **不确定条目词表**：`field_class`（新增 `diagnosis_text` / `regimen_connector` / `cycle_number`）、`layout`（新增
+    `shadow_stain_fold`）、`layout_intent` 只能取钉死值；只有 `drug_name` / `ihc_marker` / `ln_station` 有候选，且只从
+    各自的词表取；`high` 候选必须等于某个**完整**读数（距离 0）且与其余每个读数相差 ≤ 1，只读出部分字符的读数
+    （`4L?`，也识别 `[?]` / ？ / □ / U+FFFD）不能让候选成为 `high`，`text: null` 的通道不算读数；`kind: legibility` 只用于
+    `layout: none` 的条目。
+  - **行号口径**（`line_breaks:`）：本契约写出的 sidecar 不得残留换页符 `\f` 等只有 `str.splitlines()` 才断行的字符
+    （否则 `#L` 锚点与 `cat -n` 行号错位）。
+  - **运行模式**：`run_mode: legacy_upgrade` 与 `full` 一样把全部 sidecar 纳入头部检查；混合版本与旧档案提示都指向
+    `legacy_upgrade`；旧版档案上只重跑 Phase 2、保留旧版本号的档案仍走旧档案 WARN。
+  - **旧档案摘录**：只引用摘录的体能陈述必须是 `provenance_layer: prior_archive`；`source_kind`、`既往档案摘录`
+    子桶与头部 `SOURCE` 三处标记必须一致；无头部的摘录按旧版 sidecar 给 WARN。
+  - **在治快照**：`profile.latest_status.status_basis` 必须等于在治疗程的 `status_basis`；`as_of` 只有未注明日期的
+    自述形态才可为 null（`scripts/validate-profile-schema.sh` 同步）。
+  - **update_log 新鲜度**：每个产物与**所有条目中最近一次记录它的** `outputs[]` 哈希比对（段C 条目不再引发“档案外改动”
+    误报）；不可信内容 flag 回写后同步更新那一条的哈希。
+  - **资料时效**：`STALE_WARNING_TEMPLATE` 是唯一的告警句，脚本回退日期取本地日期，时效 ERROR 引用这句话并说明
+    ±1 天容差。
+  - **AGENTS.md**：`acute_findings.json` 的阅读顺序行与领域表行成为 `fill_agents_md.py` 的必需锚点（改模板这两行
+    必须同步改脚本）。
+- **第三轮收尾（跨包请求核对后落地）**：
+  - **摘录头部 `SHA256` 只能是 `none`**：当前契约档案里旧档案摘录 sidecar 的头部 `SHA256` 写成任何哈希（包括“被摘录
+    档案的哈希”）或占位值都是 ERROR（**行为变化**：此前也接受 64 位十六进制）；旧档案不检查。
+  - **锚点缺口的分级**：`category: anchor_coverage_gap` 的 flag 必须是 `kind: other`、`severity: red`（phase2 §6.1）；
+    `schemas/anchor-contract.md` 改为直接写 `red`（§6.1 现在有两行 `other`）。
+  - **半升级陷阱**：`update_log.json` 为 `schema_version "1"`、没有任何 `full` / `legacy_upgrade` 条目，而桶内有不带
+    钉死头部（无 `EXTRACTOR`）的 sidecar——说明只重跑了 Phase 2 却写了 v1 日志，下一次 Step 1 会误以为已经升级、跳过
+    `legacy_upgrade`。旧档案给一条 WARN；当前契约档案里**没有任何** sidecar 是本契约写出的则为 ERROR（部分 sidecar
+    沿用旧转写的情形仍是原有的 carried-over WARN）。
+  - **SKILL.md Step 17**：旧版档案上只重跑 Phase 2 的运行不调用 `write_organize_meta.py`（该文件一出现档案就被判为
+    当前契约），DoD 第 6 项同步写明例外；phase2 §5.3 写明未注明日期的自述形态下 `patient_summary.current_status.as_of`
+    同样为 null。
+  - **提示词契约 lint 13 新增 F/G**：F——SKILL.md 也纳入逐行扫描，phase2 §6.2 的 ```text 块与 SKILL.md Step 8 必须原样
+    含 `STALE_WARNING_TEMPLATE`（带 `{latest}` / `{days}` 占位），根目录 `patient-profile-schema.md` readiness 示例的
+    `warnings[0]` 必须是用该示例自己的日期与天数填好的模板；G——phase2 §0 的 `run_mode` 列表必须含
+    `FULL_RUN_MODES` 的全部取值，SKILL.md 与 `references/**/*.md` 不得再写已废弃的布尔参数
+    （`` `legacy_upgrade`（布尔 `` / `legacy_upgrade: true`）。变异测试同步：E 组改用当前提示词的注释行（此前两条变异
+    因提示词措辞变化而落空，检查实际没被触发）。
+  - **测试**：`organize-replay-fixes.test.sh` 增加锚点缺口、半升级陷阱、B7 反方向绑定，以及体能条目
+    `provenance_layer: prior_archive` 与逐通道 `channel` 在完整校验器和 `validate-profile-schema.sh` 上端到端通过
+    （profile 与 patient_summary 仍逐项相等）；评测场景 org-13…org-22（合成输入）覆盖本轮回放修复的判读边界：
+    接触性出血、阻塞性炎症、未定量积液、签发套话与胚系免责、病历复述去重、周期与照抄句、未注明日期的家属陈述、
+    HLA 只有杂合、部分读数与他页清楚读数、折痕阴影压住剂量。
+
+#### 与 `feat/organize-v3-multimodal-transcribe` 的对应关系（Relation to feat/organize-v3-multimodal-transcribe）
+
+本轮以 `main` 为基线，未合并 v3 分支（v3 未跑端到端验证）。两者重叠处的对应与合并代价：
+
+| 主题 | 本轮 | v3 分支 | 合并时怎么处理 |
+|---|---|---|---|
+| flag 分类 | `kind`：`legibility` / `artifact` / `document_intent` / `conflict` / `completeness` / `other`，加 `severity` | 封闭 `category`：`transcription_disagreement` / `ocr_artifact` / `source_conflict` / `coverage_gap` / `untrusted_content_marker` / `pii_semantic_deferred` / `source_faithfulness` / `other`，加必填 `audience` | `legibility`≈`transcription_disagreement`，`artifact`≈`ocr_artifact`，`conflict`≈`source_conflict`，`completeness`≈`coverage_gap`，`other`≈`untrusted_content_marker` / `pii_semantic_deferred` / `source_faithfulness`；`document_intent` 是本轮新增，v3 无对应。`audience` 与 `severity` 正交，可并存 |
+| update_log | `{schema_version:"1", entries:[{at, run_mode, workers[], inputs[{source_id, sha256}], added[], removed[], degradations[], note}]}` | `{runs:[{run_id, run_mode, started_at, added_sources[{source_id, read_mode}], pii_semantic, faithfulness_method}]}` | 两者记录的是不同维度（本轮：新鲜度按输入 sha256 判断，sidecar 来源按 worker 标识核对，另记 worker 降级；v3：语义 PII 与忠实度方法）。合并需要统一成一个条目形状，并迁移已有档案 |
+| 页完整性 | 读页面上**印刷的**“第 x 页，共 y 页”，按日期 + 文书类型目录 + 机构 + 总页数分组找缺页（档案缺了原件的某一页） | 按渲染页计：每个可读渲染页都必须有转写（转写流程丢页） | 两者互补，不互相替代，合并时应同时保留 |
+| 第二读取独立性 | 通道类别不同且都不是 `llm_vision` | “不同模型”也可算独立通道 | 口径冲突，合并前需要决定是否承认“另一个模型”为独立通道 |
+| 未覆盖 | — | v3 不含急性发现、检验列配对、给药场景、旧档案摘录、人口学、worker 超时降级 | 这些只在本轮 |
+
 ### Fixed — 年龄/体重/ECOG 是时点观测，跨年份取值不同不再被判成来源冲突 (2026-08-05)
 
 用户反馈：同一患者跨年份的多份报告一起 organize 时，年龄"没法自动随年份变化，会自动判别冲突"。
