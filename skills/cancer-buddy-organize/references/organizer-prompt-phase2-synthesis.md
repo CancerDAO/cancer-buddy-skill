@@ -335,8 +335,8 @@ sidecar → 桶；不写原上传名；**不改** Phase 1 的 `raw/_FILENAME_MAP
 - `extractor_provenance`：`engine`、`version`、`raw_output_ref`（指向 `raw/_extract/…`）、`llm_role`、
   `worker_id`（= sidecar 头部 `EXTRACTOR`）；
 - `second_read_channel`、`independent_reread`：照抄 sidecar 头部（`independent_reread` 写 JSON 布尔）；
-  `high_risk_review_status` 按 phase1 提示词 §2 的规则填写，`independent_reread: false` 时不得写
-  `passed_independent_reread`；
+  `high_risk_review_status` 与 `second_read_summary` 照抄 Phase 1 返回 JSON 的 `second_read[]`（`second_read_align.py`
+  的输出，phase1 §2.3、§4 G），`independent_reread: false` 时不得写 `passed_independent_reread`；
 - **头部 ↔ 清单行逐项相同**（校验器逐项比对）：每行的 `source_id` / `read_mode` / `adapter` / `modality` /
   `page_label` / `second_read_channel` / `independent_reread` / `sha256` / `extractor_provenance.worker_id` 分别等于
   该 sidecar 头部的 `FILE_ID` / `READ_MODE` / `ADAPTER` / `MODALITY` / `PAGE_LABEL` / `SECOND_READ_CHANNEL` /
@@ -590,8 +590,9 @@ episode：`started_at` 取首程日期，`regimen` 逐字（取原文写法；�
 
 | 情形 | `kind` | `severity` |
 |---|---|---|
-| 不确定字段位于诊断、分期、病理、药名、剂量、日期、分子、免疫组化、淋巴结站别等高风险字段 | `legibility` | `red` |
-| 同上，且他页清楚读数等于本处某个通道读数或候选（`cross_doc_supported.status: supported`） | `legibility` | `yellow` |
+| 值类高风险字段两读冲突（`field_class` 为 date / number / unit / stage / drug_name / ihc_marker / ln_station / variant / regimen_connector / cycle_number） | `legibility` | `red` |
+| 诊断文字两读冲突（`field_class: diagnosis_text`） | `legibility` | `yellow` |
+| 以上任一，且他页清楚读数等于本处某个通道读数或候选（`cross_doc_supported.status: supported`） | `legibility` | 降一级（`red` → `yellow`，`yellow` → `info`） |
 | 他页清楚读数与本处全部读数和候选都不相容（`cross_doc_supported.status: contradicted`） | `legibility` | `red` |
 | 非高风险字段字迹不清；检验值按位置配对未核实 | `legibility` | `yellow` / `info` |
 | 污迹、阴影、折痕、纸面弯曲（`layout: shadow_stain_fold`）、裁切、印章压字、疑似划线等版面异常，影响高风险字段 | `artifact` | `yellow` |
@@ -612,9 +613,13 @@ episode：`started_at` 取首程日期，`regimen` 逐字（取原文写法；�
 | **仅旧版档案**：内容像旧档案摘录、但没有任何摘录标记的 sidecar（`category: prior_archive_digest_unrecognised`，每份一条；不从它新取事实，旧结构化文件里已有、只有它支持的值照 `legacy_value_unsupported` 保留，§4.0） | `other` | `yellow` |
 | 不可信内容标记（`UNTRUSTED-*`，由 `scan_untrusted_markers.py` 生成、校验器并入，§9） | `other` | 脚本定：最高命中为 high → `yellow`，其余 `info` |
 
-- **分级只看字段类别与旁证，不投票**：高风险字段（phase1 §2 的清单）的读数不一致，不按“多数通道一致”或“明显是某个
-  引擎的误识”自行排除，照表为 `red`，只有他页清楚读数支持（§2.5）时降为 `yellow`。非高风险字段字迹不清写 `yellow`，
-  有 §2.5 意义上的他页清楚读数支持时写 `info`。各通道一致读出、只是原文用字本身反常（错别字、少见写法）的，不是读取
+- **分级只看字段类别与旁证，不投票**：sidecar 里的 `[OCR_UNCERTAIN:U-nnn]` 已经是 `second_read_align.py` 三态判定后的冲突
+  （引擎读数过了置信度阈值、合乎语法、与转写不同）或 worker 补报的不可读/版面异常；照表分级，不按“多数通道一致”自行排除，
+  只有他页清楚读数支持（§2.5）时降一级。非高风险字段字迹不清写 `yellow`，有他页清楚读数支持时写 `info`。
+- **“无信号”不是 flag**：`## 高风险字段复读` 表里 `无信号` 的行（引擎没读出、置信度低、读数不合语法等）只说明这一处
+  只有单通道读取：**不写 flag、不建条目**，也不因此把字段置 null。每份有“无信号”行的 sidecar 只在 `readiness.json.warnings[]`
+  写一句：“<sidecar 相对路径>：N 个高风险字段中 M 个只有单通道读取”（N、M 取 `source_inventory.json` 该行
+  `second_read_summary` 的 `spans_total` 与 `no_signal`），不逐字段展开。各通道一致读出、只是原文用字本身反常（错别字、少见写法）的，不是读取
   不确定：不建条目、不改字；在高风险字段上可写一条 `kind: other`、`severity: info` 的 flag（“原文用字如此”）。
 - 报告写明、档案里没有的对照检查按**字段**计：同一份缺失的对照检查被两份报告引用，写一条 flag、引两份报告。
 - **方法学与护栏说明不是 flag**：“不同检测方法的结果不直接比较”“某药只见于申请单、没有给药记录”“这条事实只见于
@@ -639,7 +644,7 @@ episode：`started_at` 取首程日期，`regimen` 逐字（取原文写法；�
 - 校验器机械核对的行：`kind: conflict` 的 flag 一边是患者/照护者自述（`conversation:` 锚点或任何 `conversation_notes/` 下的记录，或 `SOURCE: patient_supplement` /
   `14_患者自管补充/` 下的 sidecar）、另一边只有一份原件 ⇒ `yellow`；`cross_doc_supported.status: contradicted` ⇒ `red`；`category: missing_pages` ⇒
   `completeness` / `red`；`category: source_recency` ⇒ `completeness` / `yellow`；`legibility` flag 指向的条目
-  `field_class` 不是 `other`（高风险字段）时，除非 `cross_doc_supported.status` 是 `supported`，一律 `red`；
+  `field_class` 是值类（上表第 1 行的十类）时，除非 `cross_doc_supported.status` 是 `supported`，一律 `red`；
   sidecar 里的**每个** `[OCR_UNCERTAIN:U-nnn]` 都有一条 flag 在 `uncertain_ids` 里列出它、并引用该 sidecar；
   **一条 flag 只写一个受影响字段**（`affected_field` 里不出现“、”“,”“;”）。
 

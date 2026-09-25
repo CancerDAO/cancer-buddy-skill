@@ -37,8 +37,12 @@ grep -q 'best_response' "$TX" && fail "legacy best_response field returned" || t
 grep -q 'source_inventory_v2' "$INV" || fail "source inventory does not require v2 extraction provenance"
 grep -q 'extractor_provenance' "$INV" || fail "source inventory lacks deterministic/native extractor provenance"
 grep -q 'high_risk_review_status' "$INV" || fail "source inventory lacks independent high-risk-field reread status"
-grep -qiE '不是.*唯一字符真值|不得.*唯一字符真值|not.*sole character' "$ORG/references/organizer-prompt-phase1-ocr.md" \
-  || fail "Phase 1 does not prohibit LLM-only character truth"
+# I-07 "the model is not the only truth": a pixel page's model transcription is the character truth (v3,
+# FIX_PLAN A1) and is never the only reading — a deterministic engine reads it a second time (script-run) and
+# every conflict becomes an uncertainty token.
+grep -qE '模型转写不是唯一读数' "$ORG/references/organizer-prompt-phase1-ocr.md" \
+  && grep -q 'second_read_align.py' "$ORG/references/organizer-prompt-phase1-ocr.md" \
+  || fail "Phase 1 does not require a deterministic second read of the model transcription (LLM-only reading)"
 grep -q -- '--include' "$ORG/scripts/export_share.py" \
   || fail "share exporter lacks explicit minimum-necessary allowlist"
 grep -q -- '--authorization-ref' "$ORG/scripts/export_share.py" \

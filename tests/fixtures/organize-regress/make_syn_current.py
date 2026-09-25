@@ -36,6 +36,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parents[2] / "skills" / "cancer-buddy-organize" / "scripts"))
 import pair_lab_columns  # noqa: E402 — the fixture's lab record IS the script's output
+import second_read_align  # noqa: E402 — the pixel-page sidecar's second read IS the script's output
 PT = "PT-5A1F0C"
 GEN_AT = "2030-01-20T09:00:00Z"
 AS_OF = "2030-01-20"
@@ -53,6 +54,7 @@ RAW = {
     "s002": b"synthetic-upload-s002-chest-ct",
     "s003": b"synthetic-upload-s003-tumour-markers",
     "s005": b"synthetic-upload-s005-family-note",
+    "s006": b"synthetic-upload-s006-order-sheet-photo",
 }
 DS_STORE = b"synthetic-ds-store"
 
@@ -82,9 +84,10 @@ SIDE_CT = "05_影像/CT/2030-01-12_胸部CT_示例医院.md"
 SIDE_LAB = "07_检验/肿瘤标志物/2030-01-15_肿瘤标志物_示例医院.md"
 SIDE_DIGEST = "03_病程与叙事文书/既往档案摘录/2029-06-01_既往档案摘录.md"
 SIDE_SELF = "14_患者自管补充/患者补充/undated_家属自述.md"
+SIDE_ORDER = "08_治疗/处方医嘱/2030-01-08_临时医嘱单_示例医院.md"
 # Phase 1 workers: one slice worker timed out, its four files went to single-file workers (SKILL.md Step 4)
 W_SLICE = "p1-s0-1"
-W = {sid: f"p1-{sid}-1" for sid in ("s001", "s002", "s003", "s005")}
+W = {sid: f"p1-{sid}-1" for sid in ("s001", "s002", "s003", "s005", "s006")}
 W_DIGEST = "p1digest-1"
 W_P2 = "p2-1"
 LAB_INPUT = "raw/_extract/s003.lab1.txt"
@@ -229,6 +232,57 @@ SIDECARS = {
 - 无
 """,
 }
+
+
+# s006: a photographed order sheet (a pixel page). The body is the model's transcription; the engine read below
+# (a synthetic run_ocr_engine.py document, Apple Vision shape) goes through second_read_align.apply exactly as a
+# Phase 1 worker's --apply does: 4 spans agree, the stage 「III期」 read 「111期」 is no signal (not a stage) —
+# so INDEPENDENT_REREAD true, CONFIDENCE medium, high_risk_review_status needs_human_review, no token.
+ORDER_BODY = """# 版面重建
+
+示例医院 临时医嘱单（合成夹具）
+开立日期：2030-01-08
+卡铂 300 mg 静滴 第1程
+分期：III期
+（医师签名处）"""
+ORDER_ENGINE = {
+    "tool": "run_ocr_engine", "version": "1", "engine": "apple_vision", "channel": "deterministic_ocr:apple_vision",
+    "engine_version": "VNRecognizeTextRequest revision 3 (synthetic)", "os_version": None,
+    "languages": ["zh-Hans", "en-US"], "confidence_scale": "0-1", "no_signal_below": 0.5,
+    "pages": [{"page": 1, "image": "raw/_extract/s006.oriented.png", "image_sha256": None, "width": None, "height": None,
+               "lines": [{"text": t, "confidence": c, "bbox": [0.05, 0.1 * i, 0.9, 0.05], "candidates": []}
+                         for i, (t, c) in enumerate([("示例医院 临时医嘱单(合成夹具)", 0.9), ("开立日期:2030-01-08", 0.95),
+                                                     ("卡铂 300 mg 静滴 第1程", 0.9), ("分期:111期", 0.8),
+                                                     ("(医师签名处)", 0.5)])]}],
+}
+
+
+def second_read_fixture() -> tuple[str, dict[str, str], dict]:
+    """(the s006 sidecar after --apply, its raw/_extract files, the printed summary)."""
+    import tempfile
+    with tempfile.TemporaryDirectory() as tmp:
+        pd = Path(tmp)
+        (pd / "ocr").mkdir()
+        (pd / "raw" / "_extract").mkdir(parents=True)
+        sc = pd / "ocr" / "s006.md"
+        sc.write_text(header("order_sheet", "s006", W["s006"], "llm_vision", "none", False, "model_vision_primary",
+                             sha(RAW["s006"]), "null", modality="image", adapter="temp_raster")
+                      + "\n\n" + ORDER_BODY + "\n\n## PII\n\n- 无\n", encoding="utf-8")
+        ej = pd / "engine.json"
+        ej.write_text(json.dumps(ORDER_ENGINE, ensure_ascii=False), encoding="utf-8")
+        # the repository's own lexicons, whatever CB_ORGANIZE_LEXICON_DIR a test process has set: the record
+        # written into each test copy must match the committed sidecar
+        lex = HERE.parents[2] / "skills" / "cancer-buddy-organize" / "references" / "lexicons"
+        rc, out = second_read_align.apply(sc, pd, [], None, "none", ej, lex)
+        assert rc == 0, out
+        files = {p.relative_to(pd).as_posix(): p.read_text(encoding="utf-8")
+                 for p in sorted((pd / "raw" / "_extract").iterdir())}
+        return sc.read_text(encoding="utf-8"), files, out
+
+
+ORDER_SIDECAR, ORDER_EXTRACT, ORDER_SUMMARY = second_read_fixture()
+SIDECARS[SIDE_ORDER] = ORDER_SIDECAR
+EXTRACT_FILES.update(ORDER_EXTRACT)
 
 
 def line_of(rel: str, needle: str) -> int:
@@ -451,7 +505,7 @@ def build() -> dict[str, str]:
              "resolution_status": "unresolved", "severity": "yellow", "kind": "legibility"},
         ],
     })
-    worker_files = ["s001", "s002", "s003", "s005"]
+    worker_files = ["s001", "s002", "s003", "s005", "s006"]
     out["update_log.json"] = j({
         "schema_version": "1", "patient_code": PT,
         "entries": [{
@@ -490,6 +544,14 @@ def build() -> dict[str, str]:
             "second_read_channel": second, "independent_reread": indep,
         }
 
+    order_row = row("f006", "s006", "raw/s006.jpg", SIDE_ORDER, "image", "model_vision_primary", W["s006"],
+                    "deterministic_ocr:apple_vision", True, ORDER_SUMMARY["high_risk_review_status"], None,
+                    adapter="temp_raster")
+    order_row["extractor_provenance"].update({"version": ORDER_ENGINE["engine_version"],
+                                              "raw_output_ref": "raw/_extract/s006.apple_vision.json",
+                                              "llm_role": "none"})
+    order_row["adapter_provenance"] = "decode_tool=sips;rotation=0"
+    order_row["second_read_summary"] = ORDER_SUMMARY["second_read_summary"]
     digest_row = row("f004", "prior-20290601", None, SIDE_DIGEST, "text", "prior_archive_digest",
                      W_DIGEST, "none", False, "needs_human_review", None, engine="prior_archive_digest")
     digest_row["source_kind"] = "prior_archive_digest"
@@ -507,6 +569,7 @@ def build() -> dict[str, str]:
             digest_row,
             row("f005", "s005", "raw/s005.txt", SIDE_SELF, "text", "native_text", W["s005"],
                 "none", False, "not_applicable", None, engine="plaintext"),
+            order_row,
         ],
         "skipped_inputs": [{"input_ref": "skip-001", "reason": "ds_store", "sha256": sha(DS_STORE),
                             "size_bytes": len(DS_STORE)}],

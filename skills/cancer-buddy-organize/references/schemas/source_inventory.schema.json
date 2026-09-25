@@ -36,8 +36,8 @@
           },
           "read_mode": {
             "type": "string",
-            "enum": ["native_text", "deterministic_ocr", "table_parser", "barcode_parser", "hybrid_verified", "model_vision_assist", "stub_unreadable", "prior_archive_digest"],
-            "description": "Primary character-extraction mode. Model vision may assist but is never the only truth layer for high-risk fields. Must equal the sidecar header READ_MODE (hybrid_verified only when INDEPENDENT_REREAD is true)."
+            "enum": ["native_text", "deterministic_ocr", "table_parser", "barcode_parser", "hybrid_verified", "model_vision_assist", "model_vision_primary", "stub_unreadable", "prior_archive_digest"],
+            "description": "Primary character-extraction mode. model_vision_primary = a pixel page (photo, scan without a text layer) whose body is the model's whole-page transcription, read a second time by a deterministic OCR engine through scripts/second_read_align.py; native_text = a born-digital text layer (never OCR'd). deterministic_ocr / hybrid_verified / model_vision_assist are earlier-contract modes kept for existing archives. Must equal the sidecar header READ_MODE (hybrid_verified only when INDEPENDENT_REREAD is true)."
           },
           "extractor_provenance": {
             "type": "object",
@@ -54,7 +54,7 @@
           "high_risk_review_status": {
             "type": "string",
             "enum": ["not_applicable", "passed_independent_reread", "needs_human_review"],
-            "description": "Status of the independent reread for identifiers, dates, drug/dose/frequency, laboratory values/units/ranges, stage, variants/VAF and accession numbers. passed_independent_reread requires independent_reread=true."
+            "description": "Status of the second read of the high-risk spans (dates, drug/dose/frequency, laboratory values/units/ranges, stage, variants/VAF, IHC markers, lymph-node stations, diagnoses). passed_independent_reread = independent_reread true AND every row of the sidecar's `## 高风险字段复读` table agrees; needs_human_review = a pixel page without that full independent backing (no engine, a no-signal or conflict row) — a status, not a flag; not_applicable = no high-risk span (an image stub) or a born-digital page (its text layer is not OCR'd). passed_independent_reread requires independent_reread=true."
           },
           "adapter": {
             "type": "string",
@@ -97,11 +97,25 @@
           "second_read_channel": {
             "type": ["string", "null"],
             "pattern": "^(text_layer|table_parser|deterministic_ocr:[A-Za-z0-9_.-]+|barcode|human|llm_vision|prior_archive_sidecar|none)$",
-            "description": "Channel of the second read: a fixed channel category, and for deterministic OCR the engine after a colon (`deterministic_ocr:<engine>`): text_layer, table_parser, deterministic_ocr:tesseract, barcode, human, llm_vision, prior_archive_sidecar (digest rows only), none. The engine part stays open; the categories are pinned (organizer-prompt-phase1-ocr.md §2). Must equal the sidecar header SECOND_READ_CHANNEL."
+            "description": "Channel of the second read: a fixed channel category, and for deterministic OCR the engine after a colon (`deterministic_ocr:<engine>`): text_layer, table_parser, deterministic_ocr:tesseract, barcode, human, llm_vision, prior_archive_sidecar (digest rows only), none. The engine part stays open; the categories are pinned (organizer-prompt-phase1-ocr.md §2). For a pixel page it is the engine scripts/second_read_align.py ran (none when the host has no engine). Must equal the sidecar header SECOND_READ_CHANNEL."
           },
           "independent_reread": {
             "type": "boolean",
-            "description": "true only when the two read channels are of different categories AND neither is llm_vision. A model reading the image is never an independent reread."
+            "description": "true only when the two read channels are of different categories, the second is neither none nor llm_vision, and (for a script-run second read) the engine read at least one high-risk span. A deterministic engine read is independent of the model's transcription; the model reading the image again (a crop, another session, another model) is never an independent reread."
+          },
+          "second_read_summary": {
+            "type": ["object", "null"],
+            "description": "Optional: the counts scripts/second_read_align.py printed for this sidecar (Phase 1 returns them, Phase 2 copies them). no_signal spans are single-channel reads — recorded here and summarised once per sidecar in readiness.warnings, never a flag.",
+            "required": ["engine", "spans_total", "agree", "no_signal", "conflict"],
+            "additionalProperties": false,
+            "properties": {
+              "engine": { "type": "string" },
+              "spans_total": { "type": "integer", "minimum": 0 },
+              "agree": { "type": "integer", "minimum": 0 },
+              "no_signal": { "type": "integer", "minimum": 0 },
+              "conflict": { "type": "integer", "minimum": 0 },
+              "declared": { "type": "integer", "minimum": 0 }
+            }
           }
         },
         "allOf": [

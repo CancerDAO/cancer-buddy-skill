@@ -6,6 +6,78 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Changed — organize 读取通道：照片与扫描页由模型整页转写为正文，确定性引擎作脚本第二读（一致 / 无信号 / 冲突）；born-digital 页不再跑 OCR (2026-09-25)
+
+三例 grok E2E 暴露：本分支让 tesseract 当像素页主通道，case1 的 21 份照片正文成了乱码（日期、分期、组织学整行读坏），
+606 个不确定标记、431 条红旗；case3 在 born-digital PDF 上跑了 50 次 tesseract，118 条红旗全部是渲染页读空或读错。
+本节回到 organize v3 已验证的原则（**像素页字符真值 = 多模态转写**），并把“模型不是唯一读数”落到脚本上。合成数据，无真实病例内容。
+
+- **与 v3 的对应关系：像素页通道切换**。照片、无文本层的扫描页：`PRIMARY_CHANNEL: llm_vision`，新 `READ_MODE:
+  model_vision_primary`，正文 = 模型整页转写（`[不可读]` / `?` 不猜）；写正文前不运行任何 OCR、不看引擎输出。正文写完、
+  遮蔽、落盘后，**只由** `scripts/second_read_align.py --apply` 调用引擎（每页一次，之后的重跑只重放已存读数），做整页字符级
+  对齐（`SequenceMatcher`、按位置映射、不做全局搜索），逐个高风险 span 判三态，并**自己写** token、`## 高风险字段复读`
+  （`engine:` / `body_sha256:` / `record:` + 表格，“一致”列 `是 / 否 / 无信号`）、`## 不确定字段` 条目（转写读数 + 引擎原串与
+  置信度，先过身份词表与 PII 形状遮蔽；候选照旧由 `lexicon_candidates.py` 算）以及头部 `SECOND_READ_CHANNEL /
+  INDEPENDENT_REREAD / CONFIDENCE`。分母由新脚本 `scripts/_high_risk_spans.py` 从正文推出（日期、数字+单位、表格数值/参考范围/
+  单位、TNM 与分期、周期号、药名/免疫组化/淋巴结站别词表命中、药名间连接符；范围条刻度行不算），worker 只能用
+  `raw/_extract/<stem>.declared.json` **补报**（诊断、机构、词表外药名、`[不可读]`、版面异常）。
+- **三态**（阈值写成常量：tesseract < 50、Apple Vision < 0.5，重跑后再调）：一致 → 无 token；**无信号**（没读出、低置信、
+  相似度 < 0.5、不合该类语法如 `CT3M2M0` / `111期`、只丢了非数字字形、转写是词表条目而引擎差 1 字如 `INSM1`/`INSMI`、对不上
+  周围已对齐文字）→ 无 token、无条目、无 flag，Phase 2 每份 sidecar 在 `readiness.warnings` 只汇总一句“N 个高风险字段中
+  M 个只有单通道读取”；**冲突**（过阈值、合语法、不同：`2030-01-08`/`2030-01-03`、`顺铂`/`卡铂`、`11.5`/`115`）→ token。
+  规整按类别：日期比 YYYY-MM-DD（`2026-0707` = `2026-07-07`），数字保留小数点（`11.5` ≠ `115`），`×10⁹/L` = `10°9/L` =
+  `x109/L`，正文类只比字与数字不比标点（`（CT）`/`〈CT)`）。
+- **防锚定**（F2/F3）：`body_sha256` = 去掉 token 的正文哈希；第二读记录 `raw/_extract/<stem>.second_read.json` 保存引擎
+  当时比对的那份正文——同一 worker 之后的 `--apply` 若发现正文除 PII 遮蔽外有改动即 exit 4，校验器同样报错；第一次 `--apply`
+  之后引擎读数固定，换 `--engine none` 或换引擎输出都不能让冲突消失。残余风险：宿主若在写正文前把引擎输出塞给模型，脚本
+  无从得知——提示词禁止，顺序（引擎输出在正文落盘后才生成）使它很难发生。
+- **`INDEPENDENT_REREAD` 语义变更（改了钉住的行为）**：`true` 当且仅当两通道类别不同、第二读不是 `none` 也不是 `llm_vision`、
+  且复读表至少 1 行不是“无信号”。**引擎读独立于模型**——`llm_vision` 主读 + `deterministic_ocr` 第二读现在记 `true`（此前一律
+  `false`）；模型重看自己的图 / 裁剪放大 / 换会话仍然不独立。校验器：第二读为 `llm_vision` 且写 true → ERROR（不变）；主读
+  `llm_vision` 不再 ERROR；有信号行却写 false、全部无信号却写 true → ERROR；`READ_MODE model_vision_primary` 必须主读
+  `llm_vision`，主读 `llm_vision` 只能配 `model_vision_primary` / `model_vision_assist` / `stub_unreadable`。
+  `CONFIDENCE`：有 token 或 stub → low；独立、无 token、无“无信号”行 → high；有“无信号”行时 high → ERROR、medium 合法；
+  born-digital `native_text` 固定 medium（high → ERROR）。`high_risk_review_status`：像素页只有独立且每行“是”才是
+  `passed_independent_reread`，否则 `needs_human_review`（状态，不是 flag）。文书意图门不放宽：像素页上唯一的非模型读数是
+  引擎，所以像素页永远只记 `layout`；只有 born-digital 页的版面异常区域可补一次 `run_ocr_engine.py read`（300 DPI）作第二个
+  非模型读数。
+- **born-digital 页不跑 OCR**：新脚本 `scripts/text_layer_kind.py` 逐页判 `born_digital / embedded_ocr / absent`（PyMuPDF：
+  整页图覆盖 ≥ 0.85、隐形文字或 OCR 字体 → embedded_ocr；无 PyMuPDF 时退回 poppler；**不用** `pdffonts uni:no`），并列出
+  `glyph_anomaly_lines`（`le!t`、夹在拉丁字母里的 `İ`）。born-digital 页正文逐行照抄文本层，`second_read_align.py --text-layer`
+  只做同一性核对（`identity: n/m`，未对上的行交 Phase 2.5），`not_applicable`；字形损坏行正文不改，看图补读一次写进
+  `## 文本层字形异常`。内嵌 OCR 层与 `absent` 都按像素页处理；同一原件两种页类型并存时按页类型拆 content unit。
+- **Apple Vision 第二读引擎随技能附带**：`scripts/vision_ocr.swift`（`VNRecognizeTextRequest`，accurate、zh-Hans+en-US、关闭
+  语言纠正；输出每行文本、置信度、bbox、前 3 个候选，键排序、数值取整，同图两次输出逐字节相同），由新脚本
+  `scripts/run_ocr_engine.py` 按源码哈希编译缓存到 `~/.cache/cancer-buddy-organize/`（`CB_ORGANIZE_CACHE_DIR` 可改）；`auto`
+  顺序 apple_vision → tesseract → none（`which` exit 3；只有 tesseract 时 WARN）。**方向统一**：`run_ocr_engine.py orient` 先按
+  EXIF，再按引擎的文字基线方向（Vision 观测四角 / `tesseract --psm 0`）写出正向副本到 `raw/_extract/`，只打印角度、不输出文字；
+  模型与引擎都看这份副本。实测 Vision 在朝向提示错误时也会读出旋转文字，按“读出字数×置信度”选方向不可靠，故改为按基线方向投票。
+- **分级**（phase2 §6.1）：值类（date / number / unit / stage / drug_name / ihc_marker / ln_station / variant /
+  regimen_connector / cycle_number）冲突 `legibility / red`；`diagnosis_text` 冲突 `yellow`（校验器不再强制 red）；有他页清楚
+  读数支持时降一级；删除“不按‘明显是某个引擎的误识’自行排除”一句——该判断已由脚本三态完成。
+- 文件：phase1 §0–§6、§13–§14 重写（§7 检验配对不在本节范围，未改）；phase2_5 独立性一段；runtime-bindings `claude-code.md`
+  （L39-40 “原生文本层 + OCR 是真正独立的组合”删去）、`headless-codex.md`、`_template.md`；`organize-contract.md` Extract；
+  `source_inventory.schema.json`（`read_mode` 加 `model_vision_primary`，可选 `second_read_summary`，描述改写；加值不升版本）；
+  `schemas/README.md`；`SKILL.md` Step 3 与运行时一段（+273 B，现 48,166 B）；`INSTALL.md` 引擎自检；CI 安装 PyMuPDF。
+  校验器新门 `second_read`（独立模块 `scripts/_gate_second_read.py`）：复读表覆盖全部推出的 span、三态可由存档引擎输出重算、
+  一致/无信号处无 token 且冲突/补报处有、表与条目里的引擎读数等于引擎原串（遮蔽除外）、`body_sha256` 与正文一致且正文就是
+  引擎比对过的那份；没有 `raw/` 的副本只核哈希、其余一条 WARN；词表在第二读之后改过时按记录里的 span 重算（只增不减）并 WARN。
+- lint：13 新增 O 组（phase1 调 `second_read_align.py --apply`、§5.1 三态与“无信号不出 flag”、§4 D 防锚定句、schema 的
+  `read_mode` 枚举 = `SIDECAR_READ_MODES` = phase1 §3 行）；**07 的 I-07 检查改写**：原来要求 phase1 写“不是唯一字符真值”，
+  现在要求写明“模型转写不是唯一读数”并调用 `second_read_align.py`（`_common.sh` 的 `SKILLS_DIR` 可由 `CB_SKILLS_DIR` 覆盖，
+  以便在副本上验证它会失败）。评测场景 org-07 / 08 / 21 / 22 按新通道改写。
+- 测试：新增 `second-read-align.test.sh`（68 项，纯 stdlib，CI 可跑：三态、规整、词表近似、刻度行、无引擎、遮蔽、补报、
+  `--check` 的 7 个负例、重放与 exit 4、TSV 归一）、`text-layer-kind.test.sh`（17 项：四类合成 PDF、坏 PDF、同一性核对、
+  poppler 退路）、`vision-ocr-helper.test.sh`（21 项，仅 macOS：两次读逐字节相同、结构、三个旋转角）；`sidecar-header-gate`
+  原“主读 llm_vision + true → ERROR”翻转为通过，新增无信号/有信号/READ_MODE/CONFIDENCE/born-digital 与 second_read 门 11 个负例；
+  `organize-review-fixes` 加 diagnosis_text yellow 正例；`organize-contract-lints` 新增 O 组 5 例与 lint 07 三例。合成夹具新增一张
+  拍照医嘱单 sidecar（`08_治疗/处方医嘱/…`，其第二读由 `second_read_align.apply` 生成，引擎输出与记录经 `synlib.make` 写入
+  测试副本），因此 `organize-replay-fixes` 的两处计数由 4/5、5/5 改为 5/6、6/6。
+- 在 case1 上的验证（只读归档、脚本在副本上跑、报告只给计数）：把原运行记下的 606 对读数（tesseract 原串+置信度 vs 模型读数）
+  按新规则重判：一致 11、无信号 530、冲突 45（值类 10 条红、诊断/其他 35 条黄），加上原来的版面异常 19、不可读 1，合计 65 个
+  token（原 606）、红旗 10。3 张照片（门诊、PET-CT、病理）按新流程完整跑一遍（模型转写 + 引擎第二读 + `--check`）：原运行这
+  3 页共 64 个 token，新流程用原 tesseract TSV 为 2 个、用 Apple Vision 为 1 个，`--check` 全部通过。
+
 ### Fixed — organize 第三轮复核：转述引文按条核对，冒号或引号既不能绕过也不再误报；自述前缀、缺失的 summary 与 latest_status 类型如文档所述核对 (2026-09-25)
 
 独立复核上一节后指出的 5 项逐条收口（合成数据，无真实病例内容）。

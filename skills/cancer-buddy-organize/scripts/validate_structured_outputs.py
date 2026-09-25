@@ -197,6 +197,9 @@ FORMAL_MARKDOWN_FILES = ("timeline.md", "case_text.md", "review_summary.md", "re
 # Make sibling gate modules importable (pii_rescan / validate_case_summary_html).
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
+import _gate_second_read  # noqa: E402 — the second-read gate (phase1 §4 G / §5), its own module
+import _high_risk_spans as _hrs  # noqa: E402 — VALUE_CLASSES: the uncertain field classes a legibility flag grades red
+gate_second_read = _gate_second_read.gate_second_read
 
 STRUCTURED_FILES = {
     "patient_summary.json": "patient_summary.schema.json",
@@ -1935,7 +1938,9 @@ SIDECAR_CONFIDENCE = ("low", "medium", "high")
 # header READ_MODE / ADAPTER / MODALITY values (phase1 §3 table = source_inventory.schema.json enums);
 # checked on the header itself, so a sidecar with no inventory row cannot carry free text there.
 SIDECAR_READ_MODES = ("native_text", "deterministic_ocr", "table_parser", "barcode_parser", "hybrid_verified",
-                      "model_vision_assist", "stub_unreadable", "prior_archive_digest")
+                      "model_vision_assist", "model_vision_primary", "stub_unreadable", "prior_archive_digest")
+# a pixel page's body is the model's transcription (PRIMARY_CHANNEL llm_vision); these read modes say so
+LLM_PRIMARY_READ_MODES = ("model_vision_primary", "model_vision_assist", "stub_unreadable")
 SIDECAR_ADAPTERS = ("none", "temp_raster", "pdf_pages", "docx_payload", "spreadsheet_payload", "text_payload",
                     "archive_unpacked", "unsupported_stub")
 SIDECAR_MODALITIES = ("text", "image", "structured", "omics_raw", "timeseries", "binary_other")
@@ -2579,23 +2584,39 @@ def gate_sidecar_headers(patient_dir: Path, errors: list, warnings: list | None 
             errors.append(f"sidecar_header: {rel}: INDEPENDENT_REREAD must be true or false")
         second = hdr.get("SECOND_READ_CHANNEL", "")
         primary = hdr.get("PRIMARY_CHANNEL", "")
+        c1, c2 = _channel_category(primary), _channel_category(second)
+        # phase1 §2.3: true iff the categories differ, the second read is neither none nor llm_vision (an engine
+        # read is independent of the model's transcription; the model re-reading its own image is not) and — for a
+        # second read the script ran (a `## 高风险字段复读` block with an `engine:` line) — the engine read ≥ 1 span.
+        sr_table = _gate_second_read.table_of(text)
+        sr_signal, sr_nosignal = _gate_second_read.signal_rows(sr_table)
         if indep == "true":
-            c1, c2 = _channel_category(primary), _channel_category(second)
             if c2 in ("", "none", "null"):
                 errors.append(f"sidecar_header: {rel}: INDEPENDENT_REREAD true without a second read channel")
-            elif "llm_vision" in (c1, c2):
-                errors.append(f"sidecar_header: {rel}: INDEPENDENT_REREAD must be false when a read "
-                              "channel is llm_vision (a model reading the image is not an independent reread)")
+            elif c2 == "llm_vision":
+                errors.append(f"sidecar_header: {rel}: INDEPENDENT_REREAD must be false when the second read channel "
+                              "is llm_vision (a model reading the image again is not an independent reread)")
             elif c1 == c2:
                 errors.append(f"sidecar_header: {rel}: INDEPENDENT_REREAD true but both reads use channel {c1!r}")
+            elif sr_table is not None and sr_signal == 0:
+                errors.append(f"sidecar_header: {rel}: INDEPENDENT_REREAD true but every row of the second-read table "
+                              "is 无信号 — the engine read no high-risk field, so the reread is single-channel (false)")
         elif indep == "false":
-            # the flag is mechanical in BOTH directions (phase1 §2: true iff the categories differ
-            # and neither is llm_vision) — an under-claimed reread hides a real second read.
-            c1, c2 = _channel_category(primary), _channel_category(second)
-            if c1 not in ("", "none", "null") and c2 not in ("", "none", "null") and c1 != c2 \
-                    and "llm_vision" not in (c1, c2):
+            # the flag is mechanical in BOTH directions — an under-claimed reread hides a real second read.
+            differ = c1 not in ("", "none", "null") and c2 not in ("", "none", "null", "llm_vision") and c1 != c2
+            if differ and sr_table is not None and sr_signal > 0:
+                errors.append(f"sidecar_header: {rel}: INDEPENDENT_REREAD false although the engine second read "
+                              f"({c2}) read {sr_signal} high-risk field(s) — the flag is true iff it read at least one")
+            elif differ and sr_table is None and c1 != "llm_vision":
                 errors.append(f"sidecar_header: {rel}: INDEPENDENT_REREAD false although the reads use different "
                               f"channel categories ({c1} / {c2}) and neither is llm_vision — the flag is true iff that holds")
+        rm = hdr.get("READ_MODE", "").strip()
+        if rm == "model_vision_primary" and c1 != "llm_vision":
+            errors.append(f"sidecar_header: {rel}: READ_MODE model_vision_primary is a pixel page transcribed by the "
+                          f"model — PRIMARY_CHANNEL must be llm_vision, got {primary.strip()!r}")
+        elif c1 == "llm_vision" and rm and rm not in LLM_PRIMARY_READ_MODES:
+            errors.append(f"sidecar_header: {rel}: PRIMARY_CHANNEL llm_vision with READ_MODE {rm!r} — a model-transcribed "
+                          f"page reads as {' | '.join(LLM_PRIMARY_READ_MODES)} (phase1 §3)")
         if hdr.get("READ_MODE", "").strip() == "hybrid_verified" and indep != "true":
             errors.append(f"sidecar_header: {rel}: READ_MODE hybrid_verified is reserved for an independent reread "
                           "that agreed (INDEPENDENT_REREAD true)")
@@ -2613,11 +2634,17 @@ def gate_sidecar_headers(patient_dir: Path, errors: list, warnings: list | None 
             elif (uncertain or stub) and conf != "low":
                 errors.append(f"sidecar_header: {rel}: CONFIDENCE {conf} but the sidecar "
                               f"{'is an [INGESTION_BLOCKED] stub' if stub else 'carries uncertain fields'} → low")
+            elif conf == "high" and rm == "native_text":
+                errors.append(f"sidecar_header: {rel}: CONFIDENCE high on a born-digital text layer (READ_MODE native_text) "
+                              "— its CONFIDENCE is medium (phase1 §3)")
             elif conf == "high" and indep != "true":
                 errors.append(f"sidecar_header: {rel}: CONFIDENCE high requires INDEPENDENT_REREAD true")
-            elif conf == "medium" and indep == "true":
-                errors.append(f"sidecar_header: {rel}: CONFIDENCE medium with INDEPENDENT_REREAD true and no uncertain "
-                              "field → high (or low for handwriting / a photographed pack or screen)")
+            elif conf == "high" and sr_nosignal:
+                errors.append(f"sidecar_header: {rel}: CONFIDENCE high but {sr_nosignal} second-read row(s) are 无信号 "
+                              "(single-channel reads) → medium")
+            elif conf == "medium" and indep == "true" and not sr_nosignal and rm != "native_text":
+                errors.append(f"sidecar_header: {rel}: CONFIDENCE medium with INDEPENDENT_REREAD true, no uncertain field "
+                              "and no 无信号 row → high (or low for handwriting / a photographed pack or screen)")
         sha = hdr.get("SHA256", "").strip()
         row = rows.get(rel)
         if row is None:
@@ -3232,8 +3259,9 @@ def gate_review_flag_semantics(patient_dir: Path, errors: list, warnings: list |
         # contradicted is always red
         if f.get("kind") == "legibility" and uids:
             found_e = [e for e in (entries_of(rel).get(u) for rel in cited for u in uids) if isinstance(e, dict)]
+            # value classes grade red; a diagnosis_text conflict grades yellow (phase2 §6.1)
             high_risk = [e for e in found_e if e.get("layout") in (None, "none")
-                         and isinstance(e.get("field_class"), str) and e["field_class"] != "other"]
+                         and e.get("field_class") in _hrs.VALUE_CLASSES]
             if high_risk and f.get("severity") != "red":
                 statuses = set()
                 for e in high_risk:
@@ -4351,6 +4379,7 @@ def main() -> int:
     _run_gate("sidecar_header", gate_sidecar_headers, errors, patient_dir, errors, warnings, g)
     _run_gate("line_breaks", gate_sidecar_line_breaks, errors, patient_dir, errors, warnings, g)
     _run_gate("uncertainty", gate_review_flag_semantics, errors, patient_dir, errors, warnings, g)
+    _run_gate("second_read", gate_second_read, errors, patient_dir, errors, warnings, g)
     _run_gate("lab_pairing", gate_lab_pairing, errors, patient_dir, errors, warnings, g)
     _run_gate("page_completeness", gate_page_completeness, errors, patient_dir, errors, warnings, g)
     _run_gate("source_freshness", gate_source_freshness, errors, patient_dir, errors, warnings, g)

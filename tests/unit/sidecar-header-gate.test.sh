@@ -82,13 +82,62 @@ check("update_log without workers → ERROR", any("lists no workers" in e for e 
 errs, _ = run("gate_sidecar_headers", inv_row(OP, lambda r: r["extractor_provenance"].__setitem__("worker_id", "p2-1")))
 check("header EXTRACTOR ≠ inventory worker_id → ERROR", any("≠ source_inventory worker_id" in e for e in errs), str(errs))
 
-# ---- independent reread
+# ---- independent reread (phase1 §2.3: an engine read is independent of the model's transcription; the
+# model re-reading its own image is not)
 errs, _ = run("gate_sidecar_headers", hdr(OP, "SECOND_READ_CHANNEL", "llm_vision"))
-check("llm_vision second read with INDEPENDENT_REREAD true → ERROR",
-      any("must be false when a read channel is llm_vision" in e for e in errs), str(errs))
-errs, _ = run("gate_sidecar_headers", hdr(OP, "PRIMARY_CHANNEL", "llm_vision"))
-check("llm_vision primary read with INDEPENDENT_REREAD true → ERROR",
-      any("llm_vision" in e for e in errs), str(errs))
+check("llm_vision SECOND read with INDEPENDENT_REREAD true → ERROR",
+      any("must be false when the second read channel is llm_vision" in e for e in errs), str(errs))
+ORD = synlib.SIDE_ORDER
+errs, _ = run("gate_sidecar_headers")
+check("llm_vision PRIMARY + apple_vision second read + true (the pixel-page fixture) passes",
+      not any(ORD in e for e in errs), str(errs))
+errs, _ = run("gate_sidecar_headers", lambda d: (hdr(OP, "PRIMARY_CHANNEL", "llm_vision")(d),
+              hdr(OP, "SECOND_READ_CHANNEL", "deterministic_ocr:apple_vision")(d), hdr(OP, "READ_MODE", "model_vision_primary")(d),
+              inv_row(OP, lambda r: r.update({"second_read_channel": "deterministic_ocr:apple_vision",
+                                              "read_mode": "model_vision_primary"}))(d)))
+check("llm_vision primary read + engine second read + true (no table on a legacy-shaped body) passes the header gate",
+      errs == [], str(errs))
+
+
+def order_rows(new_state, rows=None):
+    """Rewrite the 一致 cell of the pixel-page fixture's second-read table rows (all rows, or the given 1-based rows)."""
+    def fn(text):
+        out, k = [], 0
+        for line in text.splitlines():
+            if line.startswith("| ") and line.rstrip().endswith(("| 是 |", "| 否 |", "| 无信号 |")) and not line.startswith("| 字段"):
+                k += 1
+                if rows is None or k in rows:
+                    line = line.rsplit("|", 2)[0] + f"| {new_state} |"
+            out.append(line)
+        return "\n".join(out) + "\n"
+    return lambda d: synlib.edit_text(d, ORD, fn)
+
+
+errs, _ = run("gate_sidecar_headers", order_rows("无信号"))
+check("true while every second-read row is 无信号 → ERROR (the engine read nothing: single-channel)",
+      any(ORD in e and "every row of the second-read table is 无信号" in e for e in errs), str(errs))
+errs, _ = run("gate_sidecar_headers", lambda d: (order_rows("无信号")(d), hdr(ORD, "INDEPENDENT_REREAD", "false")(d),
+              inv_row(ORD, lambda r: r.update({"independent_reread": False}))(d)))
+check("every row 无信号 and INDEPENDENT_REREAD false passes", not any(ORD in e for e in errs), str(errs))
+errs, _ = run("gate_sidecar_headers", lambda d: (hdr(ORD, "INDEPENDENT_REREAD", "false")(d),
+              inv_row(ORD, lambda r: r.update({"independent_reread": False, "high_risk_review_status": "needs_human_review"}))(d)))
+check("signal rows present but INDEPENDENT_REREAD false → ERROR (an under-claimed engine read)",
+      any(ORD in e and "INDEPENDENT_REREAD false although the engine second read" in e for e in errs), str(errs))
+errs, _ = run("gate_sidecar_headers", hdr(ORD, "PRIMARY_CHANNEL", "deterministic_ocr:tesseract"))
+check("READ_MODE model_vision_primary with a non-llm primary → ERROR",
+      any(ORD in e and "READ_MODE model_vision_primary is a pixel page" in e for e in errs), str(errs))
+errs, _ = run("gate_sidecar_headers", lambda d: (hdr(ORD, "READ_MODE", "hybrid_verified")(d),
+              inv_row(ORD, lambda r: r.update({"read_mode": "hybrid_verified"}))(d)))
+check("PRIMARY llm_vision with READ_MODE hybrid_verified → ERROR", any(ORD in e and "PRIMARY_CHANNEL llm_vision with READ_MODE" in e for e in errs), str(errs))
+errs, _ = run("gate_sidecar_headers", hdr(ORD, "CONFIDENCE", "high"))
+check("CONFIDENCE high with a 无信号 row → ERROR", any(ORD in e and "row(s) are 无信号" in e for e in errs), str(errs))
+errs, _ = run("gate_sidecar_headers", lambda d: (order_rows("是")(d), hdr(ORD, "CONFIDENCE", "medium")(d)))
+check("independent, every row 是, CONFIDENCE medium → ERROR (→ high)", any(ORD in e and "no 无信号 row → high" in e for e in errs), str(errs))
+errs, _ = run("gate_sidecar_headers", hdr(synlib.SIDE_SELF, "CONFIDENCE", "high"))
+check("born-digital native_text CONFIDENCE high → ERROR (fixed medium)", any("born-digital text layer" in e for e in errs), str(errs))
+errs, _ = run("gate_sidecar_headers")
+check("born-digital text layer + SECOND none + not_applicable (the self-note fixture) passes",
+      not any(synlib.SIDE_SELF in e for e in errs), str(errs))
 errs, _ = run("gate_sidecar_headers", hdr(CT, "SECOND_READ_CHANNEL", "deterministic_ocr:tesseract"))
 check("two OCR engines (same channel category) marked independent → ERROR",
       any("both reads use channel 'deterministic_ocr'" in e for e in errs), str(errs))
@@ -385,6 +434,32 @@ errs, _ = run("gate_sidecar_headers", hdr(CT, "SOURCE", "prior_archive_digest"))
 check("upload row claiming SOURCE prior_archive_digest → ERROR", any("source_kind is 'upload'" in e for e in errs), str(errs))
 errs, _ = run("gate_sidecar_headers", hdr(synlib.SIDE_SELF, "PRIMARY_CHANNEL", "prior_archive_sidecar"))
 check("upload read from prior_archive_sidecar → ERROR", any("prior_archive_sidecar is the digest channel only" in e for e in errs), str(errs))
+
+# ---- gate_second_read (phase1 §4 G / §5): the table, tokens and readings are the script's
+SR = "gate_second_read"
+errs, warns = run(SR)
+check("clean archive: second-read gate passes", errs == [], str(errs))
+errs, _ = run(SR, lambda d: synlib.edit_text(d, ORD, lambda t: t.replace("卡铂 300 mg", "卡铂 30 mg", 1)))
+check("body edited after the second read → body_sha256 ERROR", any(ORD in e and "body_sha256" in e for e in errs), str(errs))
+errs, _ = run(SR, lambda d: synlib.edit_text(d, ORD, lambda t: re.sub(r"^\| number \|.*\n", "", t, count=1, flags=re.M)))
+check("a derived span dropped from the table → ERROR", any(ORD in e and "not the recomputed second read" in e for e in errs), str(errs))
+errs, _ = run(SR, order_rows("是", rows={5}))
+check("a 无信号 row relabelled 是 → ERROR", any(ORD in e and "not the recomputed second read" in e for e in errs), str(errs))
+errs, _ = run(SR, lambda d: synlib.edit_text(d, ORD, lambda t: t.replace("| 111期 |", "| III期 |", 1)))
+check("a second-channel reading that is not the engine's string → ERROR", any(ORD in e and "not the engine's own string" in e for e in errs), str(errs))
+errs, _ = run(SR, lambda d: synlib.edit_text(d, ORD, lambda t: t.replace("开立日期：2030-01-08", "开立日期：2030-01-08[OCR_UNCERTAIN:U-001]", 1)))
+check("a token on an agree span → ERROR", any(ORD in e and "sits on no conflict" in e for e in errs), str(errs))
+errs, _ = run(SR, lambda d: synlib.edit_text(d, ORD, lambda t: t.split("## 高风险字段复读")[0] + "## PII\n\n- 无\n"))
+check("a pixel page (model_vision_primary) without the script's block → ERROR", any(ORD in e and "without a `## 高风险字段复读` block" in e for e in errs), str(errs))
+errs, _ = run(SR, lambda d: synlib.edit_text(d, "raw/_extract/s006.apple_vision.json", lambda t: t.replace('"分期:111期"', '"分期:III期"', 1)))
+check("engine output edited after the second read → ERROR", any(ORD in e and "changed after the second read" in e for e in errs), str(errs))
+n += 1
+errs, warns = synlib.gate(SR, synlib.make(tmp / f"h{n}", with_raw=False))
+check("a copy without raw/: body hash checked, the rest one WARN (no ERROR)",
+      errs == [] and any("checked by body_sha256 only" in w for w in warns), str(errs) + str(warns))
+n += 1
+errs, warns = synlib.gate(SR, synlib.make(tmp / f"h{n}", lambda d: synlib.edit_text(d, ORD, lambda t: t.replace("卡铂 300 mg", "卡铂 30 mg", 1)), with_raw=False))
+check("…and a body edit is still caught there", any("body_sha256" in e for e in errs), str(errs))
 
 # ---- legacy archive: the missing-EXTRACTOR condition is one WARN, never an ERROR
 legacy = synlib.make_legacy(tmp / "legacy")

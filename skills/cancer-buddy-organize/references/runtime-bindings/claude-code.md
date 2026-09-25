@@ -7,7 +7,7 @@
 | 接缝 | 契约要求(不变) | Claude Code 填法 |
 |---|---|---|
 | 编排 | 所有 sidecar 在 Phase2 前就绪 | `Agent` 并行扇出 Phase1 LLM ingestion,单 `Agent` 做 Phase2 reduce |
-| 抽取输入源 | 确定性抽取保留原始字符层；LLM 只做版面/候选纠错/语义辅助 | OCR/parser 输出、引擎版本和 source span 均保留；高风险字段独立复读，LLM 改动不得覆盖原始层 |
+| 抽取输入源 | 像素页：模型整页转写 = 正文，确定性引擎第二读由脚本做三态对齐；born-digital：文本层 = 正文 | Claude `Read` 看正向副本转写；`second_read_align.py` 跑 Apple Vision / tesseract 并写 token 与复读表；引擎版本、原始输出、`body_sha256` 均保留 |
 | 格式适配 | 只把源文件转成 LLM-readable input | `sips` 转 HEIC,可用工具渲染 PDF/展开 DOCX/表格 payload;adapter 只做 provenance |
 | 确认门 | 未确认不写正式字段/不可逆删除 | inline diff card 同会话往返 |
 | 存储 | canonical 输出集 | agent 写本地 `patient_dir`;原始件逐字保存进 `raw/` vault |
@@ -23,28 +23,32 @@
 
 ## 2. 来源保真抽取
 
-- 图片/扫描件优先运行适用的确定性 OCR/表格/条码工具；born-digital 文件优先读取其原生
-  文本/表格层。保存引擎、版本、原始输出、source span 和文件 hash。
-- LLM 可重建版面、提出候选纠错、做语义标注和 PII 语义复扫，但 `raw_text` 与
-  `proposed_text` 分层保存，不能让 LLM 输出成为唯一字符真值。
-- 药名、剂量、频次、日期、实验室值/单位/参考范围、分期、变异/VAF 等高风险字段执行第二次
-  读取；不一致写 `[OCR_UNCERTAIN:U-nnn]` 与 `## 不确定字段` 条目，不得进入 settled-fact surface。
-- **Claude Code 可用的读取通道**：born-digital PDF → `pdftotext -layout`（`text_layer`）；DOCX/表格 →
-  原生段落与单元格（`text_layer` / `table_parser`）；扫描件与照片 → **默认确定性通道是
-  `tesseract <图片> <输出前缀> -l chi_sim+eng tsv`**（`deterministic_ocr:tesseract`；TSV 自带逐词坐标与置信度，
-  原样存到 `raw/_extract/<source_id>.tesseract.tsv`，检验表可据坐标按行配对）。本 skill 不附带其他 OCR
-  脚本；宿主另有确定性引擎（如 macOS Apple Vision）时可按 `deterministic_ocr:<engine>` 命名使用，同样须保存
-  逐行坐标与置信度，不能只取首选文本。宿主没有安装 tesseract 且没有其他确定性引擎时，主通道只能是
-  `llm_vision`（phase1 §4 C），并在返回 JSON 标注。Claude 用 `Read` 看图属于 `llm_vision`：可以做第二次
-  读取，但 `INDEPENDENT_REREAD` 永远是 `false`。两个 OCR 引擎同属一类，也不构成独立复读；真正独立的
-  组合是“原生文本层 + OCR”或“确定性通道 + 人工”。
+- **像素页**（照片、没有文本层的扫描页；`text_layer_kind.py` 判 `embedded_ocr` / `absent` 的 PDF 页）：字符真值是
+  Claude 用 `Read` 看**正向副本**做的整页多模态转写（`PRIMARY_CHANNEL: llm_vision`，`READ_MODE: model_vision_primary`）。
+  写正文前不运行 OCR、不看引擎输出。正文写完、遮蔽、落盘后，由 `second_read_align.py --apply` 运行确定性引擎做第二读
+  并写 token、复读表与条目（phase1 §4 G、§5）。
+- **born-digital 页**：`pdftotext -layout` 的文本层就是正文（`text_layer` / `native_text`），不跑 OCR；
+  `second_read_align.py --apply … --text-layer` 只做同一性核对（`high_risk_review_status: not_applicable`）。
+  文本层字形损坏的行（`text_layer_kind.py` 的 `glyph_anomaly_lines`）由 Claude 看渲染页补读一次，写 `## 文本层字形异常`。
+- **本宿主的第二读引擎**（`run_ocr_engine.py` 的 `auto` 顺序）：macOS 有 `swiftc` 时是
+  `deterministic_ocr:apple_vision`（skill 自带 `scripts/vision_ocr.swift`，首次使用时编译并按源码哈希缓存到
+  `~/.cache/cancer-buddy-organize/`；可用 `CB_ORGANIZE_CACHE_DIR` 改位置）；否则 `deterministic_ocr:tesseract`
+  （`chi_sim+eng`）；都没有时第二读为 `none`（每个高风险字段“无信号”，单通道读取，`INDEPENDENT_REREAD: false`）。
+  Claude 用 `Read` 再看一遍图（含放大裁剪）属于 `llm_vision`：可以帮自己看清 `[不可读]` 处，但永远不是第二读、不是独立读。
+  独立 = 模型主读 + 确定性引擎第二读且引擎至少读出一个高风险字段；born-digital 页的“原生文本层 + 区域引擎读”只用于
+  文书意图（phase1 §6）。
+- **方向**：看图与引擎读之前，`run_ocr_engine.py orient` 先按 EXIF 与引擎的文字基线方向写出正向副本
+  （`raw/_extract/<…>.oriented.png`，旋转角度记进 `adapter_provenance`）；它只打印角度，不输出文字。
+- 药名、剂量、频次、日期、实验室值/单位/参考范围、分期、变异/VAF 等高风险字段的分母由 `_high_risk_spans.py` 推出，
+  worker 只能用 `declared.json` 补报；冲突写 `[OCR_UNCERTAIN:U-nnn]` 与 `## 不确定字段` 条目，不得进入 settled-fact surface；
+  “无信号”不出 flag。
 - PII 同时使用语义复扫与确定性 shape 兜底；任何一层不可用时，共享/交付门 fail closed。
 - sidecar 头部恰好 12 个键，按序：SOURCE / FILE_ID（稳定的 source_id）/ EXTRACTOR（worker 标识）/ PRIMARY_CHANNEL / SECOND_READ_CHANNEL / INDEPENDENT_REREAD / READ_MODE / ADAPTER / CONFIDENCE / SHA256 / PAGE_LABEL / MODALITY（定义见 `organizer-prompt-phase1-ocr.md` §3；头部块不做 PII 扫描，出现其他键即校验错误）。原件路径与适配器临时文件不进头部，由 Phase 2 写进 `source_inventory.json`。
 
 ## 3. 格式适配
 
-- HEIC/HEIF: `sips` 生成临时 JPG/PNG 供 OCR 与 `Read`；原始 HEIC 仍逐字保存到 `raw/`，`source_inventory.json.raw_path` 指向 `raw/` 下的逐字原件，临时图只记在 `adapter_provenance`。
-- PDF: born-digital 文本层或 OCR 输出保留为字符来源；渲染页可供版面复核。
+- HEIC/HEIF: `sips` 生成临时 JPG（放在 `raw/_extract/`），再由 `run_ocr_engine.py orient` 写正向副本供 `Read` 与引擎；原始 HEIC 仍逐字保存到 `raw/`，`source_inventory.json.raw_path` 指向 `raw/` 下的逐字原件，临时图只记在 `adapter_provenance`。
+- PDF: `text_layer_kind.py` 逐页判类型；born-digital 页的文本层是字符来源；像素页 `pdftoppm -r 200` 渲染到 `raw/_extract/` 后转写。
 - DOCX/表格/文本: 原生文本/单元格是字符来源，LLM-readable payload 是辅助视图。
 - 不支持/损坏文件: Phase1 产 stub sidecar + `[INGESTION_BLOCKED: <原因>]`，不能静默跳过；`.DS_Store`、`__MACOSX/`、空文件、重复 sha256 记入 `skipped_inputs`。
 

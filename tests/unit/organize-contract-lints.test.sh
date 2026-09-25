@@ -101,7 +101,7 @@ expect "a new plain term passes" pass "$tmp/b6"
 P1=references/organizer-prompt-phase1-ocr.md
 fresh c1; edit "$tmp/c1/$P1" 't.replace("PAGE_LABEL: 第2页，共3页\n", "", 1)'
 expect "phase1 §3 example without PAGE_LABEL" fail "$tmp/c1" "header example keys"
-fresh c2; edit "$tmp/c2/$P1" 't.replace("READ_MODE: model_vision_assist\nADAPTER: temp_raster\n", "ADAPTER: temp_raster\nREAD_MODE: model_vision_assist\n", 1)'
+fresh c2; edit "$tmp/c2/$P1" 't.replace("READ_MODE: model_vision_primary\nADAPTER: temp_raster\n", "ADAPTER: temp_raster\nREAD_MODE: model_vision_primary\n", 1)'
 expect "phase1 §3 example with two keys swapped" fail "$tmp/c2" "pinned order"
 fresh c3; edit "$tmp/c3/$P1" 't.replace(" `certificate`", "", 1)'
 expect "phase1 §3 SOURCE list drifts from the validator" fail "$tmp/c3" "SIDECAR_SOURCE_TYPES"
@@ -280,6 +280,31 @@ fresh n15; edit "$tmp/n15/references/organizer-prompt-phase2-synthesis.md" 't.re
 expect "phase2 §9 leaving every .case_summary_data.json ERROR, the missing stale notice included" fail "$tmp/n15" "Phase 2's own §7 notice"
 fresh n14; edit "$tmp/n14/references/organizer-prompt-phase2-synthesis.md" 't.replace("§9 的校验输出里有以 `ERROR: .case_summary_data.json` 开头的行时也为 true", "§9 报了 段D 错误时也为 true", 1)'
 expect "phase2 §10 case_summary_rerender_required not covering the ERROR line" fail "$tmp/n14" "§10 case_summary_rerender_required"
+
+# ---- O. read channel (ORG-P0-01/02)
+fresh o1; edit "$tmp/o1/$P1" 't.replace("python3 \"<skill_dir>/scripts/second_read_align.py\" --apply", "python3 \"<skill_dir>/scripts/run_ocr_engine.py\" read", 1)'
+expect "phase1 no longer running the second read through second_read_align.py" fail "$tmp/o1" "second_read_align.py"
+fresh o2; edit "$tmp/o2/$P1" 't.replace("不插 token、不建条目、不出 flag", "按 flag 处理", 1)'
+expect "phase1 §5.1 without the no-signal rule" fail "$tmp/o2" "no-signal rule"
+fresh o3; edit "$tmp/o3/$P1" 't.replace("写正文之前不运行任何 OCR", "写正文时可参考 OCR", 1)'
+expect "phase1 §4 D without the anti-anchoring rule" fail "$tmp/o3" "anti-anchoring"
+fresh o4; edit "$tmp/o4/references/schemas/source_inventory.schema.json" 't.replace("\"model_vision_primary\", ", "", 1)'
+expect "schema read_mode enum drifting from SIDECAR_READ_MODES" fail "$tmp/o4" "read_mode enum"
+fresh o5; edit "$tmp/o5/$P1" 't.replace(" `model_vision_primary`（像素页", " （像素页", 1)'
+expect "phase1 §3 READ_MODE row without model_vision_primary" fail "$tmp/o5" "phase1 §3 READ_MODE values"
+
+# ---- lint 07 (I-07): a pixel page's model transcription is never the only reading
+LINT07="$REPO_ROOT/tests/eval/lint/07-clinical-governance.sh"
+g07() {  # label, pass|fail, mutation (python over t) of the phase1 prompt in a copy of skills/
+  local label="$1" want="$2" expr="$3" got
+  rm -rf "$tmp/s07"; cp -R "$REPO_ROOT/skills" "$tmp/s07"
+  [[ -n "$expr" ]] && edit "$tmp/s07/cancer-buddy-organize/$P1" "$expr"
+  CB_SKILLS_DIR="$tmp/s07" bash "$LINT07" >/dev/null 2>&1 && got=pass || got=fail
+  [[ "$got" == "$want" ]] && ok || no "$label: expected $want, got $got"
+}
+g07 "lint 07 on an untouched copy" pass ""
+g07 "phase1 without 「模型转写不是唯一读数」" fail 't.replace("模型转写不是唯一读数", "模型转写即唯一读数", 1)'
+g07 "phase1 without the second_read_align.py call" fail 't.replace("second_read_align.py", "an_engine.py")'
 
 echo "organize-contract-lints: pass=$pass fail=$fail"
 [[ "$fail" -eq 0 ]]

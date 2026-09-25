@@ -30,6 +30,7 @@ SIDE_CT = "05_影像/CT/2030-01-12_胸部CT_示例医院.md"
 SIDE_LAB = "07_检验/肿瘤标志物/2030-01-15_肿瘤标志物_示例医院.md"
 SIDE_DIGEST = "03_病程与叙事文书/既往档案摘录/2029-06-01_既往档案摘录.md"
 SIDE_SELF = "14_患者自管补充/患者补充/undated_家属自述.md"
+SIDE_ORDER = "08_治疗/处方医嘱/2030-01-08_临时医嘱单_示例医院.md"  # a pixel page with a script-run second read
 
 
 def load(d: Path, name: str):
@@ -58,7 +59,8 @@ def fill_agents(d: Path) -> None:
 
 
 def write_extract(dst: Path) -> None:
-    """The raw/_extract inputs the fixture's `## 列配对` record names (make_syn_current.EXTRACT_FILES).
+    """The raw/_extract files the fixture's sidecars name (make_syn_current.EXTRACT_FILES): the `## 列配对`
+    input of the lab sidecar, and the engine output + second-read record of the pixel-page sidecar.
     The repository ignores every raw/, so they are written into the test copy here."""
     import make_syn_current
     for rel, text in make_syn_current.EXTRACT_FILES.items():
@@ -194,7 +196,7 @@ def downgrade_to_legacy(d: Path) -> None:
                                              "phase": "phase2", "input_count": 4,
                                              "source_ids": ["s001", "s002", "s003", "s005"],
                                              "summary": "legacy entry"}]})
-    for sc in (SIDE_OUTPATIENT, SIDE_CT, SIDE_LAB, SIDE_DIGEST, SIDE_SELF):
+    for sc in (SIDE_OUTPATIENT, SIDE_CT, SIDE_LAB, SIDE_DIGEST, SIDE_SELF, SIDE_ORDER):
         def strip_header(text: str) -> str:
             keep = ("SOURCE:", "FILE_ID:", "READ_MODE:", "ADAPTER:", "CONFIDENCE:", "MODALITY:")
             lines = text.splitlines()

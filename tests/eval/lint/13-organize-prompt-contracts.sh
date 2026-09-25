@@ -56,6 +56,9 @@
 #      Surfaces: profile-card.md labels a translation 中文转述，非报告原句 (acute-findings.md §2.4 lists Step 11), and
 #      SKILL.md Step 12, phase2 §9 and §10 route an 「ERROR: .case_summary_data.json」 line to the 段D re-render
 #      (§9 excepting the validator's 'the pinned stale notice … is missing' line: that is Phase 2's own notice).
+#   O. read channel: phase1 §4 G runs python3 "<skill_dir>/scripts/second_read_align.py" --apply, §5.1 states the three
+#      states (一致 / 无信号 / 冲突) and the no-signal rule, §4 D keeps 「写正文之前不运行任何 OCR」, and
+#      source_inventory.schema.json's read_mode enum equals SIDECAR_READ_MODES (lint I binds the phase1 row to it).
 #   I. phase1 §3 table rows READ_MODE / ADAPTER / MODALITY list exactly the validator's
 #      SIDECAR_READ_MODES / SIDECAR_ADAPTERS / SIDECAR_MODALITIES (checked on the header itself, so
 #      a sidecar without an inventory row cannot carry free text there).
@@ -506,6 +509,28 @@ elif "the pinned stale notice" not in sec9.group(1) or "the pinned stale notice"
 rr = next((l for l in p2.splitlines() if l.startswith("- `case_summary_rerender_required`")), "")
 if ROUTE not in rr:
     fail(f"organizer-prompt-phase2-synthesis.md §10 case_summary_rerender_required is not true on a 「{ROUTE}」 line")
+
+# ---- O. the read channel (ORG-P0-01/02): phase1 runs the second read through the script, states the three
+#      states with the no-signal rule, and the READ_MODE vocabulary is one list in three places
+try:
+    import validate_structured_outputs as vso
+    modes = list(vso.SIDECAR_READ_MODES)
+except (ImportError, AttributeError) as e:
+    fail(f"validate_structured_outputs.py has no SIDECAR_READ_MODES: {e}")
+    modes = None
+inv_schema = json.loads((org / "references" / "schemas" / "source_inventory.schema.json").read_text(encoding="utf-8"))
+enum_o = inv_schema["properties"]["files"]["items"]["properties"]["read_mode"]["enum"]
+if modes is not None and enum_o != modes:
+    fail(f"source_inventory.schema.json read_mode enum {enum_o} ≠ validator SIDECAR_READ_MODES {modes}")
+if 'python3 "<skill_dir>/scripts/second_read_align.py" --apply' not in p1:
+    fail("phase1 does not run `python3 \"<skill_dir>/scripts/second_read_align.py\" --apply` (§4 G): the second read, "
+         "its tokens and table are the script's, never the worker's")
+sec51 = re.search(r"^### 5\.1 .*?$(.*?)^### 5\.2 ", p1, re.S | re.M)
+if not sec51 or not all(s in sec51.group(1) for s in ("**一致**", "**无信号**", "**冲突**", "不插 token、不建条目、不出 flag")):
+    fail("phase1 §5.1 does not state the three states (一致 / 无信号 / 冲突) with the no-signal rule "
+         "「不插 token、不建条目、不出 flag」")
+if "写正文之前不运行任何 OCR" not in p1:
+    fail("phase1 §4 D lost the anti-anchoring rule 「写正文之前不运行任何 OCR」")
 
 sys.exit(min(bad, 100))
 PY

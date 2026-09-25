@@ -30,6 +30,24 @@ Clinical-trial matching is not part of this repository. A separately installed t
 
 Likewise, virtual MTB or other clinical-decision tools are outside the public Cancer Buddy scope. Cancer Buddy may organize records and questions for a qualified treating team; it does not generate a substitute decision report.
 
+## Record organization: the OCR second-read engine
+
+`cancer-buddy-organize` transcribes photos and scanned pages with the host model and has a deterministic OCR engine read
+every page a second time. Check which engine this host offers:
+
+```bash
+python3 skills/cancer-buddy-organize/scripts/run_ocr_engine.py which
+```
+
+- `apple_vision` — macOS with the Xcode command-line tools (`swiftc`): the bundled `scripts/vision_ocr.swift` is compiled
+  on first use and cached in `~/.cache/cancer-buddy-organize/` (override with `CB_ORGANIZE_CACHE_DIR`). Preferred.
+- `tesseract` — **WARN**: works (`chi_sim` + `eng` language data), but reads fewer printed Chinese characters correctly, so
+  more high-risk fields end up as single-channel reads. Install the command-line tools on macOS to get `apple_vision`.
+- no engine (exit 3) — organize still runs, but every high-risk field is a single-channel read (no independent second
+  read); install one of the two before organizing real records.
+
+PDF page typing uses PyMuPDF when importable, else poppler (`pdfinfo`, `pdffonts`, `pdfimages`, `pdftotext`).
+
 ## Verify
 
 ```bash

@@ -22,7 +22,8 @@ jobs:
         # Without jsonschema, validate_structured_outputs.py silently downgrades to
         # "lightweight structured checks" and does NOT fail — i.e. a green CI would
         # mean "weak checks passed", not "schema validation passed".
-        run: python3 -m pip install --upgrade 'jsonschema>=4.18'
+        # pymupdf: tests/unit/text-layer-kind.test.sh builds and classifies synthetic PDFs (skips without it)
+        run: python3 -m pip install --upgrade 'jsonschema>=4.18' pymupdf
 
       - name: Show tool versions
         run: |

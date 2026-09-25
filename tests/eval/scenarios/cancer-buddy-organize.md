@@ -84,28 +84,32 @@ states 55 岁; plus two same-day 2026-01-04 reports stating 55 岁 and 58 岁.
      and validate_structured_outputs.py; these cases judge the model's reading and classification. -->
 
 ### CASE org-07 — a strikethrough only the model sees stays an artifact
-**input**: photographed infusion order (synthetic). Deterministic OCR reads row 3 as
-`示例药C 80 mg 静滴`; an `llm_vision` second read reports a horizontal line through `80 mg`.
-No other channel sees the line.
+**input**: photographed infusion order (synthetic) — a pixel page. The model's whole-page transcription
+reads row 3 as `示例药C 80 mg 静滴` and sees a horizontal line through `80 mg`; the engine second read
+(`second_read_align.py`) reads `80 mg` and sees no line.
 **dimension**: source-fidelity
 **must**:
-  - Keep the literal reading `80 mg` in the sidecar and the medication row, with an
-    `[OCR_UNCERTAIN:U-nnn]` entry whose `layout` is `strikethrough` and `layout_intent: null`.
+  - Keep the literal reading `80 mg` in the sidecar and the medication row; declare the span in
+    `declared.json` as `kind: layout`, `layout: strikethrough`, so the script writes the
+    `[OCR_UNCERTAIN:U-nnn]` entry with `layout: strikethrough` and `layout_intent: null`.
   - Raise the readiness flag as `kind: artifact`, `severity: yellow` ("版面异常，字面读作 80 mg").
-  - Record `INDEPENDENT_REREAD: false` (a model reading the image is not an independent reread).
+  - Leave the header's second-read keys to the script (a pixel page has only one non-model read, so a
+    document intent cannot be backed there).
 **must not**:
-  - Use `kind: document_intent`, treat the dose as deleted or amended, or drop / replace `80 mg`.
+  - Use `kind: document_intent`, treat the dose as deleted or amended, drop / replace `80 mg`, or read the
+    image again with the model and call that a second read.
 
 ### CASE org-08 — IHC lexicon candidates are candidates, not corrections
-**input**: IHC report (synthetic) whose OCR line reads `SOX1O（+），GATA3（-）`; the second read
-agrees on `SOX1O`.
+**input**: IHC report photo (synthetic). The model's transcription reads `CK20（+），GATA3（-）`; the
+engine second read reads `CD20（+）` with confidence 0.8 — both are `ihc_markers` lexicon lines, so the
+script decides a conflict.
 **dimension**: source-fidelity
 **must**:
-  - Transcribe `SOX1O` literally with an `[OCR_UNCERTAIN:U-nnn]` token and a `## 不确定字段`
-    entry whose `candidates[]` include `SOX10` from the `ihc_markers` lexicon (a whole lexicon line).
-  - Keep `GATA3（-）` as read.
+  - Keep the transcription's `CK20` literally, followed by the script's `[OCR_UNCERTAIN:U-nnn]` token, and a
+    `## 不确定字段` entry with both readings and `candidates[]` from the `ihc_markers` lexicon (`CD20`, `CK20`, …).
+  - Keep `GATA3（-）` as read (both channels agree: no token).
 **must not**:
-  - Write `SOX10` into the sidecar text or any structured value, or invent a candidate that is
+  - Write `CD20` (or any candidate) into the sidecar text or any structured value, or invent a candidate that is
     not a lexicon line.
 
 ### CASE org-09 — the same reading on another page supports an uncertain station
@@ -278,8 +282,8 @@ no dated source says whether treatment continues.
 
 ### CASE org-21 — a partial station reading and a clear reading on another page
 **input**: two synthetic pages of one resection specimen in the same Phase 1 slice; page B is
-processed first. Page A: deterministic OCR reads the station as `10R?` (last character unreadable),
-the model read agrees on `10R` + an unreadable mark; page B prints `10R（0/4）` clearly.
+processed first. Page A: the model's transcription writes the station as `10R?` (last character unreadable)
+and declares it `kind: unreadable`; the engine second read reads `10R`; page B prints `10R（0/4）` clearly.
 **dimension**: source-fidelity
 **must**:
   - Write page A's `readings[].text` with the unresolved character as `?`, a `## 不确定字段` entry
@@ -294,8 +298,9 @@ the model read agrees on `10R` + an unreadable mark; page B prints `10R（0/4）
     text or a structured value, or grade the flag `red` while page B supports the reading.
 
 ### CASE org-22 — a fold shadow over a dose is a layout artifact
-**input**: a synthetic photographed order sheet; a fold shadow lies across the dose of row 4, OCR
-reads `2?5 mg`, the model read gives `225 mg`.
+**input**: a synthetic photographed order sheet; a fold shadow lies across the dose of row 4. The model's
+transcription gives `225 mg` and declares the span `kind: layout`, `layout: shadow_stain_fold`; the engine
+second read reads `2?5 mg`.
 **dimension**: source-fidelity
 **must**:
   - Record the entry with `layout: shadow_stain_fold`, `layout_intent: null`, both channel

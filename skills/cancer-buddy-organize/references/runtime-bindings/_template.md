@@ -7,7 +7,7 @@
 | 接缝 | 契约要求(不变) | `<HOST_NAME>` 填法 |
 |---|---|---|
 | 编排 | Phase2 前所有 text-masked MD sidecars 就绪 | `<填法: 扇出 / 单进程顺序 / job 队列>` |
-| 抽取输入源 | 确定性原始字符层 + provenance；LLM 只做版面、候选纠错、语义辅助 | `<填法: OCR/parser/原生文本 + 独立复读 + LLM review>` |
+| 抽取输入源 | 像素页：模型整页转写 = 正文，确定性引擎第二读（脚本三态对齐）；born-digital：文本层 = 正文 | `<填法: 模型读图方式 + 本宿主的确定性引擎（run_ocr_engine.py auto 顺序）+ 原生文本层>` |
 | 格式适配 | 只把源文件变成 LLM-readable input | `<填法: HEIC/PDF/DOCX/表格/archive 如何适配>` |
 | 确认门 | 未确认不写正式字段/不可逆删除 | `<填法: inline 往返 / confirm-as-product 两轮>` |
 | 存储 | canonical 输出集;原始件逐字保存进 `raw/` vault | `<填法: 写哪、`raw/` 如何保存、persist 到哪>` |
@@ -21,12 +21,13 @@
 
 ## 2. 来源保真抽取
 
-- **契约要求**:图片/扫描件使用适用的确定性 OCR/表格/条码抽取；born-digital 文件保留原生
-  文本/单元格。保存引擎、版本、原始输出、source span 和文件 hash。
-- **填法**:`<描述原始字符层、第二次读取、LLM 版面/语义复核和人工复核如何衔接；列出本宿主可用的通道值（text_layer / table_parser / deterministic_ocr:<engine> / barcode / human / llm_vision）>`。
-- **独立性**:`INDEPENDENT_REREAD: true` 仅当两次读取的通道类别不同且都不是 `llm_vision`；模型看图永远不是独立复读。
-- **禁止**:LLM 不得成为唯一字符真值；候选纠错不得覆盖 `raw_text`。高风险字段两次读取不一致
-  时必须 `needs_human_review`，不得进入 settled-fact surface。
+- **契约要求**:像素页（照片、无文本层的扫描页）的字符真值是模型整页多模态转写；正文定稿后由
+  `second_read_align.py` 调用确定性 OCR 引擎做第二读并三态判定（一致 / 无信号 / 冲突，只有冲突出 token）。
+  born-digital 页的文本层就是正文，不跑 OCR。保存引擎、版本、原始输出、`body_sha256` 和文件 hash。
+- **填法**:`<本宿主模型如何看图；可用的确定性引擎（apple_vision / tesseract / none）；方向统一（run_ocr_engine.py orient）；通道值（text_layer / table_parser / deterministic_ocr:<engine> / barcode / human / llm_vision）>`。
+- **独立性**:`INDEPENDENT_REREAD: true` 仅当两次读取的通道类别不同、第二读不是 `none` 也不是 `llm_vision`，且引擎至少读出一个高风险字段；模型再看一遍图（含裁剪放大、换会话换模型）永远不是独立复读。
+- **禁止**:引擎文字进入正文；worker 在写正文前运行 OCR 或读引擎输出；手写 token / 复读表；为通过门换参数重跑引擎。
+  冲突的高风险字段不得进入 settled-fact surface；“无信号”只记单通道读取，不出 flag。
 - **`[HEADER]` sidecar 头字段集**:恰好 12 个键，按序 SOURCE / FILE_ID / EXTRACTOR / PRIMARY_CHANNEL / SECOND_READ_CHANNEL / INDEPENDENT_REREAD / READ_MODE / ADAPTER / CONFIDENCE / SHA256 / PAGE_LABEL / MODALITY（`organizer-prompt-phase1-ocr.md` §3）；头部块不做 PII 扫描，出现其他键即校验错误；`EXTRACTOR` 是 worker 标识，不能是 orchestrator/main/manual/host/self/user。
 
 ## 3. 格式适配

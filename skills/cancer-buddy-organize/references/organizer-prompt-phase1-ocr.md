@@ -1,8 +1,9 @@
-# Phase 1：来源保真的 OCR/转录
+# Phase 1：来源保真的转写与第二读
 
-目标是生成可复核 sidecar，不是让 LLM 成为唯一字符真值。确定性通道（原生文本层、表格解析、
-OCR 引擎、条码）给出的字符是主来源；大模型只做版面重建、候选约束和语义标注，它的读数永远与
-原始读数分层保存。
+目标是生成可复核 sidecar。**像素页**（照片、没有文本层的扫描页）的字符真值是大模型的**整页多模态转写**；确定性
+OCR 引擎（Apple Vision / tesseract）是它的**第二读**：由 `second_read_align.py` 在正文写完之后运行、逐字对齐、按三态
+（一致 / 无信号 / 冲突）判定，只有冲突才出不确定标记。**born-digital 页**的正文就是原生文本层，不跑 OCR。引擎文字永远
+不进正文；两种读数分层保存。
 
 ## 0. 你是谁、只写什么
 
@@ -11,14 +12,19 @@ OCR 引擎、条码）给出的字符是主来源；大模型只做版面重建�
 
 - `<patient_dir>/ocr/<source_id>.md`（一个原件一个 sidecar；多文书原件见 §4.3）；
 - `<patient_dir>/raw/<original_subdir>/<去标识文件名>`（原件字节，不改动）；
-- `<patient_dir>/raw/_extract/<source_id>.<通道>.<txt|json>`（各通道原始输出，含引擎给出的坐标与置信度；
-  这些是**未遮蔽**的原始读数，与原件同属受控 `raw/`，只供复核与 Phase 2.5 使用，不是下游读取面，也不导出）；
+- `<patient_dir>/raw/_extract/` 下你自己的中间文件：页类型结果 `<source_id>.pages.json`、born-digital 文本层
+  `<stem>.text_layer.txt`、PDF 像素页的渲染页 `<stem>.p<N>.png`、正向副本 `<…>.oriented.png`、补报的高风险 span
+  `<stem>.declared.json`（§5.2）。`<stem>` 是 sidecar 的文件名（`s004`、`s004-2`）。这些是**未遮蔽**的原始材料，
+  与原件同属受控 `raw/`，不是下游读取面，也不导出。引擎输出 `<stem>.<引擎>.json` 与第二读记录
+  `<stem>.second_read.json` 由 `second_read_align.py` 写：你不写它们，写正文前也不读它们；
 - `<patient_dir>/raw/_FILENAME_MAPPING.md` 追加行；
 - `<patient_dir>/raw/_identity_denylist/<worker_id>.json`：你自己的身份词表，**整份文件一次写全**（§9.1），不追加
   别人的文件——并行的 worker 同时追加同一个文件会互相覆盖或写出无法解析的 JSON，身份词兜底就失效了。
 
 不写 `INDEX.md`、`timeline.*`、`case_text.md`、`profile.json`、`readiness.json`、任何结构化 JSON、
 `update_log.json`，也不把 sidecar 搬进 `NN_` 桶——那些属于 Phase 2。写了就会与其他 worker 竞争。
+**`<skill_dir>` 在运行期只读**：不得写、改、删其下任何文件（包括 `search_replace`、`sed -i`、`rm`、在其中新建脚本）；
+发现技能缺陷（脚本报错、规则互相矛盾）→ 在该步停下，写进返回 JSON 的 `skill_defects`，不自己修。
 
 本提示词自包含：**不要先通读 skill 的其他文件**，处理完第一个文件就写出第一份 sidecar。
 
@@ -38,43 +44,63 @@ OCR 引擎、条码）给出的字符是主来源；大模型只做版面重建�
 - `input_handles`：编排者运行 `inventory_hash.py <输入目录> --mapping-out <patient_dir>/raw/_INPUT_HANDLES_<时间戳>.json`
   写出的句柄表路径（`{句柄: 输入目录内相对路径}`，含原上传名，只在受控的 `raw/` 里）。按它把 `in-NNN` 对到
   文件；句柄按整次扫描编号，你自己对切片重跑脚本得到的编号不同，不能拿来对句柄。
-- 幂等：某输入的 sidecar（含 §4.3 的各份 content unit）已存在，且**同时**满足以下四条 → 跳过，不重写：
+- 幂等：某输入的 sidecar（含 §4.3 的各份 content unit）已存在，且**同时**满足以下五条 → 跳过，不重写：
   头部恰好是 §3 的 12 个键、顺序一致、`EXTRACTOR` 非空；头部 `SHA256` 与该原件一致；以 `## PII` 尾注结束；
-  正文第一行不是 `[INGESTION_BLOCKED: in_progress_timeout_risk]`。任一条不满足（被中断的半成品、头部
-  不合规、§10 主动让出的 stub）→ 重新处理：头部合规、`SHA256` 一致、只是缺尾注的分段半成品（§10）从它已写的最后一页
-  之后续写；其余情况从头处理并覆盖。编排者在 `stub_files` 或单文件重派中点名交给你的文件，
-  一律重新处理。
+  正文第一行不是 `[INGESTION_BLOCKED: in_progress_timeout_risk]`；已有 `second_read_align.py` 写的
+  `## 高风险字段复读` 块（stub 除外）。任一条不满足（被中断的半成品、头部不合规、§10 主动让出的 stub、还没跑第二读）→
+  重新处理：头部合规、`SHA256` 一致、只是缺尾注的分段半成品（§10）从它已写的最后一页之后续写；只缺第二读的，
+  补跑 §4 G；其余情况从头处理并覆盖。编排者在 `stub_files` 或单文件重派中点名交给你的文件，一律重新处理。
 
-## 2. 读取通道与独立性
+## 2. 页类型、读取通道与独立性
+
+### 2.1 页类型（先判定，再读）
+
+- **照片 / 图片**：像素页（HEIC 先 `sips -s format jpeg <原件> --out raw/_extract/<stem>.jpg` 转出临时 jpg）。
+- **PDF**：运行 `python3 "<skill_dir>/scripts/text_layer_kind.py" <pdf> --out <patient_dir>/raw/_extract/<source_id>.pages.json`，
+  逐页得到 `born_digital`（原生文本层）/ `embedded_ocr`（整页图上叠着别人的 OCR 层、隐形文字或 OCR 字体）/
+  `absent`（没有文字层）。`embedded_ocr` 与 `absent` 都是**像素页**：内嵌 OCR 层不是字符真值，不当正文，也不参与独立性。
+  同一原件既有 born_digital 页又有像素页 → 按页类型拆成 content units（§4.3 的 `-k` 形式，`FILE_ID` 相同，
+  `page_range` 写各自页范围），每份只含一种页类型。
+- **DOCX / 表格 / 纯文本**：原生段落与单元格，与 born_digital 同样处理（`text_layer` / `table_parser`）。
+
+### 2.2 通道
 
 | 通道值 | 通道类别 | 含义 |
 |---|---|---|
-| `text_layer` | text_layer | born-digital PDF/DOCX 的原生文本层（如 `pdftotext -layout` 输出） |
+| `text_layer` | text_layer | born-digital PDF/DOCX 的原生文本层（`pdftotext -layout` 输出）：born-digital 页的正文 |
 | `table_parser` | table_parser | 原生表格、电子表格单元格解析 |
-| `deterministic_ocr:<engine>` | deterministic_ocr | 确定性 OCR 引擎：默认 `deterministic_ocr:tesseract`（TSV 输出自带逐词坐标与置信度）；宿主另行提供的引擎按同样格式命名，如 `deterministic_ocr:apple_vision` |
+| `llm_vision` | llm_vision | 大模型看原图或渲染页读字（含 Claude 读图、`codex exec -i`）：**像素页的主通道**（整页多模态转写） |
+| `deterministic_ocr:<engine>` | deterministic_ocr | 确定性 OCR 引擎：**像素页的第二读**，只由 `second_read_align.py` 调用（Apple Vision 优先，其次 tesseract；本宿主有哪个见 runtime-bindings） |
 | `barcode` | barcode | 条码/二维码解码 |
 | `human` | human | 人工逐字核对 |
-| `llm_vision` | llm_vision | 大模型看原图或渲染页读字（含 Claude 读图、`codex exec -i`） |
 | `prior_archive_sidecar` | prior_archive_sidecar | 仅用于旧档案摘录（§12） |
 | `none` | — | 没有第二次读取 |
 
-**独立的定义**：`INDEPENDENT_REREAD: true` 当且仅当 `PRIMARY_CHANNEL` 与 `SECOND_READ_CHANNEL`
-的**通道类别不同**，且**两者都不是 `llm_vision`**。
+### 2.3 独立的定义
 
-- 大模型看图就是 `llm_vision`，换一个会话、换一个模型也不算独立；它可以作为第二次读取，但必须记
-  `INDEPENDENT_REREAD: false`。
-- 两个 OCR 引擎属于同一类别 `deterministic_ocr`，互相复读同样记 `false`；它们的读数可以并列、
-  可以支撑候选，但不构成独立复读。
-- `source_inventory.json` 的 `high_risk_review_status` 只有在 `INDEPENDENT_REREAD: true` 且高风险
-  字段两次读数一致时才可写 `passed_independent_reread`；含高风险字段但没有独立复读时写
-  `needs_human_review`（表示“没有独立复读背书”，不等于字段不可用）；没有高风险字段的影像图片等
-  写 `not_applicable`。
+`INDEPENDENT_REREAD: true` 当且仅当：两个通道**类别不同**；`SECOND_READ_CHANNEL` 不是 `none`，也不是
+`llm_vision`；并且 `## 高风险字段复读` 表里**至少 1 行不是“无信号”**（引擎确实读出了高风险字段）。
 
-**高风险字段**：日期、药名、剂量/频次/途径、方案里药名之间的连接符（“+”“/”“-”）、周期或程序号（“第4程”
-“C3D1”）、检验数值/单位/参考范围/标记、分期字符串、免疫组化标志物与判读、淋巴结站别、基因变异与 VAF、
-病理诊断、病理申请单上填写的临床诊断、其他诊断名（含合并症诊断，如“高血压”；影像印象/结论里的诊断性用语，如“考虑转移”“恶性可能”，也按诊断名）、显像剂/示踪剂名（按药名）、机构名。
-病理大体描述里的颜色、质地等文字不是高风险字段。每个高风险字段必须有第二次读取；
-两次读数不一致即写 §5 的不确定条目。姓名与身份编号只做遮蔽（§9），不做复读记录。
+- 确定性引擎的读数不依赖模型：`llm_vision` 主读 + `deterministic_ocr` 第二读是独立的。
+- 模型再看一遍原图、放大裁剪后重看、换会话或换模型重读，都还是 `llm_vision`，**不是**独立读，不能写成第二通道。
+- 两个 OCR 引擎同属 `deterministic_ocr`，互相不构成独立复读；PDF 内嵌的 OCR 层同样不算。
+- 像素页的 `SECOND_READ_CHANNEL`、`INDEPENDENT_REREAD`、`CONFIDENCE` 由 `second_read_align.py` 写进头部，不手填。
+- `source_inventory.json` 的 `high_risk_review_status`：像素页只有 `INDEPENDENT_REREAD: true` 且复读表每一行都是“是”
+  才是 `passed_independent_reread`，否则 `needs_human_review`（表示“没有全部独立背书”，不是 flag，也不等于字段不可用）；
+  没有高风险字段的影像图片与 born-digital 页写 `not_applicable`。`second_read_align.py` 的输出里给出这个值，照抄进返回 JSON。
+
+### 2.4 高风险字段：分母由脚本定
+
+日期、药名、剂量/频次/途径、方案里药名之间的连接符（“+”“/”“-”）、周期或程序号（“第4程”“C3D1”）、检验数值/单位/
+参考范围/标记、分期字符串、免疫组化标志物与判读、淋巴结站别、基因变异与 VAF、病理诊断、病理申请单上填写的临床诊断、
+其他诊断名（含合并症诊断，如“高血压”；影像印象/结论里的诊断性用语，如“考虑转移”“恶性可能”）、显像剂/示踪剂名（按药名）、
+机构名。病理大体描述里的颜色、质地等文字不是高风险字段。
+
+**哪些字符串要复读，由 `scripts/_high_risk_spans.py` 从正文推出**：日期、数字+单位、表格里的数值/参考范围/单位、
+TNM 与分期、周期号、三部词表（药名、免疫组化标志物、淋巴结站别）命中、药名之间的连接符。与同一张卡上 Normal range
+行数字相同的独立数字行（范围条刻度）不算。脚本推不出的——诊断与诊断性用语、机构名、词表外的药名与示踪剂、
+`[不可读]` 区域、版面异常——由你在 `raw/_extract/<stem>.declared.json` 里补报（§5.2）。**只能加，不能减**。
+姓名与身份编号只做遮蔽（§9），不做复读记录。
 
 ## 3. Sidecar 头部契约
 
@@ -85,10 +111,10 @@ OCR 引擎、条码）给出的字符是主来源；大模型只做版面重建�
 SOURCE: outpatient_note
 FILE_ID: s003
 EXTRACTOR: p1-h1-1
-PRIMARY_CHANNEL: deterministic_ocr:tesseract
-SECOND_READ_CHANNEL: llm_vision
-INDEPENDENT_REREAD: false
-READ_MODE: model_vision_assist
+PRIMARY_CHANNEL: llm_vision
+SECOND_READ_CHANNEL: deterministic_ocr:apple_vision
+INDEPENDENT_REREAD: true
+READ_MODE: model_vision_primary
 ADAPTER: temp_raster
 CONFIDENCE: medium
 SHA256: 3f5c…（64 位小写十六进制）
@@ -100,12 +126,12 @@ MODALITY: image
 |---|---|
 | `SOURCE` | 文书类型：`discharge_summary` `admission_note` `progress_note` `outpatient_note` `order_sheet` `prescription` `pathology_report` `ihc_report` `ngs_report` `imaging_report` `lab_report` `consult_note` `procedure_note` `certificate` `patient_supplement` `image_only` `prior_archive_digest` `unsupported` |
 | `FILE_ID` | 该原件的 `source_id`（编排者分配，文件改名后不变） |
-| `EXTRACTOR` | 你的 `worker_id`，不是引擎名；引擎名写在 `PRIMARY_CHANNEL` |
-| `PRIMARY_CHANNEL` / `SECOND_READ_CHANNEL` | §2 的通道值，写法 `<类别>[:<引擎>]`（冒号前是类别，独立性只按类别判断）；没有第二次读取写 `none` |
-| `INDEPENDENT_REREAD` | `true` / `false`，按 §2 定义机械填写 |
-| `READ_MODE` | `native_text` `deterministic_ocr` `table_parser` `barcode_parser` `hybrid_verified`（仅独立复读一致时） `model_vision_assist`（大模型参与读字） `stub_unreadable` `prior_archive_digest` |
+| `EXTRACTOR` | 你的 `worker_id`，不是引擎名；引擎名写在通道值里 |
+| `PRIMARY_CHANNEL` / `SECOND_READ_CHANNEL` | §2.2 的通道值，写法 `<类别>[:<引擎>]`（冒号前是类别，独立性只按类别判断）。像素页 PRIMARY 固定 llm_vision，SECOND 由脚本写（引擎或 none）；born-digital 页 PRIMARY 是 text_layer，SECOND 是 none |
+| `INDEPENDENT_REREAD` | `true` / `false`，按 §2.3 机械判定（像素页由脚本写） |
+| `READ_MODE` | `native_text`（born-digital 文本层、DOCX、表格、纯文本） `deterministic_ocr`（旧契约：引擎主读） `table_parser` `barcode_parser` `hybrid_verified`（旧契约：独立复读一致） `model_vision_assist`（旧契约：模型辅助读字，新 sidecar 不用） `model_vision_primary`（像素页：模型整页转写为正文，引擎作第二读） `stub_unreadable` `prior_archive_digest` |
 | `ADAPTER` | `none` `temp_raster` `pdf_pages` `docx_payload` `spreadsheet_payload` `text_payload` `archive_unpacked` `unsupported_stub` |
-| `CONFIDENCE` | 规则判定，不自评：有任何 §5 不确定条目、手写、药盒/屏幕翻拍或 stub → `low`；`INDEPENDENT_REREAD: true` 且无不确定条目 → `high`；其余 `medium` |
+| `CONFIDENCE` | 规则判定，不自评：有任何 §5 不确定条目或 stub → `low`；手写、药盒/屏幕翻拍 → 你先写 `low`（脚本保留）；`INDEPENDENT_REREAD: true`、没有不确定条目、复读表没有“无信号”行 → `high`；born-digital 文本层固定 `medium`；其余 `medium`。像素页由脚本写 |
 | `SHA256` | 原件字节的 sha256，取自 `scripts/inventory_hash.py`，必须与编排者的输入清单一致；旧档案摘录（§12）没有上传原件，写 `none` |
 | `PAGE_LABEL` | 页面上印的页码**逐字**（“第2页，共3页”“Page 2 of 3”“2/3”），只写页码原文、不写别的（头部的值同样过 PII 复扫）。一份 sidecar 含多个印刷页时，按页序把每页页码逐字列出、以全角分号“；”分隔（如 `第1页，共3页；第2页，共3页；第3页，共3页`），每页一条，不合并成“第1–3页”；其中某页没有页码时该段写 `null`（缺页检查把它记为部分无页码，不猜）。整份都没有页码写 `null`。不解析、不补全 |
 | `MODALITY` | `text` `image` `structured` `omics_raw` `timeseries` `binary_other` |
@@ -127,18 +153,33 @@ Phase 2 写入 `source_inventory.json` 的 `raw_path`、`adapter_provenance`、`
   参数以 `--help` 为准）取得 sha256、size_bytes、page_count，按 **sha256** 与编排者给的输入清单核对（不按
   句柄比）；不一致立即停下，在返回 JSON 里报告。
   头部 `SHA256` 与返回 JSON 的 `sha256` 就是这个值，Phase 2 会把它照抄进 `source_inventory.json`。
-- **C. 主通道读取**：born-digital 文件先取原生文本层或表格；扫描件、照片用宿主提供的确定性 OCR
-  （可用引擎见 runtime-bindings）。原始输出（含坐标、逐行置信度）存到 `raw/_extract/`。宿主确实
-  没有确定性 OCR 时，主通道只能是 `llm_vision`，`READ_MODE: model_vision_assist`，`CONFIDENCE`
-  至多 `medium`，并在返回 JSON 标注。
-- **D. 版面重建**：大模型可以把主通道文字重排成可读的 Markdown（段落、表格、条目编号），
-  但**不改字**：发现疑似错字时不在正文里改，而是按 §5 写不确定条目。
-- **E. 第二次读取**：逐个高风险字段用第二通道再读一次，记录到 `## 高风险字段复读` 表
-  （字段 | 行 | 主通道读数 | 第二通道读数 | 一致）。两次一致即按原文写入正文；不一致按 §5 处理。
-- **F. 脱敏**：按 §9 遮蔽正文中的个人信息。
-- **G. 写出**：按 §3 头部 + 正文 + 附录块写 `ocr/<source_id>.md`。附录块顺序固定：
-  `## 高风险字段复读` → `## 列配对`（有检验表时）→ `## 不确定字段`（有条目时）→ `## PII`（总是；恰好一个，且是
-  最后一节——它之后不再有任何标题，校验器照此检查）。
+- **C. 页类型与方向**（§2.1）：born-digital 页把 `pdftotext -layout -f <页> -l <页> <pdf> -` 的输出（换页符 `\f` 换成换行）
+  存为 `raw/_extract/<stem>.text_layer.txt`，DOCX/表格取原生段落与单元格。像素页：PDF 页用
+  `pdftoppm -r 200 -f <页> -l <页> -png <pdf> <patient_dir>/raw/_extract/<stem>.p<页>` 渲染；然后每张页图运行
+  `python3 "<skill_dir>/scripts/run_ocr_engine.py" orient <页图> --out-dir <patient_dir>/raw/_extract`，
+  得到正向副本 `<…>.oriented.png`（它只打印旋转角度，不输出任何文字）。之后你和引擎都只看正向副本。
+- **D. 正文**：
+  - born-digital 页：正文**逐行照抄文本层**（只把 `\f` 换成换行，可以加 `#` 标题行），不改字、不重排成表格。
+    `text_layer_kind.py` 列出的 `glyph_anomaly_lines`（文本层字形损坏，如 `le!t`）正文仍照抄；把该页渲染成图看这几行一次，
+    写进 `## 文本层字形异常` 块（§4 G 的顺序；每行 `- L<行号>：文本层「le!t」；看图读作「left」`），不改正文。
+  - 像素页：**整页多模态转写**——逐行看正向副本，把可见文字转写成 Markdown（段落、表格、条目编号，§4.1）。看不清的写
+    `[不可读]`，或看不清的字逐字写 `?`，不猜。对自己标了 `[不可读]` 的区域最多放大重看一次（仍是 `llm_vision`，只作参考）。
+    **写正文之前不运行任何 OCR、不打开 `raw/_extract/` 下的引擎输出**；不裁剪送 OCR、不换引擎参数、不做增强预处理后重跑。
+- **E. 补报高风险 span**：把脚本推不出的高风险字符串写进 `raw/_extract/<stem>.declared.json`（§5.2）。
+- **F. 脱敏与落盘**：按 §9 遮蔽正文中的个人信息，写出 `ocr/<stem>.md`：§3 头部（像素页先写
+  `SECOND_READ_CHANNEL: none`、`INDEPENDENT_REREAD: false`、`CONFIDENCE: medium`，手写/翻拍写 `low`）+ 正文 +
+  `## 列配对`（有检验表时，§7）+ `## PII` 尾注。
+- **G. 第二读（脚本）**：
+  - 像素页：`python3 "<skill_dir>/scripts/second_read_align.py" --apply <patient_dir>/ocr/<stem>.md --patient-dir <patient_dir> --image <正向副本> [--image <下一页正向副本> …]`；
+  - born-digital 页：同一命令把 `--image …` 换成 `--text-layer <patient_dir>/raw/_extract/<stem>.text_layer.txt`（同一性核对，不是复读）。
+  脚本每页只跑一次引擎，然后**自己写**：冲突处与你补报的不可读/版面异常处的 `[OCR_UNCERTAIN:U-nnn]`、`## 高风险字段复读`
+  （`engine:`、`body_sha256:`、`record:` 三行 + 表格，“一致”列为 `是` / `否` / `无信号`）、`## 不确定字段` 条目，以及头部的
+  `SECOND_READ_CHANNEL` / `INDEPENDENT_REREAD` / `CONFIDENCE`。这些你都不手写、不手改。把它打印的 JSON（`second_read_summary`、
+  `high_risk_review_status`）记进返回 JSON 的 `second_read[]`。退出码：3 = 引擎本身运行失败 → 同一命令加 `--engine none`
+  重跑一次（单通道），并在 `second_read[]` 写 `engine_failure`；4 = 正文在引擎读之后被改过（PII 遮蔽除外）→ 把正文恢复成你原来的
+  转写。§9.2 复扫后再遮蔽了正文时，重跑同一命令即可（它重放已存的引擎读数，只接受遮蔽类改动）。
+  附录块顺序固定：`## 高风险字段复读` → `## 文本层字形异常`（有时）→ `## 列配对`（有检验表时）→ `## 不确定字段`（有条目时）
+  → `## PII`（总是；恰好一个，且是最后一节——它之后不再有任何标题，校验器照此检查）。
 
 ### 4.1 正文怎么写
 
@@ -163,7 +204,7 @@ Phase 2 写入 `source_inventory.json` 的 `raw_path`、`adapter_provenance`、`
 
 损坏、加密、不支持的格式与完全无法辨认的图片**不能跳过**：写 stub sidecar，正文第一行
 `[INGESTION_BLOCKED: <原因>]`，`READ_MODE: stub_unreadable`，`ADAPTER: unsupported_stub`，
-`CONFIDENCE: low`，并在返回 JSON 的 `ingestion_blocked_files` 列出。
+`CONFIDENCE: low`，并在返回 JSON 的 `ingestion_blocked_files` 列出。stub 不跑第二读。
 
 **所有 stub 的统一形状**（本节、§10、§11 都适用）：头部照 §3 恰好 12 个键（`EXTRACTOR` 是写 stub 的
 worker 自己的 `worker_id`，`SHA256` 照实，`PAGE_LABEL` 能看到就照抄、否则 `null`）；正文第一行是 `[INGESTION_BLOCKED: <原因>]`，其后一两句说明；最后以
@@ -179,27 +220,54 @@ masked: none
 
 合并扫描的 PDF 里含出院小结、检验单等多份文书时，每份文书写一个 sidecar：
 `ocr/<source_id>-<k>.md`（k 从 1 起），头部 `FILE_ID` 仍为该原件的 `source_id`，`PAGE_LABEL`
-只列本份文书所含页的页码；在返回 JSON 的 `content_units` 里写明每份的页范围。
+只列本份文书所含页的页码；在返回 JSON 的 `content_units` 里写明每份的页范围。§2.1 按页类型拆出的 content unit 同样这样写。
 
 ## 5. 不确定字段：`[OCR_UNCERTAIN:U-nnn]` 与 `## 不确定字段`
 
-两次读数不一致、引擎漏读、字形残缺或版面遮挡的高风险字段，在正文原位置写成“主通道字面读数 +
-token”，例如 `CK2O[OCR_UNCERTAIN:U-002]（+）`；主通道完全没读出时只写 token。编号在同一份
-sidecar 内从 `U-001` 起连续；不带编号的 `[OCR_UNCERTAIN]` 会被校验器拒绝。然后在 `## 不确定字段` 块
-（位于 `## PII` 之前）逐条记录——token 与条目一一对应：每个 token 恰有一条 `- id: U-nnn` 条目，
-每条条目的 `line` 行上恰有它的 token，`readings` 不能为空：
+### 5.1 谁写、写在哪
+
+`[OCR_UNCERTAIN:U-nnn]` 与 `## 不确定字段` 条目**只由 `second_read_align.py` 写**：一个 token 紧跟在冲突 span（或你补报的
+不可读/版面异常 span）的**转写字面**之后，例如 `CK2O[OCR_UNCERTAIN:U-002]（+）`——正文保留你的转写，token 只遮住它
+覆盖的那一段；编号在同一份 sidecar 内从 `U-001` 起连续。判定规则（脚本照此执行，你不用手算）：
+
+- **一致**（表中“是”）：两读相同（按类别规整：全半角、大小写、`İ`/`I`、`×10⁹/L` = `10^9/L` = `x109/L`、日期
+  `2026-0707` = `2026-07-07`、正文类只比字与数字不比标点）。不插 token。
+- **无信号**（表中“无信号”）：引擎这一段没读出；置信度低于阈值（tesseract < 50，Apple Vision < 0.5）；与转写相似度 < 0.5；
+  不合该类别语法（日期不成日期、TNM 不成 TNM、数字段没有数字、连接符不是 `+`/`/`/`-`）；只是丢了转写里几个非数字字形；
+  转写是词表条目、引擎读数不是且只差 1 个字（`INSM1`/`INSMI`）；对不上周围已对齐的文字。**不插 token、不建条目、不出 flag**：
+  这一段只有单通道读取，由复读表记录、由 Phase 2 在 readiness 汇总一句。
+- **冲突**（表中“否”）：引擎读数过了置信度阈值、合乎语法，而且与转写不同（`2030-01-08`/`2030-01-03`、`顺铂`/`卡铂`、
+  小数点丢失 `11.5`/`115`）。插 token，建条目。
+
+### 5.2 补报 span：`raw/_extract/<stem>.declared.json`
+
+```json
+{"spans": [
+  {"line": 21, "text": "示例肿瘤", "field_class": "diagnosis_text"},
+  {"line": 25, "text": "[不可读]", "field_class": "other", "kind": "unreadable"},
+  {"line": 30, "text": "广泛期", "field_class": "stage", "kind": "layout", "layout": "strikethrough"}
+]}
+```
+
+`line` 是该字符串在 sidecar 里的行号（§4.1 口径），`text` 必须原样出现在那一行；`kind`：`value`（默认，照三态判定）、
+`unreadable`（你写了 `[不可读]` 或 `?` 的地方，总是出 token）、`layout`（§6 的版面观察，总是出 token，`layout` 写
+§6 的取值）。已被脚本推出的 span 不用再报；报了找不到的字符串，脚本退出码 2。
+
+### 5.3 条目格式
+
+每个 token 恰有一条 `- id: U-nnn` 条目，每条条目的 `line` 行上恰有它的 token，`readings` 不能为空：
 
 ```yaml
 - id: U-002
   line: 21                       # token 所在的 sidecar 行号
   field_class: ihc_marker        # drug_name | ihc_marker | ln_station | date | number | unit | stage | variant | diagnosis_text | regimen_connector | cycle_number | other
   readings:                      # 每个通道的原始读数，逐字；该通道没读出写 text: null；只读出部分字符时未读出的字符写 ?
-    - {channel: "deterministic_ocr:tesseract", text: "CK2O", confidence: 0.41}
-    - {channel: "llm_vision", text: "CK20", confidence: null}
+    - {channel: llm_vision, text: "CK20", confidence: null}
+    - {channel: "deterministic_ocr:apple_vision", text: "CD20", confidence: 0.62}
   candidates:                    # 只能取自词表的整行条目；不是更正值；按下方规则排序、最多 3 个
+    - {text: "CD20", lexicon: ihc_markers, confidence: high}
     - {text: "CK20", lexicon: ihc_markers, confidence: high}
-    - {text: "CD20", lexicon: ihc_markers, confidence: low}
-    - {text: "CK19", lexicon: ihc_markers, confidence: low}
+    - {text: "CD10", lexicon: ihc_markers, confidence: low}
   cross_doc_supported: {status: none, refs: []}   # supported | contradicted | none
   layout: none                   # none | strikethrough | overprint | crop | stamp | shadow_stain_fold
   layout_intent: null            # null | deleted | amended（见 §6）
@@ -217,9 +285,9 @@ sidecar 内从 `U-001` 起连续；不带编号的 `[OCR_UNCERTAIN]` 会被校�
 - **候选只来自词表**：`field_class` 为 `drug_name`、`ihc_marker`、`ln_station` 时，分别在
   `references/lexicons/oncology_drugs.txt`、`ihc_markers.txt`、`ln_stations.txt` 中找候选；
   其他类别（日期、数字、单位、分期、变异、`diagnosis_text`、`regimen_connector`、`cycle_number`、`other`）
-  `candidates: []`，不生成候选。候选**由脚本算，不手算**：运行
-  `python3 "<skill_dir>/scripts/lexicon_candidates.py" --field-class <类别> --reading <通道1读数> --reading <通道2读数>`
-  （某通道没读出就不传它），照抄输出的 `candidates`；校验器用同一个脚本重算，列表不同即失败。脚本按以下步骤实现：
+  `candidates: []`，不生成候选。候选**由脚本算，不手算**：`second_read_align.py` 写条目时调用
+  `scripts/lexicon_candidates.py`（等同于 `python3 "<skill_dir>/scripts/lexicon_candidates.py" --field-class <类别> --reading <转写读数> --reading <引擎读数>`，
+  某通道没读出就不传它）；校验器用同一个脚本重算，列表不同即失败。脚本按以下步骤实现：
   1. **规整**：读数与词表条目都做 NFKC 规范化与大小写折叠，再去掉前后的“No.”“组”“站”；
   2. **距离**：规整后逐字符计算编辑距离（Levenshtein：插入、删除、替换各计 1；读数里的 `?` 与任何字符
      都不相等）；
@@ -234,8 +302,9 @@ sidecar 内从 `U-001` 起连续；不带编号的 `[OCR_UNCERTAIN]` 会被校�
      `cross_doc_supported`，不进候选。这是脚本输出之外**唯一**允许的改动：校验器只接受这一个替换/追加，且要求
      `cross_doc_supported.status: supported`、它的 `refs` 所指的行上印着这个词。清楚读法出现在本切片**后面**才处理的
      文件或别的切片里时，不回头改已写出的 sidecar、也不为此预读后面的文件（§4 处理一个、写出一个）：这种旁证由 Phase 2
-     在 flag 的 `cross_doc_supported` 里记录（phase2 §2.5）。
-  上例规整后：CK20 与两个读数的距离为 1、0 → `high`；CD20 为 2、1 → `low`；CK19 为 2、2 → `low`。
+     在 flag 的 `cross_doc_supported` 里记录（phase2 §2.5）。规则 6 与下面的 `cross_doc_supported` 是 `second_read_align.py`
+     之外你唯一可以改的两处，并且只在该 sidecar 最后一次 `--apply` 之后改（重跑 `--apply` 会重写条目）。
+  上例规整后：CD20 与两个读数的距离为 1、0 → `high`；CK20 为 0、1 → `high`；CD10 为 2、1 → `low`。
 - 候选**不是更正值**：正文不替换，结构化值位永远不填候选；下游只能把它当作“可能的读法”。
 - `cross_doc_supported`：只看本切片内**已写出的**其他文件对**同一对象**（同一标本、同一日期、同一编号）的
   清楚读数，拿它与本处**每个通道的读数和每个候选**比较（`?` 可匹配任一字符）：等于其中任一个 →
@@ -249,14 +318,16 @@ sidecar 内从 `U-001` 起连续；不带编号的 `[OCR_UNCERTAIN]` 会被校�
 删除线、横线压字、涂改、手写更正、“作废”章、圈改等是**版面观察**，不是文书意图。阴影、污迹、折痕、
 纸面弯曲遮挡字迹时同样是版面观察，记 `layout: shadow_stain_fold`（不改写成字迹不清）。
 
-- 默认只记 `layout`（`strikethrough` / `overprint` / `crop` / `stamp` / `shadow_stain_fold`），`layout_intent: null`，
-  正文照字面转写并注明“（版面异常，字面读作 X）”，X 保持可检索，不删除该行、不写“不作为
-  已确认文字”。
-- 只有两个**独立**读取（§2 定义，例如带删除批注的原生文本层与人工核对）都显示同一意图时，才可写
-  `layout_intent: deleted` 或 `amended`。机械条件（校验器照此检查）：该 sidecar 头部
-  `INDEPENDENT_REREAD: true`，且这条条目的 `readings` 里有两个**不同类别、都不是 `llm_vision`** 的通道
-  给出同一读数。不满足就只写 `layout` 并照字面转写。大模型看图说“有删除线”永远不够。
-- 引擎漏读的整行（大模型看到一行字，OCR 没有输出）按 §5 写条目：OCR 那条 `text: null`。
+- 默认只记 `layout`（`strikethrough` / `overprint` / `crop` / `stamp` / `shadow_stain_fold`）：在 `declared.json` 里把受影响的
+  字面报成 `kind: layout`（§5.2），脚本出 token 与条目（`layout_intent: null`）；正文照字面转写并注明“（版面异常，字面读作 X）”，
+  X 保持可检索，不删除该行、不写“不作为已确认文字”。
+- 只有两个**独立**读取（§2.3 定义）都显示同一意图时，才可写 `layout_intent: deleted` 或 `amended`。机械条件（校验器照此检查）：
+  该 sidecar 头部 `INDEPENDENT_REREAD: true`，且这条条目的 `readings` 里有两个**不同类别、都不是 `llm_vision`** 的通道给出同一读数。
+  像素页上唯一的非模型读数是 OCR 引擎，所以像素页**永远**只写 `layout` 并照字面转写；大模型看图说“有删除线”永远不够。
+  只有 born-digital 页上确有版面异常时可以补一个非模型读数：把该区域 `pdftoppm -r 300` 渲染后运行
+  `python3 "<skill_dir>/scripts/run_ocr_engine.py" read <区域图> --out <patient_dir>/raw/_extract/<stem>.region.json`，
+  条目 `readings` 写文本层读数（`channel: text_layer`）与引擎读数（`deterministic_ocr:<引擎>`，照抄输出），头部
+  `SECOND_READ_CHANNEL` 写该引擎、`INDEPENDENT_REREAD: true`。这是你自己运行引擎的唯一情形（正文此时是文本层，不存在锚定）。
 
 ## 7. 检验表列配对（确定性优先）
 
@@ -389,21 +460,26 @@ JSON 的 `timeout_risk_files`，置 `timed_out: true`，继续下一个文件。
   "worker_id": "p1-h1-1",
   "mode": "ingest",
   "slice_id": "h1",
+  "prompt_file_sha256": "…（你读到的本提示词文件的 sha256，编排者核对）",
   "elapsed_s": 612,
   "timed_out": false,
   "files_processed": 12,
   "sidecars_written": ["ocr/s001.md", "ocr/s002.md"],
   "content_units": [{"source_id": "s004", "sidecar": "ocr/s004-1.md", "page_range": "1-2"}],
   "sources": [{"source_id": "s001", "raw_path": "raw/h1/s001.jpg", "sha256": "…",
-               "size_bytes": 812345, "page_count": 1, "adapter_provenance": "sips→jpeg",
-               "raw_output_refs": ["raw/_extract/s001.tesseract.tsv"]}],
+               "size_bytes": 812345, "page_count": 1, "adapter_provenance": "sips→jpeg;rotation=90",
+               "raw_output_refs": ["raw/_extract/s001.apple_vision.json", "raw/_extract/s001.second_read.json"]}],
+  "second_read": [{"sidecar": "ocr/s001.md", "second_read_summary": {"engine": "apple_vision", "spans_total": 14,
+                   "agree": 11, "no_signal": 2, "conflict": 1, "declared": 0},
+                   "high_risk_review_status": "needs_human_review", "engine_failure": null}],
   "stub_sidecars": [],
   "ingestion_blocked_files": [],
   "timeout_risk_files": [],
-  "uncertain_field_count": 3,
+  "uncertain_field_count": 1,
   "skipped_inputs": [{"input_ref": "skip-001", "reason": "ds_store", "sha256": null, "size_bytes": 6148}],
   "digest_of": null,
   "pii_rescan_passed": true,
+  "skill_defects": [],
   "continuation_needed": false,
   "continuation_resume_from": null
 }
@@ -411,17 +487,25 @@ JSON 的 `timeout_risk_files`，置 `timed_out: true`，继续下一个文件。
 
 - `elapsed_s` 从开始工作算起；`timed_out` 只有你主动因 §10 写了 `in_progress_timeout_risk` stub 时为
   `true`，此时 `timeout_risk_files` 列出这些文件的 `source_id`。
+- `second_read[]` 每个非 stub sidecar 一条，照抄 `second_read_align.py` 打印的 `second_read_summary` 与
+  `high_risk_review_status`（Phase 2 照抄进 `source_inventory.json`）。
+- `prompt_file_sha256`：对你收到的本提示词文件运行 `shasum -a 256 <skill_dir>/references/organizer-prompt-phase1-ocr.md`
+  的结果；提示词是编排者按原文转给你的，你据此核对没有被改写或删节。
 - `pii_rescan_passed` 为 `true` 才能报告 `continuation_needed: false`。
 - 上下文将满时，写完手上的文件后返回 `continuation_needed: true`，`continuation_resume_from` 写下一个
   未处理的 `source_id`；续跑的 worker 跳过已有 sidecar 的文件。
 
 ## 14. 规则汇总
 
-- 确定性通道是主来源；大模型不是唯一字符真值，也不是独立复读。
+- 像素页：模型整页转写是正文，但**模型转写不是唯一读数**——确定性引擎是第二读，只由 `second_read_align.py` 在正文定稿后运行，
+  冲突出 token；引擎文字永不进正文。
+- born-digital 页：文本层就是正文，不跑 OCR；`--text-layer` 只做同一性核对。
+- 独立 = 类别不同、第二通道是非模型通道、且引擎至少读出一个高风险字段；模型重看自己的图永远不是独立读。
+- token、复读表、不确定条目与头部的第二读三键由脚本写；你只补报 span（只能加）。
 - 头部恰好 12 个键；`EXTRACTOR` 是你的 `worker_id`。
 - 候选只来自词表，只写在 `## 不确定字段`；永不进入正文替换或结构化值位。
 - 版面观察不是文书意图；没有两次独立读取一致，就只写“版面异常，字面读作 X”。
 - 检验表逐列判定配对；项目数与数值数不等时全部拒配。
-- 处理一个、写出一个；不跳过任何文件；不写 Phase 2 的产物。
+- 处理一个、写出一个；不跳过任何文件；不写 Phase 2 的产物；`<skill_dir>` 只读。
 - 个人信息只遮蔽，不作为读数记录。
 - 按原件语言转写、不翻译；`\f` 等断行字符写成换行，行号按 `str.splitlines()` 计。

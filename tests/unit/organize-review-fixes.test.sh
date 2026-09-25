@@ -254,6 +254,16 @@ check("uncertain stage (high-risk), no cross-document support, graded yellow →
       any("RF-001 grades an uncertain high-risk field (stage) 'yellow'" in e for e in errs), errs[:3])
 errs, _ = run(G, flag("RF-001", lambda f: f.update({"severity": "yellow", "cross_doc_supported": {"status": "supported", "refs": [CT + "#L14"]}})))
 check("…yellow with another page's supporting reading passes (§6.1 row 2)", errs == [], errs[:3])
+
+
+def as_diagnosis(d):
+    synlib.edit_text(d, OP, lambda t: t.replace("  field_class: stage", "  field_class: diagnosis_text", 1))
+
+
+errs, _ = run(G, lambda d: (as_diagnosis(d), flag("RF-001", lambda f: f.__setitem__("severity", "yellow"))(d)))
+check("a diagnosis_text conflict graded yellow passes (§6.1: only value classes are forced red)", errs == [], errs[:3])
+errs, _ = run(G, lambda d: (as_diagnosis(d), flag("RF-001", lambda f: f.__setitem__("severity", "red"))(d)))
+check("…red is allowed too (the table sets a floor for value classes only)", errs == [], errs[:3])
 rc, errs, _ = full(flag("RF-001", lambda f: f.update({"severity": "yellow", "cross_doc_supported": {"status": "contradicted", "refs": [CT + "#L14"]}})))
 check("cross_doc_supported contradicted graded yellow → schema ERROR (always red)", any("review_flags.0.severity" in e for e in errs), errs[:3])
 rc, errs, _ = full(flag("RF-003", lambda f: f.__setitem__("severity", "yellow")))

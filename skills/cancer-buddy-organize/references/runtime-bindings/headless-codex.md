@@ -11,21 +11,23 @@ For each uploaded source:
    access-controlled, de-identified `raw/` filename. The organizer does not
    silently overwrite, transform, or delete it. Host retention policy controls
    later deletion or legal hold.
-2. Prefer the file's native text/table layer when available. For scans, run an
-   appropriate deterministic OCR/table/barcode extractor. Save engine, version,
-   language, raw output, source spans, and adapter provenance.
-3. Use Codex for layout reconstruction, candidate corrections, semantic labels,
-   and PII semantic review. Preserve `raw_text` separately from any
-   `proposed_text`; an LLM correction never overwrites the character source.
-4. Reread dates, drug names, dose/frequency, laboratory values/units/reference
-   intervals, stage strings, IHC markers, lymph-node stations, variants/VAF and
-   institution names through a second channel. `codex exec -i` is an `llm_vision`
-   read: it may serve as the second read, but the sidecar records
-   `INDEPENDENT_REREAD: false`. Only a different channel class that is not
-   `llm_vision` (native text layer vs. OCR, deterministic channel vs. human)
-   counts as independent. Disagreement becomes an `[OCR_UNCERTAIN:U-nnn]` token
-   plus a `## 不确定字段` entry with every channel's reading and lexicon-only
-   candidates.
+2. Decide the page type with `scripts/text_layer_kind.py` (PDF): a `born_digital` page's native text layer
+   IS the body (no OCR; `second_read_align.py --text-layer` checks identity only). `embedded_ocr` / `absent`
+   pages and photos are pixel pages: render (`pdftoppm -r 200`) and orient them first
+   (`run_ocr_engine.py orient`, which prints the rotation only).
+3. A pixel page's body is a whole-page multimodal transcription by Codex (`codex exec -i`,
+   `PRIMARY_CHANNEL: llm_vision`, `READ_MODE: model_vision_primary`), written and masked before any OCR
+   runs. Then `second_read_align.py --apply` runs the deterministic engine once per page (Apple Vision on
+   macOS with swiftc, else tesseract, else none), aligns it with the body and decides every high-risk span
+   (`_high_risk_spans.py` derives them; the worker may only add through `declared.json`): agree (no token),
+   no signal (no token, no flag), conflict (`[OCR_UNCERTAIN:U-nnn]` + a `## 不确定字段` entry with the
+   engine's own string and lexicon-only candidates). The script writes the tokens, the
+   `## 高风险字段复读` table, `body_sha256` and the header's second-read keys.
+4. Independence: an engine second read is independent of the model — `INDEPENDENT_REREAD: true` when the
+   second channel is a non-`llm_vision` category and the engine read at least one high-risk span. Another
+   `codex exec -i` look (a crop, a new session, another model) is still `llm_vision` and never a second read.
+   Two OCR engines are one category. A born-digital page's text layer plus an engine read of a layout-anomaly
+   region is the only pair that can back a document intent.
 5. Write a source-attributed sidecar with the 12-key header of
    `organizer-prompt-phase1-ocr.md` §3. `EXTRACTOR` is the per-source call id
    (e.g. `p1-<source_id>-1`), never the engine name and never the host pipeline.

@@ -7,10 +7,14 @@ does not authorize clinical interpretation.
 
 1. **Ingest**: retain authorized originals, hash bytes (sha256, size, page count), create immutable source
    IDs, classify modality, and record every skipped input with a reason.
-2. **Extract**: deterministic OCR/parser first where available; LLM-assisted layout/semantics second;
-   independent verification for high-risk fields. Two reads are independent only when their channel
-   classes differ and neither is `llm_vision` (a model looking at the image is never an independent
-   reread). Uncertain fields carry engine readings and lexicon-constrained candidates; candidates are
+2. **Extract**: a born-digital page's native text layer is its body (no OCR). A pixel page (photo, scan
+   without a text layer) is transcribed whole by the multimodal model — that transcription is the character
+   truth — and then read a second time by a deterministic OCR engine that a script runs after the body is
+   written, aligns character by character and decides per high-risk span: agree, no signal (single-channel,
+   no flag) or conflict (an `[OCR_UNCERTAIN:U-nnn]` token). The script derives the high-risk spans (the
+   worker may only add), writes the tokens and the reread table, and hashes the body it compared. An engine
+   read is independent of the model; the model re-reading its own image or a crop is never an independent
+   reread. Uncertain fields carry engine readings and lexicon-constrained candidates; candidates are
    readings, never corrected values.
 3. **Synthesize**: write the versioned schemas (`references/schemas/`: `2.1`, `patient_summary` `2.2`,
    `source_inventory_v2.1`, `acute_findings`/`update_log` `1`) with provenance layer and verification status;

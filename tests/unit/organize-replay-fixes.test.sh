@@ -310,18 +310,18 @@ errs, warns = synlib.gate(UL, mk(rewrite_with(mode="full")))
 check("D1 …or with a full entry → no partial-upgrade message", not any(TRAP in m for m in errs + warns), str(errs + warns))
 errs, warns = synlib.gate(UL, mk(rewrite_with(extractor_on=CT)), generation="legacy")
 check("D1 legacy archive: one sidecar re-transcribed, the rest header-less → still the WARN",
-      errs == [] and any(TRAP in w and "4/5" in w for w in warns), str(errs + warns))
+      errs == [] and any(TRAP in w and "5/6" in w for w in warns), str(errs + warns))
 
 
 def all_bare_current(d):
-    for rel in (OP, CT, synlib.SIDE_LAB, DG, synlib.SIDE_SELF):
+    for rel in (OP, CT, synlib.SIDE_LAB, DG, synlib.SIDE_SELF, synlib.SIDE_ORDER):
         synlib.edit_text(d, rel, lambda t: re.sub(r"^EXTRACTOR: .*\n", "", t, count=1, flags=re.M))
     synlib.edit_json(d, "update_log.json", lambda doc: doc["entries"][0].__setitem__("run_mode", "incremental"))
 
 
 errs, warns = synlib.gate(UL, mk(all_bare_current))
 check("D1 current-contract archive, no full / legacy_upgrade run, NO sidecar written under this contract → ERROR",
-      any(TRAP in e and "5/5" in e for e in errs), str(errs + warns))
+      any(TRAP in e and "6/6" in e for e in errs), str(errs + warns))
 errs, warns = synlib.gate(UL, mk(lambda d: synlib.edit_json(d, "update_log.json", lambda doc: doc["entries"][0].__setitem__("run_mode", "incremental"))))
 check("D1 current archive, incremental-only ledger, every sidecar headed by this contract → no message",
       not any(TRAP in m for m in errs + warns), str(errs + warns))

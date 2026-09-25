@@ -5,17 +5,22 @@ flag 与摘要中的处理由编排者派 Phase 2 worker（`run_mode: faithfulne
 
 ## 独立性
 
-“独立”与 phase1 提示词 §2 的定义相同：两次读取的**通道类别不同**，且**都不是 `llm_vision`**。
-大模型再读一遍 sidecar 或再看一遍原图都不是独立证据；它只能发现问题，不能为另一次大模型转录背书。
-能回到原件的确定性通道（原生文本层、表格解析、OCR 原始输出 `raw/_extract/…`、人工）时优先使用；
-只能读 sidecar 时，在结果里写明 `method: sidecar_reread`，该结果不得作为独立复读依据。
+“独立”与 phase1 提示词 §2.3 的定义相同：两次读取的**通道类别不同**，第二读是**非模型**通道（原生文本层、表格解析、
+确定性 OCR 引擎、人工）。像素页的正文是大模型的整页转写，它的独立复核是 Phase 1 已由脚本跑过的引擎第二读
+（`raw/_extract/<stem>.<引擎>.json`，`## 高风险字段复读` 表）；你再读一遍 sidecar、再看一遍原图或放大裁剪重看，都还是
+`llm_vision`，**不是**独立证据：它只能发现问题，不能为另一次大模型转写背书。核对时优先回到非模型通道：born-digital 页的原始
+文本层（`raw/_extract/<stem>.text_layer.txt`）、表格解析、引擎输出、人工；不得为了“复核”重新运行 OCR 或换参数重跑。
+只能读 sidecar 时，在结果里写明 `method: sidecar_reread`，该结果不得作为独立复读依据。复读表里“无信号”的字段只有单通道读取：
+能定位、与原图一致就是 `faithful`，不因“无信号”本身判 `needs_human_review`。
 
 ## 方法
 
 1. 确定性检查：hash、锚点、schema、数字/单位、日期、重复和跨患者标识。
 2. 对药名、剂量、日期、实验室值/单位/参考范围、分期、变异/VAF、免疫组化标志物、淋巴结站别和
    疗效原文执行第二次读取：先按 sidecar 头部与 `source_inventory.json` 找到原件与引擎原始输出，
-   尽可能使用与 sidecar 主通道**不同类别**的通道核对。
+   尽可能使用与 sidecar 主通道**不同类别**的通道核对（像素页：引擎输出；born-digital 页：原始文本层）。
+   born-digital 页的 `## 高风险字段复读` 块若写着 `identity: …；未对上：L<n>…`，这些行逐条核对，核不上的写
+   `not_faithful`（`category: source_faithfulness`）。
 3. 按被引用的 sidecar 分批：每个 sidecar 只打开一次，核对引用它的全部值；读被引用行的前后若干行，
    单行窗口看不出串行错位。
 4. 只接受可定位的 source span；找不到精确位置则 `not_faithful`。

@@ -15,7 +15,8 @@
             "s001",
             "s002",
             "s003",
-            "s005"
+            "s005",
+            "s006"
           ]
         },
         {
@@ -55,6 +56,15 @@
           ]
         },
         {
+          "worker_id": "p1-s006-1",
+          "phase": "phase1_retry",
+          "slice_id": null,
+          "status": "done",
+          "files": [
+            "s006"
+          ]
+        },
+        {
           "worker_id": "p1digest-1",
           "phase": "phase1_digest",
           "slice_id": null,
@@ -87,13 +97,18 @@
         {
           "source_id": "s005",
           "sha256": "f22c7dfd46d33e310bb6818e2e39072109d95c9616878dc2fd0e7af07d5caa34"
+        },
+        {
+          "source_id": "s006",
+          "sha256": "5f2a9a8b9f24c2b49aac9f78ef1c5c486baf5b06e97f4f802fafc160778f4880"
         }
       ],
       "added": [
         "s001",
         "s002",
         "s003",
-        "s005"
+        "s005",
+        "s006"
       ],
       "removed": [],
       "degradations": [
@@ -104,7 +119,8 @@
             "p1-s001-1",
             "p1-s002-1",
             "p1-s003-1",
-            "p1-s005-1"
+            "p1-s005-1",
+            "p1-s006-1"
           ]
         }
       ],
