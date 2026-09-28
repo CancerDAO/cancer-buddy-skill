@@ -33,9 +33,12 @@ EOF
 if python3 "$PII" "$d" >/dev/null 2>"$tmp/leaky.err"; then
   no "leaky delivered surface should exit 1"
 else ok; fi
-grep -q '张测试' "$tmp/leaky.err" && ok || no "should flag synthetic CJK name in delivered surface"
+# the findings are reported by category + a masked snippet — never the raw value (run logs keep stderr)
+grep -q 'name_in_filename' "$tmp/leaky.err" && ok || no "should flag synthetic CJK name in delivered surface"
 grep -q 'identity_denylist' "$tmp/leaky.err" && ok || no "deny-list (from raw filename) should flag the name"
-grep -q 'uploader@example.com' "$tmp/leaky.err" && ok || no "should flag synthetic uploader email"
+grep -q '\[email\]' "$tmp/leaky.err" && ok || no "should flag synthetic uploader email"
+grep -q 'uploader@example.com' "$tmp/leaky.err" && no "the raw email must not be echoed in the report" || ok
+grep -q '\[identity_denylist\]  张测试' "$tmp/leaky.err" && no "the deny-listed name must not be echoed" || ok
 grep -q 'local_user_path' "$tmp/leaky.err" && ok || no "should flag absolute /Users path"
 
 # ---------------------------------------------------------------------------

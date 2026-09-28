@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cancerdao.org/schemas/cancer-buddy/organize_meta.schema.json",
+  "title": "OrganizeMeta",
+  "description": "Which organize skill build produced this archive. Written by scripts/write_organize_meta.py at the end of a run; SMTB reads skill_commit into its run manifest (organize_commit). Its presence also marks the archive as produced by the current contract generation.",
+  "type": "object",
+  "required": ["skill", "skill_version", "skill_commit", "skill_fingerprint", "generated_at"],
+  "additionalProperties": false,
+  "properties": {
+    "skill": { "const": "cancer-buddy-organize" },
+    "skill_version": { "type": ["string", "null"] },
+    "skill_commit": { "type": ["string", "null"], "pattern": "^[0-9a-f]{7,40}$" },
+    "skill_dirty": { "type": ["boolean", "null"], "description": "true when the skill checkout had uncommitted changes; null when unknown." },
+    "skill_fingerprint": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$", "description": "sha256 over SKILL.md + references/** + scripts/** (sorted relative path + bytes)." },
+    "generated_at": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T" },
+    "pii_layer1_scan": {
+      "type": "object", "additionalProperties": false, "required": ["worker_id", "clean"],
+      "description": "The semantic PII scan (pii-rescan-prompt.md) of SKILL.md Step 12.5 that returned clean=true, by worker id; written by write_organize_meta.py --pii-layer1 (only a clean scan is recorded — DoD 3 on disk). The terminal validator requires it on a current-contract archive.",
+      "properties": {
+        "worker_id": { "type": "string", "pattern": "^(?!(orchestrator|main|manual|host|self|user)$)(?!.*[0-9]{11})[A-Za-z][A-Za-z0-9_.:-]{1,63}$" },
+        "clean": { "const": true }
+      }
+    }
+  }
+}

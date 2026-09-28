@@ -47,6 +47,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from datetime import date, datetime
 from pathlib import Path
@@ -292,14 +293,23 @@ def _source_index(paths):
         for o in doc.get("observations", []):
             if isinstance(o, dict):
                 add(o.get("metric"), o.get("value"))
-        # labs.json (labs.schema.json) → panels[].{analyte, values[].value}
+        # labs.json (labs.schema.json) → panels[].{analyte, values[].value}. Only
+        # CONFIRMED results back a plotted/displayed value: a position-paired candidate
+        # (pairing_method linear_position / none, or any candidate_value) is not bound to
+        # its analyte, so it indexes nothing (O-03).
         for panel in doc.get("panels", []):
             if not isinstance(panel, dict):
                 continue
             analyte = panel.get("analyte")
             for v in panel.get("values", []) or []:
-                if isinstance(v, dict):
+                if not isinstance(v, dict):
+                    continue
+                if v.get("pairing_method") in ("linear_position", "none") or v.get("candidate_value") is not None:
+                    continue
+                if v.get("value") is not None:
                     add(analyte, v.get("value"))
+                if isinstance(v.get("raw_value"), str) and v["raw_value"].strip():
+                    add(analyte, v["raw_value"])
         # tolerant fallback for a flat labs[] shape (older/other exports)
         for row in doc.get("labs", []) or []:
             if isinstance(row, dict):
@@ -321,9 +331,21 @@ def _value_backed(idx, metric, raw_value) -> bool:
     return ("str", str(raw_value).strip()) in bucket
 
 
+_LEAD_NUM_RE = re.compile(r"^\s*[<>≤≥]?\s*([+-]?\d+(?:\.\d+)?)")
+
+
+def _lead_number(v):
+    """Leading number of a displayed value ('402.6个' → 402.6, '<2.00' → 2.0), else None."""
+    f = _to_float(v)
+    if f is not None:
+        return f
+    m = _LEAD_NUM_RE.match(v) if isinstance(v, str) else None
+    return float(m.group(1)) if m else None
+
+
 def _integrity_violations(data, idx):
-    """Return list of human-readable violations: plotted (metric,value) with no
-    backing observation in the source store."""
+    """Return list of human-readable violations: plotted (metric,value) — or a numeric
+    lab_trends current_value — with no backing confirmed observation in the source store."""
     bad = []
     for chart in data.get("trend_charts", []) or []:
         if isinstance(chart, dict) and isinstance(chart.get("series"), list):
@@ -337,6 +359,13 @@ def _integrity_violations(data, idx):
                 if isinstance(p, dict) and _to_float(p.get("v")) is not None:
                     if not _value_backed(idx, row.get("lab_name"), p.get("v")):
                         bad.append(f"lab_trends[{row.get('lab_name')!r}] value {p.get('v')!r} @ {p.get('t')!r}")
+        # the displayed current value is held to the same rule (a candidate must never show)
+        cv = row.get("current_value") if isinstance(row, dict) else None
+        if isinstance(cv, (int, float, str)) and not isinstance(cv, bool) and str(cv).strip():
+            num = _lead_number(cv)
+            if num is not None and not (_value_backed(idx, row.get("lab_name"), cv)
+                                        or _value_backed(idx, row.get("lab_name"), num)):
+                bad.append(f"lab_trends[{row.get('lab_name')!r}] current_value {cv!r} is not a confirmed source value")
     return bad
 
 

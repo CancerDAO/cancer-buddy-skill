@@ -5,7 +5,7 @@
 
 # REPO_ROOT resolves to the repo top from any lint/ script.
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[1]}")/../../.." && pwd)"
-SKILLS_DIR="$REPO_ROOT/skills"
+SKILLS_DIR="${CB_SKILLS_DIR:-$REPO_ROOT/skills}"   # tests point a lint at a mutated copy of skills/
 REFS_DIR="$REPO_ROOT/references"
 
 # Patient-visible companion sub-skills = every skills/cancer-buddy-*/ directory.

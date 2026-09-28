@@ -10,7 +10,16 @@ LABS="$ORG/references/schemas/labs.schema.json"
 TX="$ORG/references/schemas/treatment_lines.schema.json"
 INV="$ORG/references/schemas/source_inventory.schema.json"
 
-grep -q '"schema_version": { "const": "2" }' "$READY" || fail "readiness schema is not v2"
+# readiness v2.1 (schemas/README.md version policy): the schema pins the current version; legacy "2" archives
+# are read leniently by validate_structured_outputs.py (LEGACY_SCHEMA_VERSIONS), so the
+# pinned literal moved from "2" to "2.1" and the legacy path must stay registered.
+grep -q '"schema_version": { "const": "2.1" }' "$READY" || fail "readiness schema is not v2.1"
+grep -q '"readiness.json": {"2":' "$ORG/scripts/validate_structured_outputs.py" \
+  || fail "validator lost the legacy readiness v2 read path"
+grep -q '"severity"' "$READY" && grep -q '"kind"' "$READY" \
+  || fail "readiness review_flags lack severity/kind grading"
+grep -qi 'NOT a clinical severity\|NOT clinical severity' "$READY" \
+  || fail "readiness severity is not declared an extraction-uncertainty grade (not clinical)"
 grep -q 'documentation_coverage' "$READY" || fail "readiness lacks documentation coverage"
 grep -Eq '"grade"|"blocking_gaps"|"suggested_value"|"user_confirmed"' "$READY" \
   && fail "readiness schema resurrected score/patient-adjudication fields" || true
@@ -28,8 +37,12 @@ grep -q 'best_response' "$TX" && fail "legacy best_response field returned" || t
 grep -q 'source_inventory_v2' "$INV" || fail "source inventory does not require v2 extraction provenance"
 grep -q 'extractor_provenance' "$INV" || fail "source inventory lacks deterministic/native extractor provenance"
 grep -q 'high_risk_review_status' "$INV" || fail "source inventory lacks independent high-risk-field reread status"
-grep -qiE '不是.*唯一字符真值|不得.*唯一字符真值|not.*sole character' "$ORG/references/organizer-prompt-phase1-ocr.md" \
-  || fail "Phase 1 does not prohibit LLM-only character truth"
+# I-07 "the model is not the only truth": a pixel page's model transcription is the character truth (v3,
+# FIX_PLAN A1) and is never the only reading — a deterministic engine reads it a second time (script-run) and
+# every conflict becomes an uncertainty token.
+grep -qE '模型转写不是唯一读数' "$ORG/references/organizer-prompt-phase1-ocr.md" \
+  && grep -q 'second_read_align.py' "$ORG/references/organizer-prompt-phase1-ocr.md" \
+  || fail "Phase 1 does not require a deterministic second read of the model transcription (LLM-only reading)"
 grep -q -- '--include' "$ORG/scripts/export_share.py" \
   || fail "share exporter lacks explicit minimum-necessary allowlist"
 grep -q -- '--authorization-ref' "$ORG/scripts/export_share.py" \

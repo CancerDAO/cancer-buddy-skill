@@ -2,13 +2,13 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://cancerdao.org/schemas/cancer-buddy/readiness.schema.json",
   "title": "DocumentationCoverageAndSourceReview",
-  "description": "Compatibility filename; not a clinical readiness score.",
+  "description": "Compatibility filename; not a clinical readiness score. v2.1 adds per-flag `severity` + `kind` and the top-level source-recency block. `severity` is the extraction / archive-integrity uncertainty grade of a flag — it is NOT a clinical severity and never ranks how sick the patient is. Legacy schema_version \"2\" archives are read leniently by validate_structured_outputs.py (WARN, not FAIL).",
   "type": "object",
-  "required": ["patient_code", "schema_version", "documentation_coverage", "review_flags"],
+  "required": ["patient_code", "schema_version", "documentation_coverage", "review_flags", "latest_source_date", "days_since_latest", "as_of_run_date"],
   "additionalProperties": false,
   "properties": {
     "patient_code": { "type": "string", "pattern": "^PT-[A-F0-9]+(_\\d+)?$" },
-    "schema_version": { "const": "2" },
+    "schema_version": { "const": "2.1" },
     "generated_at": { "type": "string", "format": "date-time" },
     "documentation_coverage": {
       "type": "object",
@@ -17,11 +17,26 @@
       }
     },
     "warnings": { "type": "array", "items": { "type": "string" } },
+    "latest_source_date": {
+      "type": ["string", "null"],
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+      "description": "Latest report/exam date among the dated source documents of this archive (sidecar filename date prefix under NN_ buckets; patient supplements 14_ and prior-archive digests excluded). Computed by scripts/source_freshness.py; null only when no source carries a date."
+    },
+    "days_since_latest": {
+      "type": ["integer", "null"],
+      "minimum": 0,
+      "description": "as_of_run_date - latest_source_date in days. More than 14 days requires a warnings[] line that states the day count (\"… N 天 …\")."
+    },
+    "as_of_run_date": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+      "description": "The run date the recency is measured against (YYYY-MM-DD): the LOCAL calendar date of the run, passed to scripts/source_freshness.py --as-of. update_log entries[].at are UTC ISO timestamps, so the validator accepts an as_of_run_date within ±1 day of an entries[].at (or organize_meta.generated_at) date."
+    },
     "review_flags": {
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["id", "category", "affected_field", "current_source_values", "issue", "resolution_status"],
+        "required": ["id", "category", "affected_field", "current_source_values", "issue", "resolution_status", "severity", "kind"],
         "additionalProperties": false,
         "properties": {
           "id": { "type": "string" },
@@ -35,16 +50,78 @@
               "additionalProperties": false,
               "properties": {
                 "value": {},
-                "source_ref": { "type": "string" }
+                "source_ref": { "type": "string" },
+                "channel": {
+                  "type": ["string", "null"],
+                  "pattern": "^(text_layer|table_parser|deterministic_ocr:[A-Za-z0-9_.-]+|barcode|human|llm_vision|prior_archive_sidecar|none)$",
+                  "description": "Optional read channel of this value (the sidecar `## 不确定字段` readings[].channel vocabulary), so several readings of the same source line — incl. a channel that read nothing (value null) — stay distinguishable."
+                }
               }
             }
           },
           "issue": { "type": "string" },
           "resolution_status": {
             "enum": ["unresolved", "resolved_by_corrected_source", "resolved_by_clinician_attestation", "resolved_administratively"]
+          },
+          "severity": {
+            "enum": ["red", "yellow", "info"],
+            "description": "Extraction / archive-integrity uncertainty grade (NOT clinical severity)."
+          },
+          "kind": {
+            "enum": ["legibility", "artifact", "document_intent", "conflict", "completeness", "other"],
+            "description": "legibility = characters not resolvable (only for uncertainty entries with layout none); artifact = stain/shadow/fold/strike-like layout anomaly read literally (any entry whose layout is not none, incl. shadow_stain_fold); document_intent = deletion/amendment/handwritten correction, ONLY when two independent reads agree (otherwise downgrade to artifact); conflict = sources disagree; completeness = missing pages / stale sources; other = e.g. untrusted-content or faithfulness flags."
+          },
+          "cross_doc_supported": {
+            "type": "object",
+            "required": ["status", "refs"],
+            "additionalProperties": false,
+            "properties": {
+              "status": { "enum": ["supported", "contradicted", "none"] },
+              "refs": {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "Bucket-relative sidecar anchors of the OTHER documents carrying the same (or a contradicting) reading."
+              }
+            },
+            "allOf": [
+              {
+                "if": { "properties": { "status": { "enum": ["supported", "contradicted"] } }, "required": ["status"] },
+                "then": { "properties": { "refs": { "minItems": 1 } } }
+              }
+            ]
+          },
+          "uncertain_ids": {
+            "type": "array",
+            "items": { "type": "string", "pattern": "^U-[0-9]+$" },
+            "description": "Ids of the sidecar `## 不确定字段` entries ([OCR_UNCERTAIN:U-nnn] tokens) this flag covers."
           }
-        }
+        },
+        "$comment": "The mechanical rows of organizer-prompt-phase2-synthesis.md §6.1 (severity decides whether the field may be used as a confirmed value). The rows that need the sidecar entry (field_class, layout) or the pairing record are checked by validate_structured_outputs.py.",
+        "allOf": [
+          {
+            "if": { "properties": { "cross_doc_supported": { "properties": { "status": { "const": "contradicted" } }, "required": ["status"] } }, "required": ["cross_doc_supported"] },
+            "then": { "properties": { "severity": { "const": "red" } } }
+          },
+          {
+            "if": { "properties": { "category": { "const": "missing_pages" } }, "required": ["category"] },
+            "then": { "properties": { "kind": { "const": "completeness" }, "severity": { "const": "red" } } }
+          },
+          {
+            "if": { "properties": { "category": { "const": "source_recency" } }, "required": ["category"] },
+            "then": { "properties": { "kind": { "const": "completeness" }, "severity": { "const": "yellow" } } }
+          }
+        ]
       }
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "latest_source_date": { "type": "null" } }, "required": ["latest_source_date"] },
+      "then": { "properties": { "days_since_latest": { "type": "null" } } }
+    },
+    {
+      "if": { "properties": { "latest_source_date": { "type": "string" } }, "required": ["latest_source_date"] },
+      "then": { "properties": { "days_since_latest": { "type": "integer" } } }
+    }
+  ]
 }

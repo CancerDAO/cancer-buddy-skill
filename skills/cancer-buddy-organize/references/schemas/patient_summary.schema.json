@@ -2,27 +2,35 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://cancerdao.org/schemas/cancer-buddy/patient_summary.schema.json",
   "title": "PatientSummary",
-  "description": "Source-preserving rollup. Extraction confidence is not clinical verification.",
+  "description": "Source-preserving rollup. Extraction confidence is not clinical verification. v2.2 adds demographics.performance_status_verbatim[] (required, may be empty): performance-status wording exactly as written, never converted between scales. Legacy schema_version \"2\" / \"2.1\" archives are read leniently by validate_structured_outputs.py (WARN, not FAIL).",
   "type": "object",
   "required": ["patient_code", "schema_version", "generated_at", "demographics", "diagnosis", "current_status"],
   "additionalProperties": false,
   "properties": {
     "patient_code": { "type": "string", "pattern": "^PT-[A-F0-9]+(_\\d+)?$", "description": "Storage locator, not authentication." },
-    "schema_version": { "const": "2" },
+    "schema_version": { "const": "2.2" },
     "generated_at": { "type": "string", "format": "date-time" },
     "alias": { "type": ["string", "null"], "description": "Optional user-chosen non-clinical label; do not embed diagnosis or identifiers." },
     "demographics": {
       "type": "object",
-      "required": ["sex", "sex_normalized", "age", "height_cm", "weight_kg", "ecog", "function_description", "provenance_layer", "verification_status", "source_refs"],
+      "description": "Only sex is time-invariant. Age, anthropometrics and ECOG are point-in-time observations: each scalar carries its own `_as_of` source date, and differing values across different `_as_of` dates are normal evolution, NOT a source conflict.",
+      "required": ["sex", "sex_normalized", "age", "age_as_of", "age_observations", "birth_year", "height_cm", "height_cm_as_of", "weight_kg", "weight_kg_as_of", "ecog", "ecog_as_of", "function_description", "performance_status_verbatim", "provenance_layer", "verification_status", "source_refs"],
       "additionalProperties": false,
       "properties": {
         "sex": { "type": ["string", "null"], "description": "Source wording." },
         "sex_normalized": { "type": ["string", "null"], "enum": ["female", "male", "intersex", "other", "unknown", null] },
-        "age": { "type": ["integer", "null"], "minimum": 0, "maximum": 130 },
+        "age": { "type": ["integer", "null"], "minimum": 0, "maximum": 130, "description": "Age as stated by the MOST RECENT source that states one — a snapshot, not a current age. Never recompute it to today; downstream renders it together with `age_as_of`. Null when no source states an age." },
+        "age_as_of": { "type": ["string", "null"], "format": "date", "description": "Report/collection date of the source that `age` was taken from. Required whenever `age` is non-null; an age without this anchor is meaningless and must not be written." },
+        "age_observations": { "type": "array", "items": { "$ref": "#/$defs/timed_age" }, "description": "Every source-stated age with its own date, oldest first. Values differing across dates are the expected time series, not a conflict — see organizer-prompt-phase2-synthesis.md §2.1." },
+        "birth_year": { "type": ["integer", "null"], "minimum": 1880, "maximum": 2030, "description": "Year of birth only (YYYY), `system_normalized`, written ONLY when a source states a full DOB or an age+date pair that pins it. Full DOB is never stored (quasi-identifier, see pii-rescan-prompt.md). Lets downstream render an approximate current age instead of a stale snapshot; the ±1-year ambiguity is intentional and must be surfaced as 约/approx." },
         "height_cm": { "type": ["number", "null"] },
-        "weight_kg": { "type": ["number", "null"] },
+        "height_cm_as_of": { "type": ["string", "null"], "format": "date", "description": "Source date of `height_cm`. Required whenever `height_cm` is non-null." },
+        "weight_kg": { "type": ["number", "null"], "description": "Most recent source-stated weight. Serial weights belong in longitudinal_observations.json (`obs_type: vital`); this is the latest snapshot only." },
+        "weight_kg_as_of": { "type": ["string", "null"], "format": "date", "description": "Source date of `weight_kg`. Required whenever `weight_kg` is non-null." },
         "ecog": { "type": ["integer", "null"], "minimum": 0, "maximum": 5, "description": "Clinician-reported only; never inferred." },
-        "function_description": { "type": ["string", "null"], "description": "Patient/caregiver description kept separate from ECOG." },
+        "ecog_as_of": { "type": ["string", "null"], "format": "date", "description": "Source date of `ecog`. Required whenever `ecog` is non-null. A later ECOG differing from an earlier one is a change in status, not a disputed value." },
+        "function_description": { "type": ["string", "null"], "description": "Clinician wording only: a clinician document's own description of function (e.g. 生活可自理), verbatim on a line of a source demographics.source_refs cites (never a conversation: anchor, a conversation_notes/ record in any bucket, a 14_患者自管补充 sidecar or a SOURCE: patient_supplement sidecar); null when no clinician source states one. Never converted to ECOG. A patient/caregiver self-description of function is NOT written here: it stays on its patient_reported / caregiver_reported surface (a timeline self-report event), organizer-prompt-phase2-synthesis.md §5.7." },
+        "performance_status_verbatim": { "type": "array", "items": { "$ref": "#/$defs/ps_verbatim" }, "description": "Every performance-status statement as written (PS=1, ECOG 2, KPS 80 …) with its date and the scale label the source prints, oldest first. Never converted between scales; `ecog` stays null unless a clinician source literally writes ECOG. profile.json.demographics carries the same list." },
         "provenance_layer": { "$ref": "#/$defs/provenance_layer" },
         "verification_status": { "$ref": "#/$defs/verification_status" },
         "source_refs": { "$ref": "#/$defs/source_refs" }
@@ -38,6 +46,28 @@
         "icd10": { "type": ["string", "null"] },
         "diagnosed_at": { "type": ["string", "null"], "format": "date" },
         "stage": { "type": ["string", "null"], "description": "Verbatim clinician/source stage; never recomputed." },
+        "diagnosis_basis": {
+          "type": ["string", "null"],
+          "enum": ["pathology", "discharge_or_clinic_diagnosis", "order_or_imaging_indication", "ngs_clinical_diagnosis", "patient_reported", null],
+          "description": "Which rung of the source ladder `primary` was taken from, verbatim (phase2 §5.7): pathology > discharge / outpatient diagnosis > order or imaging indication > the clinical-diagnosis box of an NGS report > self-report (patient_reported layer only). Optional (no version bump); the validator WARNs when primary is set without it."
+        },
+        "alt_readings": {
+          "type": "array",
+          "description": "Other readings of primary / histology / stage when that field carries an [OCR_UNCERTAIN:U-nnn] token (the field keeps its literal + token). Optional; never promoted.",
+          "items": {
+        "type": "object",
+        "required": ["field", "uncertain_id", "source_ref", "channel", "text"],
+        "additionalProperties": false,
+        "description": "Another reading of a token-bearing text field: the other channel's reading of the same span, or a high-confidence lexicon candidate (channel lexicon:<name>). A reading, never a value: it is never promoted into the field.",
+        "properties": {
+          "field": { "type": "string", "minLength": 1 },
+          "uncertain_id": { "type": "string", "pattern": "^U-\\d{3,}$" },
+          "source_ref": { "type": "string", "minLength": 1 },
+          "channel": { "type": "string", "minLength": 1 },
+          "text": { "type": ["string", "null"] }
+        }
+      }
+        },
         "metastasis_sites": { "type": "array", "items": { "type": "string" } },
         "provenance_layer": { "$ref": "#/$defs/provenance_layer" },
         "verification_status": { "$ref": "#/$defs/verification_status" },
@@ -68,7 +98,31 @@
   },
   "$defs": {
     "source_refs": { "type": "array", "items": { "type": "string" } },
-    "provenance_layer": { "enum": ["source_reported", "patient_reported", "caregiver_reported", "system_normalized"] },
+    "timed_age": {
+      "type": "object",
+      "required": ["value", "as_of", "source_ref"],
+      "additionalProperties": false,
+      "properties": {
+        "value": { "type": "integer", "minimum": 0, "maximum": 130, "description": "Age exactly as stated by that source; never recomputed." },
+        "as_of": { "type": "string", "format": "date", "description": "Report/collection date of that source." },
+        "source_ref": { "type": "string" },
+        "age_basis": { "type": ["string", "null"], "enum": ["completed_years", "nominal_years", "unspecified", null], "description": "Only when the source says so (周岁 / 虚岁). Never inferred — an unlabelled age is `unspecified`, and unspecified ages are compared with ±1 tolerance." },
+        "verification_status": { "$ref": "#/$defs/verification_status" }
+      }
+    },
+    "ps_verbatim": {
+      "type": "object",
+      "required": ["text", "as_of", "scale_label", "source_ref"],
+      "additionalProperties": false,
+      "properties": {
+        "text": { "type": "string", "minLength": 1, "pattern": "[^\\s.…。，、,;；:：!！?？\"'“”‘’()（）【】《》\\[\\]-]{2}", "description": "Verbatim wording, e.g. PS=1 (bound to the cited line; an ellipsis-only quote is rejected)." },
+        "as_of": { "type": ["string", "null"], "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$", "description": "Date (YYYY-MM-DD) of the source that states it; null only when that source is undated." },
+        "scale_label": { "enum": ["PS", "ECOG", "KPS", "Zubrod", "unlabeled"], "description": "The scale label the source itself prints; unlabeled when it prints none. Never inferred." },
+        "source_ref": { "type": "string" },
+        "provenance_layer": { "$ref": "#/$defs/provenance_layer", "description": "Optional; absent = the demographics block's layer. prior_archive for a statement restated from a prior-archive digest (history only — never the current performance status); it must then cite the digest." }
+      }
+    },
+    "provenance_layer": { "enum": ["source_reported", "patient_reported", "caregiver_reported", "system_normalized", "prior_archive"], "description": "prior_archive = restated from a prior_archive_digest source (earlier organize archive, original not in this packet); history only, never current status." },
     "verification_status": { "enum": ["unverified", "clinician_verified", "disputed"] }
   }
 }

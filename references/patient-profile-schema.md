@@ -16,10 +16,12 @@ patients/<patient_code>/
 ├── readiness.json            # documentation coverage + source/faithfulness flags (compatibility filename)
 ├── case_text.md              # consolidated narrative
 ├── patient_summary.json molecular.json treatment_lines.json labs.json comorbidities.json timeline.json  # the 6 structured JSON outputs (schema-validated)
+├── acute_findings.json       # source-worded acute/incidental findings; ALWAYS written (`findings: []` when none)
 ├── longitudinal_observations.json  # parsed time series (wearable / PRO / lab trends) — CONDITIONAL: only when timeseries/trended data exists; absent otherwise
-├── source_inventory.json     # v2 extraction/provenance + file_id ↔ sidecar ↔ raw_path map
+├── source_inventory.json     # source_inventory_v2.1: extraction/provenance, sha256/page labels, file_id ↔ sidecar ↔ raw_path map, skipped_inputs[]
 ├── missing_items.json        # existing-document inventory gaps; never a test recommendation
-├── update_log.json           # append-only audit trail of every run
+├── update_log.json           # append-only audit trail of every run (inputs by sha256, workers, degradations)
+├── organize_meta.json        # skill version/commit/fingerprint of the organize run (scripts/write_organize_meta.py)
 ├── review_summary.md         # 1-page extracted-field spot-check (always); review_flags.md (when non-empty)
 ├── AGENTS.md                 # agent-facing cross-session recall pointer (filled from profile.json)
 ├── 病情简要总结.html          # patient-facing one-page 段D summary; case_summary_versions/ holds dated snapshots
@@ -62,6 +64,17 @@ Format: `PT-<hex>`, e.g. synthetic `PT-A1B2C3D4E5`.
     "pii_policy": "sidecar_text_masked; raw_originals_retained_under_raw",
     "summary_minimization_policy": "purpose_and_authorization_required"
   },
+  "demographics": {
+    "sex": "男",
+    "age": 61,
+    "age_as_of": "2024-07-05",
+    "performance_status_verbatim": [
+      {"text": "KPS 70分", "as_of": "2024-07-05", "scale_label": "KPS",
+       "source_ref": "03_病程与叙事文书/出院小结/2024-07-05_出院小结.md#L9"}
+    ],
+    "provenance_layer": "source_reported",
+    "source_refs": ["03_病程与叙事文书/出院小结/2024-07-05_出院小结.md"]
+  },
   "anthropometrics": {
     "height_cm": 170,
     "weight_kg": 80,
@@ -83,6 +96,7 @@ Format: `PT-<hex>`, e.g. synthetic `PT-A1B2C3D4E5`.
   },
   "latest_status": {
     "regimen": "FOLFOX",
+    "status_basis": "clinician_note_current",
     "response": null,
     "ecog": null,
     "as_of": "2024-07-05",
@@ -106,9 +120,10 @@ Block-by-block contract:
 - `privacy` (required): records the applicable handling policy. Any summary or export applies purpose limitation,
   authorization, data minimization, retention, and residual-risk review. Age and other quasi-identifiers are
   included only when necessary for the authorized task; no field is categorically safe in every combination.
+- `demographics` (required on current-contract archives — `readiness.json` `schema_version` ≥ `2.1` or an `organize_meta.json` present; `scripts/validate-profile-schema.sh` and the organize terminal gate `validate_structured_outputs.py` → `gate_profile_demographics` fail when it is missing or differs from `patient_summary.json`; legacy archives only warn): `sex`, `age`, `age_as_of`, `performance_status_verbatim[]`, `provenance_layer`, `source_refs[]` — a verbatim **copy** of `patient_summary.json.demographics` (which stays authoritative), never a separate extraction. `age` requires `age_as_of` (`YYYY-MM-DD`); each `performance_status_verbatim[].text` must appear on the sidecar line its `source_ref` cites. `age` is the latest source snapshot with its `age_as_of` date, never recomputed to today. `performance_status_verbatim[]` keeps every clinician-written performance-status string exactly as written (`{text, as_of, scale_label, source_ref}`, `scale_label ∈ PS|ECOG|KPS|Zubrod|unlabeled`, one entry per occurrence and date); scales are **never converted** — "PS=2" is not ECOG 2 and "KPS 70分" is not any ECOG value. An entry may carry an optional `provenance_layer`; one marked `prior_archive` (a statement quoted in an authorized prior-archive digest) is a past record and never the current performance status. Age is a quasi-identifier: it stays an archive-internal field and is minimized on export.
 - `anthropometrics` (optional): `height_cm` / `weight_kg` / `bmi` plus provenance, verification and `source_refs[]`. Null block when no body metrics are known.
-- `summary` (required): a denormalized source-preserving snapshot. Each clinical block carries `provenance_layer` (`source_reported|patient_reported|caregiver_reported|system_normalized`), `verification_status` (`unverified|clinician_verified|disputed`), and `source_refs[]`. Patient confirmation never promotes a value to `clinician_verified`.
-- `latest_status` (required): current treatment state copied from sources. `response` and `ecog` remain `null` unless a clinician-authored source explicitly states them. Do not infer either from lesion measurements, symptoms, or function descriptions.
+- `summary` (required — an object; a missing or `null` `summary` fails `scripts/validate-profile-schema.sh`, and the organize validator reports it (ERROR on a current-contract archive, WARN legacy) and reads it as `{}`, so its `current_regimen` counts as null in the checks below; a string or an array is a type error on every archive in both): a denormalized source-preserving snapshot. `summary.current_regimen` equals `latest_status.regimen` once its source marker (below) is stripped (both null when there is no ongoing episode; the organize validator checks it); the block has one `provenance_layer`, so when the ongoing episode rests on a self-report (`patient_reported` / `caregiver_reported`) it keeps the source marker prefix — `患者自述：<regimen>` / `家属自述：<regimen>`, the one naming the episode's own speaker whatever the block's layer — and a self-reported regimen never reads as `source_reported` (conversely, a regimen resting on an original carries no marker; a marker alone is not a regimen — write null). A `source_reported` block never cites the prior-archive digest. Each clinical block carries `provenance_layer` (`source_reported|patient_reported|caregiver_reported|system_normalized|prior_archive`; `prior_archive` = an explicitly authorized digest of an earlier organized archive, history only), `verification_status` (`unverified|clinician_verified|disputed`), and `source_refs[]`. Patient confirmation never promotes a value to `clinician_verified`.
+- `latest_status` (required — an object carrying the `regimen` key, `{"regimen": null, …}` when nothing is ongoing; a current-contract archive without it, with `null`, or with an object that has no `regimen` key (`{}`) fails `scripts/validate-profile-schema.sh` and the organize terminal gate, which read it as regimen null for the checks below; legacy archives only warn; a string or an array is a type error on every archive, reported as such by both validators): current treatment state copied from sources. `regimen` is the treatment episode whose `status` is `ongoing` (with its `status_as_of` as `as_of`), or `null`; `status_basis` is that episode's `status_basis` copied as-is (`administration_record|clinician_note_current|order_or_indication_only|patient_reported|dates_only`; `null` when nothing is ongoing), so a reader of `profile.json` alone can tell an administration record from an imaging-request indication or a family statement. `as_of` is `null` only for an undated self-report (the episode carries `status_as_of_precision: "undated_self_report"`); it is never back-filled with the run date. A `prior_archive` fact never populates it. `response` and `ecog` remain `null` unless a clinician-authored source explicitly states them. Do not infer either from lesion measurements, symptoms, function descriptions, or a PS/KPS string.
 - `source_refs` (top-level, required): bucket-relative paths to the text-masked MD sidecars that back this profile. **Every clinical block** (`anthropometrics`, `summary`-derived facts via the top-level list, `latest_status`) carries its own `source_refs[]` so each fact is traceable.
 
 Fields are left `null` when truly unknown — the organizer **never fabricates**.
@@ -122,7 +137,7 @@ These are two distinct files with a deliberate division of labor (this is the de
 - **`profile.json`** = the **slim canonical first-read snapshot** — storage locator (`patient_code`), optional
   non-clinical `alias`, locale, and source-attributed summary/status fields. It is not proof of identity or a
   clinically adjudicated problem list.
-- **`patient_summary.json`** (one of the 6 structured JSONs, `schema_version 2`) = the source-preserving structured rollup defined by `patient_summary.schema.json`. Diagnosis, current status and demographics carry provenance, verification status and source references. ECOG and response are copied only from clinician-authored sources; patient function descriptions remain separate.
+- **`patient_summary.json`** (one of the 6 structured JSONs, `schema_version 2.2`; `2` / `2.1` archives are read with a warning) = the source-preserving structured rollup defined by `patient_summary.schema.json`. Diagnosis, current status and demographics carry provenance, verification status and source references. ECOG and response are copied only from clinician-authored sources; `demographics.function_description` holds only a clinician source's own function wording, and a patient/caregiver self-description of function stays on its `patient_reported` / `caregiver_reported` surface (a timeline self-report event), never in `demographics`. **Only `sex` is time-invariant:** `age` / `height_cm` / `weight_kg` / `ecog` are point-in-time snapshots and each carries its own `_as_of` source date (`age` additionally keeps the full `age_observations[]` series plus an optional coarse-grained `birth_year`). Values differing across different `_as_of` dates are normal evolution and must NOT be flagged as a source conflict — see `skills/cancer-buddy-organize/references/organizer-prompt-phase2-synthesis.md` §2.1.
 - **Relationship:** `profile.summary` is a **denormalized convenience copy** of the authoritative structured facts in `patient_summary.json` — this is intentional (cheap snapshot vs full record), NOT an accidental duplicate. When the two could disagree, `patient_summary.json` is **authoritative for structured diagnosis fields**; `profile.json` is authoritative for **identity / locale / latest_status**.
 
 > ⚠️ **Cross-repo follow-up:** the shared `vmtb-skill` (separate repo) also reads `profile.json` and must be aligned to the `cancer_buddy_profile_v3` shape — its `vmtb-organizer` writer and any downstream consumers still expecting the old flat top-level `primary_cancer` / `histology` / `stage` need to be migrated. Track as a cross-repo task.
@@ -134,23 +149,44 @@ The filename is retained for compatibility; it is not an MTB or clinical-readine
 ```json
 {
   "patient_code": "PT-C1D2E3F4A5",
-  "schema_version": "2",
+  "schema_version": "2.1",
+  "generated_at": "2024-07-20T08:00:00Z",
   "documentation_coverage": {
     "diagnosis_documents": "present",
     "pathology_documents": "not_in_archive",
     "molecular_documents": "unknown"
   },
-  "warnings": [],
+  "latest_source_date": "2024-07-05",
+  "days_since_latest": 15,
+  "as_of_run_date": "2024-07-20",
+  "warnings": ["本档案最新一份资料的日期为 2024-07-05，距本次整理已 15 天；请确认此后是否有新的检查报告或病历，时效说明需写明这一天数。"],
   "review_flags": [
     {
       "id": "RF-001",
       "category": "cross_source_conflict",
+      "kind": "conflict",
+      "severity": "red",
       "affected_field": "diagnosis.stage",
       "current_source_values": [
         {"value": "...", "source_ref": "..."},
         {"value": "...", "source_ref": "..."}
       ],
       "issue": "Two source documents contain different stage strings.",
+      "resolution_status": "unresolved"
+    },
+    {
+      "id": "RF-002",
+      "category": "extraction_fidelity",
+      "kind": "legibility",
+      "severity": "red",
+      "affected_field": "molecular.ihc[1].label",
+      "current_source_values": [
+        {"value": "CK2O[OCR_UNCERTAIN:U-002]", "source_ref": "06_分子与组学/免疫组化/2024-06-28_免疫组化报告_示例医院.md#L21", "channel": "deterministic_ocr:tesseract"},
+        {"value": "CK20", "source_ref": "06_分子与组学/免疫组化/2024-06-28_免疫组化报告_示例医院.md#L21", "channel": "llm_vision"}
+      ],
+      "cross_doc_supported": {"status": "none", "refs": []},
+      "uncertain_ids": ["U-002"],
+      "issue": "标志物名两次读取不一致（CK2O / CK20），他页无清楚读数；词表候选仅为可能读法，不作为更正值。",
       "resolution_status": "unresolved"
     }
   ]
@@ -159,7 +195,11 @@ The filename is retained for compatibility; it is not an MTB or clinical-readine
 
 - Coverage values are document-inventory facts such as `present | not_in_archive | unknown`; do not convert them into a numeric score, band, grade, diagnosis confidence or permission to act.
 - A missing document is not evidence that a test is indicated. `missing_items.json` follows the same existing-document-only rule.
-- Flags are limited to extraction fidelity, source conflict, cross-patient identity risk, dangling anchors, filename/content routing and provenance. The organizer does not decide that a source is clinically illogical or physiologically impossible.
+- Flags are limited to extraction fidelity, source conflict, cross-patient identity risk, dangling anchors, filename/content routing, provenance, missing pages and source recency — one flag per affected field. Method or guardrail notes (assays not interchangeable, not a RECIST reading, no administration record, a fact seen only in the prior-archive digest) are `warnings[]`, not flags. `current_source_values[]` lists every incompatible reading; per-channel readings of the same line carry an optional `channel`. The organizer does not decide that a source is clinically illogical or physiologically impossible.
+- Every flag carries `kind` (`legibility|artifact|document_intent|conflict|completeness|other`) and `severity` (`red|yellow|info`). **`severity` grades extraction / archive-completeness uncertainty, not clinical severity**: `red` means the affected field may not be presented as settled fact until resolved. `document_intent` is used only when two independent reads agree on a deletion/amendment; otherwise the flag is `artifact` and states "版面异常，字面读作 X". Grading table: `skills/cancer-buddy-organize/references/organizer-prompt-phase2-synthesis.md` §6.1.
+- `latest_source_date` / `days_since_latest` / `as_of_run_date` describe how recent the newest source document is (`scripts/source_freshness.py`; `as_of_run_date` is the run's local date, the `update_log.json` entry `at` is UTC, and the validator allows ±1 day between them); more than 14 days adds the script's warning sentence verbatim (as in the example above) and a `completeness` flag. This is a record-currency notice, not a suggestion that new tests are needed.
+- Legacy archives with `schema_version: "2"` are read with a warning, not rejected; re-run organize to upgrade them. Once an archive is current-contract (`readiness.json` `2.1` or `organize_meta.json` present), every structured file must be at its current version — a leftover `"2"` is a mixed-version ERROR, so copy `"2.1"` from this example, never `"2"`.
+- **`cross_source_conflict` never fires on a time-varying field's normal evolution.** Age, weight, height, ECOG and `current_status.*` differing across sources with different report dates is a time series, not a conflict — it produces no review flag and no `disputed`. It escalates to a flag only when two sources share the same as-of date, or when the change contradicts the elapsed time (age going backwards). Judgement rule: `organizer-prompt-phase2-synthesis.md` §2.1.
 - Preserve every conflicting value and its source. A patient acknowledgment may confirm what the patient said, but cannot resolve a clinician-source conflict or create a clinician-verified value.
 - `resolution_status` is changed only by a documented corrected source, authorized clinician attestation, or a provenance-preserving administrative resolution. There is no model-proposed clinical replacement value.
 - An unresolved flag blocks only the affected field from being presented as settled fact. General education, organization and question preparation continue with the limitation stated.

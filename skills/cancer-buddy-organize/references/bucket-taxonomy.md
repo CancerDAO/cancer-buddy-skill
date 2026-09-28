@@ -30,9 +30,15 @@ longitudinal time series**, not only "tumor patient + image/text". The redesign 
 
 > **Machine-readable mirror.** [`bucket_taxonomy.json`](bucket_taxonomy.json) is the JSON derivation of §1.1
 > (14 domains) + §1.1a (pinned typed sub-bucket slug map) + §1.2 (infra buckets). It is the single
-> machine-readable SOURCE the deterministic gate (`scripts/validate_structured_outputs.py` →
-> `gate_bucket_taxonomy`) reads to enforce the pinned slugs at mkdir time. This `.md` stays authoritative
-> for prose/rationale; if the JSON and this file disagree, regenerate the JSON from these tables.
+> machine-readable SOURCE for both bucket checks: **before any `mkdir`/`mv`**, the Phase 2 worker runs
+> `scripts/check_bucket_path.py` on every path in its write-ahead `.rename_plan.json`
+> (`organizer-prompt-phase2-synthesis.md` §4.3) and re-files a rejected path onto a pinned slug or the
+> domain's universal `其他`/`other` fallback; the terminal gate (`scripts/validate_structured_outputs.py` →
+> `gate_bucket_taxonomy`) re-checks the finished tree by importing the same `check_bucket_path` whitelist functions, so
+> the pre-write check and the terminal check cannot disagree. A self-invented sub-bucket (e.g. `患者自述`,
+> `既往资料摘录`) is therefore rejected before it is created, not discovered at final acceptance. This `.md`
+> stays authoritative for prose/rationale; if the JSON and this file disagree, regenerate the JSON from
+> these tables.
 
 ## 1. Authoritative scheme
 
@@ -49,7 +55,7 @@ slug (see `../../../references/i18n.md §6`). The `zh` slug is the on-disk folde
 |---|---|---|---|---|
 | `01_` | `01_身份与基础信息` | `01_identity_basics` | `身份证件/ 人口学/ 参保信息/` | `01_基本信息` |
 | `02_` | `02_既往史与家族史` | `02_history_family` | `既往病史/ 手术史/ 过敏史/ 用药史/ 家族史/ 胚系遗传/` | **new** |
-| `03_` | `03_病程与叙事文书` | `03_clinical_notes` | `入院记录/ 出院小结/ 病程记录/ 门诊病历/ 主诉首程/` | **new** |
+| `03_` | `03_病程与叙事文书` | `03_clinical_notes` | `入院记录/ 出院小结/ 病程记录/ 门诊病历/ 主诉首程/ 既往档案摘录/` | **new** |
 | `04_` | `04_诊断与分期` | `04_diagnosis_staging` | `病理报告/ 诊断证明/ 分期评估/ 其他/` | `02_诊断与分期` + `11_诊断证明` |
 | `05_` | `05_影像` | `05_imaging` | `CT/ MRI/ PET-CT/ 超声/ X光DR/ 核医学/ 内镜影像/ 其他/` | `04_影像学` |
 | `06_` | `06_分子与组学` | `06_molecular_omics` | `NGS报告/ 免疫组化/ 胚系检测/ WES-WGS/ 转录组/ 甲基化/ 蛋白-代谢/ 微生物组/ 其他/` | `05_分子检测` (expanded) |
@@ -89,6 +95,7 @@ slug (see `../../../references/i18n.md §6`). The `zh` slug is the on-disk folde
 | `03_病程与叙事文书` | 病程记录 | `progress_notes` |
 | `03_病程与叙事文书` | 门诊病历 | `outpatient_notes` |
 | `03_病程与叙事文书` | 主诉首程 | `chief_complaint` |
+| `03_病程与叙事文书` | 既往档案摘录 | `prior-archive-digest` |
 | `04_诊断与分期` | 病理报告 | `pathology` |
 | `04_诊断与分期` | 诊断证明 | `diagnosis_certificate` |
 | `04_诊断与分期` | 分期评估 | `staging` |
@@ -187,7 +194,7 @@ verbatim upload, and each clinical-domain `.md` sidecar links back to it via
 
 ### 1.3 Classification disambiguation (judge by clinical context, not a title keyword)
 
-The 14-domain scheme is filed by **LLM judgment of content** (`organizer-prompt-phase2-synthesis.md` Step 1a) — never a keyword match on the filename, and **never an echo of the source folder's own numbering/naming** (`3基因检测报告/` / `11不良反应记录/` / `13其他专科检查报告/` are the patient's ad-hoc scheme, not this taxonomy — re-classify onto the pinned `NN_` domain + sub-bucket). Known traps:
+The 14-domain scheme is filed by **LLM judgment of content** (`organizer-prompt-phase2-synthesis.md` §4.2) — never a keyword match on the filename, and **never an echo of the source folder's own numbering/naming** (`3基因检测报告/` / `11不良反应记录/` / `13其他专科检查报告/` are the patient's ad-hoc scheme, not this taxonomy — re-classify onto the pinned `NN_` domain + sub-bucket). Known traps:
 
 - **Imaging reports (CT / MRI / PET-CT / 超声 / X光 / 内镜影像) → `05_影像`, NEVER `04_诊断与分期` (HARD RULE).** `04_诊断与分期` is **病理报告 / 诊断证明 / 分期评估 / 其他 only** — it holds the pathology/diagnosis/staging *conclusion*, not the imaging exam itself. A CT/MRI/PET-CT/超声/X光/内镜 report (even one whose impression states or supports a stage) is filed under its `05_影像/<modality>` child; only a dedicated 分期评估 document (e.g. an AJCC staging worksheet / 分期评估单) goes to `04_诊断与分期/分期评估`. A source folder literally named `影像报告/` must NOT become `04_诊断与分期/影像报告`.
 - **Inpatient 体温单 / 护理生命体征记录 / 出入量单 → `03_病程与叙事文书/病程记录`, never `10_随访与监测`.** `10_随访与监测` is **outpatient-only** (门诊随访 / wearable / PRO自报 / 居家监测). If a "生命体征 / 体温 / 趋势" file's recording window falls inside an admission (ward + continuous inpatient dates), it is a hospitalization record → `03`. The words "趋势 / 监测 / 生命体征" in a title are a keyword trap — do not route to `10` on that basis.
@@ -196,10 +203,9 @@ The 14-domain scheme is filed by **LLM judgment of content** (`organizer-prompt-
 
 ## 2. Modality tag (orthogonal attribute)
 
-Every filed source records a `modality` in `source_inventory.json` (the authoritative location); typed
-ingest adapters (omics/timeseries) MAY additionally echo it as an OPTIONAL `MODALITY:` line in the
-sidecar header (per organizer-prompt-phase1-ocr.md — the header field is optional, `source_inventory.json`
-is authoritative). It describes the **data nature**, independent of the clinical domain, and drives
+Every filed source records a `modality` in `source_inventory.json` (the authoritative location) and in
+the mandatory `MODALITY:` line of the 12-key sidecar header (`organizer-prompt-phase1-ocr.md` §3); the two
+must agree. It describes the **data nature**, independent of the clinical domain, and drives
 ingest-parser dispatch.
 
 | `modality` | meaning | example | ingest path |
@@ -253,9 +259,12 @@ its original is carried in `source_inventory.json` (one row per content unit) an
 content unit := {
   file_id:    "<stable id, 1:1 with this sidecar>",   # e.g. f001
   source_id:  "<id of the upload it came from>",        # e.g. s001  (N content units may share one source_id)
-  sidecar_path: "04_诊断与分期/病理报告/2024-03-15_病理报告_中山六院.md",
+  sidecar_path: "04_诊断与分期/病理报告/2024-03-15_病理报告_示例医院.md",
   raw_path:   "raw/2024-Q1/discharge_2024-03-15.pdf",   # the un-redacted original (bytes verbatim) in raw/, de-identified filename; verbatim name only in raw/_FILENAME_MAPPING.md
-  page_range: "3-5"                                      # which pages of a multi-document source; null if whole file
+  page_range: "3-5",                                     # which pages of a multi-document source; null if whole file
+  sha256: "<64 hex>", size_bytes: 482113, page_count: 8, # from scripts/inventory_hash.py
+  page_label: "第3页，共8页",                             # printed page label, verbatim, or null
+  source_kind: "upload"                                  # or prior_archive_digest (raw_path null, digest_of required)
 }
 ```
 
@@ -265,6 +274,17 @@ content unit := {
   `raw_path` (deep-linked to `page_range` when present).
 - `file_id` is 1:1 with a sidecar; `source_id` is 1:1 with an upload. Two distinct `raw/` audit files (never the same file): **`_FILENAME_MAPPING.md`** = Phase-1 verbatim-name audit table (`verbatim_upload_name | deid_raw_name | source_id` — the ONLY surviving copy of the real upload name, excluded from export); **`_SIDECAR_MAP.md`** = Phase-2 de-identified raw→sidecar→bucket nav table (no verbatim name). `source_inventory.json` is the machine-readable reverse lookup.
 
+- **Prior-archive digest (`03_病程与叙事文书/既往档案摘录/`).** When the user explicitly authorizes
+  reuse of an earlier organized archive, a Phase 1 digest worker writes one digest sidecar from that
+  archive's de-identified sidecars (never its `raw/`). It is filed here, its `source_inventory.json` row
+  has `source_kind: prior_archive_digest`, `raw_path: null` and a required `digest_of`, and every fact it
+  supports carries `provenance_layer: prior_archive` — history only, never current status. It is not an
+  upload and never takes part in upload reconciliation.
+- **Skipped inputs** (`.DS_Store`, `__MACOSX/`, empty files, duplicate sha256, unpacked archive
+  containers, user-excluded or quarantined files) are listed in `source_inventory.json.skipped_inputs[]`
+  with a de-identified `input_ref` and a reason. An unsupported or unreadable file is never "skipped": it
+  gets an `[INGESTION_BLOCKED: <reason>]` stub sidecar.
+
 ## 5. Redaction policy (image-level 段B removed)
 
 - **The organizer does not mutate original bytes.** This archive-integrity rule does not authorize access,
@@ -272,7 +292,7 @@ content unit := {
   transferred, a separate authorized workflow assesses image pixels, headers, metadata, necessity, and
   residual re-identification risk.
 - **Sidecar text PII masking stays.** Phase 1 still masks PII in the `.md` sidecar body
-  (`phase1-ocr.md §2.4`) and `pii_rescan.py` still rescans the text — the sidecar remains the
+  (`organizer-prompt-phase1-ocr.md` §9.1, formerly §2.4) and `pii_rescan.py` still rescans the text — the sidecar remains the
   downstream-only read source with no plaintext PII, so structured JSONs and patient-facing answers
   stay de-identified.
 - **段E (unrelated-file deletion) is unchanged** — high-confidence non-medical files are still

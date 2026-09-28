@@ -1,0 +1,199 @@
+{
+  "schema": "source_inventory_v2.1",
+  "patient_dir": ".",
+  "generated_at": "2030-01-20T09:00:00Z",
+  "files": [
+    {
+      "file_id": "f001",
+      "source_id": "s001",
+      "original_path": "s001.jpg",
+      "raw_path": "raw/s001.jpg",
+      "page_range": null,
+      "bucket_path": "03_病程与叙事文书/门诊病历/2030-01-10_门诊病历_示例医院_s001.md",
+      "sidecar_path": "03_病程与叙事文书/门诊病历/2030-01-10_门诊病历_示例医院_s001.md",
+      "modality": "text",
+      "read_mode": "hybrid_verified",
+      "extractor_provenance": {
+        "engine": "apple_vision",
+        "version": null,
+        "raw_output_ref": null,
+        "llm_role": "none",
+        "worker_id": "p1-s001-1"
+      },
+      "high_risk_review_status": "passed_independent_reread",
+      "adapter": "none",
+      "persist": true,
+      "sha256": "c7a35116faf2d2179574268a6cf9a720f076845d7983219f1002f9e02be4fe5f",
+      "size_bytes": 39,
+      "page_count": 1,
+      "page_label": "第1页，共2页",
+      "source_kind": "upload",
+      "second_read_channel": "text_layer",
+      "independent_reread": true
+    },
+    {
+      "file_id": "f002",
+      "source_id": "s002",
+      "original_path": "s002.jpg",
+      "raw_path": "raw/s002.jpg",
+      "page_range": null,
+      "bucket_path": "05_影像/CT/2030-01-12_胸部CT_示例医院.md",
+      "sidecar_path": "05_影像/CT/2030-01-12_胸部CT_示例医院.md",
+      "modality": "text",
+      "read_mode": "hybrid_verified",
+      "extractor_provenance": {
+        "engine": "apple_vision",
+        "version": null,
+        "raw_output_ref": null,
+        "llm_role": "none",
+        "worker_id": "p1-s002-1"
+      },
+      "high_risk_review_status": "passed_independent_reread",
+      "adapter": "none",
+      "persist": true,
+      "sha256": "6ca6df22c867cba40d9d4ff657c6c349880e65eb41370caf357b97f5f54bd260",
+      "size_bytes": 30,
+      "page_count": 1,
+      "page_label": "第1页 共1页",
+      "source_kind": "upload",
+      "second_read_channel": "human",
+      "independent_reread": true
+    },
+    {
+      "file_id": "f003",
+      "source_id": "s003",
+      "original_path": "s003.jpg",
+      "raw_path": "raw/s003.jpg",
+      "page_range": null,
+      "bucket_path": "07_检验/肿瘤标志物/2030-01-15_肿瘤标志物_示例医院.md",
+      "sidecar_path": "07_检验/肿瘤标志物/2030-01-15_肿瘤标志物_示例医院.md",
+      "modality": "text",
+      "read_mode": "deterministic_ocr",
+      "extractor_provenance": {
+        "engine": "apple_vision",
+        "version": null,
+        "raw_output_ref": null,
+        "llm_role": "none",
+        "worker_id": "p1-s003-1"
+      },
+      "high_risk_review_status": "needs_human_review",
+      "adapter": "none",
+      "persist": true,
+      "sha256": "6ae67499d85e25365567c05e981fad1271e08ddef5e6a52431039416e4d71fc8",
+      "size_bytes": 36,
+      "page_count": 1,
+      "page_label": null,
+      "source_kind": "upload",
+      "second_read_channel": "none",
+      "independent_reread": false
+    },
+    {
+      "file_id": "f004",
+      "source_id": "prior-20290601",
+      "original_path": "prior-20290601",
+      "raw_path": null,
+      "page_range": null,
+      "bucket_path": "03_病程与叙事文书/既往档案摘录/2029-06-01_既往档案摘录.md",
+      "sidecar_path": "03_病程与叙事文书/既往档案摘录/2029-06-01_既往档案摘录.md",
+      "modality": "text",
+      "read_mode": "prior_archive_digest",
+      "extractor_provenance": {
+        "engine": "prior_archive_digest",
+        "version": null,
+        "raw_output_ref": null,
+        "llm_role": "none",
+        "worker_id": "p1digest-1"
+      },
+      "high_risk_review_status": "needs_human_review",
+      "adapter": "none",
+      "persist": true,
+      "sha256": null,
+      "size_bytes": null,
+      "page_count": null,
+      "page_label": null,
+      "source_kind": "prior_archive_digest",
+      "second_read_channel": "none",
+      "independent_reread": false,
+      "digest_of": {
+        "archive_ref": "PT-5A1F0C@2029-06-01",
+        "archive_generated_at": "2029-06-01",
+        "sidecar_refs": [
+          "03_病程与叙事文书/出院小结/2029-05-20_出院小结.md"
+        ]
+      }
+    },
+    {
+      "file_id": "f005",
+      "source_id": "s005",
+      "original_path": "s005.txt",
+      "raw_path": "raw/s005.txt",
+      "page_range": null,
+      "bucket_path": "14_患者自管补充/患者补充/undated_家属自述.md",
+      "sidecar_path": "14_患者自管补充/患者补充/undated_家属自述.md",
+      "modality": "text",
+      "read_mode": "native_text",
+      "extractor_provenance": {
+        "engine": "plaintext",
+        "version": null,
+        "raw_output_ref": null,
+        "llm_role": "none",
+        "worker_id": "p1-s005-1"
+      },
+      "high_risk_review_status": "not_applicable",
+      "adapter": "none",
+      "persist": true,
+      "sha256": "f22c7dfd46d33e310bb6818e2e39072109d95c9616878dc2fd0e7af07d5caa34",
+      "size_bytes": 33,
+      "page_count": null,
+      "page_label": null,
+      "source_kind": "upload",
+      "second_read_channel": "none",
+      "independent_reread": false
+    },
+    {
+      "file_id": "f006",
+      "source_id": "s006",
+      "original_path": "s006.jpg",
+      "raw_path": "raw/s006.jpg",
+      "page_range": null,
+      "bucket_path": "08_治疗/处方医嘱/2030-01-08_临时医嘱单_示例医院.md",
+      "sidecar_path": "08_治疗/处方医嘱/2030-01-08_临时医嘱单_示例医院.md",
+      "modality": "image",
+      "read_mode": "model_vision_primary",
+      "extractor_provenance": {
+        "engine": "apple_vision",
+        "version": "VNRecognizeTextRequest revision 3 (synthetic)",
+        "raw_output_ref": "raw/_extract/s006.apple_vision.json",
+        "llm_role": "none",
+        "worker_id": "p1-s006-1"
+      },
+      "high_risk_review_status": "needs_human_review",
+      "adapter": "temp_raster",
+      "persist": true,
+      "sha256": "5f2a9a8b9f24c2b49aac9f78ef1c5c486baf5b06e97f4f802fafc160778f4880",
+      "size_bytes": 39,
+      "page_count": 1,
+      "page_label": null,
+      "source_kind": "upload",
+      "second_read_channel": "deterministic_ocr:apple_vision",
+      "independent_reread": true,
+      "adapter_provenance": "decode_tool=sips;rotation=0",
+      "second_read_summary": {
+        "engine": "apple_vision",
+        "spans_total": 5,
+        "agree": 4,
+        "no_signal": 1,
+        "conflict": 0,
+        "declared": 0
+      }
+    }
+  ],
+  "skipped_inputs": [
+    {
+      "input_ref": "skip-001",
+      "reason": "ds_store",
+      "sha256": "57ea2d0996e25d1cf69b22a77d1e2a7c19c69538ec27c1d0107587d8339c6081",
+      "size_bytes": 18
+    }
+  ]
+}

@@ -1,9 +1,10 @@
-⚠️ SHARED CONTRACT — this file is duplicated in cancer-buddy-skill and vmtb-skill. Any edit MUST be mirrored to the other repo. Producer = cancer-buddy-organize; consumer = cancerdao-vmtb (skip-organize).
+⚠️ SHARED CONTRACT — producer = cancer-buddy-organize (this repo is the single source of this file). Consumers = **smtb-skill** (`scripts/facts.py build` reads the archive; `runlog.py init` reads `organize_meta.json`) and the legacy cancerdao-vmtb skip-organize path. smtb-skill keeps no copy of this file; its own reading rules must track this file, and any change to §4–§5 is announced in this repo's CHANGELOG.
 
 # PATIENT_DIR_CONTRACT — the on-disk patient archive (SHARED-1)
 
 This is the **single cross-repo interface contract** for the on-disk patient archive that
-`cancer-buddy-organize` **PRODUCES** and `vmtb-skill` **CONSUMES** (in skip-organize mode). It is
+`cancer-buddy-organize` **PRODUCES** and `smtb-skill` (and, historically, `vmtb-skill` in skip-organize
+mode) **CONSUMES**. It is
 narrower and more stable than either repo's internal docs: a consumer that programs against ONLY
 what is written here will not break when either side iterates its private layout. If this file and a
 repo-internal doc disagree on the interop surface (§5) or the producer/consumer boundary (§6), **this
@@ -12,9 +13,9 @@ file wins and the other is a drift bug to fix**.
 - Producer-authoritative deep docs (cancer-buddy-skill): `references/bucket-taxonomy.md` +
   `references/bucket_taxonomy.json` (bucket scheme, `scheme_version 3`), `references/patient-profile-schema.md`
   (profile / readiness field contract), `skills/cancer-buddy-organize/SKILL.md` (the write pipeline).
-- Consumer entry (vmtb-skill): `skills/cancerdao-vmtb/SKILL.md` (Step 2 skip-organize, Step 3
-  readiness gate, Step 3.25 deepdive glob), `references/organize/organize-binding-vmtb.md` (vMTB's
-  deviations from the cancer-buddy v3 contract).
+- Consumer entry (smtb-skill): `scripts/facts.py build` turns the structured JSON files of §4 into the
+  run register; `scripts/runlog.py init` records `organize_meta.json`. Legacy consumer entry (vmtb-skill):
+  `skills/cancerdao-vmtb/SKILL.md` (Step 2 skip-organize, Step 3 readiness gate).
 
 ---
 
@@ -75,9 +76,8 @@ Callers **may redirect the root** (env / CLI) but **MUST NOT rename the internal
 
 The clinical-domain buckets are **14 domains** with a two-digit `NN_` prefix, each with pinned typed
 sub-buckets. The **machine-readable source is `bucket_taxonomy.json`** (producer repo:
-`skills/cancer-buddy-organize/references/bucket_taxonomy.json`; mirrored in vmtb
-`references/organize/`) — a consumer that needs to enumerate buckets reads that JSON, it does NOT
-re-hardcode the list. The 14 domains:
+`skills/cancer-buddy-organize/references/bucket_taxonomy.json`; consumers do not keep a mirror) — a
+consumer that needs to enumerate buckets reads that JSON, it does NOT re-hardcode the list. The 14 domains:
 
 ```
 01_身份与基础信息   02_既往史与家族史   03_病程与叙事文书   04_诊断与分期      05_影像
@@ -87,7 +87,9 @@ re-hardcode the list. The 14 domains:
 
 (zh slugs shown; `locale≠zh` uses the pinned `en` set — `01_identity_basics … 14_patient_supplement`.
 The **pinned typed sub-buckets** per domain — e.g. `04_诊断与分期/{病理报告,诊断证明,分期评估,其他}`,
-`06_分子与组学/{NGS报告,免疫组化,…}` — are enumerated in `bucket_taxonomy.json`; do not re-list here.)
+`06_分子与组学/{NGS报告,免疫组化,…}` — are enumerated in `bucket_taxonomy.json`; do not re-list here.
+One sub-bucket carries a provenance meaning a consumer may rely on: `03_病程与叙事文书/既往档案摘录`
+(`en`: `03_clinical_notes/prior-archive-digest`) holds only prior-archive digests — see §5 (e).)
 
 **Rules a consumer MUST rely on:**
 
@@ -107,29 +109,31 @@ The **pinned typed sub-buckets** per domain — e.g. `04_诊断与分期/{病理
 - **`ocr/` is absent in a completed run** — it is transient Phase-1 staging, drained into the buckets
   and removed. If you see `ocr/`, the archive is mid-run or a Phase-2 relocation failed.
 - **Sidecar `.md` files live co-located inside their domain bucket** (e.g.
-  `04_诊断与分期/病理报告/2024-03-15_病理报告_中山六院.md`). The uploaded original is NOT copied into
+  `04_诊断与分期/病理报告/2024-03-15_病理报告_示例医院.md`). The uploaded original is NOT copied into
   the bucket — it lives once in `raw/`, deep-linked from each sidecar via `source_inventory.json.raw_path`.
 
 ---
 
 ## 4. Canonical file set at `<patient_data_root>/<patient_code>/`
 
-One-line purpose each (producer writes all of these; the conditional ones only when applicable):
+One-line purpose each (producer writes all of these; the conditional ones only when applicable). On a current-contract archive every structured file except `longitudinal_observations.json` is written on every run — an empty domain is an empty array, and a missing file fails the acceptance gate:
 
 | File | Purpose |
 |---|---|
-| `profile.json` | Slim first-read index with provenance/verification state; `patient_code` is not identity authentication. |
+| `profile.json` | Slim first-read index with provenance/verification state, including `demographics` (`sex`, `age`, `age_as_of`, `performance_status_verbatim[]` — a copy of `patient_summary.json.demographics`, which stays authoritative) and `latest_status` (the ongoing episode's `regimen`, `as_of` and `status_basis`, or null); `patient_code` is not identity authentication. |
 | `patient_summary.json` | Source-preserving rollup; structured fields are not clinically authoritative merely because they are normalized. |
-| `molecular.json` | Source-preserving report, sample, assay, quality and result records; no actionability inference. |
-| `treatment_lines.json` | Chronological treatment episodes; line labels only when clinician-documented. |
-| `labs.json` | Lab panels with serial values. |
-| `comorbidities.json` | Conditions + long-term meds + allergies. |
-| `timeline.json` | Machine-readable mirror of `timeline.md`. |
+| `molecular.json` | Source-preserving report, sample, assay, quality and result records, plus `hla_typing[]` (bare locus letters `A`/`B`/`C`/`DRB1`; a row with `allele: null` and `zygosity` only records that typing was done — it is never an allele to match); no actionability inference. |
+| `treatment_lines.json` | Chronological treatment episodes — one per regimen course (cycles of one regimen are one episode; `cycle_label_verbatim` keeps the latest cycle wording) — with `status` (`ongoing|stopped|unknown`), `status_basis`, verbatim `status_basis_text`, `status_as_of` (null only for an undated family/patient statement, marked `status_as_of_precision: "undated_self_report"`); `line_number` / `documented_line_label` only when the source states a line. |
+| `labs.json` | Lab panels with serial values; `pairing_method` / `candidate_value` record how each result was bound to its row. |
+| `comorbidities.json` | Conditions, medication orders/records (each with `administration_setting`, `setting_basis`, optional `order_role`), allergies. |
+| `acute_findings.json` | Source-worded acute/incidental findings (`finding_class`, `acuity`, `acuity_basis`, verbatim text, `change_vs_prior`, `source_ref`). **Always written**; `findings: []` means "checked, none found". |
+| `timeline.json` | Machine-readable mirror of `timeline.md`; events may carry `conflict_group` (self-report vs source side by side) and `acute_finding_id` (`category: acute_finding`). |
 | `timeline.md` | Human-readable treatment timeline (every line carries a `[[src:…]]` anchor). |
-| `readiness.json` | Documentation coverage and source/faithfulness review flags; no A–F clinical readiness grade. |
-| `source_inventory.json` | `source_inventory_v2`: one row per content unit with `file_id ↔ source_id ↔ sidecar ↔ raw_path ↔ page_range ↔ modality`, extraction engine/version/raw-output provenance, bounded LLM role, and high-risk reread status. The frontend deep-link map, not an authorization record. |
-| `missing_items.json` | Compatibility filename for `document_gaps[]`: existing records not found/unknown/requested by a clinician; never a test recommendation. |
-| `update_log.json` | Append-only audit trail of every full / incremental run. |
+| `readiness.json` | Documentation coverage, review flags graded by `kind` + `severity`, and source recency (`latest_source_date`, `days_since_latest`, `as_of_run_date`); no A–F clinical readiness grade. |
+| `source_inventory.json` | `"schema": "source_inventory_v2.1"` (legacy archives: `source_inventory_v2`): one row per content unit with `file_id ↔ source_id ↔ sidecar ↔ raw_path ↔ page_range ↔ modality`, `sha256` / `size_bytes` / `page_count` / verbatim `page_label`, `source_kind` (`upload` or `prior_archive_digest`), extraction provenance incl. `worker_id`, `second_read_channel`, `independent_reread`, and top-level `skipped_inputs[]`. The frontend deep-link map, not an authorization record. |
+| `missing_items.json` | Compatibility filename for `document_gaps[]`: existing records not found/unknown/requested by a clinician, and `missing_pages` gaps (`pages_present`, `pages_missing`, `page_total`); never a test recommendation. |
+| `update_log.json` | Append-only audit trail of every run (`schema_version: "1"`, `update_log.schema.json`): `inputs[]` by sha256, `added`/`removed`, `workers[]` and `degradations[]`; gated runs record the user's decisions in `note`. |
+| `organize_meta.json` | `{skill, skill_version, skill_commit, skill_fingerprint, generated_at, pii_layer1_scan}` of the organize run that wrote the archive; `pii_layer1_scan` = `{worker_id, clean: true}` of the semantic PII scan (SKILL.md Step 12.5), required by the acceptance gate. |
 | `case_text.md` | Consolidated narrative; every factual sentence anchored via `[[src:<bucket>/<file>.md#L<a>-L<b>]]`. |
 | `INDEX.md` | File manifest; **first line is `# patient_code: <code>`**. |
 | `AGENTS.md` | Agent-facing cross-session recall pointer (routing table + two-layer drill-down rule + citation floor), filled from `profile.json`. |
@@ -164,6 +168,57 @@ One-line purpose each (producer writes all of these; the conditional ones only w
   - `patient_summary` diagnosis may be `.primary` **OR** `.primary_site`;
   - `source_inventory.json` may be `files[]` **OR** `entries[]`.
 - **Never assume bucket names beyond the `NN_` prefix** (§3) — the localized slug is not stable.
+- **(c) Uncertain fields are not premises.** A field whose flag has `kind: document_intent` and
+  `resolution_status: unresolved`, or whose text contains `[OCR_UNCERTAIN:U-nnn]`, MUST NOT be used as a
+  premise for staging, pathology or treatment reasoning, and MUST NOT spawn an alternative-stage or
+  alternative-diagnosis scenario. A layout anomaly downgraded to `kind: artifact` keeps its literal reading
+  ("版面异常，字面读作 X"); that literal is the source text, not evidence of a deletion. Lexicon candidates
+  exist only inside sidecars and are never values. `labs.json` rows with `candidate_value` and
+  `value: null` are position-paired, unverified readings — not measured results.
+- **(d) `administration_setting` semantics.** `day_ward` = a same-day infusion/injection given on a
+  day-care unit; `discharge` = listed under a 出院带药 heading; `unknown` = no rule applied (it does NOT mean
+  long-term home use). Two rows from one order sheet with different settings (e.g. a day-ward IV dose and
+  a discharge oral supply) are sequential orders, not concurrent duplicate use; `order_role: diluent`
+  rows are carriers, not active drugs. Antineoplastic rows are also present as treatment episodes.
+- **(e) `prior_archive` semantics.** `provenance_layer: prior_archive` facts come from an explicitly
+  authorized digest of an earlier organized archive (`source_kind: prior_archive_digest`, original not in
+  this archive). Use them for history only; never for current status, current regimen or as the basis of a
+  recommendation, and label them "来自既往摘要，原件未在本次资料中" wherever they are cited.
+- **(f) Acute findings.** `acuity` is a fixed class table applied to source wording, not organize's
+  triage; emergent/urgent rows are for the consumer to surface to the treating team. A missing
+  `acute_findings.json` means "not checked", never "none". It is written on every pass, a Phase-2-only
+  pass on a legacy archive (`run_mode: legacy_phase2_only`) included (it is a safety surface, not a
+  current-contract marker); on a legacy archive `timeline_event_id` may be null until `legacy_upgrade` adds the
+  timeline events. A row with `verbatim_is_translation: true` quotes a Chinese rendering of a foreign-language
+  report: present it as a translation ("中文转述，非报告原句"), never as the report's own words. A new or changed
+  emergent/urgent row makes `病情简要总结.html` stale until 段D re-renders (mandatory); meanwhile
+  `review_summary.md` and `readiness.json.warnings[]` carry organize's pinned stale notice naming the rows.
+- **(g) Severity is not clinical severity.** `readiness.json.review_flags[].severity` and
+  `missing_items.json` gap `severity` grade extraction/archive-completeness uncertainty only.
+- **(h) Treatment status.** `status: ongoing` rests on the recorded `status_basis` (also copied to
+  `profile.json.latest_status.status_basis`); a consumer that needs a stronger basis states the gap rather than
+  silently downgrading the episode. `order_or_indication_only` (e.g. an imaging request stating the patient is on
+  X) is not an administration record. An undated self-report (`status_as_of: null`,
+  `status_as_of_precision: "undated_self_report"`) is stated as such — "家属陈述（未注明日期）正在接受 X" — never
+  given a borrowed date. `performance_status_verbatim` strings are never converted between scales; an entry with
+  `provenance_layer: prior_archive` is a past statement, never the current performance status.
+- **(i) Versions and legacy archives.** Structured files that gained required fields in this iteration use
+  `schema_version` `"2.1"` (`patient_summary` `"2.2"`, `source_inventory` `schema: "source_inventory_v2.1"`,
+  `update_log` / `acute_findings` `"1"`); older archives (`"2"` / `"2.1"` / `source_inventory_v2`) remain
+  readable and validate with a warning. Consumers branch on the version and tolerate absent new fields in
+  legacy archives. An archive is current-contract as soon as it carries ANY current-contract marker —
+  `organize_meta.json`, `readiness.json` ≥ `2.1`, a structured file at its current version, an
+  `update_log.json` entry with `workers[]`, or a bucket sidecar header naming `EXTRACTOR`
+  (`validate_structured_outputs.py --generation <dir>` prints the verdict and the markers); then every structured
+  file is at its current version (a leftover legacy version fails validation as a
+  mixed-version archive). A legacy archive is never partially upgraded: the first organize run on it is a full
+  re-transcription from `raw/` (`run_mode: legacy_upgrade`), which moves the old buckets, the old-shape
+  `update_log.json` and the rewritten top-level files into `raw/_legacy_<ts>/` (kept inside the access-controlled
+  vault, never an anchor target, not read by consumers) and starts a new `schema_version: "1"` `update_log.json`; a
+  Phase-2-only rerun on a legacy archive (`legacy_phase2_only`) keeps every file at its old version and writes no marker (the archive stays
+  legacy and validates with warnings until that upgrade). Update diffs use
+  the last v1 entry with a non-empty `inputs[]` (conversation entries carry `inputs: []`) plus
+  `source_inventory.json.skipped_inputs[]`; an archive without one is treated as all-new.
 - `patient_code` is the only universal locator field and is not authentication. Missing diagnosis fields
   remain unknown; consumers may continue stable general help but must not generate patient-specific
   clinical conclusions. All consumers tolerate missing optional fields without throwing.
@@ -175,6 +230,11 @@ One-line purpose each (producer writes all of these; the conditional ones only w
 - **`cancer-buddy-organize` WRITES everything under `<patient_code>/`** — the archive file set (§4),
   the buckets (§3), `raw/`. It is the sole storage-contract writer of `profile.json` / `readiness.json` /
   `timeline.*` / the structured JSONs.
+- **`smtb-skill` READS that archive** through `scripts/facts.py build` and writes only inside its own run
+  directory; it MUST NOT mutate any organize-produced file.
+- **Validating as a consumer:** `validate_structured_outputs.py <patient_dir> --readonly`. Without `--readonly` the
+  validator is the organize run's own terminal gate and records untrusted-content flags into `readiness.json`
+  (a write a consumer is not allowed to make).
 - **`cancerdao-vmtb` in skip-organize mode READS that archive** (probe: `profile.json` AND
   `readiness.json` both exist → treat as pre-organized, do NOT re-run organize, do NOT recompute
   readiness) **and writes ONLY under `runs/<run_id>/` + `reports/`.** It **MUST NOT mutate any

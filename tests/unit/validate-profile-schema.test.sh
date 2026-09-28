@@ -63,5 +63,138 @@ cp "$tmp/readiness_ok/profile.json" "$tmp/bad_coverage/profile.json"
 echo '{"schema_version":"2","documentation_coverage":{"molecular":0.8},"review_flags":[]}' > "$tmp/bad_coverage/readiness.json"
 run_case "numeric coverage score rejected" fail "$tmp/bad_coverage"
 
+# ---- readiness v2.1 + profile.demographics (schemas/README.md version policy / O-08). A readiness "2" archive
+# (above) stays valid with a WARN; readiness "2.1" archives must carry the new fields.
+# demographics carry provenance_layer + source_refs (references/schemas/README.md) and each PS text is bound
+# to the source line it cites — mk21 writes that synthetic source file into every case.
+DEMO='"demographics":{"sex":null,"age":60,"age_as_of":"2030-01-10","performance_status_verbatim":[{"text":"PS=1","as_of":"2030-01-10","scale_label":"PS","source_ref":"03_clinical_notes/outpatient_notes/a.md#L3"}],"provenance_layer":"source_reported","source_refs":["03_clinical_notes/outpatient_notes/a.md#L3"]}'
+R21_FLAG='{"id":"RF-1","category":"cross_source_conflict","affected_field":"diagnosis.stage","current_source_values":[],"issue":"x","resolution_status":"unresolved","severity":"red","kind":"conflict"}'
+# latest_status is required on a current archive (patient-profile-schema.md): {regimen: null, …} when nothing is
+# ongoing — every current-archive case below carries it unless the case is about it
+LS_NONE='"latest_status":{"regimen":null,"response":null,"ecog":null,"as_of":null,"status_basis":null,"source_refs":[]}'
+R21_TOP='"patient_code":"PT-A6","schema_version":"2.1","documentation_coverage":{},"latest_source_date":"2030-01-15","days_since_latest":5,"as_of_run_date":"2030-01-20"'
+
+mk21() {  # name, profile-json, readiness-json
+  mkdir "$tmp/$1"; echo "$2" > "$tmp/$1/profile.json"; echo "$3" > "$tmp/$1/readiness.json"
+  mkdir -p "$tmp/$1/03_clinical_notes/outpatient_notes"
+  printf 'SOURCE: raw/s001.jpg\n\n一般状况：PS=1。\n' > "$tmp/$1/03_clinical_notes/outpatient_notes/a.md"
+}
+mk21 r21_ok "{\"schema\":\"cancer_buddy_profile_v3\",\"patient_code\":\"PT-A6\",\"summary\":{},$LS_NONE,$DEMO}" "{$R21_TOP,\"review_flags\":[$R21_FLAG]}"
+run_case "readiness 2.1 + profile demographics" pass "$tmp/r21_ok"
+mk21 r21_noflagsev "{\"schema\":\"cancer_buddy_profile_v3\",\"patient_code\":\"PT-A6\",\"summary\":{},$LS_NONE,$DEMO}" \
+  "{$R21_TOP,\"review_flags\":[$(echo "$R21_FLAG" | sed 's/,"severity":"red"//')]}"
+run_case "readiness 2.1 flag without severity rejected" fail "$tmp/r21_noflagsev"
+mk21 r21_badkind "{\"schema\":\"cancer_buddy_profile_v3\",\"patient_code\":\"PT-A6\",\"summary\":{},$LS_NONE,$DEMO}" \
+  "{$R21_TOP,\"review_flags\":[$(echo "$R21_FLAG" | sed 's/"kind":"conflict"/"kind":"strikethrough"/')]}"
+run_case "readiness flag kind outside enum rejected" fail "$tmp/r21_badkind"
+mk21 r21_norecency "{\"schema\":\"cancer_buddy_profile_v3\",\"patient_code\":\"PT-A6\",\"summary\":{},$LS_NONE,$DEMO}" \
+  "{\"patient_code\":\"PT-A6\",\"schema_version\":\"2.1\",\"documentation_coverage\":{},\"review_flags\":[]}"
+run_case "readiness 2.1 without recency fields rejected" fail "$tmp/r21_norecency"
+mk21 r21_stale "{\"schema\":\"cancer_buddy_profile_v3\",\"patient_code\":\"PT-A6\",\"summary\":{},$LS_NONE,$DEMO}" \
+  "{$(echo "$R21_TOP" | sed 's/"days_since_latest":5/"days_since_latest":27/'),\"review_flags\":[]}"
+run_case "27 days without a day-count warning rejected" fail "$tmp/r21_stale"
+mk21 r21_stale_warned "{\"schema\":\"cancer_buddy_profile_v3\",\"patient_code\":\"PT-A6\",\"summary\":{},$LS_NONE,$DEMO}" \
+  "{$(echo "$R21_TOP" | sed 's/"days_since_latest":5/"days_since_latest":27/'),\"warnings\":[\"资料距本次整理已 27 天\"],\"review_flags\":[]}"
+run_case "27 days with the day-count warning accepted" pass "$tmp/r21_stale_warned"
+mk21 r3 "{\"schema\":\"cancer_buddy_profile_v3\",\"patient_code\":\"PT-A6\",\"summary\":{},$LS_NONE,$DEMO}" \
+  "{\"patient_code\":\"PT-A6\",\"schema_version\":\"3\",\"documentation_coverage\":{},\"review_flags\":[]}"
+run_case "unknown readiness version rejected" fail "$tmp/r3"
+mk21 r21_nols "{\"schema\":\"cancer_buddy_profile_v3\",\"patient_code\":\"PT-A6\",\"summary\":{},$DEMO}" "{$R21_TOP,\"review_flags\":[]}"
+run_case "current archive without latest_status rejected (required; absent is not 'nothing ongoing')" fail "$tmp/r21_nols"
+nols_out="$(bash "$SCRIPT" "$tmp/r21_nols" 2>&1 || true)"
+if grep -q "ERROR: latest_status is missing" <<<"$nols_out"; then
+  pass=$((pass+1)); else echo "FAIL: a current archive without latest_status must print ERROR: latest_status is missing" >&2; fail=$((fail+1)); fi
+mk21 r21_lsnull "{\"schema\":\"cancer_buddy_profile_v3\",\"patient_code\":\"PT-A6\",\"summary\":{},\"latest_status\":null,$DEMO}" "{$R21_TOP,\"review_flags\":[]}"
+run_case "current archive with latest_status null rejected (write {regimen: null, …})" fail "$tmp/r21_lsnull"
+min_out="$(bash "$SCRIPT" "$tmp/minimal" 2>&1 || true)"
+if grep -q "WARN: latest_status is missing" <<<"$min_out"; then
+  pass=$((pass+1)); else echo "FAIL: a legacy archive without latest_status must only WARN" >&2; fail=$((fail+1)); fi
+# one line per latest_status state, in validate_structured_outputs' words: a string / array is named as such (it
+# printed 'must be object or null' AND 'is null — required'), on a legacy archive too; {} lacks the regimen key
+has_line() {  # label, output, grep -F needle, [absent needle]
+  if grep -qF -- "$3" <<<"$2" && { [[ -z "${4:-}" ]] || ! grep -qF -- "$4" <<<"$2"; }; then pass=$((pass+1)); else
+    echo "FAIL: $1" >&2; echo "$2" | tail -4 >&2; fail=$((fail+1)); fi
+}
+mk21 r21_lsstr "{\"schema\":\"cancer_buddy_profile_v3\",\"patient_code\":\"PT-A6\",\"summary\":{},\"latest_status\":\"示例方案B\",$DEMO}" "{$R21_TOP,\"review_flags\":[]}"
+run_case "current archive with latest_status a string rejected" fail "$tmp/r21_lsstr"
+out="$(bash "$SCRIPT" "$tmp/r21_lsstr" 2>&1 || true)"
+has_line "latest_status a string: one line naming the type" "$out" "ERROR: latest_status is a JSON string, not an object" "is null"
+has_line "latest_status a string: no retired 'must be object or null' line" "$out" "latest_status is a JSON string" "must be object or null"
+mkdir "$tmp/ls_legacy_arr"
+echo '{"schema":"cancer_buddy_profile_v3","patient_code":"PT-A7","summary":{},"latest_status":[]}' > "$tmp/ls_legacy_arr/profile.json"
+run_case "legacy archive with latest_status an array rejected (a type error on every archive)" fail "$tmp/ls_legacy_arr"
+has_line "latest_status an array named as such" "$(bash "$SCRIPT" "$tmp/ls_legacy_arr" 2>&1 || true)" "ERROR: latest_status is a JSON array, not an object"
+mk21 r21_lsempty "{\"schema\":\"cancer_buddy_profile_v3\",\"patient_code\":\"PT-A6\",\"summary\":{},\"latest_status\":{},$DEMO}" "{$R21_TOP,\"review_flags\":[]}"
+run_case "current archive with latest_status {} rejected (was 'profile schema OK')" fail "$tmp/r21_lsempty"
+has_line "latest_status {} names the missing regimen key" "$(bash "$SCRIPT" "$tmp/r21_lsempty" 2>&1 || true)" "ERROR: latest_status.regimen is missing"
+mkdir "$tmp/ls_legacy_empty"
+echo '{"schema":"cancer_buddy_profile_v3","patient_code":"PT-A7","summary":{},"latest_status":{}}' > "$tmp/ls_legacy_empty/profile.json"
+run_case "legacy archive with latest_status {} only WARNs" pass "$tmp/ls_legacy_empty"
+has_line "legacy latest_status {} WARN line" "$(bash "$SCRIPT" "$tmp/ls_legacy_empty" 2>&1 || true)" "WARN: latest_status.regimen is missing"
+# summary: the same state words
+mk21 r21_nosumm "{\"schema\":\"cancer_buddy_profile_v3\",\"patient_code\":\"PT-A6\",$LS_NONE,$DEMO}" "{$R21_TOP,\"review_flags\":[]}"
+run_case "profile without summary rejected" fail "$tmp/r21_nosumm"
+has_line "missing summary line" "$(bash "$SCRIPT" "$tmp/r21_nosumm" 2>&1 || true)" "ERROR: summary is missing"
+mk21 r21_summnull "{\"schema\":\"cancer_buddy_profile_v3\",\"patient_code\":\"PT-A6\",\"summary\":null,$LS_NONE,$DEMO}" "{$R21_TOP,\"review_flags\":[]}"
+run_case "profile with summary null rejected" fail "$tmp/r21_summnull"
+has_line "null summary line" "$(bash "$SCRIPT" "$tmp/r21_summnull" 2>&1 || true)" "ERROR: summary is null"
+mk21 r21_nodemo '{"schema":"cancer_buddy_profile_v3","patient_code":"PT-A6","summary":{}}' "{$R21_TOP,\"review_flags\":[]}"
+run_case "current archive without profile.demographics rejected" fail "$tmp/r21_nodemo"
+mk21 r21_age_noasof "{\"schema\":\"cancer_buddy_profile_v3\",\"patient_code\":\"PT-A6\",\"summary\":{},$LS_NONE,$(echo "$DEMO" | sed 's/"age_as_of":"2030-01-10"/"age_as_of":null/')}" "{$R21_TOP,\"review_flags\":[]}"
+run_case "age without age_as_of rejected" fail "$tmp/r21_age_noasof"
+mk21 r21_ps_scale "{\"schema\":\"cancer_buddy_profile_v3\",\"patient_code\":\"PT-A6\",\"summary\":{},$LS_NONE,$(echo "$DEMO" | sed 's/"scale_label":"PS"/"scale_label":"ECOG-from-PS"/')}" "{$R21_TOP,\"review_flags\":[]}"
+run_case "converted PS scale label rejected" fail "$tmp/r21_ps_scale"
+mk21 r21_mismatch "{\"schema\":\"cancer_buddy_profile_v3\",\"patient_code\":\"PT-A6\",\"summary\":{},$LS_NONE,$DEMO}" "{$R21_TOP,\"review_flags\":[]}"
+echo '{"demographics":{"sex":null,"age":61,"age_as_of":"2030-01-10","performance_status_verbatim":[]}}' > "$tmp/r21_mismatch/patient_summary.json"
+run_case "profile demographics ≠ patient_summary rejected" fail "$tmp/r21_mismatch"
+mk21 r21_ps_text "{\"schema\":\"cancer_buddy_profile_v3\",\"patient_code\":\"PT-A6\",\"summary\":{},$LS_NONE,$(echo "$DEMO" | sed 's/"text":"PS=1"/"text":"PS=0"/')}" "{$R21_TOP,\"review_flags\":[]}"
+run_case "PS text that is not on the cited source line rejected" fail "$tmp/r21_ps_text"
+mk21 r21_noprov "{\"schema\":\"cancer_buddy_profile_v3\",\"patient_code\":\"PT-A6\",\"summary\":{},$LS_NONE,$(echo "$DEMO" | sed 's/,"provenance_layer":"source_reported"//')}" "{$R21_TOP,\"review_flags\":[]}"
+run_case "demographics without provenance_layer rejected" fail "$tmp/r21_noprov"
+mk21 r21_norefs "{\"schema\":\"cancer_buddy_profile_v3\",\"patient_code\":\"PT-A6\",\"summary\":{},$LS_NONE,$(echo "$DEMO" | sed 's/"source_refs":\["03_clinical_notes\/outpatient_notes\/a.md#L3"\]/"source_refs":[]/')}" "{$R21_TOP,\"review_flags\":[]}"
+run_case "filled demographics with empty source_refs rejected" fail "$tmp/r21_norefs"
+# profile.latest_status {regimen, as_of} (phase2 §5.7; read by SMTB as the current-status row)
+LS_OK='"latest_status":{"regimen":"示例方案B","response":null,"ecog":null,"as_of":"2030-01-10","source_refs":["03_clinical_notes/outpatient_notes/a.md#L3"]}'
+mk21 r21_ls_ok "{\"schema\":\"cancer_buddy_profile_v3\",\"patient_code\":\"PT-A6\",\"summary\":{},$LS_OK,$DEMO}" "{$R21_TOP,\"review_flags\":[]}"
+run_case "latest_status regimen + ISO as_of accepted" pass "$tmp/r21_ls_ok"
+mk21 r21_ls_month "{\"schema\":\"cancer_buddy_profile_v3\",\"patient_code\":\"PT-A6\",\"summary\":{},$(echo "$LS_OK" | sed 's/"as_of":"2030-01-10"/"as_of":"2030年1月"/'),$DEMO}" "{$R21_TOP,\"review_flags\":[]}"
+run_case "latest_status.as_of not YYYY-MM-DD rejected" fail "$tmp/r21_ls_month"
+mk21 r21_ls_nodate "{\"schema\":\"cancer_buddy_profile_v3\",\"patient_code\":\"PT-A6\",\"summary\":{},$(echo "$LS_OK" | sed 's/"as_of":"2030-01-10"/"as_of":null/'),$DEMO}" "{$R21_TOP,\"review_flags\":[]}"
+run_case "latest_status regimen without as_of rejected" fail "$tmp/r21_ls_nodate"
+mk21 r21_ls_list "{\"schema\":\"cancer_buddy_profile_v3\",\"patient_code\":\"PT-A6\",\"summary\":{},$(echo "$LS_OK" | sed 's/"regimen":"示例方案B"/"regimen":["示例方案B"]/'),$DEMO}" "{$R21_TOP,\"review_flags\":[]}"
+run_case "latest_status.regimen as a list rejected" fail "$tmp/r21_ls_list"
+# B7: latest_status.status_basis (optional) says what the snapshot rests on; B3: as_of may be null
+# only for an undated family/patient statement (status_basis patient_reported)
+mk21 r21_ls_basis "{\"schema\":\"cancer_buddy_profile_v3\",\"patient_code\":\"PT-A6\",\"summary\":{},$(echo "$LS_OK" | sed 's/"as_of":"2030-01-10"/"as_of":"2030-01-10","status_basis":"order_or_indication_only"/'),$DEMO}" "{$R21_TOP,\"review_flags\":[]}"
+run_case "latest_status.status_basis from the episode enum accepted" pass "$tmp/r21_ls_basis"
+mk21 r21_ls_badbasis "{\"schema\":\"cancer_buddy_profile_v3\",\"patient_code\":\"PT-A6\",\"summary\":{},$(echo "$LS_OK" | sed 's/"as_of":"2030-01-10"/"as_of":"2030-01-10","status_basis":"imaging_request"/'),$DEMO}" "{$R21_TOP,\"review_flags\":[]}"
+run_case "latest_status.status_basis outside the enum rejected" fail "$tmp/r21_ls_badbasis"
+mk21 r21_ls_undated "{\"schema\":\"cancer_buddy_profile_v3\",\"patient_code\":\"PT-A6\",\"summary\":{},$(echo "$LS_OK" | sed 's/"as_of":"2030-01-10"/"as_of":null,"status_basis":"patient_reported"/'),$DEMO}" "{$R21_TOP,\"review_flags\":[]}"
+run_case "undated self-report: regimen + null as_of + status_basis patient_reported accepted" pass "$tmp/r21_ls_undated"
+mk21 r21_ls_undated_clin "{\"schema\":\"cancer_buddy_profile_v3\",\"patient_code\":\"PT-A6\",\"summary\":{},$(echo "$LS_OK" | sed 's/"as_of":"2030-01-10"/"as_of":null,"status_basis":"clinician_note_current"/'),$DEMO}" "{$R21_TOP,\"review_flags\":[]}"
+run_case "regimen + null as_of with a clinician-note basis rejected" fail "$tmp/r21_ls_undated_clin"
+# D8: PS items may carry provenance_layer (optional; a digest statement is prior_archive)
+mk21 r21_ps_prov "{\"schema\":\"cancer_buddy_profile_v3\",\"patient_code\":\"PT-A6\",\"summary\":{},$LS_NONE,$(echo "$DEMO" | sed 's/"scale_label":"PS",/"scale_label":"PS","provenance_layer":"prior_archive",/')}" "{$R21_TOP,\"review_flags\":[]}"
+run_case "PS item provenance_layer prior_archive accepted" pass "$tmp/r21_ps_prov"
+mk21 r21_ps_badprov "{\"schema\":\"cancer_buddy_profile_v3\",\"patient_code\":\"PT-A6\",\"summary\":{},$LS_NONE,$(echo "$DEMO" | sed 's/"scale_label":"PS",/"scale_label":"PS","provenance_layer":"old_archive",/')}" "{$R21_TOP,\"review_flags\":[]}"
+run_case "PS item provenance_layer outside the enum rejected" fail "$tmp/r21_ps_badprov"
+mkdir "$tmp/ls_legacy"
+echo '{"schema":"cancer_buddy_profile_v3","patient_code":"PT-A7","summary":{},"latest_status":{"regimen":"示例方案B","as_of":"2030年1月"}}' > "$tmp/ls_legacy/profile.json"
+run_case "legacy archive: odd latest_status.as_of only WARNs" pass "$tmp/ls_legacy"
+# organize_meta.json marks the archive current exactly like validate_structured_outputs:
+# a readiness "2" archive WITH organize_meta.json must carry profile.demographics.
+mk21 meta_current '{"schema":"cancer_buddy_profile_v3","patient_code":"PT-A6","summary":{}}' \
+  '{"patient_code":"PT-A6","schema_version":"2","documentation_coverage":{},"review_flags":[]}'
+run_case "readiness 2 without organize_meta.json: missing demographics only WARNs" pass "$tmp/meta_current"
+echo '{"skill":"cancer-buddy-organize"}' > "$tmp/meta_current/organize_meta.json"
+run_case "organize_meta.json ⇒ current: missing demographics rejected" fail "$tmp/meta_current"
+meta_out="$(bash "$SCRIPT" "$tmp/meta_current" 2>&1 || true)"
+if grep -q "ERROR: profile.demographics missing" <<<"$meta_out"; then
+  pass=$((pass+1)); else echo "FAIL: organize_meta.json must make the missing demographics an ERROR" >&2; fail=$((fail+1)); fi
+if grep -q "ERROR: mixed-version archive: readiness.schema_version '2'" <<<"$meta_out"; then
+  pass=$((pass+1)); else echo "FAIL: readiness 2 + organize_meta.json must be a mixed-version ERROR" >&2; fail=$((fail+1)); fi
+if bash "$SCRIPT" "$tmp/readiness_ok" 2>&1 >/dev/null | grep -q "WARN: readiness.schema_version '2' is legacy"; then
+  pass=$((pass+1)); else echo "FAIL: legacy readiness 2 must print a WARN" >&2; fail=$((fail+1)); fi
+
 echo "validate-profile-schema: pass=$pass fail=$fail"
 [[ "$fail" -eq 0 ]]

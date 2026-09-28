@@ -7,35 +7,50 @@
 | 接缝 | 契约要求(不变) | Claude Code 填法 |
 |---|---|---|
 | 编排 | 所有 sidecar 在 Phase2 前就绪 | `Agent` 并行扇出 Phase1 LLM ingestion,单 `Agent` 做 Phase2 reduce |
-| 抽取输入源 | 确定性抽取保留原始字符层；LLM 只做版面/候选纠错/语义辅助 | OCR/parser 输出、引擎版本和 source span 均保留；高风险字段独立复读，LLM 改动不得覆盖原始层 |
+| 抽取输入源 | 像素页：模型整页转写 = 正文，确定性引擎第二读由脚本做三态对齐；born-digital：文本层 = 正文 | Claude `Read` 看正向副本转写；`second_read_align.py` 跑 Apple Vision / tesseract 并写 token 与复读表；引擎版本、原始输出、`body_sha256` 均保留 |
 | 格式适配 | 只把源文件转成 LLM-readable input | `sips` 转 HEIC,可用工具渲染 PDF/展开 DOCX/表格 payload;adapter 只做 provenance |
 | 确认门 | 未确认不写正式字段/不可逆删除 | inline diff card 同会话往返 |
 | 存储 | canonical 输出集 | agent 写本地 `patient_dir`;原始件逐字保存进 `raw/` vault |
 
 ## 1. 编排
 
-- SKILL.md Step 2 按目录/文件数切片；Step 3 并发 Phase 1 来源保真 ingestion workers（原生/确定性抽取优先，LLM 仅辅助）；Step 4 continuation loop；Step 5 单 Phase 2 worker reduce。
+- SKILL.md Step 2 按目录/文件数切片；Step 3 并发 Phase 1 来源保真 ingestion workers（原生/确定性抽取优先，LLM 仅辅助）；Step 4 continuation 与存活监测；Step 5 单 Phase 2 worker reduce。
+- worker 标识由编排者生成并写进 Call parameters：Phase 1 `p1-<slice_id>-<n>`，单文件重派 `p1-<source_id>-<n>`，stub worker `p1stub-<source_id>`，旧档案摘录 `p1digest-<n>`，Phase 2（含 `faithfulness_patch` / `relevance_disposition` 模式）`p2-<n>`，Phase 2.5 `p25-<n>`，段C `c-<n>`。每次派发、终止、重派都记入 `dispatch_log`，并向 `<patient_dir>/raw/_dispatch_log.jsonl` 追加一行 JSON（`{at, event: dispatch|kill|redispatch, worker_id, phase, files}`；上下文被压缩后它仍在盘上），交给 Phase 2 写进 `update_log.json`。
+- **存活监测**：后台 subagent 运行期间，每隔几分钟检查一次产物（Phase 1 看 `ls -lt <patient_dir>/ocr` 的新文件与修改时间；Phase 2 看 `<patient_dir>` 下 `.rename_plan.json` 与各 JSON 的修改时间），并在宿主能看到工具调用记录时统计连续只读调用次数。**10 分钟无新产物写入，或连续 30 次只读工具调用**（读 worker 自己的提示词文件与被点名的参考文件不计入只读次数） → 终止该 subagent → Phase 1：已写出完整 sidecar 的文件保留（`in_progress_timeout_risk` stub 不算完整），其余每个文件派一个单文件 worker；worker 自己返回 `timed_out: true` 时，对其 `timeout_risk_files` 同样处理；Phase 2：同一提示词重派一次 → 仍超时则 Phase 1 派 stub worker 写 `[INGESTION_BLOCKED: timeout]`、Phase 2 停下向用户报告。编排者任何时候都不自己写 sidecar 或结构化 JSON，也不用脚本代写；它的写入只限 SKILL.md 不变量 3 的白名单。
 - Phase1 写 `<patient_dir>/ocr/` 的来源保真 sidecars、抽取 provenance 和
   `<patient_dir>/raw/` 中的受控原件。它不写 INDEX/timeline/profile 等全局产物。
 - 切片大小是 Claude Code 图像上下文预算,不是契约。其它 host 可顺序运行。
 
 ## 2. 来源保真抽取
 
-- 图片/扫描件优先运行适用的确定性 OCR/表格/条码工具；born-digital 文件优先读取其原生
-  文本/表格层。保存引擎、版本、原始输出、source span 和文件 hash。
-- LLM 可重建版面、提出候选纠错、做语义标注和 PII 语义复扫，但 `raw_text` 与
-  `proposed_text` 分层保存，不能让 LLM 输出成为唯一字符真值。
-- 药名、剂量、频次、日期、实验室值/单位/参考范围、分期、变异/VAF 和标识字段执行第二次
-  独立读取；不一致标 `needs_human_review`，不得进入 settled-fact surface。
+- **像素页**（照片、没有文本层的扫描页；`text_layer_kind.py` 判 `embedded_ocr` / `absent` 的 PDF 页）：字符真值是
+  Claude 用 `Read` 看**正向副本**做的整页多模态转写（`PRIMARY_CHANNEL: llm_vision`，`READ_MODE: model_vision_primary`）。
+  写正文前不运行 OCR、不看引擎输出。正文写完、遮蔽、落盘后，由 `second_read_align.py --apply` 运行确定性引擎做第二读
+  并写 token、复读表与条目（phase1 §4 G、§5）。
+- **born-digital 页**：`pdftotext -layout` 的文本层就是正文（`text_layer` / `native_text`），不跑 OCR；
+  `second_read_align.py --apply … --text-layer` 只做同一性核对（`high_risk_review_status: not_applicable`）。
+  文本层字形损坏的行（`text_layer_kind.py` 的 `glyph_anomaly_lines`）由 Claude 看渲染页补读一次，写 `## 文本层字形异常`。
+- **本宿主的第二读引擎**（`run_ocr_engine.py` 的 `auto` 顺序）：macOS 有 `swiftc` 时是
+  `deterministic_ocr:apple_vision`（skill 自带 `scripts/vision_ocr.swift`，首次使用时编译并按源码哈希缓存到
+  `~/.cache/cancer-buddy-organize/`；可用 `CB_ORGANIZE_CACHE_DIR` 改位置）；否则 `deterministic_ocr:tesseract`
+  （`chi_sim+eng`）；都没有时第二读为 `none`（每个高风险字段“无信号”，单通道读取，`INDEPENDENT_REREAD: false`）。
+  Claude 用 `Read` 再看一遍图（含放大裁剪）属于 `llm_vision`：可以帮自己看清 `[不可读]` 处，但永远不是第二读、不是独立读。
+  独立 = 模型主读 + 确定性引擎第二读且引擎至少读出一个高风险字段；born-digital 页的“原生文本层 + 区域引擎读”只用于
+  文书意图（phase1 §6）。
+- **方向**：看图与引擎读之前，`run_ocr_engine.py orient` 先按 EXIF 与引擎的文字基线方向写出正向副本
+  （`raw/_extract/<…>.oriented.png`，旋转角度记进 `adapter_provenance`）；它只打印角度，不输出文字。
+- 药名、剂量、频次、日期、实验室值/单位/参考范围、分期、变异/VAF 等高风险字段的分母由 `_high_risk_spans.py` 推出，
+  worker 只能用 `declared.json` 补报；冲突写 `[OCR_UNCERTAIN:U-nnn]` 与 `## 不确定字段` 条目，不得进入 settled-fact surface；
+  “无信号”不出 flag。
 - PII 同时使用语义复扫与确定性 shape 兜底；任何一层不可用时，共享/交付门 fail closed。
-- sidecar 头部字段集: SOURCE / READ_MODE / ADAPTER / ADAPTER_PROVENANCE / CONFIDENCE / FILE_ID (stable source_id, rename-survivable) / optional MODALITY / ORIGINAL。
+- sidecar 头部恰好 12 个键，按序：SOURCE / FILE_ID（稳定的 source_id）/ EXTRACTOR（worker 标识）/ PRIMARY_CHANNEL / SECOND_READ_CHANNEL / INDEPENDENT_REREAD / READ_MODE / ADAPTER / CONFIDENCE / SHA256 / PAGE_LABEL / MODALITY（定义见 `organizer-prompt-phase1-ocr.md` §3；头部块不做 PII 扫描，出现其他键即校验错误）。原件路径与适配器临时文件不进头部，由 Phase 2 写进 `source_inventory.json`。
 
 ## 3. 格式适配
 
-- HEIC/HEIF: `sips` 生成临时 JPG/PNG 给 `Read`;原始 HEIC 仍逐字保存到 `raw/`,sidecar `ORIGINAL`/`raw_path` 指向 `raw/` 下的逐字原件,临时图只写入 `ADAPTER_PROVENANCE`。
-- PDF: born-digital 文本层或 OCR 输出保留为字符来源；渲染页可供版面复核。
+- HEIC/HEIF: `sips` 生成临时 JPG（放在 `raw/_extract/`），再由 `run_ocr_engine.py orient` 写正向副本供 `Read` 与引擎；原始 HEIC 仍逐字保存到 `raw/`，`source_inventory.json.raw_path` 指向 `raw/` 下的逐字原件，临时图只记在 `adapter_provenance`。
+- PDF: `text_layer_kind.py` 逐页判类型；born-digital 页的文本层是字符来源；像素页 `pdftoppm -r 200` 渲染到 `raw/_extract/` 后转写。
 - DOCX/表格/文本: 原生文本/单元格是字符来源，LLM-readable payload 是辅助视图。
-- 不支持/损坏文件: Phase1 产 stub sidecar + `[INGESTION_BLOCKED]`,不能静默跳过。
+- 不支持/损坏文件: Phase1 产 stub sidecar + `[INGESTION_BLOCKED: <原因>]`，不能静默跳过；`.DS_Store`、`__MACOSX/`、空文件、重复 sha256 记入 `skipped_inputs`。
 
 ## 4. 确认门
 
@@ -51,11 +66,12 @@
   host's authenticated policy, not by the organizer. The original upload name remains protected and is
   excluded from derived exports.
 - `病情简要总结.html` 在文本脱敏 MD/JSON 后生成。
-- sidecar `ORIGINAL`/`raw_path` 指向 `raw/` 下的逐字原件(de-identified filename)。
+- `source_inventory.json.raw_path` 指向 `raw/` 下的逐字原件（de-identified filename）；旧档案摘录行的 `raw_path` 为 null。
 
 ## 6. 不变量
 
-- Acceptance gate = run `validate_structured_outputs.py`. It checks schemas, anchors, source-shape integrity,
+- Acceptance gate = run `validate_structured_outputs.py` after `write_organize_meta.py` (SKILL.md Step 17; audits and
+  downstream checks add `--readonly`). It checks schemas, anchors, source-shape integrity, sidecar headers,
   inventory completeness, deterministic PII shapes, and HTML form. It does not decide whether a value is
   clinically normal or important. The run also requires Phase 2.5 source-faithfulness review and the PII
   semantic scan. A share action additionally requires viewer authentication, explicit scope/purpose/recipient/
@@ -64,3 +80,15 @@
 - 来源临床字符串保持不变；翻译/规范化只能作为带标签的派生字段，不能覆盖来源。
 - `source_inventory.json` 覆盖每个输入源,每条 content unit 带 `raw_path` + 文本脱敏 sidecar。
 - LLM 可生成带来源跨度的候选结构、叙述和 HTML 前置数据，但不得覆盖 native/OCR 原始字符层；确定性 HTML 渲染和 PII shape rescan 由脚本执行。
+
+## 7. 回合纪律（长任务）
+
+- **契约要求**：organize 是一次性长任务（约 1.5–2 小时；作为 SMTB 上游时之后还有数小时）。终点只有一个：Step 17
+  `validate_structured_outputs.py <patient_dir> --final` 打印 OK 行。终点之前**不得发出不含工具调用的消息**：发之前先跑
+  `python3 "<skill_dir>/scripts/validate_structured_outputs.py" <patient_dir> --can-stop`，退出码非 0（5）就照它打印的下一步继续。
+- 给用户的一切内容——急症早报（Step 7.5）、review_summary、时效句、补料信号、进度——都与**下一次工具调用放在同一条消息里**，
+  最终报告再汇总一次；不要用一段“阶段小结”结束回合。
+- 有后台 worker 时只做阻塞等待（轮询它的输出或产物），**不依赖“完成后会被唤醒”**。
+- 唯一合法的提前结束：真的被阻塞（缺凭据、用户必须决定、技能缺陷），并在报告里写明原因与恢复命令。
+- **Claude Code 填法**：后台 `Agent` 用输出文件或 `ls -lt <patient_dir>/ocr` 轮询；交互会话里用户可能插话，但编排者自己不提前收尾。
+  可选：配一个 Stop hook 运行 `--can-stop`，非 0 时阻止结束。

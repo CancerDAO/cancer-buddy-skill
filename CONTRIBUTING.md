@@ -44,8 +44,7 @@ description and justify each medical fact with its source.
 From the repo root:
 
 ```bash
-# Schema validation
-bash scripts/validate-profile-schema.sh
+# Schema validation (the checker itself takes a patient directory: bash scripts/validate-profile-schema.sh <patient_dir>)
 bash tests/unit/validate-profile-schema.test.sh
 
 # Integration / structural checks
@@ -57,12 +56,29 @@ bash tests/integration/role-matrix.sh
 Or run everything:
 
 ```bash
-for t in tests/unit/*.sh tests/integration/*.sh scripts/validate-profile-schema.sh; do
+bash tests/eval/run.sh
+for t in tests/unit/*.sh tests/integration/*.sh; do
   echo "== $t =="; bash "$t" || exit 1
 done
 ```
 
 All tests must pass (and CI must be green) before a PR is merged.
+
+### Real-record phrases (public repository)
+
+This repository ships synthetic data only. Maintainers who work with real archives keep a private
+phrase list outside the tracked tree and check both the tree and the history before pushing:
+
+```bash
+CB_REAL_PHRASES_FILE=<private list> bash tests/eval/lint/14-real-phrase-denylist.sh   # working tree
+# history: a local pre-push hook refuses any unpublished commit whose new content or message holds a phrase
+cp tests/eval/hooks/pre-push-real-phrases.sh "$(git rev-parse --git-common-dir)/hooks/pre-push"
+chmod +x "$(git rev-parse --git-common-dir)/hooks/pre-push"
+install -m 600 <private list> "$(git rev-parse --git-common-dir)/info/real-phrases.txt"
+```
+
+A phrase removed by a later commit is still in history: rewrite the commit that introduced it before
+pushing, never push it and fix forward.
 
 ## Commit messages: Conventional Commits
 

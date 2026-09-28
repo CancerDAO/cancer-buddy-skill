@@ -1,0 +1,65 @@
+{
+  "patient_code": "PT-5A1F0C",
+  "schema_version": "2.2",
+  "generated_at": "2030-01-20T09:00:00Z",
+  "demographics": {
+    "sex": null,
+    "sex_normalized": null,
+    "age": 60,
+    "age_as_of": "2030-01-10",
+    "age_observations": [
+      {
+        "value": 60,
+        "as_of": "2030-01-10",
+        "source_ref": "03_病程与叙事文书/门诊病历/2030-01-10_门诊病历_示例医院_s001.md#L19"
+      }
+    ],
+    "birth_year": null,
+    "height_cm": null,
+    "height_cm_as_of": null,
+    "weight_kg": null,
+    "weight_kg_as_of": null,
+    "ecog": null,
+    "ecog_as_of": null,
+    "function_description": null,
+    "performance_status_verbatim": [
+      {
+        "text": "PS 1分",
+        "as_of": "2030-01-10",
+        "scale_label": "PS",
+        "source_ref": "03_病程与叙事文书/门诊病历/2030-01-10_门诊病历_示例医院_s001.md#L21"
+      }
+    ],
+    "provenance_layer": "source_reported",
+    "verification_status": "unverified",
+    "source_refs": [
+      "03_病程与叙事文书/门诊病历/2030-01-10_门诊病历_示例医院_s001.md#L19",
+      "03_病程与叙事文书/门诊病历/2030-01-10_门诊病历_示例医院_s001.md#L21"
+    ]
+  },
+  "diagnosis": {
+    "primary": "示例肿瘤",
+    "histology": null,
+    "icd10": null,
+    "diagnosed_at": null,
+    "stage": null,
+    "diagnosis_basis": "discharge_or_clinic_diagnosis",
+    "metastasis_sites": [],
+    "provenance_layer": "source_reported",
+    "verification_status": "unverified",
+    "source_refs": [
+      "03_病程与叙事文书/门诊病历/2030-01-10_门诊病历_示例医院_s001.md#L22"
+    ]
+  },
+  "current_status": {
+    "regimen": "示例方案B",
+    "response": null,
+    "ecog": null,
+    "as_of": "2030-01-10",
+    "provenance_layer": "source_reported",
+    "verification_status": "unverified",
+    "source_refs": [
+      "03_病程与叙事文书/门诊病历/2030-01-10_门诊病历_示例医院_s001.md#L20"
+    ]
+  }
+}

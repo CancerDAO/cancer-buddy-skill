@@ -2,12 +2,13 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://cancerdao.org/schemas/cancer-buddy/comorbidities.schema.json",
   "title": "ComorbiditiesMedicationsAllergies",
+  "description": "Conditions, medication orders/records (with administration setting) and allergies. v2.1 adds medications[].administration_setting + verbatim setting_basis (required) and optional order_role / medication_id. Legacy schema_version \"2\" archives are read leniently by validate_structured_outputs.py (WARN, not FAIL).",
   "type": "object",
   "required": ["patient_code", "schema_version", "conditions", "medications", "allergies"],
   "additionalProperties": false,
   "properties": {
     "patient_code": { "type": "string", "pattern": "^PT-[A-F0-9]+(_\\d+)?$" },
-    "schema_version": { "const": "2" },
+    "schema_version": { "const": "2.1" },
     "generated_at": { "type": "string", "format": "date-time" },
     "conditions": { "type": "array", "items": { "$ref": "#/$defs/condition" } },
     "medications": { "type": "array", "items": { "$ref": "#/$defs/medication" } },
@@ -15,7 +16,7 @@
   },
   "$defs": {
     "source_refs": { "type": "array", "minItems": 1, "items": { "type": "string" } },
-    "provenance": { "enum": ["source_reported", "patient_reported", "caregiver_reported", "system_normalized"] },
+    "provenance": { "enum": ["source_reported", "patient_reported", "caregiver_reported", "system_normalized", "prior_archive"], "description": "prior_archive = restated from a prior_archive_digest source (earlier organize archive, original not in this packet); history only, never current status." },
     "verification": { "enum": ["unverified", "clinician_verified", "disputed"] },
     "condition": {
       "type": "object", "required": ["name", "provenance_layer", "verification_status", "source_refs"], "additionalProperties": false,
@@ -28,16 +29,29 @@
       }
     },
     "medication": {
-      "type": "object", "required": ["name", "use_status", "provenance_layer", "verification_status", "source_refs"], "additionalProperties": false,
+      "type": "object", "required": ["name", "use_status", "provenance_layer", "verification_status", "source_refs", "administration_setting", "setting_basis"], "additionalProperties": false,
       "properties": {
         "name": { "type": "string" }, "normalized_name": { "type": ["string", "null"] },
         "dose": { "type": ["string", "null"] }, "frequency": { "type": ["string", "null"] },
         "route": { "type": ["string", "null"] }, "indication_source": { "type": ["string", "null"] },
-        "use_status": { "enum": ["active_confirmed", "active_reported", "historical", "stopped", "unknown"] },
+        "use_status": { "enum": ["active_confirmed", "active_reported", "historical", "stopped", "unknown"], "description": "Source wording only (organizer-prompt-phase2-synthesis.md §5.2). An imaging-request indication 'on X' / '正在使用 X' is active_reported (a clinician document says the drug is in use; it is not an administration record, so never active_confirmed). A single day-ward administration is not active_confirmed. Self-reported use produces no medications[] row." },
         "as_of": { "type": ["string", "null"], "format": "date" },
+        "medication_id": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,63}$", "description": "Optional stable id (e.g. MED-001) so treatment_lines.episodes[].medication_refs can point at this row." },
+        "administration_setting": {
+          "enum": ["day_ward", "inpatient", "discharge", "long_term", "unknown"],
+          "description": "Where/how the source says the drug was given. Only two rules assign a value (organizer-prompt-phase2-synthesis.md §5.2): day_ward = the page's department / ward name states a day unit (日间病房 / 日间治疗中心 / 日间化疗, incl. a specialty's 日间化疗; day ward / day-chemo unit — a specialty name or 门诊 alone is not one) and the row is iv/im or 配-marked; discharge = the row sits under a 出院带药 heading; everything else = unknown. inpatient and long_term are RESERVED values: the current rules never assign them (write unknown); they stay in the enum only so earlier archives remain readable. Not use_status: a day-ward single administration is not an active home medication."
+        },
+        "setting_basis": { "type": ["string", "null"], "description": "Verbatim source cue for administration_setting (department line, list heading, route/配 marker). Required non-empty unless administration_setting is unknown." },
+        "order_role": { "enum": ["antineoplastic", "premedication", "diluent", "supportive", "chronic", "other", "unknown"], "description": "Optional role of the row within its source order list (flush / carrier saline or glucose = diluent; anti-allergy / antiemetic given before an infusion = premedication; 必要时 antiemetic / gastric protection = supportive). Antineoplastic rows are ALSO recorded in treatment_lines.json with the same source_refs." },
         "provenance_layer": { "$ref": "#/$defs/provenance" }, "verification_status": { "$ref": "#/$defs/verification" },
         "source_refs": { "$ref": "#/$defs/source_refs" }
-      }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "administration_setting": { "enum": ["day_ward", "inpatient", "discharge", "long_term"] } }, "required": ["administration_setting"] },
+          "then": { "required": ["setting_basis"], "properties": { "setting_basis": { "type": "string", "minLength": 1 } } }
+        }
+      ]
     },
     "allergy": {
       "type": "object", "required": ["allergen", "provenance_layer", "verification_status", "source_refs"], "additionalProperties": false,

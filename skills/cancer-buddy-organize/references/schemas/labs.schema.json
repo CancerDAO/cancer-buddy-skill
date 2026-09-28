@@ -2,13 +2,13 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://cancerdao.org/schemas/cancer-buddy/labs.schema.json",
   "title": "Labs",
-  "description": "Source-preserving laboratory observations. Clinical grading and treatment decisions are out of scope.",
+  "description": "Source-preserving laboratory observations. Clinical grading and treatment decisions are out of scope. v2.1 adds per-value column-pairing provenance (pairing_method required; candidate_value / pairing_confidence / pairing_note). A value bound only by linear position (scripts/pair_lab_columns.py) is a CANDIDATE: `value` stays null and the number lives in `candidate_value`, which never feeds trends, charts or the case summary. Legacy schema_version \"2\" archives are read leniently by validate_structured_outputs.py (WARN, not FAIL).",
   "type": "object",
   "required": ["patient_code", "schema_version", "panels"],
   "additionalProperties": false,
   "properties": {
     "patient_code": { "type": "string", "pattern": "^PT-[A-F0-9]+(_\\d+)?$" },
-    "schema_version": { "const": "2" },
+    "schema_version": { "const": "2.1" },
     "generated_at": { "type": "string", "format": "date-time" },
     "panels": {
       "type": "array",
@@ -23,22 +23,44 @@
             "type": "array",
             "items": {
               "type": "object",
-              "required": ["date", "date_kind", "value", "raw_value", "unit", "reference_range", "report_flag", "critical_flag", "source_refs", "provenance_layer", "verification_status"],
+              "required": ["date", "date_kind", "value", "raw_value", "unit", "reference_range", "report_flag", "critical_flag", "source_refs", "provenance_layer", "verification_status", "pairing_method"],
               "additionalProperties": false,
               "properties": {
                 "date": { "type": "string", "format": "date" },
                 "date_kind": { "enum": ["collected", "reported", "unknown"] },
                 "value": { "type": ["number", "string", "null"], "description": "Value exactly as represented after faithful extraction." },
-                "raw_value": { "type": ["string", "null"], "description": "Source string including inequality/qualifier where present." },
+                "raw_value": { "type": ["string", "null"], "description": "Source string including inequality/qualifier where present. Verbatim cell text only — pairing/refusal notes go to pairing_note." },
                 "unit": { "type": ["string", "null"] },
                 "reference_range": { "type": ["string", "null"], "description": "Range printed on this exact report/result; never reused across dates." },
                 "report_flag": { "type": ["string", "null"], "description": "Flag printed by the reporting laboratory; not model-generated." },
                 "critical_flag": { "type": ["string", "null"], "description": "Critical-value notation printed by the laboratory, if any." },
                 "method": { "type": ["string", "null"] },
-                "provenance_layer": { "enum": ["source_reported", "patient_reported", "caregiver_reported", "system_normalized"] },
+                "provenance_layer": { "enum": ["source_reported", "patient_reported", "caregiver_reported", "system_normalized", "prior_archive"] },
                 "verification_status": { "enum": ["unverified", "clinician_verified", "disputed"] },
-                "source_refs": { "$ref": "#/$defs/source_refs" }
-              }
+                "source_refs": { "$ref": "#/$defs/source_refs" },
+                "candidate_value": { "type": ["number", "string", "null"], "description": "Number bound to this analyte by a NON-confirming method only: linear_position (counted-column position on linear OCR text) or llm_row_read (a model reading the table row by row with no deterministic coordinates). With any other pairing_method candidate_value is null. A candidate is NOT a confirmed value: never copy it into value, trends, charts or the case summary." },
+                "pairing_method": { "enum": ["bbox", "table_parser", "native_table", "linear_position", "llm_row_read", "single_value", "none"], "description": "How the result cell was bound to this analyte. bbox = coordinate-OCR row binding computed by scripts/pair_lab_columns.py --tsv (never by the model); table_parser / native_table = parsed table structure of a born-digital source; linear_position = counted-column position pairing on linear OCR text (candidate only); llm_row_read = a model read the row with no deterministic coordinates or structure (candidate only); single_value = the report carries one result; none = pairing refused (item and value counts differ) — value and candidate_value stay null." },
+                "pairing_confidence": { "enum": ["high", "medium", "low", null] },
+                "pairing_note": { "type": ["string", "null"], "description": "Column counts / refusal reason / OCR glyph notes, e.g. 项目 8 / 数值 8 / 单位 7 / 参考范围 7." }
+              },
+              "allOf": [
+                {
+                  "if": { "properties": { "pairing_method": { "const": "linear_position" } }, "required": ["pairing_method"] },
+                  "then": { "required": ["candidate_value", "pairing_confidence"], "properties": { "value": { "type": "null" }, "candidate_value": { "type": ["number", "string"] }, "pairing_confidence": { "enum": ["high", "medium", "low"] } } }
+                },
+                {
+                  "if": { "properties": { "pairing_method": { "const": "none" } }, "required": ["pairing_method"] },
+                  "then": { "properties": { "value": { "type": "null" }, "candidate_value": { "type": "null" } } }
+                },
+                {
+                  "if": { "properties": { "pairing_method": { "const": "llm_row_read" } }, "required": ["pairing_method"] },
+                  "then": { "required": ["candidate_value", "pairing_confidence"], "properties": { "value": { "type": "null" }, "candidate_value": { "type": ["number", "string"] }, "pairing_confidence": { "enum": ["low"] } } }
+                },
+                {
+                  "if": { "properties": { "candidate_value": { "type": ["number", "string"] } }, "required": ["candidate_value"] },
+                  "then": { "required": ["pairing_method"], "properties": { "value": { "type": "null" }, "pairing_method": { "enum": ["linear_position", "llm_row_read"] } } }
+                }
+              ]
             }
           }
         }

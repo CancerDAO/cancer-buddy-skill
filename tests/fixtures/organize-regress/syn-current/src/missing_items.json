@@ -1,0 +1,24 @@
+{
+  "patient_code": "PT-5A1F0C",
+  "schema_version": "2.1",
+  "generated_at": "2030-01-20T09:00:00Z",
+  "inventory_mode": "existing_document_inventory_only",
+  "cancer_type": null,
+  "document_gaps": [
+    {
+      "document_category": "门诊病历（2030-01-10，共 2 页）",
+      "gap_type": "missing_pages",
+      "reason_for_artifact": "同一份文书标注共 2 页，档案中缺第 2 页；补齐后可完整转录该次记录。",
+      "severity": "red",
+      "group_key": "2030-01-10|03_病程与叙事文书/门诊病历|示例医院|2",
+      "pages_present": [
+        1
+      ],
+      "pages_missing": [
+        2
+      ],
+      "page_total": 2
+    }
+  ],
+  "disclaimer": "Document inventory only; not a test or treatment recommendation."
+}

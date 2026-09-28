@@ -127,6 +127,45 @@ check "injected label collapsed to one line" \
 check "injection did not create a second '## Non-negotiable rules' heading" \
   "$(grep -c '^## Non-negotiable rules$' "$tmp/PT-INJ/AGENTS.md")" "1"
 
+# ------------------------------------------- 7. acute_findings routing -------
+# The template routes acute findings twice: read-order step 6 and the domain-map row. Both
+# lines contain the bare literal `acute_findings.json`, so each is its own anchor — a
+# template (or AGENTS.md) that lost either one is not the full safety floor.
+grep -qF '`acute_findings.json` first' "$out" && ok "read-order acute_findings line present" \
+  || bad "read-order acute_findings line missing from the real fill"
+grep -qF '| `acute_findings.json` |' "$out" && ok "domain-map acute_findings row present" \
+  || bad "domain-map acute_findings row missing from the real fill"
+mkdir -p "$tmp/PT-AF1"; cp "$tmp/PT-K7Q2/profile.json" "$tmp/PT-AF1/profile.json"
+sed -i.bak 's/"PT-K7Q2"/"PT-AF1"/' "$tmp/PT-AF1/profile.json"
+grep -vF '| acute/incidental findings | `acute_findings.json` |' "$TEMPLATE" > "$tmp/tpl-no-row.md"
+python3 "$SCRIPT" "$tmp/PT-AF1" --template "$tmp/tpl-no-row.md" >"$tmp/out7.log" 2>&1; rc=$?
+if [[ "$rc" -ne 0 ]]; then ok "template without the acute_findings domain-map row rejected (exit $rc)"; \
+  else bad "template without the acute_findings domain-map row accepted"; fi
+grep -qF "missing '| \`acute_findings.json\` |'" "$tmp/out7.log" && ok "the missing domain-map anchor is named" \
+  || bad "missing domain-map anchor not named: $(tail -2 "$tmp/out7.log")"
+python3 - "$TEMPLATE" "$tmp/tpl-no-step.md" <<'PY2'
+import sys
+t = open(sys.argv[1], encoding="utf-8").read()
+new = t.replace("6. Check `acute_findings.json` first when answering about current condition", "6. Answer about current condition", 1)
+assert new != t
+open(sys.argv[2], "w", encoding="utf-8").write(new)
+PY2
+python3 "$SCRIPT" "$tmp/PT-AF1" --template "$tmp/tpl-no-step.md" >"$tmp/out8.log" 2>&1; rc=$?
+if [[ "$rc" -ne 0 ]]; then ok "template without read-order step 6 (acute findings first) rejected (exit $rc)"; \
+  else bad "template without read-order step 6 accepted"; fi
+grep -qF '`acute_findings.json` first' "$tmp/out8.log" && ok "the missing read-order anchor is named" \
+  || bad "missing read-order anchor not named: $(tail -2 "$tmp/out8.log")"
+# an AGENTS.md whose domain-map row was deleted after the fill fails --check
+python3 "$SCRIPT" "$tmp/PT-AF1" >/dev/null 2>&1
+grep -vF '| acute/incidental findings | `acute_findings.json` |' "$tmp/PT-AF1/AGENTS.md" > "$tmp/PT-AF1/AGENTS.tmp"
+mv "$tmp/PT-AF1/AGENTS.tmp" "$tmp/PT-AF1/AGENTS.md"
+python3 "$SCRIPT" "$tmp/PT-AF1" --check >"$tmp/out9.log" 2>&1; rc=$?
+if [[ "$rc" -ne 0 ]]; then ok "--check rejects an AGENTS.md without the acute_findings row (exit $rc)"; \
+  else bad "--check accepted an AGENTS.md without the acute_findings row"; fi
+python3 "$SCRIPT" "$tmp/PT-AF1" >/dev/null 2>&1
+python3 "$SCRIPT" "$tmp/PT-AF1" --check >/dev/null 2>&1; rc=$?
+check "--check on the real template fill exits 0" "$rc" "0"
+
 # ------------------------------------------------------------- summary -------
 echo
 echo "== agents-md-fill: $pass passed, $fail failed =="

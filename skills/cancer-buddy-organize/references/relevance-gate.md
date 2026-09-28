@@ -13,7 +13,10 @@
 - 前两类默认保留并进入相应隔离/复核队列。
 - `likely_unrelated` 进入隔离区并展示文件名、缩略图和原因；用户逐项明确确认后才删除。
 - 沉默、关闭、延期、“随便”都等于不删除。
-- 任何删除记录 actor、时间、文件 hash、预览、确认文本和结果。
+- 任何删除记录 actor、时间、文件 hash、预览、确认文本和结果：用户的逐项决定由编排者收集，交给
+  `run_mode: relevance_disposition` 的 Phase 2 worker 执行（`organizer-prompt-phase2-synthesis.md` §12）；
+  它把删除项列进本次 `update_log.json` 条目的 `removed[]`，把动作、句柄、确认原话（遮蔽个人信息后）与
+  actor 写进 `note`。编排者不删除文件，也不写 update_log。
 - 不用关键词/模型置信度声称某张皮疹、药盒、账单或行政资料“无临床价值”。
 
 执行共享 `references/confirm-gate.md`。

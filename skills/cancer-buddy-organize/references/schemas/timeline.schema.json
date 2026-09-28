@@ -2,33 +2,41 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://cancerdao.org/schemas/cancer-buddy/timeline.schema.json",
   "title": "Timeline",
-  "description": "Versioned clinical and patient-reported events with explicit provenance.",
+  "description": "Versioned clinical and patient-reported events with explicit provenance. v2.1 adds conflict_group (a self-reported event and an original record that contradict each other share one group id and are shown side by side) and acute_finding_id (every acute_findings.json finding has exactly one `category: acute_finding` event); both required, nullable. Legacy schema_version \"2\" archives are read leniently (WARN, not FAIL).",
   "type": "object",
   "required": ["patient_code", "schema_version", "events"],
   "additionalProperties": false,
   "properties": {
     "patient_code": { "type": "string", "pattern": "^PT-[A-F0-9]+(_\\d+)?$" },
-    "schema_version": { "const": "2" },
+    "schema_version": { "const": "2.1" },
     "generated_at": { "type": "string", "format": "date-time" },
     "events": {
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["event_id", "date", "category", "title", "provenance_layer", "verification_status", "source_refs"],
+        "required": ["event_id", "date", "category", "title", "provenance_layer", "verification_status", "source_refs", "conflict_group", "acute_finding_id"],
         "additionalProperties": false,
         "properties": {
           "event_id": { "type": "string" },
           "date": { "type": "string", "description": "ISO date when exact; partial/uncertain date kept as source text." },
           "date_precision": { "enum": ["day", "month", "year", "approximate", "unknown"] },
-          "category": { "enum": ["diagnosis", "procedure", "systemic_therapy", "radiation", "molecular_test", "imaging", "lab", "hospitalization", "consult", "symptom_report", "other"] },
+          "category": { "enum": ["diagnosis", "procedure", "systemic_therapy", "radiation", "molecular_test", "imaging", "lab", "hospitalization", "consult", "symptom_report", "acute_finding", "other"] },
           "title": { "type": "string" },
           "detail": { "type": ["string", "null"] },
           "institution": { "type": ["string", "null"] },
-          "provenance_layer": { "enum": ["source_reported", "patient_reported", "caregiver_reported", "system_normalized"] },
+          "provenance_layer": { "enum": ["source_reported", "patient_reported", "caregiver_reported", "system_normalized", "prior_archive"] },
           "verification_status": { "enum": ["unverified", "clinician_verified", "disputed", "withdrawn"] },
           "supersedes_event_id": { "type": ["string", "null"], "description": "Correction link; original event remains." },
+          "conflict_group": { "type": ["string", "null"], "minLength": 1, "description": "Shared id for events that contradict each other (e.g. a self-reported event and an original record). A group has at least two events; null when the event is in no conflict." },
+          "acute_finding_id": { "type": ["string", "null"], "minLength": 1, "description": "acute_findings.json finding_id this event registers; required (non-null) when category is acute_finding, else null." },
           "source_refs": { "type": "array", "minItems": 1, "items": { "type": "string" } }
-        }
+        },
+        "allOf": [
+          {
+            "if": { "properties": { "category": { "const": "acute_finding" } }, "required": ["category"] },
+            "then": { "required": ["acute_finding_id"], "properties": { "acute_finding_id": { "type": "string" } } }
+          }
+        ]
       }
     }
   }

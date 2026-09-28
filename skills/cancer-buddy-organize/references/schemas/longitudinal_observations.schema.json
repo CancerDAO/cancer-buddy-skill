@@ -24,7 +24,7 @@
           "timestamp": { "type": "string", "format": "date-time" },
           "method_or_device": { "type": ["string", "null"] },
           "reference_range": { "type": ["string", "null"] },
-          "provenance_layer": { "enum": ["source_reported", "patient_reported", "caregiver_reported", "system_normalized"] },
+          "provenance_layer": { "enum": ["source_reported", "patient_reported", "caregiver_reported", "system_normalized", "prior_archive"] },
           "verification_status": { "enum": ["unverified", "clinician_verified", "disputed"] },
           "source_ref": { "type": "string" }
         }
