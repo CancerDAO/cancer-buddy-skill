@@ -6,6 +6,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Fixed — organize：text_layer_kind.py 在新版 PyMuPDF 下输出纯 JSON (2026-09-29)
+
+- PyMuPDF ≥ 1.28 的 `import fitz` 会往标准输出打弃用警告, `text_layer_kind.py` 的 JSON 输出被污染, CI(Python 3.14 + 最新 PyMuPDF)
+  上 `tests/unit/text-layer-kind.test.sh` 解析失败。现在优先 `import pymupdf`, 旧版再回退 `fitz`;测试加「标准输出必须是纯 JSON」断言。
+  本机 PyMuPDF 1.27.2 与 1.28.2、Python 3.11 与 3.14 全量测试均通过。
+
 ### Fixed — organize：编排者的派发日志不再被当成患者原件 (2026-09-29)
 
 - `inventory_hash.py` 的 organize 基础设施名单加入 `raw/_dispatch_log.jsonl`。编排者把派发 / 终止 / 重派事件追加到 `raw/` 下的这份日志,

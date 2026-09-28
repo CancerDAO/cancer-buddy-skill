@@ -63,8 +63,19 @@ def classify(chars: int, cover: float, invisible: bool, ocr_font: bool) -> str:
     return "born_digital"
 
 
+def _import_pymupdf():
+    """PyMuPDF ≥ 1.24 的模块名是 `pymupdf`;新版 `import fitz` 会往**标准输出**打弃用警告, 污染本脚本的 JSON 输出
+    (CI 上 PyMuPDF 1.28 即如此)。优先 `pymupdf`, 旧版再回退 `fitz`。"""
+    try:
+        import pymupdf  # noqa: WPS433
+        return pymupdf
+    except ImportError:
+        import fitz  # noqa: WPS433  —— 旧版 PyMuPDF
+        return fitz
+
+
 def _pymupdf(pdf: Path) -> list[dict]:
-    import fitz  # PyMuPDF
+    fitz = _import_pymupdf()
     pages = []
     with fitz.open(pdf) as doc:
         for n, page in enumerate(doc, start=1):
@@ -131,7 +142,7 @@ def analyse(pdf: Path) -> dict:
     try:
         if os.environ.get(METHOD_ENV) == "poppler":
             raise ImportError("poppler forced")
-        import fitz  # noqa: F401
+        _import_pymupdf()
         method, raw = "pymupdf", _pymupdf(pdf)
     except ImportError:
         if not all(shutil.which(t) for t in ("pdfinfo", "pdfimages", "pdftotext", "pdffonts")):

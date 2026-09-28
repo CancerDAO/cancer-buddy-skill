@@ -6,7 +6,7 @@
 # Skips when PyMuPDF is not installed (the poppler fallback is exercised when poppler is present).
 set -uo pipefail
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-if ! python3 -c "import fitz" 2>/dev/null; then
+if ! python3 -c "import pymupdf" 2>/dev/null && ! python3 -c "import fitz" 2>/dev/null; then
   echo "SKIP: PyMuPDF (fitz) not installed" >&2; exit 0
 fi
 tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT
@@ -14,7 +14,10 @@ tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT
 python3 - "$REPO_ROOT" "$tmp" <<'PY'
 import json, os, shutil, subprocess, sys
 from pathlib import Path
-import fitz
+try:
+    import pymupdf as fitz   # PyMuPDF ≥ 1.24;新版 `import fitz` 往 stdout 打弃用警告
+except ImportError:
+    import fitz
 
 REPO, TMP = Path(sys.argv[1]), Path(sys.argv[2])
 S = REPO / "skills" / "cancer-buddy-organize" / "scripts"
@@ -77,6 +80,9 @@ check("damaged glyph run listed (le!t)", any("le!t" in l["text"] for l in lines)
 rc, doc = run(born)
 check("a clean born-digital layer lists no glyph anomaly", rc == 0 and doc["pages"][0]["glyph_anomaly_lines"] == [], str(doc))
 check("summary lists the born-digital page", rc == 0 and doc["summary"]["born_digital"] == [1], str(doc))
+# stdout 必须是纯 JSON:新版 PyMuPDF 的 `import fitz` 弃用警告曾把它污染成非 JSON(CI 失败原型)
+p = subprocess.run([sys.executable, str(S / "text_layer_kind.py"), str(born)], capture_output=True, text=True)
+check("stdout is pure JSON (no import warnings)", p.returncode == 0 and p.stdout.lstrip().startswith("{"), p.stdout[:120])
 rc, doc = run(TMP / "missing.pdf")
 check("missing file → exit 2", rc == 2, str(doc))
 (TMP / "broken.pdf").write_bytes(b"%PDF-1.4 not really")
