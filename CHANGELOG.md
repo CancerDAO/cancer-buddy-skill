@@ -6,6 +6,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Fixed — organize：编排者的派发日志不再被当成患者原件 (2026-09-29)
+
+- `inventory_hash.py` 的 organize 基础设施名单加入 `raw/_dispatch_log.jsonl`。编排者把派发 / 终止 / 重派事件追加到 `raw/` 下的这份日志,
+  此前它会被当成一份新上传的患者文件进入 `source_inventory` 与输入哈希(每次运行都变)。这行修复 2026-09-25 写好但漏提交, 合并前补上;
+  `tests/unit/inventory-hash.test.sh` 的 vault 夹具加了这份日志(去掉修复即 2 条失败)。
+
 ### Fixed — organize：提示词哈希只比对本次运行；born-digital 页的文书意图可以真正通过校验 (2026-09-26)
 
 独立复核指出前几节的两处缺口（合成数据）。

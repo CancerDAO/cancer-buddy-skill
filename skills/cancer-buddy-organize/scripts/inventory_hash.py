@@ -64,7 +64,7 @@ ARCHIVE_EXT = {".zip", ".rar", ".7z", ".tar", ".tgz", ".tbz2", ".txz"}
 # a compressed TAR is a container; a bare .gz / .bz2 / .xz compresses ONE file (.nii.gz, .vcf.gz)
 ARCHIVE_SUFFIX_PAIRS = (".tar.gz", ".tar.bz2", ".tar.xz")
 # organize's own entries inside raw/ — pinned names only (the vault's other `_…` entries are inputs)
-VAULT_INFRA_NAMES = frozenset({"_extract", "_identity_denylist", "_FILENAME_MAPPING.md", "_SIDECAR_MAP.md"})
+VAULT_INFRA_NAMES = frozenset({"_extract", "_identity_denylist", "_FILENAME_MAPPING.md", "_SIDECAR_MAP.md", "_dispatch_log.jsonl"})
 VAULT_INFRA_PATTERNS = (re.compile(r"^_legacy_[0-9A-Za-z_-]+$"), re.compile(r"^_INPUT_HANDLES_[0-9A-Za-z_-]+\.json$"))
 DS_STORE_NAMES = {".DS_Store", "Thumbs.db", "desktop.ini"}
 _PDF_PAGE_RE = re.compile(rb"/Type\s*/Page(?![s])")

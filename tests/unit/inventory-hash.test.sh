@@ -105,6 +105,8 @@ vault = tmp / "PTX" / "raw"
 (vault / "s001.jpg").write_bytes(b"\xff\xd8vault")
 (vault / "_FILENAME_MAPPING.md").write_text("x", encoding="utf-8")
 (vault / "_extract" / "s001.vision.txt").write_text("x", encoding="utf-8")
+# the orchestrator's own dispatch log lives in raw/ too — it is organize infra, not a patient upload
+(vault / "_dispatch_log.jsonl").write_text('{"event": "dispatch"}\n', encoding="utf-8")
 r = json.loads(subprocess.run([sys.executable, script, str(vault)], capture_output=True, text=True).stdout)
 check("vault mode: only the upload is an input", [row.get("raw_path") for row in r["files"]] == ["raw/s001.jpg"]
       and r["skipped_inputs"] == [])
