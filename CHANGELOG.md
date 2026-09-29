@@ -6,6 +6,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Fixed — organize：序列登记号不再触发 PII 形态门 (2026-09-29)
+
+- 真实 NGS 报告(液体活检原文与译本)里的 Ensembl 转录本号 `ENST00000311936.8` 被形态门判为 `numeric_id` 与中国座机 `phone`
+  (字母前缀后紧跟 11 位数字);phase1 §9.1 禁止遮蔽临床字符, §9.2 又要求形态门清零, worker 无解, 终态门永远过不了。
+- `pii_rescan.py` 新增 `mask_accessions()`:在形态扫描前把 Ensembl(`ENS*`)、RefSeq(`NM_/NP_/NC_/…`)、LRG、COSMIC(`COSV/COSM`)、
+  dbSNP(`rs`)登记号替换为 `<accession>`(与 hex 摘要同一做法)。只掩字母前缀的整个 token, 数字下限放宽到 6 位(译本会丢一位数字);
+  同一行里裸露的病历号/手机号、伪前缀(`XENST…`)照常报出。
+- 新增 `tests/unit/pii-accession-allowlist.test.sh`(6 条放行 + 4 条仍拦)。
+
 ### Fixed — organize：text_layer_kind.py 在新版 PyMuPDF 下输出纯 JSON (2026-09-29)
 
 - PyMuPDF ≥ 1.28 的 `import fitz` 会往标准输出打弃用警告, `text_layer_kind.py` 的 JSON 输出被污染, CI(Python 3.14 + 最新 PyMuPDF)
