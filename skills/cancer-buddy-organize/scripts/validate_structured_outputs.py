@@ -2826,7 +2826,15 @@ def _yaml_value(t: str):
         return None
     if t in ("true", "false"):
         return t == "true"
-    if len(t) >= 2 and t[0] == t[-1] and t[0] in "\"'":
+    if len(t) >= 2 and t[0] == t[-1] == '"':
+        # second_read_align.py writes readings with json.dumps: an engine reading that spans two
+        # OCR lines carries an escaped newline ("4\\n8.3"); stripping the quotes without
+        # unescaping made the gate reject the script's own entry.
+        try:
+            return json.loads(t)
+        except ValueError:
+            return t[1:-1]
+    if len(t) >= 2 and t[0] == t[-1] == "'":
         return t[1:-1]
     try:
         return int(t)

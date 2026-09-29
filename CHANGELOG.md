@@ -6,6 +6,25 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Fixed — organize：序列登记号不再触发 PII 形态门 (2026-09-29)
+
+- 真实 NGS 报告(液体活检原文与译本)里的 Ensembl 转录本号 `ENST00000311936.8` 被形态门判为 `numeric_id` 与中国座机 `phone`
+  (字母前缀后紧跟 11 位数字);phase1 §9.1 禁止遮蔽临床字符, §9.2 又要求形态门清零, worker 无解, 终态门永远过不了。
+- `pii_rescan.py` 新增 `mask_accessions()`:在形态扫描前把 Ensembl(`ENS*`)、RefSeq(`NM_/NP_/NC_/…`)、LRG、COSMIC(`COSV/COSM`)、
+  dbSNP(`rs`)登记号替换为 `<accession>`(与 hex 摘要同一做法)。只掩字母前缀的整个 token, 数字下限放宽到 6 位(译本会丢一位数字);
+  同一行里裸露的病历号/手机号、伪前缀(`XENST…`)照常报出。
+- 新增 `tests/unit/pii-accession-allowlist.test.sh`(6 条放行 + 4 条仍拦)。
+
+### Fixed — organize：终态门的两处自相矛盾误报 (2026-09-29)
+
+- `pii_rescan.py` 的 `name_in_filename`(`[一-龥]{2,4}-[A-Za-z]`)把「…Kaserer病理实验室-NGS…」里的「实验室-N」当成「人名-英文」,
+  provenance 面(source_inventory.json 的 raw_path)报错;而 phase1 规则不许在无身份词时改原件名, 档案无解。现要求 CJK 串之前
+  不是汉字或字母(即名字位于文件名开头、数字或分隔符之后);粘在另一个中文词后的名字交给身份词表那一层。
+- `validate_structured_outputs._yaml_value` 对双引号标量只剥引号不反转义, 而 `second_read_align.py` 用 `json.dumps` 写读数:
+  跨两行的引擎读数(`"4\n8.3"`)被判「engine reading is not the engine's own string」, 脚本自己写的条目过不了门。
+  双引号标量现按 JSON 反转义(失败回退原行为)。
+- 新增 `tests/unit/gate-false-positive-regressions.test.sh`(9 条)。
+
 ### Fixed — organize：text_layer_kind.py 在新版 PyMuPDF 下输出纯 JSON (2026-09-29)
 
 - PyMuPDF ≥ 1.28 的 `import fitz` 会往标准输出打弃用警告, `text_layer_kind.py` 的 JSON 输出被污染, CI(Python 3.14 + 最新 PyMuPDF)

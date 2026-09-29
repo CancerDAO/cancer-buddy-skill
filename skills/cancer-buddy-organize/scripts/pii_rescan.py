@@ -140,6 +140,25 @@ def mask_hex_digests(line: str) -> str:
     return _HEX_DIGEST_RE.sub("<hex-digest>", line)
 
 
+# A sequence-database accession is clinical content, not an identifier: Ensembl stable IDs
+# (ENST00000311936.8 — the letter prefix glued to an 11-digit run fired `numeric_id` and the
+# Chinese-landline `phone` shape on a real NGS report, and phase1 §9.1 forbids masking clinical
+# characters, so the gate could never clear), RefSeq (NM_/NP_/NC_…), LRG, COSMIC and dbSNP ids.
+# Only the letter-prefixed token is masked, so a bare digit run beside it still fires. The digit
+# floor is loose (≥6) because a transcribed report can drop a digit (ENST0000040276.6).
+_ACCESSION_RE = re.compile(
+    r"(?<![0-9A-Za-z_])(?:"
+    r"ENS[A-Z]{0,4}\d{6,}"
+    r"|(?:NM|NR|NP|XM|XR|XP|NC|NG|NT|NW|NZ|WP)_\d{6,}"
+    r"|LRG_\d+|COS[VM]\d{4,}|rs\d{3,}"
+    r")(?:\.\d+)?(?![0-9A-Za-z])"
+)
+
+
+def mask_accessions(line: str) -> str:
+    return _ACCESSION_RE.sub("<accession>", line)
+
+
 def header_block_length(lines: list[str]) -> int:
     """Number of leading lines that form the sidecar header block.
 
@@ -175,11 +194,12 @@ def scan_line(line: str) -> list[tuple[str, str]]:
 
     Only standalone shape identifiers — label/semantic PII is Layer 1's job. A
     masked value (`[PII_MASKED]`) has no digits/email shape, so it never matches.
-    Hex digests are masked first (see mask_hex_digests)."""
+    Hex digests and sequence accessions are masked first (see mask_hex_digests /
+    mask_accessions)."""
     findings: list[tuple[str, str]] = []
     if not line.strip():
         return findings
-    line = mask_hex_digests(line)
+    line = mask_accessions(mask_hex_digests(line))
     for pattern, pii_type in _STANDALONE:
         for m in pattern.finditer(line):
             findings.append((pii_type, m.group(0)))
@@ -304,7 +324,10 @@ _PATH_PII = [
 # identity deny-list arm (load_deny_tokens / .identity_denylist.json); name-prefixed
 # UPLOAD filenames only ever appear in the index/provenance surfaces anyway.
 _FILENAME_PII = [
-    (re.compile(r"[一-龥]{2,4}-[A-Za-z]"), "name_in_filename"),
+    # The CJK run must start the name token (basename start, or after a digit / separator):
+    # "20260312-维也纳Kaserer病理实验室-NGS…" ends in 实验室-N, a CJK term glued to the Latin
+    # lab name before it — not a personal name — and used to fail the provenance surfaces.
+    (re.compile(r"(?<![一-龥A-Za-z])[一-龥]{2,4}-[A-Za-z]"), "name_in_filename"),
 ]
 
 # Surfaces that carry verbatim clinical prose → skip the filename-name regex (it
