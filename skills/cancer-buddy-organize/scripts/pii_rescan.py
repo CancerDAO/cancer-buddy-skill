@@ -324,7 +324,10 @@ _PATH_PII = [
 # identity deny-list arm (load_deny_tokens / .identity_denylist.json); name-prefixed
 # UPLOAD filenames only ever appear in the index/provenance surfaces anyway.
 _FILENAME_PII = [
-    (re.compile(r"[一-龥]{2,4}-[A-Za-z]"), "name_in_filename"),
+    # The CJK run must start the name token (basename start, or after a digit / separator):
+    # "20260312-维也纳Kaserer病理实验室-NGS…" ends in 实验室-N, a CJK term glued to the Latin
+    # lab name before it — not a personal name — and used to fail the provenance surfaces.
+    (re.compile(r"(?<![一-龥A-Za-z])[一-龥]{2,4}-[A-Za-z]"), "name_in_filename"),
 ]
 
 # Surfaces that carry verbatim clinical prose → skip the filename-name regex (it

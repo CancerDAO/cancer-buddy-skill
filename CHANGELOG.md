@@ -15,6 +15,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
   同一行里裸露的病历号/手机号、伪前缀(`XENST…`)照常报出。
 - 新增 `tests/unit/pii-accession-allowlist.test.sh`(6 条放行 + 4 条仍拦)。
 
+### Fixed — organize：终态门的两处自相矛盾误报 (2026-09-29)
+
+- `pii_rescan.py` 的 `name_in_filename`(`[一-龥]{2,4}-[A-Za-z]`)把「…Kaserer病理实验室-NGS…」里的「实验室-N」当成「人名-英文」,
+  provenance 面(source_inventory.json 的 raw_path)报错;而 phase1 规则不许在无身份词时改原件名, 档案无解。现要求 CJK 串之前
+  不是汉字或字母(即名字位于文件名开头、数字或分隔符之后);粘在另一个中文词后的名字交给身份词表那一层。
+- `validate_structured_outputs._yaml_value` 对双引号标量只剥引号不反转义, 而 `second_read_align.py` 用 `json.dumps` 写读数:
+  跨两行的引擎读数(`"4\n8.3"`)被判「engine reading is not the engine's own string」, 脚本自己写的条目过不了门。
+  双引号标量现按 JSON 反转义(失败回退原行为)。
+- 新增 `tests/unit/gate-false-positive-regressions.test.sh`(9 条)。
+
 ### Fixed — organize：text_layer_kind.py 在新版 PyMuPDF 下输出纯 JSON (2026-09-29)
 
 - PyMuPDF ≥ 1.28 的 `import fitz` 会往标准输出打弃用警告, `text_layer_kind.py` 的 JSON 输出被污染, CI(Python 3.14 + 最新 PyMuPDF)
