@@ -1,0 +1,268 @@
+{
+  "contract": "v2",
+  "files": [
+    {
+      "source_id": "s001",
+      "contract": "v2",
+      "original_name_ref": "raw/_FILENAME_MAPPING.md#s001",
+      "raw_path": "raw/s001.pdf",
+      "sha256": "f55e0bf061556ce9bda77a7dec927404e94dd0367e31b3282373d8cf540a14aa",
+      "size_bytes": null,
+      "page_count": 1,
+      "sidecar_path": "04_诊断与分期/病理报告/2023-03-15_病理报告_示例市第一人民医院.md",
+      "sidecar_paths": [
+        "04_诊断与分期/病理报告/2023-03-15_病理报告_示例市第一人民医院.md"
+      ],
+      "doc_kind": "病理报告",
+      "bucket": "04_诊断与分期/病理报告",
+      "read": "vision+text_layer"
+    },
+    {
+      "source_id": "s002",
+      "contract": "v2",
+      "original_name_ref": "raw/_FILENAME_MAPPING.md#s002",
+      "raw_path": "raw/s002.pdf",
+      "sha256": "a1985668522acd74b2cf95caa37cc2ca48258c5c1dd59dd53b1ea406d8316086",
+      "size_bytes": null,
+      "page_count": 2,
+      "sidecar_path": "03_病程与叙事文书/出院小结/2023-03-22_出院小结_示例市第一人民医院.md",
+      "sidecar_paths": [
+        "03_病程与叙事文书/出院小结/2023-03-22_出院小结_示例市第一人民医院.md"
+      ],
+      "doc_kind": "出院小结",
+      "bucket": "03_病程与叙事文书/出院小结",
+      "read": "vision+text_layer"
+    },
+    {
+      "source_id": "s003",
+      "contract": "v2",
+      "original_name_ref": "raw/_FILENAME_MAPPING.md#s003",
+      "raw_path": "raw/s003.pdf",
+      "sha256": "670e14ec4425b2555554b4329f9f589f1def6f22d352ce879cfa70a256e80f46",
+      "size_bytes": null,
+      "page_count": 1,
+      "sidecar_path": "05_影像/CT/2025-06-10_CT报告_示例市第一人民医院.md",
+      "sidecar_paths": [
+        "05_影像/CT/2025-06-10_CT报告_示例市第一人民医院.md"
+      ],
+      "doc_kind": "CT报告",
+      "bucket": "05_影像/CT",
+      "read": "vision+text_layer"
+    },
+    {
+      "source_id": "s004",
+      "contract": "v2",
+      "original_name_ref": "raw/_FILENAME_MAPPING.md#s004",
+      "raw_path": "raw/s004.pdf",
+      "sha256": "1a2ede72eda5bdce4c0b6a1457e464388055a31fe6c6b64afd26a6c295d0cd30",
+      "size_bytes": null,
+      "page_count": 1,
+      "sidecar_path": "05_影像/CT/2026-08-20_CT报告_示例市第一人民医院.md",
+      "sidecar_paths": [
+        "05_影像/CT/2026-08-20_CT报告_示例市第一人民医院.md"
+      ],
+      "doc_kind": "CT报告",
+      "bucket": "05_影像/CT",
+      "read": "vision+text_layer"
+    },
+    {
+      "source_id": "s005",
+      "contract": "v2",
+      "original_name_ref": "raw/_FILENAME_MAPPING.md#s005",
+      "raw_path": "raw/s005.pdf",
+      "sha256": "4bacbd427a3dd4141a02bc5af9621731200a271627ccbd12912a014f917e11a3",
+      "size_bytes": null,
+      "page_count": 2,
+      "sidecar_path": "03_病程与叙事文书/门诊病历/2026-08-25_门诊病历_示例市第一人民医院.md",
+      "sidecar_paths": [
+        "03_病程与叙事文书/门诊病历/2026-08-25_门诊病历_示例市第一人民医院.md"
+      ],
+      "doc_kind": "门诊病历",
+      "bucket": "03_病程与叙事文书/门诊病历",
+      "read": "vision"
+    },
+    {
+      "source_id": "s006",
+      "contract": "v2",
+      "original_name_ref": "raw/_FILENAME_MAPPING.md#s006",
+      "raw_path": "raw/s006.pdf",
+      "sha256": "8006c975eb99d5d3e44351985e7bb86106a730a5c7e846ad33ee2090e5c566c8",
+      "size_bytes": null,
+      "page_count": 3,
+      "sidecar_path": "06_分子与组学/NGS报告/2025-06-20_NGS报告_示例基因检测实验室.md",
+      "sidecar_paths": [
+        "06_分子与组学/NGS报告/2025-06-20_NGS报告_示例基因检测实验室.md"
+      ],
+      "doc_kind": "NGS报告",
+      "bucket": "06_分子与组学/NGS报告",
+      "read": "text_only"
+    },
+    {
+      "source_id": "c001",
+      "contract": "v2",
+      "original_name_ref": "raw/_FILENAME_MAPPING.md#c001",
+      "raw_path": null,
+      "sha256": "dc52de6b06eeee8f58f0083ce8667fc59fcabbd659dad5db455522386c0edb87",
+      "size_bytes": null,
+      "page_count": 1,
+      "sidecar_path": "14_患者自管补充/conversation_notes/2026-08-30_家属口述记录_对话.md",
+      "sidecar_paths": [
+        "14_患者自管补充/conversation_notes/2026-08-30_家属口述记录_对话.md"
+      ],
+      "doc_kind": "家属口述记录",
+      "bucket": "14_患者自管补充/conversation_notes",
+      "read": "conversation"
+    },
+    {
+      "source_id": "s007",
+      "contract": "v2",
+      "original_name_ref": "raw/_FILENAME_MAPPING.md#s007",
+      "raw_path": "raw/s007.pdf",
+      "sha256": "9859534286ea5b7a103e2fc533f8bc4a7296826538c3f88c75c33f4343fa79a4",
+      "size_bytes": null,
+      "page_count": 1,
+      "sidecar_path": "15_其他资料/肠道菌群检测/2026-07-15_肠道菌群检测报告_示例微生态科技.md",
+      "sidecar_paths": [
+        "15_其他资料/肠道菌群检测/2026-07-15_肠道菌群检测报告_示例微生态科技.md"
+      ],
+      "doc_kind": "novel:肠道菌群16S检测报告",
+      "bucket": "15_其他资料/肠道菌群检测",
+      "read": "vision+text_layer"
+    },
+    {
+      "source_id": "s008",
+      "contract": "v2",
+      "original_name_ref": "raw/_FILENAME_MAPPING.md#s008",
+      "raw_path": "raw/s008.jpg",
+      "sha256": "d991b3b9f69fc783cabe817caf2a5b3a9afd37dc099a552dea76b743cf25d02b",
+      "size_bytes": null,
+      "page_count": 1,
+      "sidecar_path": "99_无关文件/2026-08-25_停车缴费凭条_示例停车场.md",
+      "sidecar_paths": [
+        "99_无关文件/2026-08-25_停车缴费凭条_示例停车场.md"
+      ],
+      "doc_kind": "novel:停车缴费凭条",
+      "bucket": "99_无关文件",
+      "read": "vision"
+    },
+    {
+      "source_id": "s010",
+      "contract": "v2",
+      "original_name_ref": "raw/_FILENAME_MAPPING.md#s010",
+      "raw_path": "raw/s010.pdf",
+      "sha256": "cf7fa7c35437abe8089df9b3b567c6ebcf0b847f3e855914c791e9956818b9fe",
+      "size_bytes": null,
+      "page_count": 1,
+      "sidecar_path": "07_检验/血常规/2026-06-01_血常规_示例市第一人民医院.md",
+      "sidecar_paths": [
+        "07_检验/血常规/2026-06-01_血常规_示例市第一人民医院.md"
+      ],
+      "doc_kind": "血常规",
+      "bucket": "07_检验/血常规",
+      "read": "vision+text_layer"
+    },
+    {
+      "source_id": "s011",
+      "contract": "v2",
+      "original_name_ref": "raw/_FILENAME_MAPPING.md#s011",
+      "raw_path": "raw/s011.pdf",
+      "sha256": "5b151e1eb116eab1d56bca08bdc4f40091e57f888717e291bd2f79b4d0121ae6",
+      "size_bytes": null,
+      "page_count": 1,
+      "sidecar_path": "07_检验/血常规/2026-07-06_血常规_示例市第一人民医院.md",
+      "sidecar_paths": [
+        "07_检验/血常规/2026-07-06_血常规_示例市第一人民医院.md"
+      ],
+      "doc_kind": "血常规",
+      "bucket": "07_检验/血常规",
+      "read": "vision+text_layer"
+    },
+    {
+      "source_id": "s012",
+      "contract": "v2",
+      "original_name_ref": "raw/_FILENAME_MAPPING.md#s012",
+      "raw_path": "raw/s012.pdf",
+      "sha256": "ca6f4408c7b005da7b1965a93b503351cbcc02a9c0604bf929eb3fb854b13b13",
+      "size_bytes": null,
+      "page_count": 1,
+      "sidecar_path": "07_检验/血常规/2026-08-03_血常规_示例市第一人民医院.md",
+      "sidecar_paths": [
+        "07_检验/血常规/2026-08-03_血常规_示例市第一人民医院.md"
+      ],
+      "doc_kind": "血常规",
+      "bucket": "07_检验/血常规",
+      "read": "vision+text_layer"
+    },
+    {
+      "source_id": "s013",
+      "contract": "v2",
+      "original_name_ref": "raw/_FILENAME_MAPPING.md#s013",
+      "raw_path": "raw/s013.pdf",
+      "sha256": "26105224d58341056526e8452db2a4f8e1f074f4e724f93143a3eb8bfff066c1",
+      "size_bytes": null,
+      "page_count": 1,
+      "sidecar_path": "07_检验/血常规/2026-08-24_血常规_示例市第一人民医院.md",
+      "sidecar_paths": [
+        "07_检验/血常规/2026-08-24_血常规_示例市第一人民医院.md"
+      ],
+      "doc_kind": "血常规",
+      "bucket": "07_检验/血常规",
+      "read": "vision+text_layer"
+    },
+    {
+      "source_id": "s014",
+      "contract": "v2",
+      "original_name_ref": "raw/_FILENAME_MAPPING.md#s014",
+      "raw_path": "raw/s014.pdf",
+      "sha256": "7e07c0d91577608593d2d5ead31d58a7f05f2b651f306459c8c24ae10ff8a040",
+      "size_bytes": null,
+      "page_count": 1,
+      "sidecar_path": "07_检验/肿瘤标志物/2026-05-28_肿瘤标志物_示例市第一人民医院.md",
+      "sidecar_paths": [
+        "07_检验/肿瘤标志物/2026-05-28_肿瘤标志物_示例市第一人民医院.md"
+      ],
+      "doc_kind": "肿瘤标志物",
+      "bucket": "07_检验/肿瘤标志物",
+      "read": "vision+text_layer"
+    },
+    {
+      "source_id": "s015",
+      "contract": "v2",
+      "original_name_ref": "raw/_FILENAME_MAPPING.md#s015",
+      "raw_path": "raw/s015.pdf",
+      "sha256": "76e984a2a5c3d905531dd34f32c610fbe9cb94d427eaeef8bb21fb48dbaf1fba",
+      "size_bytes": null,
+      "page_count": 1,
+      "sidecar_path": "07_检验/肿瘤标志物/2026-07-03_肿瘤标志物_示例市第一人民医院.md",
+      "sidecar_paths": [
+        "07_检验/肿瘤标志物/2026-07-03_肿瘤标志物_示例市第一人民医院.md"
+      ],
+      "doc_kind": "肿瘤标志物",
+      "bucket": "07_检验/肿瘤标志物",
+      "read": "vision+text_layer"
+    },
+    {
+      "source_id": "s016",
+      "contract": "v2",
+      "original_name_ref": "raw/_FILENAME_MAPPING.md#s016",
+      "raw_path": "raw/s016.pdf",
+      "sha256": "026e9b795c4c54970625c3c24a5a5a1d83acd0bab47da0079871c51f70aa9fd4",
+      "size_bytes": null,
+      "page_count": 1,
+      "sidecar_path": "07_检验/肿瘤标志物/2026-08-22_肿瘤标志物_示例市第一人民医院.md",
+      "sidecar_paths": [
+        "07_检验/肿瘤标志物/2026-08-22_肿瘤标志物_示例市第一人民医院.md"
+      ],
+      "doc_kind": "肿瘤标志物",
+      "bucket": "07_检验/肿瘤标志物",
+      "read": "vision+text_layer"
+    }
+  ],
+  "skipped_inputs": [
+    {
+      "input_ref": "upload/IMG_0412.jpg",
+      "reason": "与 s013 内容相同（重复上传）",
+      "sha256": "26105224d58341056526e8452db2a4f8e1f074f4e724f93143a3eb8bfff066c1"
+    }
+  ]
+}

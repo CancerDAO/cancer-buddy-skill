@@ -1,0 +1,19 @@
+{
+  "name": "cancerdao-marketplace",
+  "owner": {
+    "name": "CancerDAO"
+  },
+  "plugins": [
+    {
+      "name": "cancer-buddy",
+      "description": "抗癌搭子：整理病历、看懂报告、准备就诊、找资源、和家人沟通。Non-clinical navigation skills for people with cancer and their caregivers.",
+      "version": "2.0.0",
+      "author": {
+        "name": "CancerDAO"
+      },
+      "source": "./",
+      "license": "MIT",
+      "category": "health"
+    }
+  ]
+}

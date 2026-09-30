@@ -1,0 +1,40 @@
+{
+  "findings": [
+    {
+      "finding_id": "AF-001",
+      "finding_class": "thrombosis_embolism",
+      "label": "肺栓塞",
+      "verbatim_text": "右肺下叶后基底段肺动脉分支充盈缺损，考虑肺栓塞，请结合临床。",
+      "verbatim_is_translation": false,
+      "exam_date": "2026-08-20",
+      "report_date": "2026-08-20",
+      "source_ref": "05_影像/CT/2026-08-20_CT报告_示例市第一人民医院.md#L23-L23",
+      "acuity": "urgent",
+      "acuity_basis": "class_default",
+      "change_vs_prior": {
+        "verbatim": "较前片新发",
+        "direction": "new",
+        "prior_date_stated": null
+      },
+      "provenance_layer": "source_reported"
+    },
+    {
+      "finding_id": "AF-002",
+      "finding_class": "effusion",
+      "label": "胸腔积液",
+      "verbatim_text": "右侧胸腔少量积液。",
+      "verbatim_is_translation": false,
+      "exam_date": "2026-08-20",
+      "report_date": "2026-08-20",
+      "source_ref": "05_影像/CT/2026-08-20_CT报告_示例市第一人民医院.md#L25-L25",
+      "acuity": "urgent",
+      "acuity_basis": "class_default",
+      "change_vs_prior": {
+        "verbatim": null,
+        "direction": "not_stated",
+        "prior_date_stated": null
+      },
+      "provenance_layer": "source_reported"
+    }
+  ]
+}

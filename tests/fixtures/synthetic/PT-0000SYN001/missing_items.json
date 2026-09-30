@@ -1,0 +1,30 @@
+{
+  "inventory_mode": "document_gaps",
+  "document_gaps": [
+    {
+      "document_category": "门诊病历",
+      "gap_type": "missing_pages",
+      "severity": "info",
+      "pages_present": "1,3",
+      "pages_missing": "2",
+      "page_total": 3,
+      "reason_for_artifact": "2026-08-25 门诊病历原件没有第 2 页",
+      "source_refs": [
+        "03_病程与叙事文书/门诊病历/2026-08-25_门诊病历_示例市第一人民医院.md#L24-L24"
+      ]
+    },
+    {
+      "document_category": "手术记录",
+      "gap_type": "not_in_archive",
+      "severity": "info",
+      "pages_present": null,
+      "pages_missing": null,
+      "page_total": null,
+      "reason_for_artifact": "出院小结提到 2023-03-11 手术，档案里没有手术记录本身",
+      "source_refs": [
+        "03_病程与叙事文书/出院小结/2023-03-22_出院小结_示例市第一人民医院.md#L24-L24"
+      ]
+    }
+  ],
+  "disclaimer": "这里列的是档案里已知缺少的文书，不是检查建议。"
+}

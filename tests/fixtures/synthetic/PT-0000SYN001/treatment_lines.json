@@ -1,0 +1,65 @@
+{
+  "episodes": [
+    {
+      "episode_id": "TX-001",
+      "regimen": "XELOX",
+      "started_at": "2023-04",
+      "ended_at": "2023-09",
+      "cycle_label_verbatim": "8 程",
+      "documented_line_label": null,
+      "line_number": null,
+      "phase_or_intent_source": "辅助化疗",
+      "clinician_reported_response": null,
+      "reason_for_change_source": null,
+      "status": "stopped",
+      "status_basis": "clinician_note_current",
+      "status_basis_text": "门诊病历现病史记载",
+      "status_as_of": "2026-08-25",
+      "source_refs": [
+        "03_病程与叙事文书/门诊病历/2026-08-25_门诊病历_示例市第一人民医院.md#L17-L17"
+      ],
+      "provenance_layer": "source_reported"
+    },
+    {
+      "episode_id": "TX-002",
+      "regimen": "FOLFOX+贝伐珠单抗",
+      "started_at": "2025-07",
+      "ended_at": "2026-01",
+      "cycle_label_verbatim": "共 10 程",
+      "documented_line_label": "一线",
+      "line_number": 1,
+      "phase_or_intent_source": null,
+      "clinician_reported_response": "复查 CT 提示疾病进展",
+      "reason_for_change_source": "2026-01 复查 CT 提示疾病进展",
+      "status": "stopped",
+      "status_basis": "clinician_note_current",
+      "status_basis_text": "门诊病历现病史记载",
+      "status_as_of": "2026-08-25",
+      "source_refs": [
+        "03_病程与叙事文书/门诊病历/2026-08-25_门诊病历_示例市第一人民医院.md#L19-L19"
+      ],
+      "provenance_layer": "source_reported"
+    },
+    {
+      "episode_id": "TX-003",
+      "regimen": "FOLFIRI+贝伐珠单抗",
+      "started_at": "2026-02",
+      "ended_at": null,
+      "cycle_label_verbatim": "今日第 14 程",
+      "documented_line_label": "二线",
+      "line_number": 2,
+      "phase_or_intent_source": null,
+      "clinician_reported_response": null,
+      "reason_for_change_source": null,
+      "status": "ongoing",
+      "status_basis": "clinician_note_current",
+      "status_basis_text": "2026-08-25 门诊病历写“继续 FOLFIRI+贝伐珠单抗，今日第 14 程”",
+      "status_as_of": "2026-08-25",
+      "source_refs": [
+        "03_病程与叙事文书/门诊病历/2026-08-25_门诊病历_示例市第一人民医院.md#L20-L20",
+        "03_病程与叙事文书/门诊病历/2026-08-25_门诊病历_示例市第一人民医院.md#L27-L27"
+      ],
+      "provenance_layer": "source_reported"
+    }
+  ]
+}

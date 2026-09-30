@@ -1,0 +1,24 @@
+{
+  "observations": [
+    {
+      "obs_type": "vital",
+      "metric": "体重",
+      "value": 68,
+      "unit": "kg",
+      "timestamp": "2023-03-22",
+      "reference_range": null,
+      "method_or_device": null,
+      "source_ref": "03_病程与叙事文书/出院小结/2023-03-22_出院小结_示例市第一人民医院.md#L25-L25"
+    },
+    {
+      "obs_type": "vital",
+      "metric": "体重",
+      "value": 63,
+      "unit": "kg",
+      "timestamp": "2026-08-25",
+      "reference_range": null,
+      "method_or_device": null,
+      "source_ref": "03_病程与叙事文书/门诊病历/2026-08-25_门诊病历_示例市第一人民医院.md#L22-L22"
+    }
+  ]
+}

@@ -1,0 +1,144 @@
+{
+  "reports": [
+    {
+      "report_id": "NGS-2025-06-20",
+      "report_date": "2025-06-20",
+      "sample_type": "肝穿刺组织",
+      "sample_site": "肝",
+      "collection_date": "2025-06-14",
+      "assay": "实体瘤 NGS 检测（96 基因），杂交捕获",
+      "tumor_only_or_paired": "paired",
+      "tumor_purity": "约 40%",
+      "limit_of_detection": null,
+      "quality_notes": null,
+      "report_version": null,
+      "source_refs": [
+        "06_分子与组学/NGS报告/2025-06-20_NGS报告_示例基因检测实验室.md#L16-L18"
+      ]
+    }
+  ],
+  "variants": [
+    {
+      "gene": "KRAS",
+      "variant": "c.34G>T (p.G12C)",
+      "vaf_raw": "23.4%",
+      "classification_source": "I 类",
+      "report_id": "NGS-2025-06-20",
+      "source_refs": [
+        "06_分子与组学/NGS报告/2025-06-20_NGS报告_示例基因检测实验室.md#L24-L24"
+      ]
+    },
+    {
+      "gene": "TP53",
+      "variant": "c.818G>A (p.R273H)",
+      "vaf_raw": "31.2%",
+      "classification_source": "II 类",
+      "report_id": "NGS-2025-06-20",
+      "source_refs": [
+        "06_分子与组学/NGS报告/2025-06-20_NGS报告_示例基因检测实验室.md#L25-L25"
+      ]
+    },
+    {
+      "gene": "APC",
+      "variant": "c.4348C>T (p.R1450*)",
+      "vaf_raw": "28.7%",
+      "classification_source": "II 类",
+      "report_id": "NGS-2025-06-20",
+      "source_refs": [
+        "06_分子与组学/NGS报告/2025-06-20_NGS报告_示例基因检测实验室.md#L26-L26"
+      ]
+    }
+  ],
+  "germline": [
+    {
+      "gene": "ATM",
+      "variant": "c.2572T>C (p.F858L)",
+      "zygosity": "杂合",
+      "classification_source": "意义不明（VUS）",
+      "report_id": "NGS-2025-06-20",
+      "source_refs": [
+        "06_分子与组学/NGS报告/2025-06-20_NGS报告_示例基因检测实验室.md#L33-L33"
+      ]
+    }
+  ],
+  "pharmacogenomics": [],
+  "ihc": [
+    {
+      "marker": "MLH1",
+      "result_verbatim": "MLH1(+)",
+      "report_date": "2023-03-15",
+      "source_refs": [
+        "04_诊断与分期/病理报告/2023-03-15_病理报告_示例市第一人民医院.md#L25-L25"
+      ]
+    },
+    {
+      "marker": "MSH2",
+      "result_verbatim": "MSH2(+)",
+      "report_date": "2023-03-15",
+      "source_refs": [
+        "04_诊断与分期/病理报告/2023-03-15_病理报告_示例市第一人民医院.md#L25-L25"
+      ]
+    },
+    {
+      "marker": "MSH6",
+      "result_verbatim": "MSH6(+)",
+      "report_date": "2023-03-15",
+      "source_refs": [
+        "04_诊断与分期/病理报告/2023-03-15_病理报告_示例市第一人民医院.md#L25-L25"
+      ]
+    },
+    {
+      "marker": "PMS2",
+      "result_verbatim": "PMS2(+)",
+      "report_date": "2023-03-15",
+      "source_refs": [
+        "04_诊断与分期/病理报告/2023-03-15_病理报告_示例市第一人民医院.md#L25-L25"
+      ]
+    },
+    {
+      "marker": "HER2",
+      "result_verbatim": "HER2 (0)",
+      "report_date": "2023-03-15",
+      "source_refs": [
+        "04_诊断与分期/病理报告/2023-03-15_病理报告_示例市第一人民医院.md#L25-L25"
+      ]
+    },
+    {
+      "marker": "Ki-67",
+      "result_verbatim": "Ki-67（约 60%+）",
+      "report_date": "2023-03-15",
+      "source_refs": [
+        "04_诊断与分期/病理报告/2023-03-15_病理报告_示例市第一人民医院.md#L25-L25"
+      ]
+    }
+  ],
+  "msi_results": [
+    {
+      "result_verbatim": "MSS",
+      "method": "NGS",
+      "report_id": "NGS-2025-06-20",
+      "source_refs": [
+        "06_分子与组学/NGS报告/2025-06-20_NGS报告_示例基因检测实验室.md#L28-L28"
+      ]
+    }
+  ],
+  "mmr_results": [
+    {
+      "result_verbatim": "MLH1(+)，MSH2(+)，MSH6(+)，PMS2(+)",
+      "method": "免疫组化",
+      "source_refs": [
+        "04_诊断与分期/病理报告/2023-03-15_病理报告_示例市第一人民医院.md#L25-L25"
+      ]
+    }
+  ],
+  "tmb_results": [
+    {
+      "result_verbatim": "6.2 Muts/Mb",
+      "report_id": "NGS-2025-06-20",
+      "source_refs": [
+        "06_分子与组学/NGS报告/2025-06-20_NGS报告_示例基因检测实验室.md#L28-L28"
+      ]
+    }
+  ],
+  "hla_typing": []
+}

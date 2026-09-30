@@ -1,0 +1,66 @@
+{
+  "documentation_coverage": {
+    "病理": "present",
+    "影像": "present",
+    "分子": "present",
+    "检验": "present",
+    "治疗记录": "present",
+    "手术记录": "not_in_archive",
+    "出院小结": "present",
+    "门诊病历": "present"
+  },
+  "latest_source_date": "2026-08-25",
+  "days_since_latest": 21,
+  "as_of_run_date": "2026-09-15",
+  "warnings": [
+    "本档案最新一份资料的日期是 2026-08-25，距今 21 天。之后如果做过新的检查或看过门诊，请补充进来。"
+  ],
+  "review_flags": [
+    {
+      "id": "RF-001",
+      "kind": "legibility",
+      "severity": "yellow",
+      "affected_field": "diagnosis.stage",
+      "values": [
+        {
+          "value": "pT3",
+          "source_ref": "04_诊断与分期/病理报告/2023-03-15_病理报告_示例市第一人民医院.md#L24-L24"
+        },
+        {
+          "value": "pT2",
+          "source_ref": "04_诊断与分期/病理报告/2023-03-15_病理报告_示例市第一人民医院.md#L24-L24"
+        }
+      ],
+      "issue": "病理报告上的 T 分期字迹看不清，读作 pT3，也可能是 pT2",
+      "resolution_status": "unresolved"
+    },
+    {
+      "id": "RF-002",
+      "kind": "legibility",
+      "severity": "yellow",
+      "affected_field": "labs.NEUT#.2026-07-06",
+      "values": [
+        {
+          "value": null,
+          "source_ref": "07_检验/血常规/2026-07-06_血常规_示例市第一人民医院.md#L23-L23"
+        }
+      ],
+      "issue": "2026-07-06 血常规的中性粒细胞绝对值一栏空白，旁边的数字无法确定属于哪一项",
+      "resolution_status": "unresolved"
+    },
+    {
+      "id": "RF-003",
+      "kind": "completeness",
+      "severity": "info",
+      "affected_field": "门诊病历 2026-08-25",
+      "values": [
+        {
+          "value": null,
+          "source_ref": "03_病程与叙事文书/门诊病历/2026-08-25_门诊病历_示例市第一人民医院.md#L24-L24"
+        }
+      ],
+      "issue": "2026-08-25 门诊病历缺第 2 页",
+      "resolution_status": "unresolved"
+    }
+  ]
+}

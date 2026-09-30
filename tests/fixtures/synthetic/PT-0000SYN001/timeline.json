@@ -1,0 +1,198 @@
+{
+  "events": [
+    {
+      "event_id": "EV-001",
+      "date": "2020",
+      "date_precision": "year",
+      "category": "history",
+      "title": "甲状腺右叶切除术（外院）",
+      "detail": "术后病理为甲状腺乳头状癌",
+      "institution": null,
+      "verification_status": "unverified",
+      "conflict_group": null,
+      "acute_finding_id": null,
+      "provenance_layer": "source_reported",
+      "source_refs": [
+        "03_病程与叙事文书/出院小结/2023-03-22_出院小结_示例市第一人民医院.md#L22-L22"
+      ]
+    },
+    {
+      "event_id": "EV-002",
+      "date": "2023-03-11",
+      "date_precision": "day",
+      "category": "surgery",
+      "title": "腹腔镜乙状结肠癌根治术",
+      "detail": null,
+      "institution": "示例市第一人民医院",
+      "verification_status": "unverified",
+      "conflict_group": null,
+      "acute_finding_id": null,
+      "provenance_layer": "source_reported",
+      "source_refs": [
+        "03_病程与叙事文书/出院小结/2023-03-22_出院小结_示例市第一人民医院.md#L24-L24"
+      ]
+    },
+    {
+      "event_id": "EV-003",
+      "date": "2023-03-15",
+      "date_precision": "day",
+      "category": "pathology",
+      "title": "术后病理：中分化腺癌",
+      "detail": "病理分期 {?pT3|pT2}N1a",
+      "institution": "示例市第一人民医院",
+      "verification_status": "unverified",
+      "conflict_group": null,
+      "acute_finding_id": null,
+      "provenance_layer": "source_reported",
+      "source_refs": [
+        "04_诊断与分期/病理报告/2023-03-15_病理报告_示例市第一人民医院.md#L20-L20",
+        "04_诊断与分期/病理报告/2023-03-15_病理报告_示例市第一人民医院.md#L24-L24"
+      ]
+    },
+    {
+      "event_id": "EV-004",
+      "date": "2023-04",
+      "date_precision": "month",
+      "category": "treatment",
+      "title": "XELOX 辅助化疗开始",
+      "detail": "8 程，至 2023-09",
+      "institution": null,
+      "verification_status": "unverified",
+      "conflict_group": null,
+      "acute_finding_id": null,
+      "provenance_layer": "source_reported",
+      "source_refs": [
+        "03_病程与叙事文书/门诊病历/2026-08-25_门诊病历_示例市第一人民医院.md#L17-L17"
+      ]
+    },
+    {
+      "event_id": "EV-005",
+      "date": "2025-06-10",
+      "date_precision": "day",
+      "category": "imaging",
+      "title": "CT：肝 S6 段结节，考虑转移瘤",
+      "detail": null,
+      "institution": "示例市第一人民医院",
+      "verification_status": "unverified",
+      "conflict_group": null,
+      "acute_finding_id": null,
+      "provenance_layer": "source_reported",
+      "source_refs": [
+        "05_影像/CT/2025-06-10_CT报告_示例市第一人民医院.md#L24-L24"
+      ]
+    },
+    {
+      "event_id": "EV-006",
+      "date": "2025-06-20",
+      "date_precision": "day",
+      "category": "molecular",
+      "title": "NGS：KRAS c.34G>T (p.G12C)",
+      "detail": "丰度 23.4%",
+      "institution": "示例基因检测实验室",
+      "verification_status": "unverified",
+      "conflict_group": null,
+      "acute_finding_id": null,
+      "provenance_layer": "source_reported",
+      "source_refs": [
+        "06_分子与组学/NGS报告/2025-06-20_NGS报告_示例基因检测实验室.md#L24-L24"
+      ]
+    },
+    {
+      "event_id": "EV-007",
+      "date": "2025-07",
+      "date_precision": "month",
+      "category": "treatment",
+      "title": "一线 FOLFOX+贝伐珠单抗",
+      "detail": "至 2026-01，共 10 程",
+      "institution": null,
+      "verification_status": "unverified",
+      "conflict_group": null,
+      "acute_finding_id": null,
+      "provenance_layer": "source_reported",
+      "source_refs": [
+        "03_病程与叙事文书/门诊病历/2026-08-25_门诊病历_示例市第一人民医院.md#L19-L19"
+      ]
+    },
+    {
+      "event_id": "EV-008",
+      "date": "2026-02",
+      "date_precision": "month",
+      "category": "treatment",
+      "title": "二线 FOLFIRI+贝伐珠单抗开始",
+      "detail": null,
+      "institution": null,
+      "verification_status": "unverified",
+      "conflict_group": null,
+      "acute_finding_id": null,
+      "provenance_layer": "source_reported",
+      "source_refs": [
+        "03_病程与叙事文书/门诊病历/2026-08-25_门诊病历_示例市第一人民医院.md#L20-L20"
+      ]
+    },
+    {
+      "event_id": "EV-009",
+      "date": "2026-08-20",
+      "date_precision": "day",
+      "category": "imaging",
+      "title": "CT：考虑肺栓塞；肝 S6 段结节 1.2×1.0cm",
+      "detail": null,
+      "institution": "示例市第一人民医院",
+      "verification_status": "unverified",
+      "conflict_group": "liver_lesion_report_vs_family",
+      "acute_finding_id": "AF-001",
+      "provenance_layer": "source_reported",
+      "source_refs": [
+        "05_影像/CT/2026-08-20_CT报告_示例市第一人民医院.md#L23-L23",
+        "05_影像/CT/2026-08-20_CT报告_示例市第一人民医院.md#L20-L20"
+      ]
+    },
+    {
+      "event_id": "EV-010",
+      "date": "2026-08-25",
+      "date_precision": "day",
+      "category": "visit",
+      "title": "肿瘤内科门诊：FOLFIRI+贝伐珠单抗 第 14 程",
+      "detail": null,
+      "institution": "示例市第一人民医院",
+      "verification_status": "unverified",
+      "conflict_group": null,
+      "acute_finding_id": null,
+      "provenance_layer": "source_reported",
+      "source_refs": [
+        "03_病程与叙事文书/门诊病历/2026-08-25_门诊病历_示例市第一人民医院.md#L27-L27"
+      ]
+    },
+    {
+      "event_id": "EV-011",
+      "date": null,
+      "date_precision": "unknown",
+      "category": "family_report",
+      "title": "家属口述：听医生说肝上的结节比以前小了",
+      "detail": "家属未说明日期",
+      "institution": null,
+      "verification_status": "unverified",
+      "conflict_group": "liver_lesion_report_vs_family",
+      "acute_finding_id": null,
+      "provenance_layer": "caregiver_reported",
+      "source_refs": [
+        "14_患者自管补充/conversation_notes/2026-08-30_家属口述记录_对话.md#L18-L18"
+      ]
+    },
+    {
+      "event_id": "EV-012",
+      "date": null,
+      "date_precision": "unknown",
+      "category": "family_report",
+      "title": "家属口述：最近走路多了会气短",
+      "detail": "家属未说明从何时开始",
+      "institution": null,
+      "verification_status": "unverified",
+      "conflict_group": null,
+      "acute_finding_id": null,
+      "provenance_layer": "caregiver_reported",
+      "source_refs": [
+        "14_患者自管补充/conversation_notes/2026-08-30_家属口述记录_对话.md#L17-L17"
+      ]
+    }
+  ]
+}

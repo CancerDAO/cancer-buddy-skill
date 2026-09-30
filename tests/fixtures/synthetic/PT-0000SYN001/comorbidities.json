@@ -1,0 +1,64 @@
+{
+  "conditions": [
+    {
+      "name": "高血压病2级",
+      "icd10": "I10",
+      "onset": null,
+      "status_source": "出院诊断",
+      "provenance_layer": "source_reported",
+      "source_refs": [
+        "03_病程与叙事文书/出院小结/2023-03-22_出院小结_示例市第一人民医院.md#L21-L21"
+      ]
+    },
+    {
+      "name": "活动后气短（家属口述，起始时间不详）",
+      "icd10": null,
+      "onset": null,
+      "status_source": "家属口述",
+      "provenance_layer": "caregiver_reported",
+      "source_refs": [
+        "14_患者自管补充/conversation_notes/2026-08-30_家属口述记录_对话.md#L17-L17"
+      ]
+    }
+  ],
+  "medications": [
+    {
+      "name": "氨氯地平",
+      "dose": "5mg",
+      "frequency": "qd",
+      "route": "口服",
+      "use_status": "active_reported",
+      "administration_setting": "long_term",
+      "order_role": "chronic",
+      "as_of": "2023-03-22",
+      "source_refs": [
+        "03_病程与叙事文书/出院小结/2023-03-22_出院小结_示例市第一人民医院.md#L28-L28"
+      ]
+    },
+    {
+      "name": "低分子肝素钙",
+      "dose": "4100U",
+      "frequency": "q12h",
+      "route": "皮下注射",
+      "use_status": "active_confirmed",
+      "administration_setting": "unknown",
+      "order_role": "supportive",
+      "as_of": "2026-08-25",
+      "source_refs": [
+        "03_病程与叙事文书/门诊病历/2026-08-25_门诊病历_示例市第一人民医院.md#L28-L28"
+      ]
+    }
+  ],
+  "allergies": [
+    {
+      "allergen": null,
+      "reaction": null,
+      "severity_source": null,
+      "occurred_at": null,
+      "certainty_source": "否认药物过敏史",
+      "source_refs": [
+        "03_病程与叙事文书/出院小结/2023-03-22_出院小结_示例市第一人民医院.md#L22-L22"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,432 @@
+{
+  "schema": "cancer_buddy_labs_v2",
+  "panels": [
+    {
+      "analyte": "白细胞计数",
+      "normalized_analyte": "WBC",
+      "values": [
+        {
+          "date": "2026-06-01",
+          "date_kind": "collected",
+          "value": 5.6,
+          "raw_value": "5.6",
+          "unit": "×10^9/L",
+          "reference_range": "3.5-9.5",
+          "report_flag": null,
+          "critical_flag": false,
+          "method": "仪器法",
+          "candidate_value": null,
+          "pairing_note": null,
+          "source_refs": [
+            "07_检验/血常规/2026-06-01_血常规_示例市第一人民医院.md#L19-L19"
+          ],
+          "provenance_layer": "source_reported"
+        },
+        {
+          "date": "2026-07-06",
+          "date_kind": "collected",
+          "value": 4.1,
+          "raw_value": "4.1",
+          "unit": "×10^9/L",
+          "reference_range": "3.5-9.5",
+          "report_flag": null,
+          "critical_flag": false,
+          "method": "仪器法",
+          "candidate_value": null,
+          "pairing_note": null,
+          "source_refs": [
+            "07_检验/血常规/2026-07-06_血常规_示例市第一人民医院.md#L19-L19"
+          ],
+          "provenance_layer": "source_reported"
+        },
+        {
+          "date": "2026-08-03",
+          "date_kind": "collected",
+          "value": 3.2,
+          "raw_value": "3.2",
+          "unit": "×10^9/L",
+          "reference_range": "3.5-9.5",
+          "report_flag": "↓",
+          "critical_flag": false,
+          "method": "仪器法",
+          "candidate_value": null,
+          "pairing_note": null,
+          "source_refs": [
+            "07_检验/血常规/2026-08-03_血常规_示例市第一人民医院.md#L19-L19"
+          ],
+          "provenance_layer": "source_reported"
+        },
+        {
+          "date": "2026-08-24",
+          "date_kind": "collected",
+          "value": 2.1,
+          "raw_value": "2.1",
+          "unit": "×10^9/L",
+          "reference_range": "3.5-9.5",
+          "report_flag": "↓",
+          "critical_flag": false,
+          "method": "仪器法",
+          "candidate_value": null,
+          "pairing_note": null,
+          "source_refs": [
+            "07_检验/血常规/2026-08-24_血常规_示例市第一人民医院.md#L19-L19"
+          ],
+          "provenance_layer": "source_reported"
+        }
+      ]
+    },
+    {
+      "analyte": "中性粒细胞绝对值",
+      "normalized_analyte": "NEUT#",
+      "values": [
+        {
+          "date": "2026-06-01",
+          "date_kind": "collected",
+          "value": 3.4,
+          "raw_value": "3.4",
+          "unit": "×10^9/L",
+          "reference_range": "1.8-6.3",
+          "report_flag": null,
+          "critical_flag": false,
+          "method": "仪器法",
+          "candidate_value": null,
+          "pairing_note": null,
+          "source_refs": [
+            "07_检验/血常规/2026-06-01_血常规_示例市第一人民医院.md#L20-L20"
+          ],
+          "provenance_layer": "source_reported"
+        },
+        {
+          "date": "2026-07-06",
+          "date_kind": "collected",
+          "value": null,
+          "raw_value": "2.93",
+          "unit": "×10^9/L",
+          "reference_range": "1.8-6.3",
+          "report_flag": null,
+          "critical_flag": false,
+          "method": "仪器法",
+          "candidate_value": 2.93,
+          "pairing_note": "该行结果栏空白，表格右侧的 2.93 无法确定属于哪一项，未核实",
+          "source_refs": [
+            "07_检验/血常规/2026-07-06_血常规_示例市第一人民医院.md#L23-L23"
+          ],
+          "provenance_layer": "source_reported"
+        },
+        {
+          "date": "2026-08-03",
+          "date_kind": "collected",
+          "value": 1.9,
+          "raw_value": "1.9",
+          "unit": "×10^9/L",
+          "reference_range": "1.8-6.3",
+          "report_flag": null,
+          "critical_flag": false,
+          "method": "仪器法",
+          "candidate_value": null,
+          "pairing_note": null,
+          "source_refs": [
+            "07_检验/血常规/2026-08-03_血常规_示例市第一人民医院.md#L20-L20"
+          ],
+          "provenance_layer": "source_reported"
+        },
+        {
+          "date": "2026-08-24",
+          "date_kind": "collected",
+          "value": 0.42,
+          "raw_value": "0.42",
+          "unit": "×10^9/L",
+          "reference_range": "1.8-6.3",
+          "report_flag": "↓ 危急值",
+          "critical_flag": true,
+          "method": "仪器法",
+          "candidate_value": null,
+          "pairing_note": null,
+          "source_refs": [
+            "07_检验/血常规/2026-08-24_血常规_示例市第一人民医院.md#L20-L20"
+          ],
+          "provenance_layer": "source_reported"
+        }
+      ]
+    },
+    {
+      "analyte": "血红蛋白",
+      "normalized_analyte": "Hb",
+      "values": [
+        {
+          "date": "2026-06-01",
+          "date_kind": "collected",
+          "value": 128.0,
+          "raw_value": "128",
+          "unit": "g/L",
+          "reference_range": "130-175",
+          "report_flag": "↓",
+          "critical_flag": false,
+          "method": "仪器法",
+          "candidate_value": null,
+          "pairing_note": null,
+          "source_refs": [
+            "07_检验/血常规/2026-06-01_血常规_示例市第一人民医院.md#L21-L21"
+          ],
+          "provenance_layer": "source_reported"
+        },
+        {
+          "date": "2026-07-06",
+          "date_kind": "collected",
+          "value": 121.0,
+          "raw_value": "121",
+          "unit": "g/L",
+          "reference_range": "130-175",
+          "report_flag": "↓",
+          "critical_flag": false,
+          "method": "仪器法",
+          "candidate_value": null,
+          "pairing_note": null,
+          "source_refs": [
+            "07_检验/血常规/2026-07-06_血常规_示例市第一人民医院.md#L21-L21"
+          ],
+          "provenance_layer": "source_reported"
+        },
+        {
+          "date": "2026-08-03",
+          "date_kind": "collected",
+          "value": 115.0,
+          "raw_value": "115",
+          "unit": "g/L",
+          "reference_range": "130-175",
+          "report_flag": "↓",
+          "critical_flag": false,
+          "method": "仪器法",
+          "candidate_value": null,
+          "pairing_note": null,
+          "source_refs": [
+            "07_检验/血常规/2026-08-03_血常规_示例市第一人民医院.md#L21-L21"
+          ],
+          "provenance_layer": "source_reported"
+        },
+        {
+          "date": "2026-08-24",
+          "date_kind": "collected",
+          "value": 109.0,
+          "raw_value": "109",
+          "unit": "g/L",
+          "reference_range": "130-175",
+          "report_flag": "↓",
+          "critical_flag": false,
+          "method": "仪器法",
+          "candidate_value": null,
+          "pairing_note": null,
+          "source_refs": [
+            "07_检验/血常规/2026-08-24_血常规_示例市第一人民医院.md#L21-L21"
+          ],
+          "provenance_layer": "source_reported"
+        }
+      ]
+    },
+    {
+      "analyte": "血小板计数",
+      "normalized_analyte": "PLT",
+      "values": [
+        {
+          "date": "2026-06-01",
+          "date_kind": "collected",
+          "value": 210.0,
+          "raw_value": "210",
+          "unit": "×10^9/L",
+          "reference_range": "125-350",
+          "report_flag": null,
+          "critical_flag": false,
+          "method": "仪器法",
+          "candidate_value": null,
+          "pairing_note": null,
+          "source_refs": [
+            "07_检验/血常规/2026-06-01_血常规_示例市第一人民医院.md#L22-L22"
+          ],
+          "provenance_layer": "source_reported"
+        },
+        {
+          "date": "2026-07-06",
+          "date_kind": "collected",
+          "value": 188.0,
+          "raw_value": "188",
+          "unit": "×10^9/L",
+          "reference_range": "125-350",
+          "report_flag": null,
+          "critical_flag": false,
+          "method": "仪器法",
+          "candidate_value": null,
+          "pairing_note": null,
+          "source_refs": [
+            "07_检验/血常规/2026-07-06_血常规_示例市第一人民医院.md#L22-L22"
+          ],
+          "provenance_layer": "source_reported"
+        },
+        {
+          "date": "2026-08-03",
+          "date_kind": "collected",
+          "value": 176.0,
+          "raw_value": "176",
+          "unit": "×10^9/L",
+          "reference_range": "125-350",
+          "report_flag": null,
+          "critical_flag": false,
+          "method": "仪器法",
+          "candidate_value": null,
+          "pairing_note": null,
+          "source_refs": [
+            "07_检验/血常规/2026-08-03_血常规_示例市第一人民医院.md#L22-L22"
+          ],
+          "provenance_layer": "source_reported"
+        },
+        {
+          "date": "2026-08-24",
+          "date_kind": "collected",
+          "value": 152.0,
+          "raw_value": "152",
+          "unit": "×10^9/L",
+          "reference_range": "125-350",
+          "report_flag": null,
+          "critical_flag": false,
+          "method": "仪器法",
+          "candidate_value": null,
+          "pairing_note": null,
+          "source_refs": [
+            "07_检验/血常规/2026-08-24_血常规_示例市第一人民医院.md#L22-L22"
+          ],
+          "provenance_layer": "source_reported"
+        }
+      ]
+    },
+    {
+      "analyte": "癌胚抗原",
+      "normalized_analyte": "CEA",
+      "values": [
+        {
+          "date": "2025-06-08",
+          "date_kind": "unknown",
+          "value": 12.6,
+          "raw_value": "12.6",
+          "unit": "μg/L",
+          "reference_range": "0-5",
+          "report_flag": null,
+          "critical_flag": false,
+          "method": null,
+          "candidate_value": null,
+          "pairing_note": "门诊病历转述的外院结果",
+          "source_refs": [
+            "03_病程与叙事文书/门诊病历/2026-08-25_门诊病历_示例市第一人民医院.md#L21-L21"
+          ],
+          "provenance_layer": "source_reported"
+        },
+        {
+          "date": "2026-05-28",
+          "date_kind": "collected",
+          "value": 8.2,
+          "raw_value": "8.2",
+          "unit": "ng/mL",
+          "reference_range": "0-5",
+          "report_flag": "↑",
+          "critical_flag": false,
+          "method": "化学发光法",
+          "candidate_value": null,
+          "pairing_note": null,
+          "source_refs": [
+            "07_检验/肿瘤标志物/2026-05-28_肿瘤标志物_示例市第一人民医院.md#L19-L19"
+          ],
+          "provenance_layer": "source_reported"
+        },
+        {
+          "date": "2026-07-03",
+          "date_kind": "collected",
+          "value": 9.5,
+          "raw_value": "9.5",
+          "unit": "ng/mL",
+          "reference_range": "0-5",
+          "report_flag": "↑",
+          "critical_flag": false,
+          "method": "化学发光法",
+          "candidate_value": null,
+          "pairing_note": null,
+          "source_refs": [
+            "07_检验/肿瘤标志物/2026-07-03_肿瘤标志物_示例市第一人民医院.md#L19-L19"
+          ],
+          "provenance_layer": "source_reported"
+        },
+        {
+          "date": "2026-08-22",
+          "date_kind": "collected",
+          "value": 11.3,
+          "raw_value": "11.3",
+          "unit": "ng/mL",
+          "reference_range": "0-5",
+          "report_flag": "↑",
+          "critical_flag": false,
+          "method": "化学发光法",
+          "candidate_value": null,
+          "pairing_note": null,
+          "source_refs": [
+            "07_检验/肿瘤标志物/2026-08-22_肿瘤标志物_示例市第一人民医院.md#L19-L19"
+          ],
+          "provenance_layer": "source_reported"
+        }
+      ]
+    },
+    {
+      "analyte": "糖类抗原19-9",
+      "normalized_analyte": "CA19-9",
+      "values": [
+        {
+          "date": "2026-05-28",
+          "date_kind": "collected",
+          "value": 45.6,
+          "raw_value": "45.6",
+          "unit": "U/mL",
+          "reference_range": "0-37",
+          "report_flag": "↑",
+          "critical_flag": false,
+          "method": "化学发光法",
+          "candidate_value": null,
+          "pairing_note": null,
+          "source_refs": [
+            "07_检验/肿瘤标志物/2026-05-28_肿瘤标志物_示例市第一人民医院.md#L20-L20"
+          ],
+          "provenance_layer": "source_reported"
+        },
+        {
+          "date": "2026-07-03",
+          "date_kind": "collected",
+          "value": 52.1,
+          "raw_value": "52.1",
+          "unit": "U/mL",
+          "reference_range": "0-37",
+          "report_flag": "↑",
+          "critical_flag": false,
+          "method": "化学发光法",
+          "candidate_value": null,
+          "pairing_note": null,
+          "source_refs": [
+            "07_检验/肿瘤标志物/2026-07-03_肿瘤标志物_示例市第一人民医院.md#L20-L20"
+          ],
+          "provenance_layer": "source_reported"
+        },
+        {
+          "date": "2026-08-22",
+          "date_kind": "collected",
+          "value": 38.9,
+          "raw_value": "38.9",
+          "unit": "U/mL",
+          "reference_range": "0-27",
+          "report_flag": "↑",
+          "critical_flag": false,
+          "method": "电化学发光法",
+          "candidate_value": null,
+          "pairing_note": null,
+          "source_refs": [
+            "07_检验/肿瘤标志物/2026-08-22_肿瘤标志物_示例市第一人民医院.md#L20-L20"
+          ],
+          "provenance_layer": "source_reported"
+        }
+      ]
+    }
+  ]
+}

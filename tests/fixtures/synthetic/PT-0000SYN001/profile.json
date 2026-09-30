@@ -1,0 +1,73 @@
+{
+  "schema": "cancer_buddy_profile_v3",
+  "patient_code": "PT-0000SYN001",
+  "alias": "示例患者甲",
+  "locale": "zh-CN",
+  "generated_at": "2026-09-15T10:00:00+08:00",
+  "privacy": {
+    "identity_masked": true,
+    "note": "合成示例档案，非真实患者"
+  },
+  "demographics": {
+    "sex": "男",
+    "age": 55,
+    "age_as_of": "2026-08-25",
+    "performance_status_verbatim": [
+      {
+        "text": "ECOG 1分",
+        "as_of": "2026-08-25",
+        "scale_label": "ECOG",
+        "source_ref": "03_病程与叙事文书/门诊病历/2026-08-25_门诊病历_示例市第一人民医院.md#L22-L22"
+      }
+    ],
+    "provenance_layer": "source_reported",
+    "source_refs": [
+      "03_病程与叙事文书/门诊病历/2026-08-25_门诊病历_示例市第一人民医院.md#L15-L15",
+      "03_病程与叙事文书/门诊病历/2026-08-25_门诊病历_示例市第一人民医院.md#L22-L22"
+    ]
+  },
+  "anthropometrics": {
+    "height_cm": 172,
+    "height_as_of": "2023-03-22",
+    "weight_kg": 63,
+    "bmi": null,
+    "as_of": "2026-08-25",
+    "source_refs": [
+      "03_病程与叙事文书/出院小结/2023-03-22_出院小结_示例市第一人民医院.md#L25-L25",
+      "03_病程与叙事文书/门诊病历/2026-08-25_门诊病历_示例市第一人民医院.md#L22-L22"
+    ]
+  },
+  "summary": {
+    "one_line_condition": "乙状结肠中分化腺癌术后（2023），2025 年发现肝转移，目前 FOLFIRI+贝伐珠单抗治疗中",
+    "primary": "乙状结肠癌",
+    "histology": "中分化腺癌",
+    "stage": "{?pT3|pT2}N1a",
+    "metastasis_sites": [
+      "肝 S6"
+    ],
+    "current_regimen": "FOLFIRI+贝伐珠单抗",
+    "provenance_layer": "source_reported",
+    "verification_status": "unverified",
+    "source_refs": [
+      "04_诊断与分期/病理报告/2023-03-15_病理报告_示例市第一人民医院.md#L20-L20",
+      "04_诊断与分期/病理报告/2023-03-15_病理报告_示例市第一人民医院.md#L24-L24",
+      "05_影像/CT/2025-06-10_CT报告_示例市第一人民医院.md#L24-L24",
+      "03_病程与叙事文书/门诊病历/2026-08-25_门诊病历_示例市第一人民医院.md#L27-L27"
+    ]
+  },
+  "latest_status": {
+    "regimen": "FOLFIRI+贝伐珠单抗",
+    "status_basis": "clinician_note_current",
+    "response": null,
+    "ecog": "ECOG 1分",
+    "as_of": "2026-08-25",
+    "source_refs": [
+      "03_病程与叙事文书/门诊病历/2026-08-25_门诊病历_示例市第一人民医院.md#L27-L27",
+      "03_病程与叙事文书/门诊病历/2026-08-25_门诊病历_示例市第一人民医院.md#L22-L22"
+    ]
+  },
+  "source_refs": [
+    "04_诊断与分期/病理报告/2023-03-15_病理报告_示例市第一人民医院.md#L20-L20",
+    "03_病程与叙事文书/门诊病历/2026-08-25_门诊病历_示例市第一人民医院.md#L27-L27"
+  ]
+}

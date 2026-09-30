@@ -1,0 +1,97 @@
+{
+  "schema": "cancer_buddy_patient_summary_v2",
+  "patient_code": "PT-0000SYN001",
+  "demographics": {
+    "sex": "男",
+    "sex_normalized": "male",
+    "age": 55,
+    "age_as_of": "2026-08-25",
+    "age_observations": [
+      {
+        "value": 52,
+        "as_of": "2023-03-15",
+        "source_ref": "04_诊断与分期/病理报告/2023-03-15_病理报告_示例市第一人民医院.md#L15-L15"
+      },
+      {
+        "value": 55,
+        "as_of": "2026-08-25",
+        "source_ref": "03_病程与叙事文书/门诊病历/2026-08-25_门诊病历_示例市第一人民医院.md#L15-L15"
+      }
+    ],
+    "birth_year": null,
+    "height_cm": 172,
+    "height_as_of": "2023-03-22",
+    "weight_kg": 63,
+    "weight_as_of": "2026-08-25",
+    "ecog": "ECOG 1分",
+    "ecog_as_of": "2026-08-25",
+    "function_description": null,
+    "performance_status_verbatim": [
+      {
+        "text": "ECOG 1分",
+        "as_of": "2026-08-25",
+        "scale_label": "ECOG",
+        "source_ref": "03_病程与叙事文书/门诊病历/2026-08-25_门诊病历_示例市第一人民医院.md#L22-L22"
+      }
+    ],
+    "provenance_layer": "source_reported",
+    "source_refs": [
+      "03_病程与叙事文书/门诊病历/2026-08-25_门诊病历_示例市第一人民医院.md#L15-L15",
+      "03_病程与叙事文书/门诊病历/2026-08-25_门诊病历_示例市第一人民医院.md#L22-L22"
+    ]
+  },
+  "diagnosis": {
+    "primary": "乙状结肠癌",
+    "histology": "中分化腺癌",
+    "icd10": "C18.7",
+    "diagnosed_at": "2023-03-15",
+    "stage": "{?pT3|pT2}N1a",
+    "stage_source": "2023-03-15 术后病理报告",
+    "diagnosis_basis": "病理报告",
+    "alt_readings": [
+      {
+        "field": "stage",
+        "reading": "pT3",
+        "alternative": "pT2",
+        "source_ref": "04_诊断与分期/病理报告/2023-03-15_病理报告_示例市第一人民医院.md#L24-L24"
+      },
+      {
+        "field": "invasion_depth",
+        "reading": "浆膜下层",
+        "alternative": "固有肌层",
+        "source_ref": "04_诊断与分期/病理报告/2023-03-15_病理报告_示例市第一人民医院.md#L20-L20"
+      }
+    ],
+    "metastasis_sites": [
+      "肝 S6"
+    ],
+    "metastasis_source_refs": [
+      "05_影像/CT/2025-06-10_CT报告_示例市第一人民医院.md#L24-L24"
+    ],
+    "additional_primaries": [
+      {
+        "primary": "甲状腺乳头状癌",
+        "diagnosed_at": "2020",
+        "detail": "2020年于外院行甲状腺右叶切除术",
+        "source_refs": [
+          "03_病程与叙事文书/出院小结/2023-03-22_出院小结_示例市第一人民医院.md#L20-L20",
+          "03_病程与叙事文书/出院小结/2023-03-22_出院小结_示例市第一人民医院.md#L22-L22"
+        ]
+      }
+    ],
+    "source_refs": [
+      "04_诊断与分期/病理报告/2023-03-15_病理报告_示例市第一人民医院.md#L24-L24",
+      "04_诊断与分期/病理报告/2023-03-15_病理报告_示例市第一人民医院.md#L20-L20"
+    ]
+  },
+  "current_status": {
+    "regimen": "FOLFIRI+贝伐珠单抗",
+    "response": null,
+    "ecog": "ECOG 1分",
+    "as_of": "2026-08-25",
+    "source_refs": [
+      "03_病程与叙事文书/门诊病历/2026-08-25_门诊病历_示例市第一人民医院.md#L27-L27",
+      "03_病程与叙事文书/门诊病历/2026-08-25_门诊病历_示例市第一人民医院.md#L22-L22"
+    ]
+  }
+}
