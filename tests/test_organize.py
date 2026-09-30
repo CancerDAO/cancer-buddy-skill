@@ -531,6 +531,18 @@ class ReviewFindings20260930(unittest.TestCase):
         leaky.write_text("---\nsource_id: s011\n---\nx\n", encoding="utf-8")
         self.assertTrue(any("文件名里有真实身份信息" in e for e in self._archive()["errors"]))
 
+    def test_masking_is_idempotent(self):
+        d = self.d
+        (d / "raw" / "_identity").mkdir(parents=True, exist_ok=True)
+        write_json(d / "raw" / "_identity" / "t.json", {"names": ["Nino Doe"]})
+        (d / self.CT).write_text((d / self.CT).read_text(encoding="utf-8") +
+                                 "Nino Doe DOB: 3/4/1960 https://x/p?eorderid=WP-1…　1/2 身份证 11010519491231002X\n", encoding="utf-8")
+        self.assertGreater(chk.mask_identity(d), 0)
+        once = (d / self.CT).read_text(encoding="utf-8")
+        self.assertEqual(chk.mask_identity(d), 0)
+        self.assertEqual((d / self.CT).read_text(encoding="utf-8"), once)
+        self.assertIn("eorderid=[单号]…", once)
+
     def test_place_names_file_by_exam_date(self):
         T = self.d / ".work" / "transcripts"
         (T / "s001.md").write_text("---\nsource_id: s001\npages: 1\ndoc_kind: CT\ndoc_date: 2026-05-11\n"

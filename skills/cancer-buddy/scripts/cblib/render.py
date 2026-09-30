@@ -521,11 +521,30 @@ def _narrative(ctx, narr, prof, tl) -> str:
     return _section(ctx, "narr_h", body)
 
 
+def _latest_flags(ctx) -> dict:
+    out = {}
+    for p in ctx.j("labs.json").get("panels") or []:
+        vals = sorted([v for v in p.get("values") or [] if isinstance(v, dict)], key=lambda v: _date_key(v.get("date")))
+        if isinstance(p, dict) and vals:
+            for k in (p.get("analyte"), p.get("normalized_analyte")):
+                if k:
+                    v = vals[-1]
+                    out[str(k).lower()] = (v.get("flag_normalized") if "flag_normalized" in v
+                                           else "abnormal" if v.get("report_flag") or v.get("critical_flag") else None)
+    return out
+
+
 def _trends(ctx) -> str:
+    """Tumour markers always; another test only if its latest result was flagged abnormal. At most 3 charts."""
     figs = []
-    for m in chart.trend_candidates(ctx.pd, limit=4):
+    flags = _latest_flags(ctx)
+    for m in chart.trend_candidates(ctx.pd, limit=None):
+        if len(figs) >= 3:
+            break
         s = chart.series_for(ctx.pd, m)
         if not s or len(s["points"]) < 2:
+            continue
+        if not s["is_tumor_marker"] and flags.get(str(m).lower(), flags.get(str(s["label"]).lower())) not in ABNORMAL:
             continue
         title = chart.default_title(s, ctx.locale)
         notes = []

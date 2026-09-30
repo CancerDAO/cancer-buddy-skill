@@ -66,7 +66,8 @@ class CaseSummaryTest(RenderBase):
         self.assertEqual(pos, sorted(pos))
         self.assertIn('<meta name="generator" content="cancer-buddy v2 render">', h)
         self.assertIn("本页是资料索引，不替代主诊医生的判断", h)
-        self.assertEqual(h.count("<svg"), 5)                     # 4 trends + treatment swimlane
+        self.assertEqual(h.count("<svg"), 4)                     # CEA, CA19-9, flagged Hb + treatment swimlane
+        self.assertNotIn("体重 各次报告", h)                          # unflagged non-marker: charts only, not the summary
         self.assertIn("@page", h)
         # stale banner at the top, from readiness.json verbatim
         self.assertIn("本档案最新一份资料日期为 2026-08-25，距今 21 天，之后如有新检查请补充", h)

@@ -43,7 +43,7 @@ PHONE_RE = re.compile(r"(?<![0-9A-Za-z])1[3-9]\d{9}(?![0-9A-Za-z])")
 _DATE = r"(?:\d{1,4}[./\-年]\s?\d{1,2}[./\-月]\s?\d{1,4}日?|\d{1,2}\.?\s+[A-Za-z]{3,9}\.?\s+\d{4}|[A-Za-z]{3,9}\.?\s+\d{1,2},?\s+\d{4})"
 DOB_RE = re.compile(r"(?i)((?:\bDOB|\bD\.O\.B\.|date\s+of\s+birth|birth\s*date|\bborn|\bgeb\.|geburtsdatum|出生日期|出生年月|生日)"
                     r"[\s*:：/|]*(?:gender[\s*:：/|]*)?)" + _DATE)
-URL_ID_RE = re.compile(r"(?i)\b(eorderid|orderid|accession|mrn|patientid)=([^\s&)\]|>…]+)")
+URL_ID_RE = re.compile(r"(?i)\b(eorderid|orderid|accession|mrn|patientid)=(?!\[)([^\s&)\[\]|>…`]+)")
 NO_MASK_KEYS = {"sha256", "inputs_digest"}          # machine hashes: never rewrite
 LAB_FLAGS = {"high", "low", "normal", "critical_high", "critical_low", "abnormal"}
 

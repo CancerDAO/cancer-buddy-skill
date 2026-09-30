@@ -86,7 +86,7 @@ front matter 写 `evidence: secondary` 的是**人整理的二手材料**（清�
 每条：`finding_id (AF-001…), finding_class, label（人话短名）, verbatim_text（报告原句，逐字，必须能在引用行里找到）, verbatim_is_translation（外文报告只能给中文转述时 true）, exam_date, report_date, source_ref, acuity, acuity_basis, change_vs_prior {verbatim, direction}, provenance_layer`。
 `acuity`：危急值标记、“大面积/骑跨”血栓、报告写“立即/尽快”、报告写已发出重要结果/危急值通报 → `emergent`；上面登记类默认 `urgent`；报告写“陈旧/慢性” → `incidental`；检验单参考范围旁印的通用解释性注释（如“3–8 IU/L may indicate early pregnancy (repeat in 48 hours)”）以及没有具体病灶的“建议复查” → `advisory`（它不进“需要尽快告知”的框，单独列为复查提示）。一个病灶的一个发现记一条；同一份外院报告被几份病历复述，只记一次。
 
-**imaging_findings.json** — `{"studies": [...]}`，**每一份影像报告一条**（包括外文原件和它的译本各一条，译本标 `is_translation: true`）：
+**imaging_findings.json** — `{"studies": [...]}`，**每一份影像报告一条**（`evidence: secondary` 的译本不单列，只记原件；档案里只有译本时记译本并标 `is_translation: true`）：
 `study_id, title（如“胸部增强 CT”）, modality, body_region, exam_date, report_date, comparison_verbatim, source_refs（整份报告的行范围）, findings: [{system（报告里的部位标题，如 Liver、Bones/soft tissues、肺）, verbatim（这一部位的原文，逐字）, change（new|increased|similar|decreased|resolved|null）, positive（这一部位写了异常就 true，只写“未见异常/No …”就 false）, source_refs}], impression: [{verbatim, source_refs}]`。
 Findings 里**每一个部位标题行**都要有一条（写着“未见异常”的部位也记，`positive: false`），“Similar/unchanged/相仿”的旧病灶一样要记，不能因为“没变”就省略。没有分部位标题的叙述式报告，按段落记。脚本会逐行核对 Findings 的部位行有没有被引用到。
 
