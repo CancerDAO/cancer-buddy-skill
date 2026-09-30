@@ -107,15 +107,24 @@ def _transcribe_tasks(patient_dir: Path, inv: dict, covered: dict) -> list:
     if not pending:
         return []
 
-    # Pack pages into tasks: keep a source's pages together, ≤ MAX_IMAGES_PER_TASK images each.
+    # Pack pages into tasks, ≤ MAX_IMAGES_PER_TASK images each. A source that fits in one task is
+    # never split across two: a split document comes back as two transcripts with half the header.
     tasks, cur, n_img = [], [], 0
+    by_source = {}
     for item in pending:
-        is_img = item[2] is not None
-        if cur and is_img and n_img + 1 > MAX_IMAGES_PER_TASK:
+        by_source.setdefault(item[0], []).append(item)
+    for items in by_source.values():
+        src_img = sum(1 for it in items if it[2] is not None)
+        if cur and src_img <= MAX_IMAGES_PER_TASK and n_img + src_img > MAX_IMAGES_PER_TASK:
             tasks.append(cur)
             cur, n_img = [], 0
-        cur.append(item)
-        n_img += int(is_img)
+        for item in items:
+            is_img = item[2] is not None
+            if cur and is_img and n_img + 1 > MAX_IMAGES_PER_TASK:
+                tasks.append(cur)
+                cur, n_img = [], 0
+            cur.append(item)
+            n_img += int(is_img)
     if cur:
         tasks.append(cur)
 
@@ -139,6 +148,13 @@ def _transcribe_tasks(patient_dir: Path, inv: dict, covered: dict) -> list:
             entry = next(f for f in inv["files"] if f["source_id"] == sid)
             lines.append(f"### {sid}（原件 {entry['raw_path']}，共 {entry['page_count']} 页；"
                          f"本任务负责第 {fmt_pages([p for p, _, _ in pages])} 页）")
+            first = pages[0][0]
+            if first > 1:                             # this task starts mid-document: show the page before
+                pimg, ptxt = _page_files(patient_dir, sid, first - 1)
+                bits = [f"图 `{pimg}`" if pimg else "无图",
+                        f"文本层 `{ptxt}`" if ptxt and ptxt.stat().st_size else "无文本层"]
+                lines.append(f"- 第 {first - 1} 页（上一页，只作续页判断的上下文，由别的任务转写，你不要转写）："
+                             + "，".join(bits))
             for page, img, txt in pages:
                 bits = [f"图 `{img}`" if img else "无图",
                         f"文本层 `{txt}`" if txt and txt.stat().st_size else "无文本层"]
@@ -279,6 +295,50 @@ def resolve_bucket(bucket: str, doc_kind: str, locale: str) -> str:
     return f"{b['other']}/{_safe(kind, '未分类')}"
 
 
+def _is_true(v) -> bool:
+    return str(v or "").strip().lower() in ("true", "yes", "1", "是")
+
+
+def _merge_continuations(patient_dir: Path) -> list:
+    """A worker that started mid-document marks its first file `continues: true`; append it to the
+    transcript holding the page before, so one document stays one transcript. Returns merged targets."""
+    staged_dir = patient_dir / ".work" / "transcripts"
+    conts = []
+    for p in staged_dir.glob("*.md"):
+        meta, body = read_frontmatter(p.read_text(encoding="utf-8", errors="replace"))
+        if meta.get("source_id") and _is_true(meta.get("continues")):
+            conts.append((min(parse_pages(meta.get("pages") or "1") or {1}), p, meta, body))
+    merged = []
+    for first, p, meta, body in sorted(conts, key=lambda c: (c[2]["source_id"], c[0])):
+        sid = re.match(r"^(s\d+)", meta["source_id"])
+        target = None
+        for q in list(staged_dir.glob("*.md")) + iter_sidecars(patient_dir):
+            if q == p:
+                continue
+            tmeta, _ = read_frontmatter(q.read_text(encoding="utf-8", errors="replace"))
+            tsid = re.match(r"^(s\d+)", tmeta.get("source_id") or "")
+            if sid and tsid and tsid.group(1) == sid.group(1) and first - 1 in parse_pages(tmeta.get("pages") or "1"):
+                target = q
+                break
+        meta.pop("continues", None)
+        if target is None:                            # nothing to join: keep it as its own transcript
+            p.write_text(write_frontmatter(meta, body), encoding="utf-8")
+            continue
+        tmeta, tbody = read_frontmatter(target.read_text(encoding="utf-8", errors="replace"))
+        tmeta["pages"] = fmt_pages(parse_pages(tmeta.get("pages") or "1") | parse_pages(meta.get("pages") or "1"))
+        for k in ("doc_kind", "doc_date", "institution", "language"):
+            if not tmeta.get(k) and meta.get(k):
+                tmeta[k] = meta[k]
+        try:
+            tmeta["uncertain"] = int(tmeta.get("uncertain") or 0) + int(meta.get("uncertain") or 0)
+        except ValueError:
+            pass
+        target.write_text(write_frontmatter(tmeta, tbody.rstrip() + "\n\n" + body.lstrip("\n")), encoding="utf-8")
+        p.unlink()
+        merged.append(target)
+    return merged
+
+
 def place(patient_dir) -> dict:
     patient_dir = Path(patient_dir)
     locale = profile_locale(patient_dir)
@@ -295,6 +355,9 @@ def place(patient_dir) -> dict:
             dup.mkdir(parents=True, exist_ok=True)
             shutil.move(str(p), str(dup / p.name))
         seen.add(key)
+    for target in _merge_continuations(patient_dir):  # a placed transcript grew: its file name may be stale
+        if target.parent != patient_dir / ".work" / "transcripts" and target.exists():
+            placed.append(rel(patient_dir, target))
     for p in sorted((patient_dir / ".work" / "transcripts").glob("*.md")):
         text = p.read_text(encoding="utf-8", errors="replace")
         meta, body = read_frontmatter(text)

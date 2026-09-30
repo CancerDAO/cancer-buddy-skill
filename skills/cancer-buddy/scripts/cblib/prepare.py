@@ -132,6 +132,93 @@ def _docx_text(path: Path) -> str:
     return re.sub(r"<[^>]+>", "", xml).strip()
 
 
+_XL = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
+_XL_REL = "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id"
+_XL_DATE_IDS = set(range(14, 23)) | {45, 46, 47}
+
+
+def _xlsx_text(path: Path) -> str:
+    """Every sheet as a Markdown table, standard library only. Dates come back as dates, not serials."""
+    import re
+    import datetime as dt
+    import xml.etree.ElementTree as ET
+
+    def col_index(ref):
+        n = 0
+        for ch in re.match(r"[A-Z]+", ref).group(0):
+            n = n * 26 + ord(ch) - 64
+        return n - 1
+
+    def cell_text(x):
+        return (x or "").replace("|", "/").replace("\r", " ").replace("\n", " ").strip()
+
+    with zipfile.ZipFile(path) as z:
+        names = set(z.namelist())
+        shared = []
+        if "xl/sharedStrings.xml" in names:
+            for si in ET.fromstring(z.read("xl/sharedStrings.xml")).findall(f"{_XL}si"):
+                shared.append("".join(t.text or "" for t in si.iter(f"{_XL}t")))
+        date_styles, time_styles = set(), set()
+        if "xl/styles.xml" in names:
+            st = ET.fromstring(z.read("xl/styles.xml"))
+            custom = {int(n.get("numFmtId")): n.get("formatCode", "") for n in st.iter(f"{_XL}numFmt")}
+            xfs = st.find(f"{_XL}cellXfs")
+            for i, xf in enumerate(xfs if xfs is not None else []):
+                fid = int(xf.get("numFmtId", 0))
+                code = re.sub(r'"[^"]*"|\[[^\]]*\]', "", custom.get(fid, "")).lower()
+                if fid in _XL_DATE_IDS or "y" in code or "d" in code:
+                    date_styles.add(i)
+                if fid in (18, 19, 20, 21, 22, 45, 46, 47) or "h" in code:
+                    time_styles.add(i)
+        rels = {}
+        if "xl/_rels/workbook.xml.rels" in names:
+            for r in ET.fromstring(z.read("xl/_rels/workbook.xml.rels")):
+                target = r.get("Target", "").lstrip("/")
+                rels[r.get("Id")] = target if target.startswith("xl/") else "xl/" + target
+        wb = ET.fromstring(z.read("xl/workbook.xml"))
+        out = []
+        for sheet in wb.iter(f"{_XL}sheet"):
+            target = rels.get(sheet.get(_XL_REL))
+            if not target or target not in names:
+                continue
+            rows = []
+            for row in ET.fromstring(z.read(target)).iter(f"{_XL}row"):
+                cells = {}
+                for c in row.findall(f"{_XL}c"):
+                    t, v = c.get("t"), c.find(f"{_XL}v")
+                    if t == "inlineStr":
+                        val = "".join(x.text or "" for x in c.iter(f"{_XL}t"))
+                    elif v is None:
+                        continue
+                    elif t == "s":
+                        val = shared[int(v.text)]
+                    elif t == "b":
+                        val = "TRUE" if v.text == "1" else "FALSE"
+                    elif t in ("str", "e"):
+                        val = v.text or ""
+                    else:
+                        val = v.text or ""
+                        style = int(c.get("s", 0))
+                        if style in date_styles and re.match(r"^-?\d+(\.\d+)?$", val):
+                            when = dt.datetime(1899, 12, 30) + dt.timedelta(days=float(val))
+                            val = when.strftime("%Y-%m-%d %H:%M" if style in time_styles or when.time() != dt.time(0)
+                                                else "%Y-%m-%d")
+                    cells[col_index(c.get("r", "A"))] = cell_text(val)
+                if any(cells.values()):
+                    rows.append(cells)
+            out.append(f"## 工作表：{sheet.get('name', '')}\n")
+            if not rows:
+                out.append("（空表）\n")
+                continue
+            width = max(max(r) for r in rows) + 1
+            table = [[r.get(i, "") for i in range(width)] for r in rows]
+            out.append("| " + " | ".join(table[0]) + " |")
+            out.append("|" + "---|" * width)
+            out += ["| " + " | ".join(r) + " |" for r in table[1:]]
+            out.append("")
+    return "\n".join(out).strip()
+
+
 def _extract_pages(src: Path, out_dir: Path) -> dict:
     ext = src.suffix.lower()
     if ext == ".pdf":
@@ -150,6 +237,9 @@ def _extract_pages(src: Path, out_dir: Path) -> dict:
         return {"kind": "image", "page_count": 1, "text_layer": False}
     if ext == ".docx":
         (out_dir / "p001.txt").write_text(_docx_text(src), encoding="utf-8")
+        return {"kind": "text", "page_count": 1, "text_layer": True}
+    if ext in (".xlsx", ".xlsm"):
+        (out_dir / "p001.txt").write_text(_xlsx_text(src), encoding="utf-8")
         return {"kind": "text", "page_count": 1, "text_layer": True}
     if ext in TEXT_EXT:
         (out_dir / "p001.txt").write_text(src.read_text(encoding="utf-8", errors="replace"), encoding="utf-8")

@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "skills" / "cancer-buddy" / "scripts"))
 
 from cblib import organize, prepare as prep, check as chk, export as exp  # noqa: E402
-from cblib.common import load_json, write_json, iter_sidecars, rel  # noqa: E402
+from cblib.common import load_json, write_json, iter_sidecars, rel, read_frontmatter  # noqa: E402
 
 P = "04_诊断与分期/病理报告/2026-03-15_病理报告_示例医院.md"
 C = "05_影像/CT/2026-03-20_CT报告_示例医院.md"
@@ -269,6 +269,124 @@ class OrganizeFlow(unittest.TestCase):
         self.assertFalse((d / "04_诊断与分期").exists())
         self.assertTrue(list((d / "raw").glob("_legacy_*/04_诊断与分期/病理报告/old.md")))
         self.assertTrue((d / "raw" / "原件" / "p1.jpg").exists())
+
+
+class Regressions20260930(unittest.TestCase):
+    """Found running v2.0.0 on a real multi-document archive."""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        os.environ["CANCER_BUDDY_PATIENTS_DIR"] = str(self.tmp / "patients")
+        inp = self.tmp / "in"
+        inp.mkdir()
+        (inp / "a.txt").write_text("x", encoding="utf-8")
+        self.d = Path(prep.prepare([str(inp)])["patient_dir"])
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp)
+
+    def _source(self, sid, n_pages):
+        pages = self.d / ".work" / "pages" / sid
+        pages.mkdir(parents=True)
+        for i in range(1, n_pages + 1):
+            (pages / f"p{i:03d}.png").write_bytes(b"x")
+        inv = load_json(self.d / "source_inventory.json")
+        inv["files"].append({"source_id": sid, "contract": "v2", "kind": "pdf", "page_count": n_pages,
+                             "raw_path": f"raw/{sid}.pdf", "sha256": sid, "sidecar_paths": []})
+        write_json(self.d / "source_inventory.json", inv)
+
+    def test_placeholder_and_substring_identity_values_do_not_corrupt_clinical_text(self):
+        d = self.d
+        (d / "07_检验" / "x").mkdir(parents=True)
+        side = d / "07_检验" / "x" / "2026-01-01_NGS_示例.md"
+        side.write_text("---\nsource_id: s009\npages: 1\n---\nCHEK2 ENST00000404276.6; 计数 10000\n"
+                        "MRN 5550123 / Name: NINO Doe; Ninova 不是本人\n", encoding="utf-8")
+        (d / "raw" / "_identity").mkdir(parents=True, exist_ok=True)
+        write_json(d / "raw" / "_identity" / "t.json",
+                   {"names": ["Nino"], "record_numbers": ["0000", "5550123", "404"]})
+        chk.mask_identity(d)
+        text = side.read_text(encoding="utf-8")
+        self.assertIn("ENST00000404276.6", text)
+        self.assertIn("10000", text)
+        self.assertIn("MRN [病案号]", text)
+        self.assertIn("Name: [姓名] Doe", text)          # case-insensitive
+        self.assertIn("Ninova", text)                    # whole token only
+        self.assertFalse(any("仍有真实身份信息" in e for e in chk.check(d)["errors"]))
+
+    def test_cjk_names_still_masked_inside_running_text(self):
+        d = self.d
+        (d / "07_检验" / "x").mkdir(parents=True)
+        side = d / "07_检验" / "x" / "2026-01-01_血常规_示例.md"
+        side.write_text("---\nsource_id: s009\npages: 1\n---\n患者张某某示例女士\n", encoding="utf-8")
+        (d / "raw" / "_identity").mkdir(parents=True, exist_ok=True)
+        write_json(d / "raw" / "_identity" / "t.json", {"names": ["张某某示例"]})
+        chk.mask_identity(d)
+        self.assertIn("患者[姓名]女士", side.read_text(encoding="utf-8"))
+
+    def test_small_sources_are_not_split_across_tasks(self):
+        self._source("s050", 10)
+        self._source("s051", 3)                          # 10 + 3 > 12: s051 must start a new task
+        self._source("s052", 2)
+        tasks = organize.next_step(self.d)["tasks"]
+        split = [sid for sid in ("s050", "s051", "s052")
+                 if sum(sid in Path(t["prompt_file"]).read_text(encoding="utf-8") for t in tasks) > 1]
+        self.assertEqual(split, [])
+        self.assertTrue(all(t["images"] <= organize.MAX_IMAGES_PER_TASK for t in tasks))
+
+    def test_long_source_split_gives_previous_page_and_continuation_merges(self):
+        self._source("s060", 20)
+        tasks = [t for t in organize.next_step(self.d)["tasks"] if "s060" in Path(t["prompt_file"]).read_text(encoding="utf-8")]
+        self.assertEqual(len(tasks), 2)
+        second = Path(tasks[1]["prompt_file"]).read_text(encoding="utf-8")
+        self.assertIn("第 12 页（上一页", second)
+        T = self.d / ".work" / "transcripts"
+        transcript(self.d, "s060_p1-12.md", "s060", "1-12", "NGS报告", "2026-06-25", "06_分子与组学/NGS报告", "## 第 1 页\n头")
+        (T / "s060_p13-20.md").write_text("---\nsource_id: s060\npages: 13-20\ndoc_kind: NGS报告\ndoc_date: 2026-06-25\n"
+                                         "institution: \nbucket: 06_分子与组学/NGS报告\ncontinues: true\nread: vision\n---\n"
+                                         "## 第 13 页\n尾\n", encoding="utf-8")
+        transcript(self.d, "s001.md", "s001", "1", "记录", "", "15_其他资料/记录", "x")
+        placed = organize.place(self.d)["placed"]
+        ngs = [p for p in placed if "NGS" in p]
+        self.assertEqual(len(ngs), 1)
+        meta, body = read_frontmatter((self.d / ngs[0]).read_text(encoding="utf-8"))
+        self.assertEqual(meta["pages"], "1-20")
+        self.assertNotIn("continues", meta)
+        self.assertIn("头", body)
+        self.assertIn("尾", body)
+        self.assertEqual(organize.next_step(self.d)["stage"], "synthesize")    # every page covered
+
+    def test_continuation_without_a_matching_previous_page_stays_separate(self):
+        T = self.d / ".work" / "transcripts"
+        (T / "s001_p1.md").write_text("---\nsource_id: s001\npages: 1\ndoc_kind: 记录\ndoc_date: \n"
+                                      "institution: \nbucket: 15_其他资料/记录\ncontinues: true\nread: text_only\n---\nx\n",
+                                      encoding="utf-8")
+        placed = organize.place(self.d)["placed"]
+        self.assertEqual(len(placed), 1)
+        self.assertNotIn("continues", read_frontmatter((self.d / placed[0]).read_text(encoding="utf-8"))[0])
+
+    def test_xlsx_is_read_as_text_with_real_dates(self):
+        x = self.tmp / "in2" / "labs.xlsx"
+        x.parent.mkdir()
+        ns = 'xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"'
+        rns = 'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"'
+        with zipfile.ZipFile(x, "w") as z:
+            z.writestr("xl/workbook.xml", f'<workbook {ns} {rns}><sheets><sheet name="化验" sheetId="1" r:id="rId1"/></sheets></workbook>')
+            z.writestr("xl/_rels/workbook.xml.rels",
+                       '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+                       '<Relationship Id="rId1" Target="worksheets/sheet1.xml" Type="x"/></Relationships>')
+            z.writestr("xl/sharedStrings.xml", f'<sst {ns}><si><t>项目</t></si><si><t>CA19-9</t></si><si><t>日期</t></si></sst>')
+            z.writestr("xl/styles.xml", f'<styleSheet {ns}><cellXfs><xf numFmtId="0"/><xf numFmtId="14"/></cellXfs></styleSheet>')
+            z.writestr("xl/worksheets/sheet1.xml",
+                       f'<worksheet {ns}><sheetData>'
+                       '<row r="1"><c r="A1" t="s"><v>0</v></c><c r="B1" t="s"><v>2</v></c><c r="C1" t="inlineStr"><is><t>值</t></is></c></row>'
+                       '<row r="2"><c r="A2" t="s"><v>1</v></c><c r="B2" s="1"><v>45000</v></c><c r="C2"><v>88</v></c></row>'
+                       '</sheetData></worksheet>')
+        r = prep.prepare([str(x)], patient_dir=str(self.d))
+        self.assertEqual(r["added"][0]["kind"], "text")
+        sid = r["added"][0]["source_id"]
+        txt = (self.d / ".work" / "pages" / sid / "p001.txt").read_text(encoding="utf-8")
+        self.assertIn("## 工作表：化验", txt)
+        self.assertIn("| CA19-9 | 2023-03-15 | 88 |", txt)
 
 
 class ExportGuards(unittest.TestCase):

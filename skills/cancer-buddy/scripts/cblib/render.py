@@ -254,30 +254,17 @@ def _table(head, rows, cls="") -> str:
 
 
 def _identity_values(pd):
-    vals = set()
-    for f in [pd / "raw" / "_identity.json"] + sorted((pd / "raw" / "_identity").glob("*.json")):
-        data = load_json(f, {}) if f.exists() else {}
-
-        def walk(o):
-            if isinstance(o, dict):
-                for v in o.values():
-                    walk(v)
-            elif isinstance(o, list):
-                for v in o:
-                    walk(v)
-            elif isinstance(o, (str, int)) and not isinstance(o, bool):
-                s = str(o).strip()
-                if len(s) >= 2:
-                    vals.add(s)
-        walk(data)
+    from .check import load_identity
+    vals = {v for vs in load_identity(pd).values() for v in vs}
     return sorted(vals, key=len, reverse=True)
 
 
 def _mask(pd, text) -> str:
     """Last line of defence: identity strings never reach a rendered page."""
+    from .check import _identity_re
     for v in _identity_values(pd):
         for form in {v, _e(v)}:
-            text = text.replace(form, "[已遮蔽]")
+            text = _identity_re(form).sub("[已遮蔽]", text)
     return text
 
 

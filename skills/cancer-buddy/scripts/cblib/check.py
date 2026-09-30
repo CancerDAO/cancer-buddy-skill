@@ -102,9 +102,29 @@ def load_identity(patient_dir: Path) -> dict:
         for k, vals in data.items():
             for v in vals if isinstance(vals, list) else [vals]:
                 v = str(v or "").strip()
-                if len(v) >= 2:
+                if _usable_identity(v):
                     merged.setdefault(k, set()).add(v)
     return merged
+
+
+def _usable_identity(v: str) -> bool:
+    """Drop values that cannot identify anyone but would hit clinical text: "0000", "XX", "123"."""
+    core = re.sub(r"[\s\-_/.:]", "", v)
+    if len(core) < 2 or len(set(core.lower())) == 1:
+        return False
+    return not (core.isdigit() and len(core) < 5)
+
+
+def _identity_re(value: str):
+    """Match a whole identity token: an ASCII letter/digit edge must not touch another one.
+    Stops a short record number such as "0000" matching inside ENST00000404276.6 or a longer number;
+    CJK edges stay unbounded because Chinese text has no word separators."""
+    pat = re.escape(value)
+    if re.match(r"[A-Za-z0-9]", value[0]):
+        pat = r"(?<![A-Za-z0-9])" + pat
+    if re.match(r"[A-Za-z0-9]", value[-1]):
+        pat += r"(?![A-Za-z0-9])"
+    return re.compile(pat, re.IGNORECASE)
 
 
 def _derived_files(patient_dir: Path):
@@ -126,14 +146,14 @@ def mask_identity(patient_dir) -> int:
     ident = load_identity(patient_dir)
     pairs = sorted(((v, IDENTITY_PLACEHOLDER.get(k, "[身份信息]")) for k, vs in ident.items() for v in vs),
                    key=lambda x: -len(x[0]))
+    pairs = [(_identity_re(v), ph) for v, ph in pairs]
     total = 0
     for p in _derived_files(patient_dir):
         text = p.read_text(encoding="utf-8", errors="replace")
         new = text
-        for value, ph in pairs:
-            if value in new:
-                total += new.count(value)
-                new = new.replace(value, ph)
+        for rx, ph in pairs:
+            new, n = rx.subn(ph, new)
+            total += n
         for rx, ph in ((ID_RE, "[证件号]"), (PHONE_RE, "[电话]")):
             new, n = rx.subn(ph, new)
             total += n
@@ -275,10 +295,10 @@ def check(patient_dir) -> dict:
 
     # Identity leaks (after masking there should be none).
     ident = load_identity(patient_dir)
-    values = [v for vs in ident.values() for v in vs]
+    patterns = [_identity_re(v) for vs in ident.values() for v in vs]
     for p in _derived_files(patient_dir):
         text = p.read_text(encoding="utf-8", errors="replace")
-        hit = [v for v in values if v in text]
+        hit = [rx for rx in patterns if rx.search(text)]
         if hit:
             errors.append(f"{rel(patient_dir, p)} 里仍有真实身份信息（{len(hit)} 处）")
 

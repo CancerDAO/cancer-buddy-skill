@@ -1,6 +1,6 @@
 ---
 name: cancer-buddy-organize
-description: "把患者的病历（PDF、照片、扫描件、Word、压缩包）整理成带出处的患者档案和一页病情简要总结。只记录报告写了什么，不推断诊断、分期、ECOG、疗效、线次或预后。Organize medical records into a source-traceable patient archive. Triggers on 病历整理, 整理报告, 帮我整理这些资料, 我有一堆检查单, 追加报告, organize medical records."
+description: "把患者的病历（PDF、照片、扫描件、Word、Excel、压缩包）整理成带出处的患者档案和一页病情简要总结。只记录报告写了什么，不推断诊断、分期、ECOG、疗效、线次或预后。Organize medical records into a source-traceable patient archive. Triggers on 病历整理, 整理报告, 帮我整理这些资料, 我有一堆检查单, 追加报告, organize medical records."
 ---
 
 # 病历整理
