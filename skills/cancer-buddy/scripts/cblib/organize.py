@@ -9,7 +9,7 @@ from pathlib import Path
 
 from . import VERSION
 from .common import (load_json, write_json, read_frontmatter, write_frontmatter, now_iso, today,
-                     sha256_text, iter_sidecars, rel, buckets, profile_locale, ORGANIZE_PROMPTS,
+                     sha256_text, sha256_file, iter_sidecars, rel, buckets, profile_locale, ORGANIZE_PROMPTS,
                      BUCKET_DIR_RE, UNRELATED_DIR_RE)
 
 MAX_IMAGES_PER_TASK = 12
@@ -134,6 +134,8 @@ def _transcribe_tasks(patient_dir: Path, inv: dict, covered: dict) -> list:
     template = (ORGANIZE_PROMPTS / "transcribe.md").read_text(encoding="utf-8")
     task_dir = patient_dir / ".work" / "tasks"
     task_dir.mkdir(parents=True, exist_ok=True)
+    report_dir = patient_dir / ".work" / "reports"
+    report_dir.mkdir(parents=True, exist_ok=True)
     for old in task_dir.glob("transcribe-*.md"):
         old.unlink()
     out = []
@@ -164,10 +166,18 @@ def _transcribe_tasks(patient_dir: Path, inv: dict, covered: dict) -> list:
             "PAGES": "\n".join(lines),
             "OUT_DIR": patient_dir / ".work" / "transcripts",
             "IDENTITY_FILE": patient_dir / "raw" / "_identity" / f"{task_id}.json",
+            "REPORT_FILE": report_dir / f"{task_id}.md",
             "DRAWERS": drawer_lines, "OTHER": b["other"], "UNRELATED": b["unrelated"],
         })
         path = task_dir / f"{task_id}.md"
         path.write_text(body, encoding="utf-8")
+        # What was handed to the worker, so a transcript can be re-checked after page images are deleted.
+        write_json(report_dir / f"{task_id}.dispatch.json", {
+            "task_id": task_id, "dispatched_at": now_iso(),
+            "pages": [{"source_id": sid, "page": page,
+                       "image_sha256": sha256_file(img) if img else None,
+                       "text_layer_chars": len(txt.read_text(encoding="utf-8", errors="replace")) if txt else 0}
+                      for sid, page, img, txt in group]})
         out.append({"task_id": task_id, "prompt_file": str(path),
                     "pages": sum(1 for _ in group), "images": sum(1 for g in group if g[2])})
     return out
@@ -246,8 +256,10 @@ def review_payload(patient_dir: Path) -> dict:
     profile = load_json(patient_dir / "profile.json") or {}
     unrelated = [rel(patient_dir, p) for p in iter_sidecars(patient_dir) if UNRELATED_DIR_RE.match(rel(patient_dir, p))]
     missing = load_json(patient_dir / "missing_items.json") or {}
+    fn_review = patient_dir / "raw" / "_FILENAME_REVIEW.md"
     return {
         "acute_findings": [a for a in acute if a.get("acuity") in ("emergent", "urgent")],
+        "advisory_findings": [a for a in acute if a.get("acuity") == "advisory"],
         "one_line_condition": (profile.get("summary") or {}).get("one_line_condition"),
         "latest_source_date": readiness.get("latest_source_date"),
         "days_since_latest": readiness.get("days_since_latest"),
@@ -260,6 +272,10 @@ def review_payload(patient_dir: Path) -> dict:
         "unresolved_check_errors": (meta.get("check") or {}).get("errors") or [],
         "check_warnings": (meta.get("check") or {}).get("warnings") or [],
         "skipped_inputs": [s["reason"] for s in (load_json(patient_dir / "source_inventory.json") or {}).get("skipped_inputs") or []],
+        "filename_review": rel(patient_dir, fn_review) if fn_review.exists() else None,
+        "secondary_materials": [rel(patient_dir, p) for p in iter_sidecars(patient_dir)
+                                if str(read_frontmatter(p.read_text(encoding="utf-8", errors="replace"))[0]
+                                       .get("evidence") or "").lower() == "secondary"],
     }
 
 
@@ -365,8 +381,10 @@ def place(patient_dir) -> dict:
             continue
         bucket = resolve_bucket(meta.get("bucket"), meta.get("doc_kind", ""), locale)
         meta["bucket"] = bucket
-        date = meta.get("doc_date") or "日期不详"
-        name = f"{_safe(date, '日期不详')}_{_safe(meta.get('doc_kind', '').replace('novel:', ''), '文书')}_{_safe(meta.get('institution'), '机构不详')}.md"
+        from .check import mask_name
+        date = meta.get("exam_date") or meta.get("doc_date") or "日期不详"
+        inst = mask_name(patient_dir, meta.get("institution") or "")
+        name = f"{_safe(date, '日期不详')}_{_safe(meta.get('doc_kind', '').replace('novel:', ''), '文书')}_{_safe(inst, '机构不详')}.md"
         dest = patient_dir / bucket / name
         if dest.exists():
             dest = dest.with_name(dest.stem + f"_{meta['source_id']}" + ".md")
@@ -460,7 +478,7 @@ def _drop_sidecar_ref(patient_dir: Path, sidecar: str) -> None:
 # --- finish ------------------------------------------------------------------------------
 
 def finish(patient_dir) -> dict:
-    from .check import check, mask_identity, freshness
+    from .check import check, mask_identity, freshness, dob_flag
     patient_dir = Path(patient_dir)
     synth = load_json(patient_dir / ".work" / "synth_done.json") or {}
     before = inputs_digest(patient_dir)
@@ -470,6 +488,9 @@ def finish(patient_dir) -> dict:
         synth["inputs_digest"] = inputs_digest(patient_dir)
         write_json(patient_dir / ".work" / "synth_done.json", synth)
     freshness(patient_dir)
+    dob_flag(patient_dir)
+    log_warnings = _write_transcription_log(patient_dir)
+    _write_filename_review(patient_dir)
     _write_index(patient_dir)
     _write_agents_md(patient_dir)
 
@@ -481,6 +502,7 @@ def finish(patient_dir) -> dict:
         html_error = f"病情简要总结.html 渲染失败：{e}"
 
     result = check(patient_dir)
+    result["warnings"] += log_warnings
     if html_error:
         result["errors"].append(html_error)
     digest = inputs_digest(patient_dir)
@@ -511,6 +533,65 @@ def finish(patient_dir) -> dict:
     })
     return {"errors": result["errors"], "warnings": result["warnings"], "masked": masked,
             "html": "病情简要总结.html" if (patient_dir / "病情简要总结.html").exists() else None}
+
+
+def _write_transcription_log(patient_dir: Path) -> list:
+    """Fold dispatch records and worker reports into transcription_log.md. Returns warnings."""
+    rdir = patient_dir / ".work" / "reports"
+    lines = ["# 转写记录", "",
+             "每个转写任务派给了哪些页、页图的哈希（页图整理结束后删除，可从 raw/ 原件重新渲染后比对），以及转写员留下的说明。", ""]
+    warnings = []
+    for d in sorted(rdir.glob("*.dispatch.json")) if rdir.exists() else []:
+        info = load_json(d) or {}
+        tid = info.get("task_id") or d.name.split(".")[0]
+        lines += [f"## {tid}", "", f"派出时间：{info.get('dispatched_at', '')}", "",
+                  "| 原件 | 页 | 页图 sha256 | 文本层字数 |", "|---|---|---|---|"]
+        lines += [f"| {pg.get('source_id')} | {pg.get('page')} | {pg.get('image_sha256') or '无图'} | {pg.get('text_layer_chars', 0)} |"
+                  for pg in info.get("pages") or []]
+        rep = rdir / f"{tid}.md"
+        if rep.exists() and rep.read_text(encoding="utf-8", errors="replace").strip():
+            body = rep.read_text(encoding="utf-8", errors="replace").strip()
+            lines += ["", "### 转写员说明", "", body.replace("\n# ", "\n#### ").replace("\n## ", "\n#### ")]
+        else:
+            lines += ["", "（转写员没有留下说明）"]
+            warnings.append(f"转写任务 {tid} 没有留下转写说明（.work/reports/{tid}.md）")
+        lines.append("")
+    (patient_dir / "transcription_log.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return warnings
+
+
+def _write_filename_review(patient_dir: Path) -> None:
+    """Original file name vs what the transcript says it is. Controlled (raw/): names may carry identity."""
+    mapping = patient_dir / "raw" / "_FILENAME_MAPPING.md"
+    if not mapping.exists():
+        return
+    names = {}
+    for line in mapping.read_text(encoding="utf-8").splitlines():
+        m = re.match(r"^\|\s*(s\d+)\s*\|\s*(.+?)\s*\|$", line)
+        if m:
+            names[m.group(1)] = m.group(2)
+    inv = load_json(patient_dir / "source_inventory.json") or {"files": []}
+    rows, mismatches = [], 0
+    for f in inv["files"]:
+        sid = f["source_id"]
+        kinds, dates = [], set()
+        for sp in f.get("sidecar_paths") or []:
+            q = patient_dir / sp
+            if q.exists():
+                meta, _ = read_frontmatter(q.read_text(encoding="utf-8", errors="replace"))
+                if meta.get("doc_kind"):
+                    kinds.append(meta["doc_kind"])
+                dates |= {meta[k] for k in ("exam_date", "doc_date") if meta.get(k)}
+        name = names.get(sid, "")
+        m = re.search(r"(20\d{2})[-_.]?(\d{2})[-_.]?(\d{2})", Path(name).name)
+        note = ""
+        if m and dates and f"{m.group(1)}-{m.group(2)}-{m.group(3)}" not in dates:
+            note = "文件名里的日期与报告日期不一致"
+            mismatches += 1
+        rows.append(f"| {sid} | {name} | {'；'.join(kinds) or f.get('kind', '')} | {'、'.join(sorted(dates))} | {note} |")
+    text = ("# 原始文件名与内容对照（仅限本机，受控）\n\n整理员逐行看一眼：文件名说的和报告实际是什么对不上的，告诉用户。\n\n"
+            "| source_id | 原始文件名 | 报告实际是 | 报告上的日期 | 脚本提示 |\n|---|---|---|---|---|\n" + "\n".join(rows) + "\n")
+    (patient_dir / "raw" / "_FILENAME_REVIEW.md").write_text(text, encoding="utf-8")
 
 
 def _write_index(patient_dir: Path) -> None:

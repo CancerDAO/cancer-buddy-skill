@@ -29,7 +29,8 @@
 | `patient_summary.json` | 诊断、人口学、当前状态的权威汇总（含第二原发 `additional_primaries`） |
 | `acute_findings.json` | 急性发现；`findings: []` 表示查过、没有 |
 | `molecular.json` | 基因变异、胚系、药物基因组、免疫组化、MSI/MMR/TMB、HLA |
-| `labs.json` | 检验值序列，带该次报告的单位、参考范围、异常标记 |
+| `labs.json` | 检验值序列，带该次报告的单位、参考范围、原始标记 `report_flag` 和固定词 `flag_normalized`（high/low/normal/critical_high/critical_low/abnormal） |
+| `imaging_findings.json` | 每份影像报告按部位逐条的所见原文（含“相仿/未变”的旧病灶和阴性部位）、检查日期、对比片 |
 | `treatment_lines.json` | 治疗经过，一个方案的一个疗程一条，带 `status_basis` |
 | `timeline.json` / `timeline.md` | 时间线 |
 | `comorbidities.json` | 合并症、用药（含给药场景）、过敏 |
@@ -38,6 +39,7 @@
 | `missing_items.json` | 已知缺的文书或缺页（不是检查建议） |
 | `source_inventory.json` | 原件 ↔ 转写稿 ↔ 页数 ↔ 哈希 |
 | `update_log.json` / `organize_meta.json` | 整理记录、版本和检查结果 |
+| `transcription_log.md` | 每个转写任务派了哪些页、页图哈希、转写员说明（页图已删，可从原件重新渲染后比对） |
 | `case_text.md` | 带锚点的病情叙事 |
 | `review_summary.md` | 给患者看的一页抽检摘要 |
 | `INDEX.md` / `AGENTS.md` | 文件清单 / 给 agent 的读取指引 |
@@ -45,7 +47,7 @@
 | `library/index.json` | 患者专属资料库 |
 | `share_log.json` | vault 导出记录（接收方、目的、到期、文件） |
 | `gap_asks.json` | "要不要补某份资料"的询问记录（同一项最多问两次） |
-| `01_…14_/<子类>/…md` | 转写稿（已遮蔽身份信息），抽屉见 [buckets.json](buckets.json) |
+| `01_…14_/<子类>/…md` | 转写稿（已遮蔽身份信息），抽屉见 [buckets.json](buckets.json)。front matter 的 `exam_date` 是检查/采样日，`doc_date` 是报告日；`evidence: secondary` 是人整理的二手材料，不当事实出处 |
 | `15_其他资料/<类型>/…md` | 规则外的材料，全文照样入库 |
 | `10_随访与监测/团队交代/` | 治疗团队的书面交代，检索时优先看 |
 | `99_无关文件/` `raw/` `.work/` | 不读 |
@@ -55,13 +57,14 @@
 - 每条结构化记录有 `provenance_layer`（报告原文 / 患者自述 / 家属自述 / 系统规范化 / 旧档摘录）和 `verification_status`（未核实 / 医生确认 / 有冲突）。转述时说清是谁说的："报告上写着…" 和 "你家属提到…" 不混在一起。
 - `disputed`：把各个取值和出处都列出来，不替用户选。
 - 转写稿里的 `{?X|Y}` 表示看不清：字面读作 X，也可能是 Y；`{?X}` 表示读作 X 但不确定。对用户说"这里原件不清楚，读作 X（也可能是 Y），建议对照原件或问医生"。
+- 转写稿和 JSON 里的 `[姓名]` `[出生日期]` `[医生]` `[病案号]` `[单号]` 是遮蔽后的占位，不要设法还原。
 - `labs.json` 里 `value: null` 而有 `candidate_value` 的，是表格没对齐时的未核实读数，不当数值用。
 - `readiness.json` 的 `review_flags[].severity`（red/yellow/info）指"这个字段能不能当确定事实用"，不是病情轻重。
 - `days_since_latest` 超过 14 天时，提醒一句"最新资料是 X 日的，之后有没有新检查？"
 
 ## 5. 急性发现放在最前面
 
-`acute_findings.json` 里有记录时，在回答任何问题之前先列出：报告原文 + 检查日期 + 出处，说"这是报告里写到的、需要尽快告知治疗团队的发现"。不解释原因，不判断严重程度，不给处理建议。`verbatim_is_translation` 为真的标"转述，非报告原句"。文件不存在表示"还没检查过"，不等于"没有"。
+`acute_findings.json` 里 `acuity` 为 `emergent` / `urgent` 的记录，在回答任何问题之前先列出：报告原文 + 检查日期 + 出处，说"这是报告里写到的、需要尽快告知治疗团队的发现"。不解释原因，不判断严重程度，不给处理建议。`verbatim_is_translation` 为真的标"转述，非报告原句"。`advisory`（报告写的复查提示）和 `incidental` 不放进这一段，相关时再提。文件不存在表示"还没检查过"，不等于"没有"。
 
 ## 6. 锚点
 

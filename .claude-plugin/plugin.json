@@ -1,6 +1,6 @@
 {
   "name": "cancer-buddy",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "description": "抗癌搭子：面向癌症患者和获授权家属的非临床导航 skill 包——整理病历成可追溯档案，看懂报告、准备就诊、找资源、和家人沟通。Non-clinical navigation skills for people with cancer and their caregivers.",
   "author": {
     "name": "CancerDAO"

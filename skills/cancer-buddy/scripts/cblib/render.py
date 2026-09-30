@@ -66,7 +66,12 @@ STRINGS = {
         "biomarkers": "其他标志物（原文）", "sample": "样本",
         "labs_h": "近期检验", "labs_none": "档案中没有检验结果。", "item": "项目", "date": "日期",
         "result": "结果", "unit": "单位", "range": "参考范围（该次报告）", "flag": "报告标记",
-        "misaligned": "表格对不齐，读数未核实", "labs_note": "每项列出最近 3 次；参考范围和标记照抄各次报告。",
+        "misaligned": "表格对不齐，读数未核实",
+        "labs_note": "每项只列最近一次，只列报告标了异常的项目和肿瘤标志物；参考范围照抄该次报告。",
+        "labs_rest": "另有 {n} 项最近一次未标异常，未列出；完整记录见档案 labs.json 和趋势图。",
+        "labs_prev": "上次 {v}（{d}）",
+        "flag_words": {"high": "高", "low": "低", "critical_high": "危急（高）", "critical_low": "危急（低）", "abnormal": "异常", "normal": "正常"},
+        "advisory_h": "报告里写的复查提示", "img_h": "最近一次影像所见（原文）", "img_note": "照抄报告的 Findings；未写异常的部位不列。",
         "tx_h": "治疗经过", "tx_none": "档案中没有治疗记录。", "regimen": "方案", "period": "起止",
         "cycles": "周期（原文）", "line": "线次（原文）", "status": "状态（依据）",
         "response": "医生记录的疗效（原文）", "reason": "换方案原因（原文）", "current": "当前方案",
@@ -115,7 +120,12 @@ STRINGS = {
         "labs_h": "Recent lab results", "labs_none": "No lab results in the record.", "item": "Test",
         "date": "Date", "result": "Result", "unit": "Unit", "range": "Reference range (that report)",
         "flag": "Report flag", "misaligned": "table misaligned; reading unverified",
-        "labs_note": "Up to the 3 most recent results per test; ranges and flags as printed on each report.",
+        "labs_note": "Latest result per test only, listing tests the report flagged abnormal and tumour markers; ranges as printed.",
+        "labs_rest": "{n} other test(s) not flagged on their latest result are not listed; see labs.json and the charts.",
+        "labs_prev": "previous {v} ({d})",
+        "flag_words": {"high": "high", "low": "low", "critical_high": "critical (high)", "critical_low": "critical (low)", "abnormal": "abnormal", "normal": "normal"},
+        "advisory_h": "Re-test notes written in the reports", "img_h": "Latest imaging findings (verbatim)",
+        "img_note": "Copied from the report's Findings; organs with nothing abnormal are left out.",
         "tx_h": "Treatment history", "tx_none": "No treatment records in the file.", "regimen": "Regimen",
         "period": "Dates", "cycles": "Cycles (verbatim)", "line": "Line (verbatim)", "status": "Status (basis)",
         "response": "Response as written by clinician", "reason": "Reason for change (verbatim)",
@@ -169,7 +179,14 @@ def _e(s) -> str:
 
 
 def _txt(ctx, s) -> str:
-    """Escape, then turn {?X|Y} markers into 待核对 prose (X, Y already escaped)."""
+    """Escape, then turn {?X|Y} markers into 待核对 prose (X, Y already escaped).
+    Structured values (a worker wrote {"verbatim": …} where text was expected) render by their text, never repr."""
+    if isinstance(s, dict):
+        s = _scalar(s)
+        if s is None:
+            return ""
+    if isinstance(s, list):
+        return _e(ctx.t("list_sep")).join(_txt(ctx, x) for x in s if _scalar(x) not in (None, ""))
     esc = _e(s)
 
     def sub(m):
@@ -185,7 +202,7 @@ def _missing(ctx) -> str:
 
 def _scalar(v):
     if isinstance(v, dict):
-        for k in ("text", "name", "site", "primary", "value", "result_verbatim", "label"):
+        for k in ("text", "verbatim", "name", "site", "primary", "value", "result_verbatim", "label"):
             if v.get(k) not in (None, ""):
                 return v[k]
         return None
@@ -345,9 +362,17 @@ def _stale(ctx, readiness) -> str:
 
 
 def _acute(ctx, af) -> str:
-    items = [f for f in af.get("findings") or [] if isinstance(f, dict)]
+    allf = [f for f in af.get("findings") or [] if isinstance(f, dict)]
+    items = [f for f in allf if f.get("acuity") in (None, "", "emergent", "urgent")]
+    advisory = [f for f in allf if f.get("acuity") == "advisory"]
+    adv = ""
+    if advisory:
+        lis = [f'<li>{_txt(ctx, f.get("label"))}{_e(ctx.t("colon"))}<span class="quote">“{_txt(ctx, f.get("verbatim_text"))}”</span>'
+               f'<span class="asof">{_e(f.get("exam_date") or f.get("report_date") or ctx.t("unknown_date"))}</span>'
+               f'{_src(ctx, _refs(f))}</li>' for f in advisory]
+        adv = f'<section><h2>{_e(ctx.t("advisory_h"))}</h2><ul>{"".join(lis)}</ul></section>'
     if not items:
-        return ""
+        return adv
     lis = []
     for f in items:
         label = f'<b>{_txt(ctx, f.get("label"))}</b>' if f.get("label") else ""
@@ -360,7 +385,25 @@ def _acute(ctx, af) -> str:
                  if cvp.get("verbatim") else "")
         lis.append(f"<li>{label}{_e(ctx.t('colon')) if label else ''}{quote}{tr}　{date}{prior}{_src(ctx, _refs(f))}</li>")
     return (f'<section class="acute"><h2>{_e(ctx.t("acute_h"))}</h2><p>{_e(ctx.t("acute_intro"))}</p>'
-            f'<ul>{"".join(lis)}</ul></section>')
+            f'<ul>{"".join(lis)}</ul></section>') + adv
+
+
+def _imaging(ctx, img) -> str:
+    studies = [s for s in img.get("studies") or [] if isinstance(s, dict) and s.get("exam_date")]
+    if not studies:
+        return ""
+    latest = max(str(s["exam_date"]) for s in studies)
+    body = ""
+    for st in [s for s in studies if str(s["exam_date"]) == latest]:
+        lis = [f'<li><b>{_txt(ctx, f.get("system"))}</b>{_e(ctx.t("colon"))}{_txt(ctx, f.get("verbatim"))}</li>'
+               for f in st.get("findings") or [] if isinstance(f, dict) and f.get("positive") is not False and f.get("verbatim")]
+        if lis:
+            title = _txt(ctx, st.get("title") or st.get("modality") or "")
+            body += (f'<h3>{title}<span class="asof">{_e(ctx.t("exam_date"))}{_e(ctx.t("colon"))}{_e(latest)}</span>'
+                     f'{_src(ctx, _refs(st))}</h3><ul>{"".join(lis)}</ul>')
+    if not body:
+        return ""
+    return _section(ctx, "img_h", f'<p class="note">{_e(ctx.t("img_note"))}</p>' + body)
 
 
 def _changes(ctx, narr) -> str:
@@ -555,35 +598,59 @@ def _date_key(d):
     return str(d or "")
 
 
+ABNORMAL = ("critical_high", "critical_low", "high", "low", "abnormal")
+
+
 def _labs(ctx, labs) -> str:
+    """One row per test: its latest result, only when the report flagged it or it is a tumour marker."""
     panels = [p for p in labs.get("panels") or [] if isinstance(p, dict)]
-    rows = []
+    shown, rest = [], 0
     for p in panels:
         vals = sorted([v for v in p.get("values") or [] if isinstance(v, dict)],
-                      key=lambda v: _date_key(v.get("date")), reverse=True)[:3]
-        name = p.get("analyte") or p.get("normalized_analyte")
-        if p.get("normalized_analyte") and p["normalized_analyte"] not in name:
-            name = f"{name} {p['normalized_analyte']}"
-        for i, v in enumerate(vals):
-            if v.get("value") is None:
-                res = _missing(ctx)
-                if v.get("candidate_value") is not None:
-                    res += f'<span class="note">{_e(ctx.t("lp") + ctx.t("misaligned") + ctx.t("rp"))}</span>'
-            else:
-                shown = v.get("raw_value") if v.get("raw_value") not in (None, "") else v.get("value")
-                res = _txt(ctx, shown)
-                if v.get("critical_flag"):
-                    res = f'<span class="crit">{res}</span>'
-            flag = _txt(ctx, v.get("report_flag")) if v.get("report_flag") else ""
-            if v.get("critical_flag") and flag:
-                flag = f'<span class="crit">{flag}</span>'
-            rows.append([_txt(ctx, name) if i == 0 else "", _val(ctx, v.get("date")), res + _prov(ctx, v.get("provenance_layer")),
-                         _txt(ctx, v.get("unit") or ""), _txt(ctx, v.get("reference_range") or ""), flag,
-                         _src(ctx, _refs(v))])
-    if not rows:
+                      key=lambda v: _date_key(v.get("date")), reverse=True)
+        if not vals:
+            continue
+        v = vals[0]
+        flag = v.get("flag_normalized")
+        marker = p.get("category") == "tumor_marker"
+        if not (marker or flag in ABNORMAL or v.get("critical_flag")):
+            rest += 1
+            continue
+        rank = 0 if (v.get("critical_flag") or str(flag).startswith("critical")) else 1 if marker else 2
+        shown.append((rank, p, v, vals[1] if len(vals) > 1 else None))
+    if not shown:
+        if rest:
+            return _section(ctx, "labs_h", f'<p class="note">{_e(ctx.t("labs_rest", n=rest))}</p>')
         return _section(ctx, "labs_h", f'<p>{_missing(ctx)}<span class="note">　{_e(ctx.t("labs_none"))}</span></p>')
+    rows = []
+    for _, p, v, prev in sorted(shown, key=lambda x: (x[0], str(x[1].get("analyte")))):
+        name = p.get("analyte") or p.get("normalized_analyte")
+        if v.get("value") is None:                    # null value = unverified; never show raw/candidate as fact
+            res = _missing(ctx)
+            if v.get("candidate_value") is not None:
+                res += f'<span class="note">{_e(ctx.t("lp") + ctx.t("misaligned") + ctx.t("rp"))}</span>'
+        else:
+            shown_v = v.get("raw_value") if v.get("raw_value") not in (None, "") else v.get("value")
+            res = _txt(ctx, shown_v)
+            if v.get("critical_flag") or str(v.get("flag_normalized")).startswith("critical"):
+                res = f'<span class="crit">{res}</span>'
+        if prev is not None:
+            pv = prev.get("raw_value") if prev.get("raw_value") not in (None, "") else prev.get("value")
+            if prev.get("value") is None:
+                pv = ctx.t("misaligned") if prev.get("candidate_value") is not None else None
+            if pv not in (None, ""):
+                res += f'<span class="asof">{_e(ctx.t("labs_prev", v=pv, d=prev.get("date") or ctx.t("unknown_date")))}</span>'
+        fn = v.get("flag_normalized")
+        flag = _e(ctx.S["flag_words"][fn]) if fn in ctx.S["flag_words"] else _txt(ctx, v.get("report_flag") or "")
+        if flag and (v.get("critical_flag") or str(fn).startswith("critical")):
+            flag = f'<span class="crit">{flag}</span>'
+        rows.append([_txt(ctx, name), _val(ctx, v.get("date")), res + _prov(ctx, v.get("provenance_layer")),
+                     _txt(ctx, v.get("unit") or ""), _txt(ctx, v.get("reference_range") or ""), flag,
+                     _src(ctx, _refs(v))])
     head = [_e(ctx.t(k)) for k in ("item", "date", "result", "unit", "range", "flag", "source")]
-    return _section(ctx, "labs_h", f'<p class="note">{_e(ctx.t("labs_note"))}</p>' + _table(head, rows))
+    note = f'<p class="note">{_e(ctx.t("labs_note"))}</p>'
+    tail = f'<p class="note">{_e(ctx.t("labs_rest", n=rest))}</p>' if rest else ""
+    return _section(ctx, "labs_h", note + _table(head, rows) + tail)
 
 
 def _treatment(ctx, prof, ps, tx) -> str:
@@ -695,6 +762,7 @@ def render_case_summary(patient_dir, snapshot=True) -> Path:
         _basic(ctx, prof, ps, ctx.j("comorbidities.json")),
         _dx(ctx, prof, ps),
         _narrative(ctx, narr, prof, ctx.j("timeline.json")),
+        _imaging(ctx, ctx.j("imaging_findings.json")),
         _trends(ctx),
         _molecular(ctx, ctx.j("molecular.json")),
         _labs(ctx, ctx.j("labs.json")),

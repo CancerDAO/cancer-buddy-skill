@@ -138,7 +138,41 @@ class CaseSummaryTest(RenderBase):
         self.save("profile.json", prof)
         self.assertIn("待核对（读作 pT4a）N0", re.sub(r"<[^>]+>", "", self.html()))
 
+    def test_structured_text_fields_never_render_as_python_repr(self):
+        tx = self.load("treatment_lines.json")
+        tx["episodes"][0]["clinician_reported_response"] = {"verbatim": "病灶较前缩小", "source": "CT"}
+        self.save("treatment_lines.json", tx)
+        h = self.html()
+        self.assertNotIn("{&#x27;", h)
+        self.assertIn("病灶较前缩小", h)
+
+    def test_acute_box_holds_only_emergent_and_urgent(self):
+        af = self.load("acute_findings.json")
+        af["findings"].append({"finding_id": "AF-9", "label": "HCG 复查提示", "verbatim_text": "repeat in 48 hours",
+                               "acuity": "advisory", "exam_date": "2026-08-01"})
+        self.save("acute_findings.json", af)
+        h = self.html()
+        box = h.split('<section class="acute">')[1].split("</section>")[0]
+        self.assertNotIn("repeat in 48 hours", box)
+        self.assertIn("报告里写的复查提示", h)
+        self.assertIn("repeat in 48 hours", h)
+
+    def test_labs_table_is_latest_value_only(self):
+        h = self.html()
+        table = h.split("<h2>近期检验</h2>")[1].split("</section>")[0]
+        self.assertEqual(table.count("<td>中性粒细胞绝对值</td>"), 1)
+
     def test_candidate_value_never_shown(self):
+        h = self.html()
+        self.assertNotIn("2.93", h)
+        self.assertIn("中性粒细胞绝对值一栏空白", h)            # surfaced as a review item instead
+        labs = self.load("labs.json")                          # latest reading misaligned: marked in the table
+        for p in labs["panels"]:
+            for v in p["values"]:
+                if v.get("candidate_value") is not None:
+                    v["date"] = "2026-09-01"
+                    v["flag_normalized"] = "low"
+        self.save("labs.json", labs)
         h = self.html()
         self.assertNotIn("2.93", h)
         self.assertIn("表格对不齐，读数未核实", h)

@@ -40,6 +40,8 @@ def fake_synthesis(d, errors_left=True, fix_round=0):
     w("acute_findings.json", {"findings": findings})
     w("labs.json", {"panels": [{"analyte": "CEA", "values": [
         {"date": "2026-03-21", "raw_value": "6.1", "source_refs": [L + "#L9"]}]}]})
+    w("imaging_findings.json", {"studies": [{"study_id": "IMG-1", "exam_date": "2026-03-20", "source_refs": [C + "#L1-L9"],
+                                             "findings": [{"system": "肺", "verbatim": "右肺下叶考虑肺栓塞", "source_ref": C + "#L9"}]}]})
     for n, k in [("molecular.json", "variants"), ("treatment_lines.json", "episodes"), ("timeline.json", "events"),
                  ("comorbidities.json", "medications"), ("readiness.json", "review_flags"),
                  ("missing_items.json", "document_gaps")]:
@@ -387,6 +389,158 @@ class Regressions20260930(unittest.TestCase):
         txt = (self.d / ".work" / "pages" / sid / "p001.txt").read_text(encoding="utf-8")
         self.assertIn("## 工作表：化验", txt)
         self.assertIn("| CA19-9 | 2023-03-15 | 88 |", txt)
+
+
+class ReviewFindings20260930(unittest.TestCase):
+    """Second review of a real archive: masking side-effects, dates, summary length, coverage."""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        os.environ["CANCER_BUDDY_PATIENTS_DIR"] = str(self.tmp / "patients")
+        inp = self.tmp / "in"
+        inp.mkdir()
+        (inp / "a.txt").write_text("x", encoding="utf-8")
+        self.d = Path(prep.prepare([str(inp)])["patient_dir"])
+        self.CT = "05_影像/CT/2026-05-10_CT_示例医院.md"
+        (self.d / "05_影像" / "CT").mkdir(parents=True)
+        (self.d / self.CT).write_text(
+            "---\nsource_id: s009\npages: 1\ndoc_kind: CT\ndoc_date: 2026-05-11\nexam_date: 2026-05-10\n"
+            "institution: 示例医院\nbucket: 05_影像/CT\nevidence: primary\n---\n"   # lines 1-10
+            "FINDINGS:\n"                                                            # 11
+            "Liver: Similar 2 cm lesion.\n"                                          # 12
+            "Spleen: Normal.\n"                                                      # 13
+            "Bones: Similar sclerotic foci in the vertebral bodies.\n"               # 14
+            "IMPRESSION:\n"                                                          # 15
+            "1. New small effusion.\n", encoding="utf-8")                            # 16
+        (self.d / "14_患者自管补充" / "资料清单").mkdir(parents=True)
+        self.LIST = "14_患者自管补充/资料清单/2026-05-12_资料清单_示例.md"
+        (self.d / self.LIST).write_text("---\nsource_id: s010\npages: 1\ndoc_kind: 资料清单\ndoc_date: \n"
+                                        "evidence: secondary\n---\n| 日期 | 报告 |\n| 2026-05-10 | CT，肝灶 2 cm |\n", encoding="utf-8")
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp)
+
+    def _archive(self, **over):
+        d, C = self.d, self.CT
+        files = {
+            "profile.json": {"schema": "cancer_buddy_profile_v3", "patient_code": d.name, "locale": "zh",
+                             "summary": {"one_line_condition": "腺癌"}, "source_refs": []},
+            "patient_summary.json": {"diagnosis": {"primary": "腺癌", "source_refs": []}},
+            "acute_findings.json": {"findings": [{"finding_id": "AF-001", "label": "积液", "verbatim_text": "New small effusion.",
+                                                  "exam_date": "2026-05-10", "report_date": "2026-05-11",
+                                                  "source_ref": C + "#L16", "acuity": "urgent"}]},
+            "imaging_findings.json": {"studies": [{"study_id": "IMG-1", "exam_date": "2026-05-10", "title": "CT",
+                                                   "source_refs": [C + "#L11-L16"], "findings": [
+                                                       {"system": "Bones", "verbatim": "Similar sclerotic foci in the vertebral bodies.",
+                                                        "positive": True, "source_refs": [C + "#L14"]}]}]},
+            "labs.json": {"panels": []}, "molecular.json": {"variants": []}, "treatment_lines.json": {"episodes": []},
+            "timeline.json": {"events": [{"event_id": "E1", "date": "2026-05-10", "title": "CT", "source_refs": [C + "#L11-L16"]}]},
+            "comorbidities.json": {"medications": []}, "readiness.json": {"review_flags": []},
+            "missing_items.json": {"document_gaps": [{"document_category": "PET", "gap_type": "not_in_archive",
+                                                      "source_ref": self.LIST + "#L8"}]},
+        }
+        files.update(over)
+        for n, o in files.items():
+            write_json(d / n, o)
+        for n in ("case_text.md", "timeline.md", "review_summary.md"):
+            (d / n).write_text("x\n", encoding="utf-8")
+        return chk.check(d)
+
+    def test_clean_archive_has_no_errors(self):
+        self.assertEqual(self._archive()["errors"], [])
+
+    def test_report_date_instead_of_exam_date_is_an_error(self):
+        af = {"findings": [{"finding_id": "AF-001", "verbatim_text": "New small effusion.", "exam_date": "2026-05-11",
+                            "source_ref": self.CT + "#L16", "acuity": "urgent"}]}
+        tl = {"events": [{"event_id": "E1", "date": "2026-05-11", "source_refs": [self.CT + "#L11-L16"]}]}
+        errs = self._archive(**{"acute_findings.json": af, "timeline.json": tl})["errors"]
+        self.assertTrue(any("exam_date 应为检查日 2026-05-10" in e for e in errs))
+        self.assertTrue(any("是报告日" in e for e in errs))
+
+    def test_uncited_findings_line_is_an_error(self):
+        img = {"studies": [{"study_id": "IMG-1", "exam_date": "2026-05-10", "source_refs": [self.CT + "#L12-L13"], "findings": []}]}
+        errs = self._archive(**{"imaging_findings.json": img})["errors"]
+        self.assertTrue(any("#L14" in e and "漏了" in e for e in errs))
+        self.assertFalse(any("#L12" in e for e in errs))
+        errs = self._archive(**{"imaging_findings.json": {"studies": []}})["errors"]
+        self.assertTrue(any("没有收录影像报告" in e for e in errs))
+
+    def test_secondary_material_only_backs_gaps(self):
+        tl = {"events": [{"event_id": "E1", "date": "2026-05-10", "source_refs": [self.LIST + "#L8"]}]}
+        errs = self._archive(**{"timeline.json": tl})["errors"]
+        self.assertTrue(any("二手整理材料" in e for e in errs))
+        self.assertFalse(any("missing_items" in e for e in self._archive()["errors"]))
+
+    def test_flag_vocabulary(self):
+        labs = {"panels": [{"analyte": "ALT", "values": [{"date": "2026-05-10", "raw_value": "Similar", "flag_normalized": "指针落在黄色区",
+                                                          "source_refs": [self.CT + "#L12"]}]}]}
+        errs = self._archive(**{"labs.json": labs})["errors"]
+        self.assertTrue(any("flag_normalized" in e for e in errs))
+
+    def test_hash_digits_are_not_an_id_number_but_a_real_id_is(self):
+        d = self.d
+        fake = "ab" + "123456789012345678" + "c" * 44                 # 64 hex with an 18-digit run
+        inv = load_json(d / "source_inventory.json")
+        inv["files"][0]["sha256"] = fake
+        write_json(d / "source_inventory.json", inv)
+        (d / "case_text.md").write_text("编号 " + fake + "；身份证 11010519491231002X；报告号 110105194912310021\n", encoding="utf-8")
+        chk.mask_identity(d)
+        self.assertEqual(load_json(d / "source_inventory.json")["files"][0]["sha256"], fake)
+        text = (d / "case_text.md").read_text(encoding="utf-8")
+        self.assertIn(fake, text)
+        self.assertIn("身份证 [证件号]", text)
+        self.assertIn("110105194912310021", text)                    # fails the check digit: not an ID
+        inv["files"][0]["sha256"] = "ab[证件号]cd"
+        write_json(d / "source_inventory.json", inv)
+        self.assertTrue(any("sha256 不是 64 位" in e for e in self._archive()["errors"]))
+
+    def test_birth_dates_urls_and_clinicians_masked_including_file_names(self):
+        d = self.d
+        (d / "raw" / "_identity").mkdir(parents=True, exist_ok=True)
+        write_json(d / "raw" / "_identity" / "t.json", {"clinician_names": ["Jane Roe"], "dates_of_birth": ["3/4/1960", "04.03.1960"]})
+        (d / self.CT).write_text((d / self.CT).read_text(encoding="utf-8") +
+                                 "DOB: 3/4/1960\nborn 04.03.1960\nReading physician: Jane Roe, MD\n"
+                                 "https://x.example/p?eorderid=WP-abc123&x=1\n", encoding="utf-8")
+        chk.mask_identity(d)
+        text = (d / self.CT).read_text(encoding="utf-8")
+        for leak in ("1960", "Jane Roe", "WP-abc123"):
+            self.assertNotIn(leak, text)
+        self.assertIn("[医生], MD", text)
+        self.assertIn("eorderid=[单号]", text)
+        self.assertEqual(chk.mask_name(d, "Radiology(Dr. Jane Roe)"), "Radiology(Dr. )")
+        chk.dob_flag(d)
+        self.assertTrue(any(f["id"] == "RF-DOB" for f in load_json(d / "readiness.json")["review_flags"]))
+        leaky = d / "05_影像" / "CT" / "2026-05-10_CT_Jane Roe.md"
+        leaky.write_text("---\nsource_id: s011\n---\nx\n", encoding="utf-8")
+        self.assertTrue(any("文件名里有真实身份信息" in e for e in self._archive()["errors"]))
+
+    def test_place_names_file_by_exam_date(self):
+        T = self.d / ".work" / "transcripts"
+        (T / "s001.md").write_text("---\nsource_id: s001\npages: 1\ndoc_kind: CT\ndoc_date: 2026-05-11\n"
+                                   "exam_date: 2026-05-10\ninstitution: 示例医院\nbucket: 05_影像/CT\n---\nx\n", encoding="utf-8")
+        placed = organize.place(self.d)["placed"]
+        self.assertTrue(placed[0].startswith("05_影像/CT/2026-05-10_"))
+
+    def test_transcription_log_and_filename_review(self):
+        d = self.d
+        rdir = d / ".work" / "reports"
+        rdir.mkdir(parents=True, exist_ok=True)
+        write_json(rdir / "transcribe-s001-p1.dispatch.json", {"task_id": "transcribe-s001-p1", "dispatched_at": "t",
+                                                               "pages": [{"source_id": "s001", "page": 1, "image_sha256": "abc"}]})
+        (rdir / "transcribe-s001-p1.md").write_text("译本与原件的 panel 大小不同。\n", encoding="utf-8")
+        write_json(rdir / "transcribe-s002-p1.dispatch.json", {"task_id": "transcribe-s002-p1", "pages": []})
+        warns = organize._write_transcription_log(d)
+        log = (d / "transcription_log.md").read_text(encoding="utf-8")
+        self.assertIn("译本与原件的 panel 大小不同", log)
+        self.assertEqual(len(warns), 1)
+        with open(d / "raw" / "_FILENAME_MAPPING.md", "a", encoding="utf-8") as f:
+            f.write("| s009 | in/20260101-CT.pdf |\n")
+        inv = load_json(d / "source_inventory.json")
+        inv["files"].append({"source_id": "s009", "sidecar_paths": [self.CT], "sha256": "0" * 64})
+        write_json(d / "source_inventory.json", inv)
+        organize._write_filename_review(d)
+        review = (d / "raw" / "_FILENAME_REVIEW.md").read_text(encoding="utf-8")
+        self.assertIn("| s009 | in/20260101-CT.pdf | CT | 2026-05-10、2026-05-11 | 文件名里的日期与报告日期不一致 |", review)
 
 
 class ExportGuards(unittest.TestCase):

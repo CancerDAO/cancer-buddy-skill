@@ -11,6 +11,9 @@
 {{NEW}}
 
 逐份读完再动笔。`conversation_notes/` 里的是用户在对话中确认的补充（患者或家属自述）。`99_无关文件` 下的不用于汇总。
+也读一遍 `.work/reports/*.md`（转写员的说明：译本与原件不一致、手写勾画、版面重排等），里面提到的真实问题要进 review_flags。
+front matter 写 `evidence: secondary` 的是**人整理的二手材料**（清单、汇总表、别人写的摘要）：只能用来发现“文书里提到但档案没有”的资料写进 missing_items.json，**不能**作为任何事实的出处，也不要把它的内容抄进别的文件。
+转写稿里的 `[姓名]` `[出生日期]` `[医生]` `[单号]` 等是遮蔽后的占位，照样保留，不要设法还原。
 
 ## 上次检查发现的问题（有就逐条修正）
 
@@ -25,6 +28,8 @@
 5. **冲突**：同一事实两份来源说法不同 → 两个都记，`verification_status: "disputed"`，同一个 `conflict_group`，并加一条 conflict flag。不挑赢家。年龄、体重、ECOG、当前状态在不同日期不同是正常变化，不算冲突；同一天矛盾或年龄倒退才算。
 6. **出处**：每一行都有 `source_refs: ["<转写稿相对路径>#L<起>-L<止>"]`，行号从 1 开始、按文件实际行计（含开头的 front matter）。对话补充用 `"conversation:<recorded_at>"`。写之前先确认那几行确实写着这件事。
 7. **缺失就是缺失**：抽不出就 null，不填“看起来合理”的值。不要写“建议做某检查”。
+8. **日期用检查日**：转写稿 front matter 有 `exam_date`（扫描、采血、取标本、手术的日子）和 `doc_date`（报告签发日）。时间线的事件日期、急性发现的 `exam_date`、影像所见的 `exam_date`、检验值的 `date` 一律用 `exam_date`；`report_date` 才用 `doc_date`。没有 `exam_date` 时才退用 `doc_date`，并把 `date_kind` 写 `reported`。
+9. **文字字段写字符串**：`clinician_reported_response`、`reason_for_change_source`、`status_basis_text`、`label`、`detail` 这类字段是一段原文字符串，不要写成对象；需要出处放进 `source_refs`。
 
 ## 要写的文件（全部写到患者目录下，覆盖旧的）
 
@@ -62,8 +67,11 @@
 `line_number` 只在原文写了“一线/二线”时填。检查申请单上写的“化疗后复查”只能是 `order_or_indication_only`，不能当给药记录。没有日期的家属自述：`status_as_of` 为 null，不借别的日期。
 
 **labs.json** — `{"panels": [{"analyte": "CEA", "normalized_analyte": "CEA", "values": [...]}]}`，每个值：
-`date, date_kind (collected|reported|unknown), value, raw_value, unit, reference_range, report_flag, critical_flag, method, candidate_value, pairing_note, source_refs, provenance_layer`。
-`raw_value` 照抄报告里的写法（如 `12.3`、`<0.5`、`{?12|112}`），必须能在引用的行里原样找到。单位、参考范围、H/L/↑↓ 标记、危急值标记用这张报告自己的，不自己判断高低。表格对不齐的那几行：`value: null`，读数放 `candidate_value`，`pairing_note` 说明；能对齐的行照常记录，不整表丢弃。
+`date, date_kind (collected|reported|unknown), value, raw_value, unit, reference_range, report_flag, flag_normalized, critical_flag, method, candidate_value, pairing_note, source_refs, provenance_layer`。
+每个 panel 另写 `category`，只能是 `tumor_marker | hematology | chemistry | coagulation | urine | endocrine | other` 之一。
+`raw_value` 照抄报告里的写法（如 `12.3`、`<0.5`、`{?12|112}`），必须能在引用的行里原样找到。单位、参考范围、H/L/↑↓ 标记、危急值标记用这张报告自己的，不自己判断高低。
+`report_flag` 照抄报告的标记（H、↑、“高于范围”等）；`flag_normalized` 把**报告自己的标记**翻成固定词：`high | low | normal | critical_high | critical_low | abnormal`，报告没有任何标记就写 null。不能拿数值和参考范围自己比出高低。
+心电图、肺功能这类功能检查的测量值（心率、PR、QRS、QT/QTc…）**不进 labs.json**：写进 `longitudinal_observations.json`，心电图原文结论记在 timeline。表格对不齐的那几行：`value: null`，读数放 `candidate_value`，`pairing_note` 说明；能对齐的行照常记录，不整表丢弃。
 
 **molecular.json** — `{"reports": [...], "variants": [...], "germline": [], "pharmacogenomics": [], "ihc": [], "msi_results": [], "mmr_results": [], "tmb_results": [], "hla_typing": []}`。
 基因报告全部转录：体细胞变异（`gene, variant, vaf_raw, classification_source, report_id, source_refs`）、胚系（含 VUS）、药物基因组、TMB/MSI、样本和质控。不加 OncoKB/CIViC 等级，不写用药建议。HLA 只写了杂合/纯合没写等位基因的：`allele: null`。
@@ -74,8 +82,13 @@
 
 **acute_findings.json** — `{"findings": [...]}`，每次都写（没有就 `[]`）。登记报告里写到的：血栓/栓塞、骨折或骨皮质中断、穿孔/游离气、写明“梗阻/闭塞”、活动性出血/新发血肿、积液（少量也登记）、肺炎或间质性改变（含未写病原的双肺/多发炎症）、危急值标记，以及影像/检验报告针对具体所见写的“建议复查/进一步检查”。
 不登记：内镜“触之易出血”、病理签发套话、基因报告免责声明和“建议加做”、没写梗阻的狭窄、肿瘤病灶本身、患者自述。
+**只记每个发现的最新状态**：同一个部位的同一种发现，后来的报告又描述过（例如早先一次 PET 写的肺间质改变，后来的 CT 又描述了同一处），只记最新那份报告的那条，前后变化写进 `change_vs_prior`；较早的那条不单独登记。
 每条：`finding_id (AF-001…), finding_class, label（人话短名）, verbatim_text（报告原句，逐字，必须能在引用行里找到）, verbatim_is_translation（外文报告只能给中文转述时 true）, exam_date, report_date, source_ref, acuity, acuity_basis, change_vs_prior {verbatim, direction}, provenance_layer`。
-`acuity`：危急值标记、“大面积/骑跨”血栓、报告写“立即/尽快” → `emergent`；上面登记类默认 `urgent`；报告写“陈旧/慢性” → `incidental`。一个病灶的一个发现记一条；同一份外院报告被几份病历复述，只记一次。
+`acuity`：危急值标记、“大面积/骑跨”血栓、报告写“立即/尽快”、报告写已发出重要结果/危急值通报 → `emergent`；上面登记类默认 `urgent`；报告写“陈旧/慢性” → `incidental`；检验单参考范围旁印的通用解释性注释（如“3–8 IU/L may indicate early pregnancy (repeat in 48 hours)”）以及没有具体病灶的“建议复查” → `advisory`（它不进“需要尽快告知”的框，单独列为复查提示）。一个病灶的一个发现记一条；同一份外院报告被几份病历复述，只记一次。
+
+**imaging_findings.json** — `{"studies": [...]}`，**每一份影像报告一条**（包括外文原件和它的译本各一条，译本标 `is_translation: true`）：
+`study_id, title（如“胸部增强 CT”）, modality, body_region, exam_date, report_date, comparison_verbatim, source_refs（整份报告的行范围）, findings: [{system（报告里的部位标题，如 Liver、Bones/soft tissues、肺）, verbatim（这一部位的原文，逐字）, change（new|increased|similar|decreased|resolved|null）, positive（这一部位写了异常就 true，只写“未见异常/No …”就 false）, source_refs}], impression: [{verbatim, source_refs}]`。
+Findings 里**每一个部位标题行**都要有一条（写着“未见异常”的部位也记，`positive: false`），“Similar/unchanged/相仿”的旧病灶一样要记，不能因为“没变”就省略。没有分部位标题的叙述式报告，按段落记。脚本会逐行核对 Findings 的部位行有没有被引用到。
 
 **longitudinal_observations.json** — `{"observations": [...]}`：同一指标有 ≥2 个可比时间点的，逐点写 `obs_type, metric, value, unit, timestamp, reference_range, method_or_device, source_ref`。
 
