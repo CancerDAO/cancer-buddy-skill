@@ -315,6 +315,16 @@ class Regressions20260930(unittest.TestCase):
         self.assertIn("Ninova", text)                    # whole token only
         self.assertFalse(any("仍有真实身份信息" in e for e in chk.check(d)["errors"]))
 
+    def test_two_letter_codes_are_not_identity(self):
+        d = self.d
+        (d / "07_检验" / "x").mkdir(parents=True)
+        side = d / "07_检验" / "x" / "2026-01-01_报告_示例.md"
+        side.write_text("---\nsource_id: s009\npages: 1\n---\nSeen at the level of L2; AT; Pat\n", encoding="utf-8")
+        (d / "raw" / "_identity").mkdir(parents=True, exist_ok=True)
+        write_json(d / "raw" / "_identity" / "t.json", {"names": ["AT", "Pat"]})
+        chk.mask_identity(d)
+        self.assertEqual(side.read_text(encoding="utf-8").splitlines()[-1], "Seen at the level of L2; AT; [姓名]")
+
     def test_cjk_names_still_masked_inside_running_text(self):
         d = self.d
         (d / "07_检验" / "x").mkdir(parents=True)

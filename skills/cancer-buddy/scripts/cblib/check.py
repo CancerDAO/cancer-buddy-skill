@@ -167,6 +167,8 @@ def _usable_identity(v: str) -> bool:
     core = re.sub(r"[\s\-_/.:]", "", v)
     if len(core) < 2 or len(set(core.lower())) == 1:
         return False
+    if core.isalpha() and core.isascii() and len(core) <= 2:   # "AT", "MD": initials/codes collide with words
+        return False
     return not (core.isdigit() and len(core) < 5)
 
 
@@ -179,7 +181,7 @@ def _identity_re(value: str):
         pat = r"(?<![A-Za-z0-9])" + pat
     if re.match(r"[A-Za-z0-9]", value[-1]):
         pat += r"(?![A-Za-z0-9])"
-    return re.compile(pat, re.IGNORECASE)
+    return re.compile(pat, re.IGNORECASE if len(value) >= 4 else 0)
 
 
 def _derived_files(patient_dir: Path):
