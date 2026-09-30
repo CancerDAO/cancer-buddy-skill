@@ -325,6 +325,13 @@ class Regressions20260930(unittest.TestCase):
         chk.mask_identity(d)
         self.assertIn("患者[姓名]女士", side.read_text(encoding="utf-8"))
 
+    def test_long_source_after_others_starts_a_fresh_task(self):
+        self._source("s070", 4)
+        self._source("s071", 20)
+        tasks = [Path(t["prompt_file"]).read_text(encoding="utf-8") for t in organize.next_step(self.d)["tasks"]]
+        self.assertEqual(sum("s071" in t for t in tasks), 2)
+        self.assertTrue(any("本任务负责第 1-12 页" in t for t in tasks))
+
     def test_small_sources_are_not_split_across_tasks(self):
         self._source("s050", 10)
         self._source("s051", 3)                          # 10 + 3 > 12: s051 must start a new task
@@ -338,7 +345,7 @@ class Regressions20260930(unittest.TestCase):
     def test_long_source_split_gives_previous_page_and_continuation_merges(self):
         self._source("s060", 20)
         tasks = [t for t in organize.next_step(self.d)["tasks"] if "s060" in Path(t["prompt_file"]).read_text(encoding="utf-8")]
-        self.assertEqual(len(tasks), 2)
+        self.assertEqual(len(tasks), 2)                  # 20 pages -> exactly one split point
         second = Path(tasks[1]["prompt_file"]).read_text(encoding="utf-8")
         self.assertIn("第 12 页（上一页", second)
         T = self.d / ".work" / "transcripts"

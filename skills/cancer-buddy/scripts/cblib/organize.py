@@ -115,7 +115,7 @@ def _transcribe_tasks(patient_dir: Path, inv: dict, covered: dict) -> list:
         by_source.setdefault(item[0], []).append(item)
     for items in by_source.values():
         src_img = sum(1 for it in items if it[2] is not None)
-        if cur and src_img <= MAX_IMAGES_PER_TASK and n_img + src_img > MAX_IMAGES_PER_TASK:
+        if cur and n_img + src_img > MAX_IMAGES_PER_TASK:   # a long source starts fresh: fewest split points
             tasks.append(cur)
             cur, n_img = [], 0
         for item in items:
