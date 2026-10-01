@@ -424,13 +424,20 @@ def add_note(patient_dir, text: str, layer: str, bucket: str, doc_date: str = ""
     dest_dir = patient_dir / drawer / "conversation_notes"
     dest_dir.mkdir(parents=True, exist_ok=True)
     stamp = at.replace(":", "").replace("-", "")[:15]
-    dest = dest_dir / f"{today()}_{'患者自述' if layer == 'patient_reported' else '家属自述'}_{stamp}.md"
-    meta = {"source_id": f"c{stamp}", "pages": "1", "doc_kind": "对话补充", "doc_date": doc_date or "",
-            "recorded_at": at, "layer": layer, "bucket": rel(patient_dir, dest_dir), "anchor": f"conversation:{at}",
+    label = '患者自述' if layer == 'patient_reported' else '家属自述'
+    # two notes recorded within the same second must not overwrite each other: suffix the file, id and anchor
+    suffix, n = "", 1
+    while (dest_dir / f"{today()}_{label}_{stamp}{suffix}.md").exists():
+        n += 1
+        suffix = f"-{n}"
+    dest = dest_dir / f"{today()}_{label}_{stamp}{suffix}.md"
+    anchor = f"conversation:{at}{suffix}"
+    meta = {"source_id": f"c{stamp}{suffix}", "pages": "1", "doc_kind": "对话补充", "doc_date": doc_date or "",
+            "recorded_at": at, "layer": layer, "bucket": rel(patient_dir, dest_dir), "anchor": anchor,
             "read": "conversation"}
     body = f"## 用户在对话中确认的陈述\n\n{text.strip()}\n"
     dest.write_text(write_frontmatter(meta, body), encoding="utf-8")
-    return {"note": rel(patient_dir, dest), "anchor": f"[[src:conversation:{at}]]"}
+    return {"note": rel(patient_dir, dest), "anchor": f"[[src:{anchor}]]"}
 
 
 def move_sidecar(patient_dir, sidecar: str, bucket: str) -> dict:

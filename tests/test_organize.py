@@ -5,6 +5,7 @@ import shutil
 import sys
 import tempfile
 import unittest
+from unittest import mock
 import zipfile
 from pathlib import Path
 
@@ -243,6 +244,16 @@ class OrganizeFlow(unittest.TestCase):
         out = organize.add_note(d, "上周开始吃奥美拉唑", "patient_reported", "08")
         self.assertTrue(out["note"].startswith("08_治疗/conversation_notes/"))
         self.assertEqual(organize.next_step(d)["stage"], "synthesize")
+
+    def test_two_notes_in_same_second_are_both_kept(self):
+        d, _ = self._full_run(errors_left=False)
+        with mock.patch.object(organize, "now_iso", return_value="2026-09-30T22:34:11+08:00"):
+            a = organize.add_note(d, "患者自述：2026-06-30 CEA 50", "patient_reported", "08", "2026-06-30")
+            b = organize.add_note(d, "患者自述：2026-07-02 CEA 20", "patient_reported", "08", "2026-07-02")
+        self.assertNotEqual(a["note"], b["note"])
+        self.assertNotEqual(a["anchor"], b["anchor"])
+        self.assertIn("CEA 50", (d / a["note"]).read_text(encoding="utf-8"))
+        self.assertIn("CEA 20", (d / b["note"]).read_text(encoding="utf-8"))
 
     def test_discard_needs_confirmation_and_keeps_raw(self):
         d, _ = self._full_run(errors_left=False)
